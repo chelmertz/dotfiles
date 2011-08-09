@@ -11,3 +11,4 @@ After the repository is updated, make sure symlinks follow the possibly new file
  - support project specific aliases
  - add zsh
  - add vim
+ - backup already existing files
