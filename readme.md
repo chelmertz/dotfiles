@@ -9,11 +9,14 @@ git submodule update
 
 After the repository is updated, make sure symlinks follow the possibly new filenames.
 
+#good to have
+ - zsh + oh-my-zsh
+ - the font inconsolata: http://www.levien.com/type/myfonts/inconsolata.html
+ - homebrew with ctags
+
 ##todo
  - support project specific aliases
  - add zsh
- - add vim
  - check if vim plugin is loaded before mapping
- - vim solarized color scheme
  - find git repos of .lvimrc (vim script 1408)
  - homebrew formulas
