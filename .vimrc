@@ -20,8 +20,15 @@ set scrolloff=6
 set smartindent
 set wildmenu
 
+" syntastic settigns
+let g:syntastic_auto_loc_list=1
+set statusline+=%#warningmsg#
+set statusline+=%{SyntasticStatuslineFlag()}
+set statusline+=%*
+nmap <Leader>e :Errors<CR>
+
 
 let mapleader=","
-" open a new terminal split
+" open a new terminal split, from vim-conque plugin
 nmap <Leader>bs :ConqueTermVSplit bash<CR>
 nmap <Leader>bv :ConqueTermTab bash<CR>
