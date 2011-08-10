@@ -17,3 +17,4 @@ After the repository is updated, make sure symlinks follow the possibly new file
  - check if vim plugin is loaded before mapping
  - vim solarized color scheme
  - find git repos of .lvimrc (vim script 1408)
+ - vim remember marker position of latest opened file

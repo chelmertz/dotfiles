@@ -1,3 +1,6 @@
 [submodule "vim-bundles/vim-conque"]
 	path = vim-bundles/vim-conque
 	url = https://github.com/rson/vim-conque.git
+[submodule "vim-bundles/quicksilver.vim"]
+	path = vim-bundles/quicksilver.vim
+	url = https://github.com/Bogdanp/quicksilver.vim.git
