@@ -10,3 +10,6 @@
 [submodule "vim-bundles/matchit.zip"]
 	path = vim-bundles/matchit.zip
 	url = https://github.com/vim-scripts/matchit.zip.git
+[submodule "vim-bundles/supertab"]
+	path = vim-bundles/supertab
+	url = https://github.com/ervandew/supertab.git
