@@ -1,15 +1,15 @@
-[submodule "vim-bundles/vim-conque"]
-	path = vim-bundles/vim-conque
-	url = https://github.com/rson/vim-conque.git
-[submodule "vim-bundles/quicksilver.vim"]
-	path = vim-bundles/quicksilver.vim
-	url = https://github.com/Bogdanp/quicksilver.vim.git
-[submodule "vim-bundles/nerdcommenter"]
-	path = vim-bundles/nerdcommenter
-	url = https://github.com/scrooloose/nerdcommenter.git
-[submodule "vim-bundles/matchit.zip"]
-	path = vim-bundles/matchit.zip
+[submodule ".vim/bundle/matchit.zip"]
+	path = .vim/bundle/matchit.zip
 	url = https://github.com/vim-scripts/matchit.zip.git
-[submodule "vim-bundles/supertab"]
-	path = vim-bundles/supertab
+[submodule ".vim/bundle/nerdommenter"]
+	path = .vim/bundle/nerdommenter
+	url = https://github.com/scrooloose/nerdcommenter.git
+[submodule ".vim/bundle/quicksilver.vim"]
+	path = .vim/bundle/quicksilver.vim
+	url = https://github.com/Bogdanp/quicksilver.vim.git
+[submodule ".vim/bundle/supertab"]
+	path = .vim/bundle/supertab
 	url = https://github.com/ervandew/supertab.git
+[submodule ".vim/bundle/vim-conque"]
+	path = .vim/bundle/vim-conque
+	url = https://github.com/rson/vim-conque.git
