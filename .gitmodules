@@ -1,0 +1,3 @@
+[submodule "vim-bundles/vim-conque"]
+	path = vim-bundles/vim-conque
+	url = https://github.com/rson/vim-conque.git
