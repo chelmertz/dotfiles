@@ -10,12 +10,13 @@ filetype indent on
 :autocmd CursorMoved * silent! exe printf('match IncSearch /\<%s\>/', expand('<cword>'))
 
 set autoindent
-set smartindent
-set number
-set laststatus=2
-set scrolloff=6
-set incsearch
 set hlsearch
+set incsearch
+set laststatus=2
+set number
+set scrolloff=6
+set smartindent
+set wildmenu
 
 
 let mapleader=","
