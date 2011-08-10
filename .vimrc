@@ -1,5 +1,7 @@
 " pathogen - uses .vim/bundle/<plugin> to load vim plugins
-call pathogen#runtime_append_all_bundles()
+source ~/.vim/bundle/vim-pathogen/autoload/pathogen.vim
+call pathogen#infect()
+syntax on
 
 filetype on
 filetype plugin on
