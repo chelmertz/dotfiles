@@ -29,6 +29,11 @@ set undolevels=1000
 set visualbell
 set wildmenu
 
+let mapleader=","
+" open a new terminal split, from vim-conque plugin
+nmap <Leader>bs :ConqueTermVSplit bash<CR>
+nmap <Leader>bv :ConqueTermTab bash<CR>
+
 " syntastic settigns
 let g:syntastic_auto_loc_list=1
 set statusline+=%#warningmsg#
@@ -36,11 +41,9 @@ set statusline+=%{SyntasticStatuslineFlag()}
 set statusline+=%*
 nmap <Leader>e :Errors<CR>
 
-
-let mapleader=","
-" open a new terminal split, from vim-conque plugin
-nmap <Leader>bs :ConqueTermVSplit bash<CR>
-nmap <Leader>bv :ConqueTermTab bash<CR>
+" save file accidentally opened without sudo
+" from http://nvie.com/posts/how-i-boosted-my-vim/
+cmap w!! w !sudo tee % >/dev/null
 
 " restore cursor position next time the file is opened, from
 " http://vim.wikia.com/wiki/Restore_cursor_to_file_position_in_previous_editing_session
