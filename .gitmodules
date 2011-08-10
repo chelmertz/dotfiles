@@ -4,3 +4,6 @@
 [submodule "vim-bundles/quicksilver.vim"]
 	path = vim-bundles/quicksilver.vim
 	url = https://github.com/Bogdanp/quicksilver.vim.git
+[submodule "vim-bundles/nerdcommenter"]
+	path = vim-bundles/nerdcommenter
+	url = https://github.com/scrooloose/nerdcommenter.git
