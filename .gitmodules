@@ -7,3 +7,6 @@
 [submodule "vim-bundles/nerdcommenter"]
 	path = vim-bundles/nerdcommenter
 	url = https://github.com/scrooloose/nerdcommenter.git
+[submodule "vim-bundles/matchit.zip"]
+	path = vim-bundles/matchit.zip
+	url = https://github.com/vim-scripts/matchit.zip.git
