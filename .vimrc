@@ -21,7 +21,9 @@ set incsearch
 set laststatus=2
 set nobackup
 set noerrorbells
+set nostartofline
 set number
+set showcmd
 set scrolloff=6
 set showmatch
 set smartindent
