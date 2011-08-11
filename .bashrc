@@ -115,7 +115,6 @@ function parse_git_branch {
   esac
 
   PS1="${TITLEBAR}\
-$BLUE[$RED\$(date +%H:%M)$BLUE]\
 $BLUE[$RED\u@\h:\w$GREEN\$(parse_git_branch)$BLUE]\
 $LIGHT_GRAY\$ "
   PS2='> '
