@@ -1,8 +1,8 @@
 [submodule ".vim/bundle/matchit.zip"]
 	path = .vim/bundle/matchit.zip
 	url = https://github.com/vim-scripts/matchit.zip.git
-[submodule ".vim/bundle/nerdommenter"]
-	path = .vim/bundle/nerdommenter
+[submodule ".vim/bundle/nerdcommenter"]
+	path = .vim/bundle/nerdcommenter
 	url = https://github.com/scrooloose/nerdcommenter.git
 [submodule ".vim/bundle/quicksilver.vim"]
 	path = .vim/bundle/quicksilver.vim
