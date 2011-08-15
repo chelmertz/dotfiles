@@ -26,3 +26,17 @@ After the repository is updated, make sure symlinks follow the possibly new file
  - check if vim plugin is loaded before mapping
  - find git repos of .lvimrc (vim script 1408)
  - homebrew formulas
+
+# vim plugins
+- matchit.zip - *`%`matches html tags too
+- nerdcommenter - `<leader>cc` comments visual selection, `<leader>ci` inverts already commented lines
+- quicksilver.vim - `<leader>q` autocompletes your file browser
+- supertab - `<tab>` for autocompletion (like `<C-n>`)
+- syntastic - syntax check on write
+- vim-conque - `<leader>bs` for bash in a split window
+- vim-easymotion - `<leader>w` for shortcuts within view
+- vim-json - json syntax validation & highlight
+- vim-markdown - markdown syntax validation & highlight
+- vim-pathogen - place plugins in `.vim/bundle/` to avoid clutter
+- vim-space - repeat commands with `<space>`
+- zencoding-vim - html generation with few keystrokes
