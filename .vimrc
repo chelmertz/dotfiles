@@ -12,6 +12,7 @@ filetype indent on
 :autocmd CursorMoved * silent! exe printf('match IncSearch /\<%s\>/', expand('<cword>'))
 
 set autoindent
+set background=dark
 set copyindent
 set hidden
 set history=1000
