@@ -28,7 +28,6 @@ set scrolloff=6
 set showmatch
 set smartindent
 set undolevels=1000
-set visualbell
 set wildmenu
 
 let mapleader=","
