@@ -70,4 +70,4 @@ function! OpenURL()
 		echo "No URI found in line."
 	endif
 endfunction
-map <Leader>w :call OpenURL()<CR>
+map <Leader>u :call OpenURL()<CR>
