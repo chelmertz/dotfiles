@@ -47,6 +47,9 @@ nmap <Leader>e :Errors<CR>
 " from http://nvie.com/posts/how-i-boosted-my-vim/
 cmap w!! w !sudo tee % >/dev/null
 
+" git
+nmap <Leader>gs :Extradite<CR> " gs for 'git show'
+
 " restore cursor position next time the file is opened, from
 " http://vim.wikia.com/wiki/Restore_cursor_to_file_position_in_previous_editing_session
 function! ResCur()
