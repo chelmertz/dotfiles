@@ -36,7 +36,7 @@ After the repository is updated, make sure symlinks follow the possibly new file
 - vim-conque - `<leader>bs` for bash in a split window
 - vim-easymotion - `<leader>w` for shortcuts within view
 - vim-extradite - `<leader>gs` shows commit log for current file
-- vim-fugitive - git support
+- vim-fugitive - git support, `:Gdiff` for example
 - vim-json - json syntax validation & highlight
 - vim-markdown - markdown syntax validation & highlight
 - vim-pathogen - place plugins in `.vim/bundle/` to avoid clutter
