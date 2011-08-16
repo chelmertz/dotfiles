@@ -38,6 +38,7 @@ nmap <Leader>bv :ConqueTermTab bash<CR>
 
 " syntastic settigns
 let g:syntastic_auto_loc_list=1
+let g:syntastic_auto_jump=1
 set statusline+=%#warningmsg#
 set statusline+=%{SyntasticStatuslineFlag()}
 set statusline+=%*
