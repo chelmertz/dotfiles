@@ -28,6 +28,7 @@ After the repository is updated, make sure symlinks follow the possibly new file
  - homebrew formulas
 
 # vim plugins
+- gist-vim - `:Gist` posts buffer as public gist
 - matchit.zip - *`%`matches html tags too
 - nerdcommenter - `<leader>cc` comments visual selection, `<leader>ci` inverts already commented lines
 - quicksilver.vim - `<leader>q` autocompletes your file browser
@@ -40,5 +41,7 @@ After the repository is updated, make sure symlinks follow the possibly new file
 - vim-json - json syntax validation & highlight
 - vim-markdown - markdown syntax validation & highlight
 - vim-pathogen - place plugins in `.vim/bundle/` to avoid clutter
+- vim-repeat - use `.` to repeat plugin actions
 - vim-space - repeat commands with `<space>`
+- vim-surround - `cs"'` on `"hello"` gives `'hello'`, `ysiw'` on `Hello` gives `'Hello'`
 - zencoding-vim - html generation with few keystrokes
