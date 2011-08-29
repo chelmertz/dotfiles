@@ -10,6 +10,8 @@ git submodule update
 
 #install xcode
 
+#install brew
+
 #install brew formulas
 ```
 ##updating
