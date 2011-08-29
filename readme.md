@@ -5,7 +5,12 @@ mkdir -p ~/.config/dotfiles && cd ~/.config/dotfiles
 git clone https://chelmertz@github.com/chelmertz/dotfiles.git
 git submodule init
 git submodule update
+
 #symlink files to ~: http://www.commandlinefu.com/commands/view/1225/symlink-all-files-from-a-base-directory-to-a-target-directory
+
+#install xcode
+
+#install brew formulas
 ```
 ##updating
 ```bash
