@@ -1,4 +1,5 @@
+git
 https://raw.github.com/adamv/homebrew-alt/master/duplicates/vim.rb
+wget
 ack
 zsh
-
