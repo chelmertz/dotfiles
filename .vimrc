@@ -76,3 +76,7 @@ function! OpenURL()
 	endif
 endfunction
 map <Leader>u :call OpenURL()<CR>
+
+" navigate buffers
+map <C-l> <C-w>l
+map <C-h> <C-w>h
