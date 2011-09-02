@@ -33,8 +33,12 @@ set wildmenu
 
 let mapleader=","
 " open a new terminal split, from vim-conque plugin
-nmap <Leader>bs :ConqueTermVSplit bash<CR>
-nmap <Leader>bv :ConqueTermTab bash<CR>
+nmap <Leader>bv :ConqueTermVSplit bash<CR>
+nmap <Leader>bs :ConqueTermTab bash<CR>
+
+" shortcut for new buffers
+map <Leader>s :Sex<CR>
+map <Leader>v :Vex<CR>
 
 " syntastic settigns
 let g:syntastic_auto_loc_list=1
