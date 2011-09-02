@@ -53,4 +53,5 @@ After the repository is updated, make sure symlinks follow the possibly new file
 - vim-repeat - use `.` to repeat plugin actions
 - vim-space - repeat commands with `<space>`
 - vim-surround - `cs"'` on `"hello"` gives `'hello'`, `ysiw'` on `Hello` gives `'Hello'`
+- VisIncr - on visual block selection, `:I` generates list (`:II` for padding on the left side)
 - zencoding-vim - html generation with few keystrokes

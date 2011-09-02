@@ -52,3 +52,6 @@
 [submodule ".vim/bundle/vim-less"]
 	path = .vim/bundle/vim-less
 	url = https://github.com/groenewege/vim-less.git
+[submodule ".vim/bundle/VisIncr"]
+	path = .vim/bundle/VisIncr
+	url = https://github.com/vim-scripts/VisIncr.git
