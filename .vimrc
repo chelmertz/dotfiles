@@ -13,6 +13,7 @@ filetype indent on
 
 set autoindent
 set background=dark
+colorscheme Tomorrow-Night
 set copyindent
 set hidden
 set history=1000
