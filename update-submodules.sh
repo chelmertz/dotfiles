@@ -1,4 +1,5 @@
 # quick and dirty, pretty static :)
+# beware, this always fetches HEAD and merges on top of master
 BUNDLES_DIR="./.vim/bundle"
 for DIR in `ls $BUNDLES_DIR`
 do
