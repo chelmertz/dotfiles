@@ -25,9 +25,8 @@ After the repository is updated, make sure symlinks follow the possibly new file
 
 #good to have
  - zsh + oh-my-zsh
- - the font inconsolata: http://www.levien.com/type/myfonts/inconsolata.html
  - homebrew with ctags
- - pandoc: http://johnmacfarlane.net/pandoc/installing.html
+ - gimli (md to pdf): https://github.com/walle/gimli
 
 ##todo
  - support project specific aliases
