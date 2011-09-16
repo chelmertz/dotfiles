@@ -30,7 +30,6 @@ After the repository is updated, make sure symlinks follow the possibly new file
 
 ##todo
  - support project specific aliases
- - add zsh
  - check if vim plugin is loaded before mapping
  - find git repos of .lvimrc (vim script 1408)
  - homebrew formulas
