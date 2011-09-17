@@ -25,6 +25,8 @@ plugins=(brew git ant)
 
 alias b="~/Sites/bookshelf/bookshelf.php"
 alias cdd="cd ~/.config/dotfiles"
+alias cds="cd ~/Sites"
+
 alias glp="git log --pretty=oneline --decorate"
 alias gl="git log"
 alias gc="git commit -m"
