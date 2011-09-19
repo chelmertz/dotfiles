@@ -24,16 +24,22 @@ ZSH_THEME="minimal"
 plugins=(brew git ant)
 
 alias b="~/Sites/bookshelf/bookshelf.php"
+
 alias cdd="cd ~/.config/dotfiles"
 alias cds="cd ~/Sites"
 
-alias glp="git log --pretty=oneline --decorate"
-alias gl="git log"
-alias gc="git commit -m"
+alias v="vim"
+
 alias ga="git add"
+alias gb="git branch"
+alias gc="git commit -m"
 alias gca="git commit -am"
 alias gd="git diff"
 alias gdc="git diff --cached"
+alias gl="git log"
+alias glp="git log --pretty=oneline --decorate"
+alias go="git checkout"
+alias gs="git status"
 
 source $ZSH/oh-my-zsh.sh
 
