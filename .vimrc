@@ -3,10 +3,7 @@ source ~/.vim/bundle/vim-pathogen/autoload/pathogen.vim
 call pathogen#infect()
 syntax on
 
-filetype on
-filetype plugin on
-filetype indent on
-
+filetype plugin indent on
 
 " show matching variables on hover
 :autocmd CursorMoved * silent! exe printf('match IncSearch /\<%s\>/', expand('<cword>'))
