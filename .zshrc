@@ -34,7 +34,7 @@ alias v="vim"
 alias ga="git add"
 alias gb="git branch"
 alias gc="git commit -m"
-alias gca="git commit -am"
+alias gca="git commit -a -m"
 alias gd="git diff"
 alias gdc="git diff --cached"
 alias gl="git log"
@@ -45,4 +45,4 @@ alias gs="git status"
 source $ZSH/oh-my-zsh.sh
 
 # Customize to your needs...
-export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/usr/X11/bin:/opt/local/bin:/usr/local/git/bin:/usr/local/bin
+export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/X11/bin:/opt/local/bin:/usr/local/git/bin
