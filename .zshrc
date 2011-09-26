@@ -33,7 +33,7 @@ alias v="vim"
 
 alias ga="git add"
 alias gb="git branch"
-alias gc="git commit -m"
+alias gc="git commit -s -v"
 alias gca="git commit -am"
 alias gd="git diff"
 alias gdc="git diff --cached"
