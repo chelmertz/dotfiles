@@ -58,3 +58,6 @@
 [submodule ".vim/bundle/Tomorrow-Theme"]
 	path = .vim/bundle/Tomorrow-Theme
 	url = https://github.com/wolverian/Tomorrow-Theme.git
+[submodule ".vim/bundle/snipmate.vim"]
+	path = .vim/bundle/snipmate.vim
+	url = https://github.com/msanders/snipmate.vim.git
