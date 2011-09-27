@@ -28,6 +28,9 @@ After the repository is updated, make sure symlinks follow the possibly new file
  - homebrew with ctags
  - gimli (md to pdf): https://github.com/walle/gimli
 
+# good to know
+ - ~/.zsh-local is ignored and contains your local/private aliases etc, useful for work stations
+
 ##todo
  - support project specific aliases
  - check if vim plugin is loaded before mapping
