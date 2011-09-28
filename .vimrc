@@ -12,6 +12,7 @@ set autoindent
 set background=dark
 colorscheme Tomorrow-Night
 set copyindent
+set cursorline
 set hidden
 set history=1000
 set hlsearch
