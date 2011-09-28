@@ -26,11 +26,19 @@ COMPLETION_WAITING_DOTS="true"
 # Example format: plugins=(rails git textmate ruby lighthouse)
 plugins=(brew git ant)
 
+# Directories
 alias cdd="cd ~/.config/dotfiles"
 alias cds="cd ~/Sites"
 
+# Tools
+alias untar="tar xvf"
+alias untargz="tar xvfz"
+alias untarbz="tar yxf"
+
+# Apps
 alias v="vim"
 
+# Git
 alias ga="git add"
 alias gb="git branch"
 alias gc="git commit -s -v"
