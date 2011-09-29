@@ -44,6 +44,7 @@ After the repository is updated, make sure symlinks follow the possibly new file
 - quicksilver.vim - `<leader>q` autocompletes your file browser
 - supertab - `<tab>` for autocompletion (like `<C-n>`)
 - syntastic - syntax check on write
+- vim-bufexplorer - `<leader>be` to switch between buffers, `<leader>bs` hori. split, `<leader>bv` vert. split
 - vim-conque - `<leader>bs` for bash in a split window
 - vim-easymotion - `<leader>w` for shortcuts within view
 - vim-extradite - `<leader>gs` shows commit log for current file
