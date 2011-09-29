@@ -26,18 +26,23 @@ COMPLETION_WAITING_DOTS="true"
 # Example format: plugins=(rails git textmate ruby lighthouse)
 plugins=(brew git ant)
 
-# CD:ing
+# Directories
 alias cdd="cd ~/.config/dotfiles"
 alias cds="cd ~/Sites"
 
 # Using programs
+alias untar="tar xvf"
+alias untargz="tar xvfz"
+alias untarbz="tar yxf"
+
+# Apps
 alias v="vim"
 alias m="make && ./a.out"
 
 # Using git
 alias ga="git add"
 alias gb="git branch"
-alias gc="git commit -m"
+alias gc="git commit -s -v"
 alias gca="git commit -am"
 alias gd="git diff"
 alias gdc="git diff --cached"
@@ -47,6 +52,7 @@ alias go="git checkout"
 alias gs="git status"
 
 source $ZSH/oh-my-zsh.sh
+source $HOME/.zsh-local
 
 # Customize to your needs...
 export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/X11/bin:/opt/local/bin:/usr/local/git/bin

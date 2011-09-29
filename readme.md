@@ -28,11 +28,19 @@ After the repository is updated, make sure symlinks follow the possibly new file
  - homebrew with ctags
  - gimli (md to pdf): https://github.com/walle/gimli
 
+# good to know
+ - ~/.zsh-local is ignored and contains your local/private aliases etc, useful for work stations
+
 ##todo
  - support project specific aliases
  - check if vim plugin is loaded before mapping
  - find git repos of .lvimrc (vim script 1408)
  - homebrew formulas
+
+# vim buffers
+- `<leader>be` - list buffers (enter to enter, esc to leave, d to delete)
+- `:bd` - quit current buffer
+- `:e <filename>` - open <filename> in new buffer
 
 # vim plugins
 - gist-vim - `:Gist` posts buffer as public gist
@@ -41,6 +49,7 @@ After the repository is updated, make sure symlinks follow the possibly new file
 - quicksilver.vim - `<leader>q` autocompletes your file browser
 - supertab - `<tab>` for autocompletion (like `<C-n>`)
 - syntastic - syntax check on write
+- vim-bufexplorer - `<leader>be` to switch between buffers, `<leader>bs` hori. split, `<leader>bv` vert. split
 - vim-conque - `<leader>bs` for bash in a split window
 - vim-easymotion - `<leader>w` for shortcuts within view
 - vim-extradite - `<leader>gs` shows commit log for current file
