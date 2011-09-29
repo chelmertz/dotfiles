@@ -52,7 +52,9 @@ alias go="git checkout"
 alias gs="git status"
 
 source $ZSH/oh-my-zsh.sh
-source $HOME/.zsh-local
+if [ -f $HOME/.zsh-local ]; then
+	source $HOME/.zsh-local
+fi
 
 # Customize to your needs...
 export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/X11/bin:/opt/local/bin:/usr/local/git/bin
