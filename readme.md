@@ -55,6 +55,7 @@ After the repository is updated, make sure symlinks follow the possibly new file
 - vim-extradite - `<leader>gs` shows commit log for current file
 - vim-fugitive - git support, `:Gdiff` for example
 - vim-json - json syntax validation & highlight
+- vim-task - save a todo.txt,*.task and use `<leader>w` on a line starting with `-` to toggle its status
 - vim-markdown - markdown syntax validation & highlight
 - vim-pathogen - place plugins in `.vim/bundle/` to avoid clutter
 - vim-repeat - use `.` to repeat plugin actions

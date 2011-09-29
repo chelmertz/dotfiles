@@ -42,6 +42,9 @@ set statusline+=%{SyntasticStatuslineFlag()}
 set statusline+=%*
 nmap <Leader>e :Errors<CR>
 
+" vim-task plugin
+noremap <silent> <buffer><leader>w :call Toggle_task_status()<CR>
+
 " save file accidentally opened without sudo
 " from http://nvie.com/posts/how-i-boosted-my-vim/
 cmap w!! w !sudo tee % >/dev/null
