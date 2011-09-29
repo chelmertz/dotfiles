@@ -37,6 +37,11 @@ After the repository is updated, make sure symlinks follow the possibly new file
  - find git repos of .lvimrc (vim script 1408)
  - homebrew formulas
 
+# vim buffers
+- `<leader>be` - list buffers (enter to enter, esc to leave, d to delete)
+- `:bd` - quit current buffer
+- `:e <filename>` - open <filename> in new buffer
+
 # vim plugins
 - gist-vim - `:Gist` posts buffer as public gist
 - matchit.zip - *`%`matches html tags too
