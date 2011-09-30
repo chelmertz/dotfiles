@@ -43,7 +43,9 @@ After the repository is updated, make sure symlinks follow the possibly new file
 - `:e <filename>` - open <filename> in new buffer
 
 # vim plugins
+
 *Assuming `setleader=,`*
+
 - ack-vim - `,a <keyword>` searches recursively and open results in buffer
 - gist-vim - `:Gist` posts buffer as public gist
 - matchit.zip - *`%`matches html tags too
