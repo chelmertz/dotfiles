@@ -43,23 +43,25 @@ After the repository is updated, make sure symlinks follow the possibly new file
 - `:e <filename>` - open <filename> in new buffer
 
 # vim plugins
+*Assuming `setleader=,`*
+- ack-vim - `,a <keyword>` searches recursively and open results in buffer
 - gist-vim - `:Gist` posts buffer as public gist
 - matchit.zip - *`%`matches html tags too
-- nerdcommenter - `<leader>cc` comments visual selection, `<leader>ci` inverts already commented lines
-- quicksilver.vim - `<leader>q` autocompletes your file browser
+- nerdcommenter - `,cc` comments visual selection, `,ci` inverts already commented lines
+- quicksilver.vim - `,q` autocompletes your file browser
 - supertab - `<tab>` for autocompletion (like `<C-n>`)
 - syntastic - syntax check on write
-- vim-bufexplorer - `<leader>be` to switch between buffers, `<leader>bs` hori. split, `<leader>bv` vert. split
-- vim-conque - `<leader>bs` for bash in a split window
-- vim-easymotion - `<leader>w` for shortcuts within view
-- vim-extradite - `<leader>gs` shows commit log for current file
+- vim-bufexplorer - `,be` to switch between buffers, `,bs` hori. split, `,bv` vert. split
+- vim-conque - `,bs` for bash in a split window
+- vim-easymotion - `,w` for shortcuts within view
+- vim-extradite - `,gs` shows commit log for current file
 - vim-fugitive - git support, `:Gdiff` for example
 - vim-json - json syntax validation & highlight
-- vim-task - save a todo.txt,*.task and use `<leader>w` on a line starting with `-` to toggle its status
 - vim-markdown - markdown syntax validation & highlight
 - vim-pathogen - place plugins in `.vim/bundle/` to avoid clutter
 - vim-repeat - use `.` to repeat plugin actions
 - vim-space - repeat commands with `<space>`
 - vim-surround - `cs"'` on `"hello"` gives `'hello'`, `ysiw'` on `Hello` gives `'Hello'`, `ds'` on `'Hello'` gives `Hello`, `S(` on visually selected `Hello` gives `( Hello )`
+- vim-task - save a todo.txt,*.task and use `,w` on a line starting with `-` to toggle its status
 - VisIncr - on visual block selection, `:I` generates list (`:II` for padding on the left side)
 - zencoding-vim - html generation with few keystrokes, `<C-y>,` on `html:5x` generates html5 boilerplate (where x is cursor position)
