@@ -35,7 +35,7 @@ let mapleader=","
 nmap <Leader>bash :ConqueTerm bash<CR>
 
 " search recursively from current folder with Ack
-nmap <Leader>s :Ack
+nmap <Leader>s :Ack 
 
 " syntastic settigns
 let g:syntastic_auto_loc_list=1
