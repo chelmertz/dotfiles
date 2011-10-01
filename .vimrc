@@ -30,12 +30,16 @@ set smartindent
 set undolevels=1000
 set wildmenu
 
+
 let mapleader=","
 " open a new terminal split, from vim-conque plugin
 nmap <Leader>bash :ConqueTerm bash<CR>
 
 " search recursively from current folder with Ack
 nmap <Leader>s :Ack 
+
+" marks, set with ma, retreive with ,ma
+nmap <leader>m `
 
 " syntastic settigns
 let g:syntastic_auto_loc_list=1
