@@ -44,7 +44,7 @@ After the repository is updated, make sure symlinks follow the possibly new file
 
 # vim plugins
 
-*Assuming `setleader=,`*
+*Assuming `set mapleader=,`*
 
 - ack-vim - `,a <keyword>` searches recursively and open results in buffer
 - gist-vim - `:Gist` posts buffer as public gist
