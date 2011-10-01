@@ -13,6 +13,7 @@ set background=dark
 colorscheme Tomorrow-Night
 set copyindent
 set cursorline
+set backspace=indent,eol,start
 set hidden
 set history=1000
 set hlsearch
@@ -20,6 +21,8 @@ set ignorecase
 set incsearch
 set laststatus=2
 set nobackup
+set modelines=0
+set nocompatible
 set noerrorbells
 set nostartofline
 set number
@@ -29,6 +32,7 @@ set showmatch
 set smartindent
 set undolevels=1000
 set wildmenu
+set ttyfast
 
 
 let mapleader=","
