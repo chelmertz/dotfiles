@@ -37,10 +37,19 @@ set ttyfast
 
 let mapleader=","
 " open a new terminal split, from vim-conque plugin
-nmap <Leader>bash :ConqueTerm bash<CR>
+nmap <leader>bash :ConqueTerm bash<CR>
 
 " search recursively from current folder with Ack
-nmap <Leader>s :Ack 
+nmap <leader>s :Ack
+
+" handle buffers
+nmap <leader>d :bd<CR>
+nmap <leader>o :e
+" buf explorer
+nmap <leader>f :BufExplorer<CR>
+nmap <leader>fs :BufExplorerHorizontalSplit<CR>
+nmap <leader>fv :BufExplorerVerticalSplit<CR>
+
 
 " marks, set with ma, retreive with ,ma
 nmap <leader>m `
@@ -51,7 +60,7 @@ let g:syntastic_auto_jump=1
 set statusline+=%#warningmsg#
 set statusline+=%{SyntasticStatuslineFlag()}
 set statusline+=%*
-nmap <Leader>e :Errors<CR>
+nmap <leader>e :Errors<CR>
 
 " vim-task (todo) plugin
 noremap <silent> <buffer><leader>w :call Toggle_task_status()<CR>
@@ -61,7 +70,7 @@ noremap <silent> <buffer><leader>w :call Toggle_task_status()<CR>
 cmap w!! w !sudo tee % >/dev/null
 
 " git
-nmap <Leader>gs :Extradite<CR> " gs for 'git show'
+nmap <leader>gs :Extradite<CR> " gs for 'git show'
 
 " restore cursor position next time the file is opened, from
 " http://vim.wikia.com/wiki/Restore_cursor_to_file_position_in_previous_editing_session
@@ -87,8 +96,4 @@ function! OpenURL()
 		echo "No URI found in line."
 	endif
 endfunction
-map <Leader>u :call OpenURL()<CR>
-
-" navigate buffers
-map <C-l> <C-w>l
-map <C-h> <C-w>h
+map <leader>u :call OpenURL()<CR>
