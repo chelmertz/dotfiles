@@ -46,9 +46,7 @@ nmap <leader>s :Ack
 nmap <leader>d :bd<CR>
 nmap <leader>o :e
 " buf explorer
-nmap <leader>f :BufExplorer<CR>
-nmap <leader>fs :BufExplorerHorizontalSplit<CR>
-nmap <leader>fv :BufExplorerVerticalSplit<CR>
+nmap <leader><leader> :BufExplorer<CR>
 
 
 " marks, set with ma, retreive with ,ma
