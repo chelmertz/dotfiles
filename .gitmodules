@@ -61,6 +61,3 @@
 [submodule ".vim/bundle/vim-bufexplorer"]
 	path = .vim/bundle/vim-bufexplorer
 	url = https://github.com/thisivan/vim-bufexplorer.git
-[submodule ".vim/bundle/vim-task"]
-	path = .vim/bundle/vim-task
-	url = https://github.com/samsonw/vim-task.git
