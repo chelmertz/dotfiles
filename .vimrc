@@ -29,6 +29,15 @@ set smartindent
 set undolevels=1000
 set wildmenu
 set ttyfast
+set virtualedit+=block
+
+" go up one visual line, not logic line
+nnoremap j gj
+nnoremap k gk
+
+" stay in visual mode after indentation
+vnoremap < <gv
+vnoremap > >gv
 
 " search options
 nnoremap / /\v
@@ -38,6 +47,9 @@ set hlsearch
 set ignorecase
 set incsearch
 set showmatch
+set statusline=%<%{getcwd()}/%f\    " Filename
+set statusline+=\ %{fugitive#statusline()} "  Git historyotness
+set statusline+=%=%-14.(%l,%c%V%)\ %p%%  " Right aligned file nav info
 
 let mapleader=","
 
@@ -49,10 +61,6 @@ nmap <leader>d :bd<CR>
 nmap <leader>o :e
 " buf explorer
 nmap <leader><leader> :BufExplorer<CR>
-
-
-" marks, set with ma, retreive with ,ma
-nmap <leader>m `
 
 " syntastic settigns
 let g:syntastic_auto_loc_list=1
