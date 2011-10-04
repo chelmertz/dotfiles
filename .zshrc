@@ -29,6 +29,7 @@ plugins=(brew git ant)
 # Directories
 alias cdd="cd ~/.config/dotfiles"
 alias cds="cd ~/Sites"
+alias l="ls -alh"
 
 # Using programs
 alias untar="tar xvf"
