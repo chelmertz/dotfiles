@@ -40,11 +40,9 @@ set incsearch
 set showmatch
 
 let mapleader=","
-" open a new terminal split, from vim-conque plugin
-nmap <leader>bash :ConqueTerm bash<CR>
 
 " search recursively from current folder with Ack
-nmap <leader>s :Ack
+nmap <leader>s :Ack 
 
 " handle buffers
 nmap <leader>d :bd<CR>
