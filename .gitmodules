@@ -4,24 +4,15 @@
 [submodule ".vim/bundle/nerdcommenter"]
 	path = .vim/bundle/nerdcommenter
 	url = https://github.com/scrooloose/nerdcommenter.git
-[submodule ".vim/bundle/quicksilver.vim"]
-	path = .vim/bundle/quicksilver.vim
-	url = https://github.com/Bogdanp/quicksilver.vim.git
 [submodule ".vim/bundle/supertab"]
 	path = .vim/bundle/supertab
 	url = https://github.com/ervandew/supertab.git
-[submodule ".vim/bundle/vim-conque"]
-	path = .vim/bundle/vim-conque
-	url = https://github.com/rson/vim-conque.git
 [submodule ".vim/bundle/vim-pathogen"]
 	path = .vim/bundle/vim-pathogen
 	url = https://github.com/tpope/vim-pathogen.git
 [submodule ".vim/bundle/vim-markdown"]
 	path = .vim/bundle/vim-markdown
 	url = https://github.com/spf13/vim-markdown.git
-[submodule ".vim/bundle/vim-json"]
-	path = .vim/bundle/vim-json
-	url = https://github.com/leshill/vim-json.git
 [submodule ".vim/bundle/syntastic"]
 	path = .vim/bundle/syntastic
 	url = https://github.com/scrooloose/syntastic.git
@@ -37,9 +28,6 @@
 [submodule ".vim/bundle/vim-extradite"]
 	path = .vim/bundle/vim-extradite
 	url = https://github.com/int3/vim-extradite.git
-[submodule ".vim/bundle/gist-vim"]
-	path = .vim/bundle/gist-vim
-	url = https://github.com/mattn/gist-vim.git
 [submodule ".vim/bundle/vim-surround"]
 	path = .vim/bundle/vim-surround
 	url = https://github.com/tpope/vim-surround.git
@@ -49,9 +37,6 @@
 [submodule ".vim/bundle/vim-less"]
 	path = .vim/bundle/vim-less
 	url = https://github.com/groenewege/vim-less.git
-[submodule ".vim/bundle/VisIncr"]
-	path = .vim/bundle/VisIncr
-	url = https://github.com/vim-scripts/VisIncr.git
 [submodule ".vim/bundle/Tomorrow-Theme"]
 	path = .vim/bundle/Tomorrow-Theme
 	url = https://github.com/wolverian/Tomorrow-Theme.git
