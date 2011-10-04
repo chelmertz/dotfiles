@@ -16,9 +16,6 @@ set cursorline
 set backspace=indent,eol,start
 set hidden
 set history=1000
-set hlsearch
-set ignorecase
-set incsearch
 set laststatus=2
 set nobackup
 set modelines=0
@@ -28,12 +25,19 @@ set nostartofline
 set number
 set showcmd
 set scrolloff=6
-set showmatch
 set smartindent
 set undolevels=1000
 set wildmenu
 set ttyfast
 
+" search options
+nnoremap / /\v
+vnoremap / /\v
+set gdefault
+set hlsearch
+set ignorecase
+set incsearch
+set showmatch
 
 let mapleader=","
 " open a new terminal split, from vim-conque plugin
