@@ -39,6 +39,10 @@ nnoremap k gk
 vnoremap < <gv
 vnoremap > >gv
 
+let mapleader=","
+" open a new terminal split, from vim-conque plugin
+nmap <leader>bash :ConqueTerm bash<CR>
+
 " search options
 nnoremap / /\v
 vnoremap / /\v
@@ -52,13 +56,11 @@ set statusline+=\ %{fugitive#statusline()} "  Git historyotness
 set statusline+=%=%-14.(%l,%c%V%)\ %p%%  " Right aligned file nav info
 
 let mapleader=","
+nmap <leader>n :nohl<CR>
 
 " search recursively from current folder with Ack
 nmap <leader>s :Ack 
 
-" handle buffers
-nmap <leader>d :bd<CR>
-nmap <leader>o :e
 " buf explorer
 nmap <leader><leader> :BufExplorer<CR>
 
@@ -69,9 +71,6 @@ set statusline+=%#warningmsg#
 set statusline+=%{SyntasticStatuslineFlag()}
 set statusline+=%*
 nmap <leader>e :Errors<CR>
-
-" vim-task (todo) plugin
-noremap <silent> <buffer><leader>w :call Toggle_task_status()<CR>
 
 " save file accidentally opened without sudo
 " from http://nvie.com/posts/how-i-boosted-my-vim/
