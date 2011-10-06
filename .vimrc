@@ -43,6 +43,11 @@ let mapleader=","
 " open a new terminal split, from vim-conque plugin
 nmap <leader>bash :ConqueTerm bash<CR>
 
+" ctags
+set tags=~/.tags
+let Tlist_Ctags_Cmd='/usr/local/bin/ctags'
+nnoremap <leader>t :TlistToggle<CR>
+
 " marks
 nmap ö `
 
