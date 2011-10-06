@@ -10,7 +10,7 @@ filetype plugin indent on
 
 set autoindent
 set background=dark
-colorscheme Tomorrow-Night
+colorscheme Tomorrow-Night-Eighties
 set copyindent
 set cursorline
 set backspace=indent,eol,start
@@ -42,6 +42,9 @@ vnoremap > >gv
 let mapleader=","
 " open a new terminal split, from vim-conque plugin
 nmap <leader>bash :ConqueTerm bash<CR>
+
+" marks
+nmap ö `
 
 " search options
 nnoremap / /\v
