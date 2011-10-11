@@ -43,6 +43,9 @@ let mapleader=","
 " open a new terminal split, from vim-conque plugin
 nmap <leader>bash :ConqueTerm bash<CR>
 
+" gundo.vim
+nnoremap u :GundoToggle<CR>
+
 " ctags
 set tags=~/.tags
 let Tlist_Ctags_Cmd='/usr/local/bin/ctags'
