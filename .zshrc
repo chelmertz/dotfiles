@@ -27,6 +27,7 @@ COMPLETION_WAITING_DOTS="true"
 plugins=(brew git ant)
 
 # Directories
+alias c="cd"
 alias cdd="cd ~/.config/dotfiles"
 alias cds="cd ~/Sites"
 alias l="ls -alh"
