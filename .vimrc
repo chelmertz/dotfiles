@@ -8,6 +8,11 @@ filetype plugin indent on
 " show matching variables on hover
 :autocmd CursorMoved * silent! exe printf('match IncSearch /\<%s\>/', expand('<cword>'))
 
+" spellcheck commit messages
+" zg => mark word as good
+" z= => get suggestions for improvements
+au BufNewFile,BufRead COMMIT_EDITMSG setlocal spell
+
 set autoindent
 set background=dark
 colorscheme Tomorrow-Night-Eighties
