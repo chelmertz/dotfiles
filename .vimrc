@@ -24,6 +24,7 @@ set noerrorbells
 set nostartofline
 set number
 set showcmd
+
 set scrolloff=6
 set smartindent
 set undolevels=1000
@@ -53,10 +54,9 @@ nnoremap <leader>t :TlistToggle<CR>
 
 " marks
 nmap ö `
+vmap ö `
 
 " search options
-nnoremap / /\v
-vnoremap / /\v
 set gdefault
 set hlsearch
 set ignorecase
@@ -65,6 +65,8 @@ set showmatch
 set statusline=%<%{getcwd()}/%f\    " Filename
 set statusline+=\ %{fugitive#statusline()} "  Git historyotness
 set statusline+=%=%-14.(%l,%c%V%)\ %p%%  " Right aligned file nav info
+nnoremap / /\v
+vnoremap / /\v
 
 let mapleader=","
 nmap <leader>n :nohl<CR>
