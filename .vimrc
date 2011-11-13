@@ -27,7 +27,7 @@ set modelines=0
 set nocompatible
 set noerrorbells
 set nostartofline
-set number
+set nonumber
 set showcmd
 
 set scrolloff=6
