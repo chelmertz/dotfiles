@@ -69,7 +69,7 @@ set incsearch
 set showmatch
 set statusline=%<%{getcwd()}/%f\    " Filename
 set statusline+=\ %{fugitive#statusline()} "  Git historyotness
-set statusline+=%=%-14.(%l,%c%V%)\ %p%%  " Right aligned file nav info
+set statusline+=\ %=%-14.(%l,%c%V%)\ %p%%  " Right aligned file nav info
 nnoremap / /\v
 vnoremap / /\v
 
