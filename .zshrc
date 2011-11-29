@@ -39,7 +39,7 @@ alias untarbz="tar yxf"
 
 # Apps
 alias v="vim"
-alias m="make && ./a.out"
+alias m="mvim"
 
 # Using git
 alias ga="git add"
