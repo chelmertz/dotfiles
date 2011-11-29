@@ -38,7 +38,8 @@ alias untargz="tar xvfz"
 alias untarbz="tar yxf"
 
 # Apps
-alias v="vim"
+alias v="mvim"
+#alias v="vim"
 alias m="mvim"
 
 # Using git
