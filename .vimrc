@@ -8,6 +8,16 @@ filetype plugin indent on
 " show matching variables on hover
 :autocmd CursorMoved * silent! exe printf('match IncSearch /\<%s\>/', expand('<cword>'))
 
+" fun! HighlightCurrentFocusedWord()
+	" borrowed heavily from http://stackoverflow.com/a/6496995/49879
+	" if &ft =~ 'txt\|text\|md\|markdown'
+		" return
+	" endif
+	" exe printf('match IncSearch /\<%s\>/', expand('<cword>'))
+" end
+
+" :autocmd CursorMoved * silent! call HighlightCurrentFocusedWord()
+
 " spellcheck commit messages
 " zg => mark word as good
 " z= => get suggestions for improvements
@@ -109,3 +119,12 @@ augroup resCur
 	autocmd!
 	autocmd BufWinEnter * call ResCur()
 augroup END
+
+" transform
+" if(a)
+" 	echo 'yes';
+" to
+" if(a) {
+" 	echo 'yes';
+" }
+nmap <leader>f A {<esc>jo}<esc>
