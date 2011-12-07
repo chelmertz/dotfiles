@@ -53,6 +53,7 @@ alias gl="git log"
 alias glp="git log --pretty=oneline --decorate"
 alias go="git checkout"
 alias gs="git status"
+alias gdg="git-diff-grep"
 
 source $ZSH/oh-my-zsh.sh
 if [ -f $HOME/.zsh-local ]; then
@@ -60,4 +61,4 @@ if [ -f $HOME/.zsh-local ]; then
 fi
 
 # Customize to your needs...
-export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/X11/bin:/opt/local/bin:/usr/local/git/bin
+export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/X11/bin:/opt/local/bin:/usr/local/git/bin:~/bin
