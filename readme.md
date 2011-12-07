@@ -13,7 +13,7 @@ git submodule init
 git submodule update
 
 #symlink files to ~: http://www.commandlinefu.com/commands/view/1225/symlink-all-files-from-a-base-directory-to-a-target-directory
-# this goes for bin, .vim, .vimrc, .zshrc, .bashrc
+# this goes for bin, .vim, .vimrc, .zshrc, .bashrc, .gvimrc
 ```
 
 ##updating
