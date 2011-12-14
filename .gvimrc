@@ -1,7 +1,7 @@
 set guifont=Monaco:h12
 set background=dark
 "colorscheme Tomorrow-Night-Eighties
-colorscheme Mustang
+colorscheme Monokai
 
 "save and close all files and save global session
 nnoremap <leader>q :mksession! ~/.vim/Session.vim<CR>:wqa<CR>
