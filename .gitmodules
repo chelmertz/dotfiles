@@ -58,3 +58,12 @@
 [submodule ".vim/bundle/snipmate.vim"]
 	path = .vim/bundle/snipmate.vim
 	url = git://github.com/chelmertz/snipmate.vim.git
+[submodule ".vim/bundle/vim-monokai"]
+	path = .vim/bundle/vim-monokai
+	url = https://github.com/sickill/vim-monokai.git
+[submodule ".vim/bundle/vim-mustang"]
+	path = .vim/bundle/vim-mustang
+	url = https://github.com/cschlueter/vim-mustang.git
+[submodule ".vim/bundle/vim-sunburst"]
+	path = .vim/bundle/vim-sunburst
+	url = https://github.com/sickill/vim-sunburst.git
