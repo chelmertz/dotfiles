@@ -11,10 +11,12 @@ function update_submodules() {
 	BUNDLES_DIR="./.vim/bundle"
 	for DIR in `ls $BUNDLES_DIR`
 	do
-		pushd "$BUNDLES_DIR/$DIR" 1> /dev/null
-		git remote update 1> /dev/null
-		git merge origin/master 1> /dev/null
-		popd 1> /dev/null
+		if [ -d "$BUNDLES_DIR/$DIR" ]; then
+			pushd "$BUNDLES_DIR/$DIR" 1> /dev/null
+			git remote update 1> /dev/null
+			git merge origin/master 1> /dev/null
+			popd 1> /dev/null
+		fi
 	done
 }
 
