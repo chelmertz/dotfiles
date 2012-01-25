@@ -64,3 +64,6 @@
 [submodule ".vim/bundle/vim-sunburst"]
 	path = .vim/bundle/vim-sunburst
 	url = https://github.com/sickill/vim-sunburst.git
+[submodule ".vim/bundle/YankRing.vim"]
+	path = .vim/bundle/YankRing.vim
+	url = https://github.com/chrismetcalf/vim-yankring.git

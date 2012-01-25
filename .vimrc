@@ -71,6 +71,10 @@ nnoremap <leader>t :TlistToggle<CR>
 nmap ö `
 vmap ö `
 
+" yank history
+nnoremap <leader>y :YRShow<CR>
+vnoremap <leader>y :YRShow<CR>
+
 " search options
 set gdefault
 set hlsearch

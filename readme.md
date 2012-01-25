@@ -61,4 +61,5 @@ After the repository is updated, make sure symlinks follow the possibly new file
 - vim-repeat - use `.` to repeat plugin actions
 - vim-space - repeat commands with `<space>`
 - vim-surround - `cs"'` on `"hello"` gives `'hello'`, `ysiw'` on `Hello` gives `'Hello'`, `ds'` on `'Hello'` gives `Hello`, `S(` on visually selected `Hello` gives `( Hello )`
+- yankring - history of yanks with `,y`
 - zencoding-vim - html generation with few keystrokes, `<C-y>,` on `html:5x` generates html5 boilerplate (where x is cursor position)
