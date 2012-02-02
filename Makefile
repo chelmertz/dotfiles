@@ -5,3 +5,4 @@ usage:
 update:
 	git pull
 	sh update-submodules.sh
+	brew info && brew upgrade && brew update
