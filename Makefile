@@ -1,6 +1,29 @@
+BREWS = git \
+https://raw.github.com/adamv/homebrew-alt/master/duplicates/vim.rb \
+wget \
+ack \
+zsh \
+node \
+tree \
+wkhtmltopdf
+
+SYMLINKS = bla
+
 usage:
 	@echo "Available commands:"
-	@grep '^[^#[:space:]].*:' Makefile | cut -d : -f 1
+	@$(MAKE) --print-data-base --question | sed -n -e '/^Makefile/d' -e 's/^\([A-Za-z0-9_-]*\):.*/\1/p' | sort
+
+install: brew-install
+	$(MAKE) update
+
+brew-install:
+	brew upgrade
+	for formula in $(BREWS); do \
+		brew install $$formula ; \
+	done;
+
+symlinks:
+
 
 update:
 	git pull
