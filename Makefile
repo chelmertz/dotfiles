@@ -27,5 +27,5 @@ symlinks:
 
 update:
 	git pull
-	sh update-submodules.sh
+	git submodule foreach git pull origin master
 	brew info && brew upgrade && brew update
