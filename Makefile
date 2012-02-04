@@ -27,5 +27,5 @@ symlinks:
 
 update:
 	git pull
-	git submodule foreach git pull origin master
+	git submodule foreach git pull origin master 1> /dev/null
 	brew info && brew upgrade && brew update
