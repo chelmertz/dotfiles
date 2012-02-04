@@ -7,8 +7,6 @@ node \
 tree \
 wkhtmltopdf
 
-SYMLINKS = bla
-
 usage:
 	@echo "Available commands:"
 	@$(MAKE) --print-data-base --question | sed -n -e '/^Makefile/d' -e 's/^\([A-Za-z0-9_-]*\):.*/\1/p' | sort
@@ -22,10 +20,11 @@ brew-install:
 		brew install $$formula ; \
 	done;
 
-symlinks:
-
+# when mac's terminal takes forever to load, run this
+faster:
+	sudo rm -f /private/var/log/asl/*.asl
 
 update:
 	git pull
-	git submodule foreach git pull origin master 1> /dev/null
+	git submodule foreach --recursive git pull origin master 1> /dev/null
 	brew info && brew upgrade && brew update
