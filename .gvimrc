@@ -15,3 +15,6 @@ function! RestoreSession()
   end
 endfunction
 autocmd VimEnter * call RestoreSession()
+
+" visual bell
+set vb
