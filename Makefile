@@ -5,6 +5,7 @@ ack \
 zsh \
 node \
 tree \
+autojump \
 wkhtmltopdf
 
 usage:
