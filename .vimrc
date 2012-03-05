@@ -39,6 +39,7 @@ set noerrorbells
 set nostartofline
 set nonumber
 set showcmd
+set keywordprg=~/pear/bin/pman
 
 set scrolloff=6
 set smartindent
@@ -56,8 +57,6 @@ vnoremap < <gv
 vnoremap > >gv
 
 let mapleader=","
-" open a new terminal split, from vim-conque plugin
-nmap <leader>bash :ConqueTerm bash<CR>
 
 " gundo.vim
 nnoremap <leader>u :GundoToggle<CR>
