@@ -47,7 +47,7 @@ alias ga="git add"
 alias gb="git branch"
 alias gc="git commit -sv"
 alias gca="git commit -asv"
-alias gd="git diff"
+alias gd="git diff --color-words"
 alias gdc="git diff --cached"
 alias gl="git log"
 alias glp="git log --pretty=oneline --graph --all --decorate"
@@ -63,3 +63,8 @@ fi
 # Customize to your needs...
 export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/X11/bin:/opt/local/bin:/usr/local/git/bin:~/bin:~/.local/bin
 export LANG=en_US.UTF-8
+
+# autojump
+if [ -f `brew --prefix`/etc/autojump ]; then
+  . `brew --prefix`/etc/autojump
+fi
