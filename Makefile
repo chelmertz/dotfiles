@@ -6,6 +6,7 @@ zsh \
 node \
 tree \
 autojump \
+gtypist \
 wkhtmltopdf
 
 usage:
