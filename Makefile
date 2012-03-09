@@ -15,6 +15,8 @@ usage:
 
 install: brew-install
 	$(MAKE) update
+	ln -s /Users/chelmertz/.config/dotfiles/.gitignore_global ~/.gitignore_global
+	git config --global core.excludesfile = ~/.gitignore_global
 
 brew-install:
 	brew upgrade
