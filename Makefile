@@ -5,7 +5,6 @@ ack \
 zsh \
 node \
 tree \
-autojump \
 gtypist \
 wkhtmltopdf
 
