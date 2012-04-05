@@ -50,7 +50,7 @@ alias gca="git commit -asv"
 alias gd="git diff"
 alias gdc="git diff --cached"
 alias gl="git log"
-alias glp="git log --pretty=oneline --graph --all --decorate"
+alias glp='git log --pretty="format:%Cred%h %Cgreen%s %Cblue(%cn) %cr" --graph --all --decorate'
 alias go="git checkout"
 alias gs="git status"
 alias gdg="git-diff-grep"
