@@ -50,10 +50,9 @@ alias gca="git commit -asv"
 alias gd="git diff"
 alias gdc="git diff --cached"
 alias gl="git log"
-alias glp='git log --pretty="format:%Cred%h %Cgreen%s %Cblue(%cn) %cr" --graph --all --decorate'
+alias glp='git log --pretty="format:%Cred%h %Cblue%d %Cgreen%s %Creset%cn %cr" --graph --all'
 alias go="git checkout"
 alias gs="git status"
-alias gdg="git-diff-grep"
 
 source $ZSH/oh-my-zsh.sh
 if [ -f $HOME/.zsh-local ]; then
@@ -64,7 +63,4 @@ fi
 export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/X11/bin:/opt/local/bin:/usr/local/git/bin:~/bin:~/.local/bin
 export LANG=en_US.UTF-8
 
-# autojump
-if [ -f `brew --prefix`/etc/autojump ]; then
-  . `brew --prefix`/etc/autojump
-fi
+export NOSE_REDNOSE=1
