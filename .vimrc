@@ -46,6 +46,7 @@ set undolevels=1000
 set wildmenu
 set ttyfast
 set virtualedit+=block
+set wildignore+=*/tmp/*,*.so,*.swp,*.zip,*.pyc
 
 " go up one visual line, not logic line
 nnoremap j gj
