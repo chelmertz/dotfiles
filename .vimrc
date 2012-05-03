@@ -39,7 +39,6 @@ set noerrorbells
 set nostartofline
 set nonumber
 set showcmd
-set keywordprg=~/pear/bin/pman
 
 set scrolloff=6
 set smartindent
@@ -105,7 +104,7 @@ nmap <leader>e :Errors<CR>
 
 " save file accidentally opened without sudo
 " from http://nvie.com/posts/how-i-boosted-my-vim/
-cmap w!! w !sudo tee % >/dev/null
+cmap w!! w !sudo tee % >/dev/null<CR>
 
 " git
 nmap <leader>gs :Extradite<CR> " gs for 'git show'

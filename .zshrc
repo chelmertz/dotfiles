@@ -55,12 +55,13 @@ alias go="git checkout"
 alias gs="git status"
 
 source $ZSH/oh-my-zsh.sh
-if [ -f $HOME/.zsh-local ]; then
-	source $HOME/.zsh-local
-fi
 
 # Customize to your needs...
 export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/X11/bin:/opt/local/bin:/usr/local/git/bin:~/bin:~/.local/bin
 export LANG=en_US.UTF-8
 
 export NOSE_REDNOSE=1
+
+if [ -f $HOME/.zsh-local ]; then
+	source $HOME/.zsh-local
+fi
