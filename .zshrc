@@ -11,7 +11,7 @@ ZSH_THEME="minimal"
 # CASE_SENSITIVE="true"
 
 # Comment this out to disable weekly auto-update checks
-# DISABLE_AUTO_UPDATE="true"
+DISABLE_AUTO_UPDATE="true"
 
 # Uncomment following line if you want to disable colors in ls
 # DISABLE_LS_COLORS="true"
@@ -24,7 +24,7 @@ COMPLETION_WAITING_DOTS="true"
 
 # Which plugins would you like to load? (plugins can be found in ~/.oh-my-zsh/plugins/*)
 # Example format: plugins=(rails git textmate ruby lighthouse)
-plugins=(brew git ant)
+plugins=(git)
 
 # Directories
 alias c="cd"
@@ -32,15 +32,7 @@ alias cdd="cd ~/.config/dotfiles"
 alias cds="cd ~/Sites"
 alias l="ls -alh"
 
-# Using programs
-alias untar="tar xvf"
-alias untargz="tar xvfz"
-alias untarbz="tar yxf"
-
-# Apps
 alias v="mvim"
-#alias v="vim"
-alias m="mvim"
 
 # Using git
 alias ga="git add"
@@ -55,11 +47,15 @@ alias glp='git log --pretty="format:%Cred%h %Cblue%d %Cgreen%s %Creset%cn %cr" -
 alias go="git checkout"
 alias gs="git status"
 
+# Make mac's terminal faster
+alias faster="test -d /private/var/log/asl && sudo rm -f /private/var/log/asl/*.asl"
+
 source $ZSH/oh-my-zsh.sh
 
 # Customize to your needs...
 export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/X11/bin:/opt/local/bin:/usr/local/git/bin:~/bin:~/.local/bin
 export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
 
 export NOSE_REDNOSE=1
 
