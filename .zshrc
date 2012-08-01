@@ -33,6 +33,7 @@ alias cds="cd ~/Sites"
 alias l="ls -alh"
 
 alias v="mvim"
+alias doxyview="make docs && open Documentation/html/index.html"
 
 # Using git
 alias ga="git add"
@@ -62,3 +63,5 @@ export NOSE_REDNOSE=1
 if [ -f $HOME/.zsh-local ]; then
 	source $HOME/.zsh-local
 fi
+
+PATH=$PATH:$HOME/.rvm/bin # Add RVM to PATH for scripting
