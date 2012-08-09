@@ -69,3 +69,17 @@ After the repository is updated, make sure symlinks follow the possibly new file
 - vim-surround - `cs"'` on `"hello"` gives `'hello'`, `ysiw'` on `Hello` gives `'Hello'`, `ds'` on `'Hello'` gives `Hello`, `S(` on visually selected `Hello` gives `( Hello )`
 - yankring - history of yanks with `,y`
 - zencoding-vim - html generation with few keystrokes, `<C-y>,` on `html:5x` generates html5 boilerplate (where x is cursor position)
+
+# git settings
+
+        git config --global
+                user.name
+                user.email
+                color.ui = true
+                core.autocrlf = input
+                editor = /usr/local/bin/vim
+                apply.whitespace = strip
+                merge.log = true
+                merge.summary = true
+                branch.autosetupmerge = true
+                push.default = current
