@@ -73,3 +73,6 @@
 [submodule "bin/postponed"]
 	path = bin/postponed
 	url = git@github.com:chelmertz/postponed.git
+[submodule ".vim/bundle/vim-coffee-script"]
+	path = .vim/bundle/vim-coffee-script
+	url = https://github.com/kchmck/vim-coffee-script.git
