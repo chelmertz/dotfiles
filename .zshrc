@@ -34,6 +34,7 @@ alias l="ls -alh"
 
 alias v="mvim"
 alias doxyview="make docs && open Documentation/html/index.html"
+alias pp="~/.config/dotfiles/bin/postponed/postpone.sh"
 
 # Using git
 alias ga="git add"
