@@ -1,22 +1,33 @@
-" pathogen - uses .vim/bundle/<plugin> to load vim plugins
-source ~/.vim/bundle/vim-pathogen/autoload/pathogen.vim
-call pathogen#infect()
-syntax on
+filetype off
+set rtp+=~/.vim/bundle/vundle
+call vundle#rc()
+" on new machines/to update bundles/get the files of newly added ones:
+" :BundleInstall
+Bundle 'gmarik/vundle'
+
+Bundle 'vim-scripts/matchit.zip'
+Bundle 'sickill/vim-monokai'
+Bundle 'tpope/vim-fugitive'
+Bundle 'scrooloose/nerdcommenter'
+Bundle 'ervandew/supertab'
+Bundle 'spf13/vim-markdown'
+Bundle 'scrooloose/syntastic'
+Bundle 'mattn/zencoding-vim'
+Bundle 'tpope/vim-surround'
+Bundle 'tpope/vim-repeat'
+Bundle 'groenewege/vim-less'
+Bundle 'wolverian/Tomorrow-Theme'
+Bundle 'thisivan/vim-bufexplorer'
+Bundle 'kien/ctrlp.vim'
+Bundle 'vim-scripts/taglist.vim'
+Bundle 'sjl/gundo.vim'
+Bundle 'chelmertz/snipmate.vim'
 
 filetype plugin indent on
+syntax on
 
 " show matching variables on hover
 :autocmd CursorMoved * silent! exe printf('match IncSearch /\<%s\>/', expand('<cword>'))
-
-" fun! HighlightCurrentFocusedWord()
-	" borrowed heavily from http://stackoverflow.com/a/6496995/49879
-	" if &ft =~ 'txt\|text\|md\|markdown'
-		" return
-	" endif
-	" exe printf('match IncSearch /\<%s\>/', expand('<cword>'))
-" end
-
-" :autocmd CursorMoved * silent! call HighlightCurrentFocusedWord()
 
 " spellcheck commit messages
 " zg => mark word as good
@@ -70,10 +81,6 @@ nnoremap <leader>t :TlistToggle<CR>
 nmap ö `
 vmap ö `
 
-" yank history
-nnoremap <leader>y :YRShow<CR>
-vnoremap <leader>y :YRShow<CR>
-
 " search options
 set gdefault
 set hlsearch
@@ -89,9 +96,6 @@ vnoremap / /\v
 let mapleader=","
 nmap <leader>n :nohl<CR>
 
-" search recursively from current folder with Ack
-nmap <leader>s :Ack 
-
 " buf explorer
 nmap <leader><leader> :BufExplorer<CR>
 
@@ -106,9 +110,6 @@ nmap <leader>e :Errors<CR>
 " save file accidentally opened without sudo
 " from http://nvie.com/posts/how-i-boosted-my-vim/
 cmap w!! w !sudo tee % >/dev/null<CR>
-
-" git
-nmap <leader>gs :Extradite<CR> " gs for 'git show'
 
 " restore cursor position next time the file is opened, from
 " http://vim.wikia.com/wiki/Restore_cursor_to_file_position_in_previous_editing_session
