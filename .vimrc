@@ -50,6 +50,7 @@ set noerrorbells
 set nostartofline
 set nonumber
 set showcmd
+set colorcolumn=+1 " highlights the column after textwidth (80, usually)
 
 set scrolloff=6
 set smartindent
@@ -92,6 +93,8 @@ set statusline+=\ %{fugitive#statusline()} "  Git historyotness
 set statusline+=\ %=%-14.(%l,%c%V%)\ %p%%  " Right aligned file nav info
 nnoremap / /\v
 vnoremap / /\v
+set list
+set listchars=nbsp:¬,tab:>-,extends:»,precedes:«,trail:•
 
 let mapleader=","
 nmap <leader>n :nohl<CR>
