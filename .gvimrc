@@ -1,4 +1,4 @@
-set guifont=Monaco:h12
+set guifont=Monaco:h11
 set background=dark
 "colorscheme Tomorrow-Night-Eighties
 colorscheme Monokai
