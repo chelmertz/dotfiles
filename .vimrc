@@ -22,6 +22,7 @@ Bundle 'kien/ctrlp.vim'
 Bundle 'vim-scripts/taglist.vim'
 Bundle 'sjl/gundo.vim'
 Bundle 'chelmertz/snipmate.vim'
+Bundle 'vim-scripts/vimwiki'
 
 filetype plugin indent on
 syntax on
