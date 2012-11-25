@@ -1,5 +1,5 @@
 filetype off
-set rtp+=~/.vim/bundle/vundle
+set rtp+=~/.vim/vundles/vundle
 call vundle#rc('~/.config/dotfiles/.vim/vundles')
 " on new machines/to update bundles/get the files of newly added ones:
 " :BundleInstall
