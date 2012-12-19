@@ -52,6 +52,9 @@ set nostartofline
 set nonumber
 set showcmd
 set colorcolumn=+1 " highlights the column after textwidth (80, usually)
+set tabstop=8
+set shiftwidth=8
+set noexpandtab
 
 set scrolloff=6
 set smartindent
@@ -68,6 +71,8 @@ nnoremap k gk
 " stay in visual mode after indentation
 vnoremap < <gv
 vnoremap > >gv
+
+set foldmethod=indent
 
 let mapleader=","
 
@@ -87,6 +92,7 @@ vmap ö `
 set gdefault
 set hlsearch
 set ignorecase
+set smartcase
 set incsearch
 set showmatch
 set statusline=%<%{getcwd()}/%f\    " Filename
@@ -94,8 +100,8 @@ set statusline+=\ %{fugitive#statusline()} "  Git historyotness
 set statusline+=\ %=%-14.(%l,%c%V%)\ %p%%  " Right aligned file nav info
 nnoremap / /\v
 vnoremap / /\v
-set list
-set listchars=nbsp:¬,tab:>-,extends:»,precedes:«,trail:•
+"set list
+"set listchars=nbsp:¬,tab:>-,extends:»,precedes:«,trail:•
 
 let mapleader=","
 nmap <leader>n :nohl<CR>
