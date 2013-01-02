@@ -36,8 +36,6 @@ syntax on
 au BufNewFile,BufRead *.markdown,*.md,COMMIT_EDITMSG,README,CHANGELOG,INSTALL setlocal spell
 
 set autoindent
-set background=dark
-colorscheme Tomorrow-Night-Eighties
 set copyindent
 set cursorline
 set backspace=indent,eol,start
