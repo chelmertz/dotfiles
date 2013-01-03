@@ -110,8 +110,8 @@ proml
 
 alias ga="git add -A "
 alias gb="git branch "
-alias gc="git commit --no-verify -m "
-alias gca="git commit --no-verify -am "
+alias gc="git commit -sv"
+alias gca="git commit -asv"
 alias gd="git diff"
 alias go="git checkout "
 alias gdc="git diff --cached"
@@ -121,3 +121,4 @@ alias gl="git log"
 alias l="ls -alhX"
 
 alias ack="ack-grep "
+alias v="gvim"
