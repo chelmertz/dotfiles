@@ -70,20 +70,6 @@ if [ -x /usr/bin/dircolors ]; then
     alias egrep='egrep --color=auto'
 fi
 
-# some more ls aliases
-alias ll='ls -alF'
-alias la='ls -A'
-alias l='ls -CF'
-
-# Alias definitions.
-# You may want to put all your additions into a separate file like
-# ~/.bash_aliases, instead of adding them here directly.
-# See /usr/share/doc/bash-doc/examples in the bash-doc package.
-
-if [ -f ~/.bash_aliases ]; then
-    . ~/.bash_aliases
-fi
-
 # enable programmable completion features (you don't need to enable
 # this, if it's already enabled in /etc/bash.bashrc and /etc/profile
 # sources /etc/bash.bashrc).
@@ -116,8 +102,22 @@ function parse_git_branch {
 
   PS1="${TITLEBAR}\
 $BLUE[$RED\u@\h:\w$GREEN\$(parse_git_branch)$BLUE]\
-$LIGHT_GRAY\$ "
+$GREEN\$ "
   PS2='> '
   PS4='+ '
 						    }
 proml
+
+alias ga="git add -A "
+alias gb="git branch "
+alias gc="git commit --no-verify -m "
+alias gca="git commit --no-verify -am "
+alias gd="git diff"
+alias go="git checkout "
+alias gdc="git diff --cached"
+alias gs="git status"
+alias gl="git log"
+
+alias l="ls -alhX"
+
+alias ack="ack-grep "
