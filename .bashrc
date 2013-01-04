@@ -122,3 +122,4 @@ alias l="ls -alhX"
 
 alias ack="ack-grep "
 alias v="gvim"
+export EDITOR="gvim -f"
