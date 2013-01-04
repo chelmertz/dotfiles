@@ -83,3 +83,4 @@ After the repository is updated, make sure symlinks follow the possibly new file
                 merge.summary = true
                 branch.autosetupmerge = true
                 push.default = current
+                log.decorate = true
