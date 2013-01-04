@@ -2,4 +2,3 @@
 .zsh-local
 .vim/spell/*
 .vim/Session.vim
-.vim/vundles
