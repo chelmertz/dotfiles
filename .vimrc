@@ -48,6 +48,7 @@ vnoremap < <gv
 vnoremap > >gv
 
 set foldmethod=indent
+au FileType gitcommit set nofoldenable
 
 let mapleader=","
 
