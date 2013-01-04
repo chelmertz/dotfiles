@@ -1,28 +1,5 @@
-filetype off
-set rtp+=~/.vim/vundles/vundle
-call vundle#rc('~/.config/dotfiles/.vim/vundles')
-" on new machines/to update bundles/get the files of newly added ones:
-" :BundleInstall
-Bundle 'gmarik/vundle'
-
-Bundle 'vim-scripts/matchit.zip'
-Bundle 'sickill/vim-monokai'
-Bundle 'tpope/vim-fugitive'
-Bundle 'scrooloose/nerdcommenter'
-Bundle 'ervandew/supertab'
-Bundle 'spf13/vim-markdown'
-Bundle 'scrooloose/syntastic'
-Bundle 'mattn/zencoding-vim'
-Bundle 'tpope/vim-surround'
-Bundle 'tpope/vim-repeat'
-Bundle 'groenewege/vim-less'
-Bundle 'wolverian/Tomorrow-Theme'
-Bundle 'thisivan/vim-bufexplorer'
-Bundle 'kien/ctrlp.vim'
-Bundle 'vim-scripts/taglist.vim'
-Bundle 'sjl/gundo.vim'
-Bundle 'chelmertz/snipmate.vim'
-Bundle 'vim-scripts/vimwiki'
+runtime bundle/vim-pathogen/autoload/pathogen.vim
+call pathogen#infect()
 
 filetype plugin indent on
 syntax on
