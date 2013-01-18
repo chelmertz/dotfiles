@@ -77,36 +77,33 @@ if [ -f /etc/bash_completion ] && ! shopt -oq posix; then
     . /etc/bash_completion
 fi
 
-# show git branch in prompt
-#from http://www.jonmaddox.com/2008/03/13/show-your-git-branch-name-in-your-prompt/
-function parse_git_branch {
-  git branch --no-color 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
-  }
+txtred='\033[0;31m'
+txtgrn='\033[0;32m'
+txtylw='\033[1;33m'
+end='\033[0m'
 
-  function proml {
-  local        BLUE="\[\033[0;34m\]"
-  local         RED="\[\033[0;31m\]"
-  local   LIGHT_RED="\[\033[1;31m\]"
-  local       GREEN="\[\033[0;32m\]"
-  local LIGHT_GREEN="\[\033[1;32m\]"
-  local       WHITE="\[\033[1;37m\]"
-  local  LIGHT_GRAY="\[\033[0;37m\]"
-  case $TERM in
-	  xterm*)
-		  TITLEBAR='\[\033]0;\u@\h:\w\007\]'
-		  ;;
-	  *)
-		  TITLEBAR=""
-		  ;;
-  esac
+function parse_git {
+	branch=$(__git_ps1 "%s")
+	if [[ -z $branch ]]; then
+		return
+	fi
 
-  PS1="${TITLEBAR}\
-$BLUE[$RED\u@\h:\w$GREEN\$(parse_git_branch)$BLUE]\
-$GREEN\$ "
-  PS2='> '
-  PS4='+ '
-						    }
-proml
+	status="$(git status 2>/dev/null)"
+
+	if [[ $status =~ "Untracked files" ]]; then
+		branch=${txtred}${branch}${end}
+	fi
+	if [[ $status =~ "Changed but not updated" ]]; then
+		branch=${txtylw}${branch}${end}
+	fi
+	if [[ $status =~ "Changes to be committed" ]]; then
+		branch=${txtgrn}${branch}${end}
+	fi
+
+	echo -e " ($branch)"
+}
+
+PS1='$USER@\w$(parse_git) \$ '
 
 alias ga="git add -A "
 alias gb="git branch "
