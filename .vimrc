@@ -5,7 +5,7 @@ filetype plugin indent on
 syntax on
 
 " show matching variables on hover
-:autocmd CursorMoved * silent! exe printf('match IncSearch /\<%s\>/', expand('<cword>'))
+":autocmd CursorMoved * silent! exe printf('match IncSearch /\<%s\>/', expand('<cword>'))
 
 " spellcheck commit messages
 " zg => mark word as good
