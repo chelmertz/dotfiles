@@ -92,6 +92,9 @@ set statusline+=%#warningmsg#
 set statusline+=%{SyntasticStatuslineFlag()}
 set statusline+=%*
 nmap <leader>e :Errors<CR>
+let g:syntastic_mode_map = { 'mode': 'active',
+	\ 'active_filetypes': [],
+	\ 'passive_filetypes': ['html'] }
 
 " save file accidentally opened without sudo
 " from http://nvie.com/posts/how-i-boosted-my-vim/
