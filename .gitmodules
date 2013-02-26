@@ -55,3 +55,6 @@
 [submodule ".vim/bundle/vim-github-colorscheme"]
 	path = .vim/bundle/vim-github-colorscheme
 	url = https://github.com/endel/vim-github-colorscheme
+[submodule ".vim/bundle/vim-css-color"]
+	path = .vim/bundle/vim-css-color
+	url = https://github.com/ap/vim-css-color.git
