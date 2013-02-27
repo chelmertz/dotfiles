@@ -1,4 +1,4 @@
-set guifont=Monaco:h11
+set guifont=Consolas:10
 
 "save and close all files and save global session
 nnoremap <leader>q :mksession! ~/.vim/Session.vim<CR>:wqa<CR>
