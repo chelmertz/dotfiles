@@ -50,6 +50,7 @@ vnoremap > >gv
 
 set foldmethod=indent
 au FileType gitcommit set nofoldenable
+au FileType sass set tabstop=8 shiftwidth=8 noexpandtab
 
 let mapleader=","
 
