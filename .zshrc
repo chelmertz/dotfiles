@@ -54,7 +54,7 @@ alias faster="test -d /private/var/log/asl && sudo rm -f /private/var/log/asl/*.
 
 source $ZSH/oh-my-zsh.sh
 
-export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/X11/bin:/opt/local/bin:/usr/local/git/bin:~/bin:~/.local/bin:/usr/local/share/npm/bin/
+export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/X11/bin:/opt/local/bin:/usr/local/git/bin:~/bin:~/.local/bin:/usr/local/share/npm/bin
 export NODE_PATH=/usr/local/lib/node:/usr/local/share/npm/lib/node_modules
 export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
