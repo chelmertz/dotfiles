@@ -10,7 +10,7 @@ syntax on
 " spellcheck commit messages
 " zg => mark word as good
 " z= => get suggestions for improvements
-au BufNewFile,BufRead *.markdown,*.md,COMMIT_EDITMSG,README,CHANGELOG,INSTALL setlocal spell
+au BufNewFile,BufRead *.markdown,*.md,*.dox,COMMIT_EDITMSG,README,CHANGELOG,INSTALL setlocal spell
 
 color github
 set autoindent
