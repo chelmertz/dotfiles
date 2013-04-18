@@ -87,17 +87,6 @@ nmap <leader>n :nohl<CR>
 " buf explorer
 nmap <leader><leader> :BufExplorer<CR>
 
-" syntastic settigns
-let g:syntastic_auto_loc_list=1
-let g:syntastic_auto_jump=1
-set statusline+=%#warningmsg#
-set statusline+=%{SyntasticStatuslineFlag()}
-set statusline+=%*
-nmap <leader>e :Errors<CR>
-let g:syntastic_mode_map = { 'mode': 'active',
-	\ 'active_filetypes': [],
-	\ 'passive_filetypes': ['html'] }
-
 " save file accidentally opened without sudo
 " from http://nvie.com/posts/how-i-boosted-my-vim/
 cmap w!! w !sudo tee % >/dev/null<CR>
