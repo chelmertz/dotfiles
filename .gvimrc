@@ -1,4 +1,4 @@
-set guifont=Consolas:10
+set guifont=Ubuntu\ Mono:13
 
 "save and close all files and save global session
 nnoremap <leader>q :mksession! ~/.vim/Session.vim<CR>:wqa<CR>
