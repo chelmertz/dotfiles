@@ -30,7 +30,8 @@ plugins=(git)
 alias c="cd"
 alias cdd="cd ~/.config/dotfiles"
 alias cds="cd ~/Sites"
-alias l="ls -alh"
+# brew install coreutils:
+alias l="/usr/local/Cellar/coreutils/8.21/bin/gls --color -alhs --group-directories-first"
 
 alias v="mvim"
 alias doxyview="make docs && open Documentation/html/index.html"
