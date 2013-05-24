@@ -12,7 +12,7 @@ syntax on
 " z= => get suggestions for improvements
 au BufNewFile,BufRead *.markdown,*.md,*.dox,COMMIT_EDITMSG,README,CHANGELOG,INSTALL setlocal spell
 
-color github
+color desert
 set autoindent
 set copyindent
 set cursorline
