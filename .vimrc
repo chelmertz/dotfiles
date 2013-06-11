@@ -59,8 +59,8 @@ let mapleader=","
 nnoremap <leader>u :GundoToggle<CR>
 
 " ctags
-set tags=~/.tags
-let Tlist_Ctags_Cmd='/usr/local/bin/ctags'
+"set tags=~/.tags
+"let Tlist_Ctags_Cmd='/usr/local/bin/ctags'
 nnoremap <leader>t :TlistToggle<CR>
 
 " marks
