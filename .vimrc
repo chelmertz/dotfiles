@@ -38,7 +38,8 @@ set undolevels=1000
 set wildmenu
 set ttyfast
 set virtualedit+=block
-set wildignore+=*/tmp/*,*.so,*.swp,*.zip,*.pyc
+set wildignore+=*/tmp/*,*.so,*.swp,*.zip,*.pyc,*.o
+let g:netrw_list_hide= '.*\.so$,.*\.swp$,.*\.zip$,.*\.pyc$,.*\.o$'
 
 " go up one visual line, not logic line
 nnoremap j gj
