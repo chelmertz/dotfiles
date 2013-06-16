@@ -113,4 +113,9 @@ augroup END
 " if(a) {
 " 	echo 'yes';
 " }
-nmap <leader>f A {<esc>jo}<esc>
+nnoremap <leader>f A {<esc>jo}<esc>
+
+" S requires the vim-surround plugin
+vmap <leader>vdd Sbivar_dump<esc>f(a__METHOD__." ".__FILE__.":".__LINE__, <esc>f)a;<esc> 
+inoremap <leader>vdd var_dump(__METHOD__." ".__FILE__.":".__LINE__, );<esc>hi
+
