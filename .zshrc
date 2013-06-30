@@ -47,7 +47,7 @@ alias gd="git diff"
 alias gdc="git diff --cached"
 alias gl="git log -p"
 alias glp='git log --pretty="format:%Cred%h %Cblue%d %Cgreen%s %Creset%an %ar" --graph --all'
-alias go="git checkout"
+alias gco="git checkout"
 alias gs="git status"
 
 # Make mac's terminal faster
