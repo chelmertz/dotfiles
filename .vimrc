@@ -75,9 +75,7 @@ set ignorecase
 set smartcase
 set incsearch
 set showmatch
-set statusline=%<%{getcwd()}/%f\    " Filename
-set statusline+=\ %{fugitive#statusline()} "  Git historyotness
-set statusline+=\ %=%-14.(%l,%c%V%)\ %p%%  " Right aligned file nav info
+let g:airline_enable_fugitive = 1
 "set list
 "set listchars=nbsp:¬,tab:>-,extends:»,precedes:«,trail:•
 
