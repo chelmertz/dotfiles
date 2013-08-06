@@ -26,6 +26,8 @@ COMPLETION_WAITING_DOTS="true"
 # Example format: plugins=(rails git textmate ruby lighthouse)
 plugins=(git)
 
+source $ZSH/oh-my-zsh.sh
+
 # Directories
 alias c="cd"
 alias cdd="cd ~/.config/dotfiles"
@@ -52,8 +54,6 @@ alias gs="git status"
 
 # Make mac's terminal faster
 alias faster="test -d /private/var/log/asl && sudo rm -f /private/var/log/asl/*.asl"
-
-source $ZSH/oh-my-zsh.sh
 
 export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/X11/bin:/opt/local/bin:/usr/local/git/bin:~/bin:~/.local/bin:/usr/local/share/npm/bin
 export NODE_PATH=/usr/local/lib/node:/usr/local/share/npm/lib/node_modules
