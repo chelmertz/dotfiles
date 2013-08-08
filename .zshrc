@@ -48,6 +48,7 @@ alias gcaa="git commit -asv --amend"
 alias gd="git diff"
 alias gdc="git diff --cached"
 alias gl="git log -p -M"
+alias gls="git log --stat -M"
 alias glp='git log --pretty="format:%Cred%h %Cblue%d %Cgreen%s %Creset%an %ar" --graph --all'
 alias gco="git checkout"
 alias gs="git status"
