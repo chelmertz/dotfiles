@@ -36,8 +36,13 @@ alias cds="cd ~/Sites"
 alias l="/usr/local/Cellar/coreutils/8.21/bin/gls --color -alhs --group-directories-first"
 
 alias v="mvim"
-alias doxyview="make docs && open Documentation/html/index.html"
-alias pp="~/.config/dotfiles/bin/postponed/postpone.sh"
+function treel () {
+	if [ $# -eq 0 ]; then
+		eval "tree | less"
+	else
+		eval "tree '$@' | less"
+	fi
+}
 
 # Using git
 alias ga="git add"
