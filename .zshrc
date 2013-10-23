@@ -57,7 +57,9 @@ alias gls="git log --stat -M"
 alias glp='git log --pretty="format:%Cred%h %Cblue%d %Cgreen%s %Creset%an %ar" --graph --all'
 alias gco="git checkout"
 alias gs="git status"
-alias review="git push origin $(git rev-parse --abbrev-ref HEAD):refs/for/$(git rev-parse --abbrev-ref HEAD)"
+function review() {
+	git push origin $(git rev-parse --abbrev-ref):refs/for/$(git rev-parse --abbrev-ref)
+}
 
 # Make mac's terminal faster
 alias faster="test -d /private/var/log/asl && sudo rm -f /private/var/log/asl/*.asl"
