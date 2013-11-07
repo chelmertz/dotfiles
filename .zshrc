@@ -52,7 +52,7 @@ alias gca="git commit -asv"
 alias gcaa="git commit -asv --amend"
 alias gd="git diff"
 alias gdc="git diff --cached"
-alias gl="git log -p -M"
+alias gl="git log -p -M -w" # show full diff (p), ignore annoying move file full diffs (-M), ignore whitespace changes (-w)
 alias gls="git log --stat -M"
 alias glp='git log --pretty="format:%Cred%h %Cblue%d %Cgreen%s %Creset%an %ar" --graph --all'
 alias gco="git checkout"
