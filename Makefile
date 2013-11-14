@@ -28,6 +28,7 @@ faster:
 	sudo rm -f /private/var/log/asl/*.asl
 
 update:
-	git pull
-	git submodule foreach --recursive git pull origin master 1> /dev/null
+	git pull --rebase
+	git submodule foreach --recursive git pull origin master
+	git submodule foreach --recursive git submodule update --init --recursive
 	brew info && brew upgrade && brew update
