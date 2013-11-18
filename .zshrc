@@ -36,6 +36,14 @@ alias cds="cd ~/Sites"
 alias l="/usr/local/Cellar/coreutils/8.21/bin/gls --color -alhs --group-directories-first"
 
 alias v="mvim"
+# vv searchterm opens all files matching searchterm, in vim buffers
+function vv () {
+	if [ $# -eq 0 ]; then
+		echo "I need a search string" 1>&2
+		return 1
+	fi
+	mvim -O $(ag "$@" -l)
+}
 function treel () {
 	if [ $# -eq 0 ]; then
 		eval "tree | less"
