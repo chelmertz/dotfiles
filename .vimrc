@@ -86,7 +86,9 @@ let mapleader=","
 nmap <leader>n :nohl<CR>
 
 " buf explorer
-nmap <leader><leader> :BufExplorer<CR>
+" after finding the buffer you want to switch to, :bN switches to buffer N
+" or just <leader>b to go to next buffer
+nnoremap <leader><leader> :ls<CR>
 
 " save file accidentally opened without sudo
 " from http://nvie.com/posts/how-i-boosted-my-vim/
