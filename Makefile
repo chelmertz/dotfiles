@@ -29,6 +29,7 @@ faster:
 
 update:
 	git pull --rebase
-	git submodule foreach --recursive git pull origin master
+	git submodule init
+	git submodule update
 	git submodule foreach --recursive git submodule update --init --recursive
 	# brew info && brew upgrade && brew update
