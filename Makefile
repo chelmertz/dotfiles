@@ -31,4 +31,4 @@ update:
 	git pull --rebase
 	git submodule foreach --recursive git pull origin master
 	git submodule foreach --recursive git submodule update --init --recursive
-	brew info && brew upgrade && brew update
+	# brew info && brew upgrade && brew update
