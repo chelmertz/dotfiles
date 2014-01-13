@@ -32,4 +32,5 @@ update:
 	git submodule init
 	git submodule update
 	git submodule foreach --recursive git submodule update --init --recursive
+	# cd .vim/bundle/YouCompleteMe && ./install.sh
 	# brew info && brew upgrade && brew update
