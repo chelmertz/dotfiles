@@ -34,6 +34,8 @@ alias cdd="cd ~/.config/dotfiles"
 alias cds="cd ~/Sites"
 # brew install coreutils:
 alias l="/usr/local/Cellar/coreutils/8.21/bin/gls --color -alhs --group-directories-first"
+alias ag="ag -U"
+alias todo="ag -i 'todo|fixme'"
 
 alias v="mvim"
 # vv searchterm opens all files matching searchterm, in vim buffers
