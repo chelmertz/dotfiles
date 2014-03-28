@@ -107,18 +107,21 @@ PS1='$USER@\w$(parse_git) \$ '
 
 alias ga="git add -A "
 alias gb="git branch "
+alias gba="git branch --all"
 alias gc="git commit -sv"
 alias gca="git commit -asv"
-alias gd="git diff"
-alias go="git checkout "
+alias gcaa="git commit -asv --amend"
+alias gd="git diff -M -w"
+alias gco="git checkout "
 alias gdc="git diff --cached"
 alias gs="git status"
-alias gl="git log"
+alias gl="git log -p -M -w --stat"
 
 alias l="ls -alhX"
 
-alias ack="ack-grep "
+alias ag='ag -u'
 alias v="gvim"
 alias cds="cd ~/code"
 alias cdd="cd ~/.config/dotfiles"
 export EDITOR="gvim -f"
+source ~/.bashrc-local
