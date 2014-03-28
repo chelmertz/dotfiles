@@ -12,6 +12,13 @@ syntax on
 " z= => get suggestions for improvements
 au BufNewFile,BufRead *.markdown,*.md,*.dox,COMMIT_EDITMSG,README,CHANGELOG,INSTALL setlocal spell
 
+" highlight trailing whitespace,
+" http://vim.wikia.com/wiki/Highlight_unwanted_spaces
+au ColorScheme * highlight ExtraWhitespace ctermbg=red guibg=red
+"match ExtraWhitespace /\s\+$\| \+\ze\t/
+au InsertEnter * match ExtraWhitespace /\s\+\%#\@<!$/
+au InsertLeave * match ExtraWhitespace /\s\+$/
+
 color molokai
 set autoindent
 set copyindent
