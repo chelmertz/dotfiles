@@ -17,7 +17,7 @@ au BufNewFile,BufRead *.markdown,*.md,*.dox,COMMIT_EDITMSG,README,CHANGELOG,INST
 au ColorScheme * highlight ExtraWhitespace ctermbg=red guibg=red
 "match ExtraWhitespace /\s\+$\| \+\ze\t/
 au InsertEnter * match ExtraWhitespace /\s\+\%#\@<!$/
-au InsertLeave * match ExtraWhitespace /\s\+$/
+au BufEnter,InsertLeave * match ExtraWhitespace /\s\+$/
 
 color molokai
 set autoindent
