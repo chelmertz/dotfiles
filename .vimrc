@@ -68,8 +68,16 @@ let mapleader=","
 nnoremap <leader>u :GundoToggle<CR>
 
 " ctags
-"set tags=~/.tags
-"let Tlist_Ctags_Cmd='/usr/local/bin/ctags'
+" install Exuberant ctags
+" cd ~; ctags code
+" # open a file
+" # ctrl+] when cursor on variable
+" # ctrl+t to return
+" ,t to open overview of file
+" more: http://vim.wikia.com/wiki/Browsing_programs_with_tags
+set tags=~/tags
+nnoremap <leader>c <C
+let Tlist_Ctags_Cmd='ctags'
 nnoremap <leader>t :TlistToggle<CR>
 
 " marks
