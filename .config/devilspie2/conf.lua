@@ -16,6 +16,10 @@ if (app_name == "Pidgin") then
 	set_window_workspace(5)
 end
 
+if (string.find(app_name, "Skype")) then
+	set_window_workspace(5)
+end
+
 if (app_name == "spotify" or app_name == "Spotify Premium - Linux Preview") then
 	set_window_workspace(4)
 end
