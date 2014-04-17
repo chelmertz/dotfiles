@@ -1,0 +1,2 @@
+setxkbmap -layout se -option caps:escape
+. ~/.screenlayout/work.sh
