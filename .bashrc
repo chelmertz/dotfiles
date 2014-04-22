@@ -71,10 +71,6 @@ if [ -f /etc/bash_completion ] && ! shopt -oq posix; then
     . /etc/bash_completion
 fi
 
-function lock() {
-	i3lock -i ~/Pictures/mike_mitchell.png -t
-}
-
 alias ga="git add -A "
 alias gb="git branch "
 alias gba="git branch --all"
