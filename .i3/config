@@ -148,3 +148,6 @@ bindsym $mod+r mode "resize"
 bar {
         status_command i3status
 }
+
+# move workspace to another monitor, input in a terminal:
+# i3-msg move workspace to output left
