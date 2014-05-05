@@ -10,6 +10,7 @@
 # Please see http://i3wm.org/docs/userguide.html for a complete reference!
 
 set $mod Mod4
+set $alt Mod1
 
 # Font for window titles. Will also be used by the bar unless a different font
 # is used in the bar {} block below. ISO 10646 = Unicode
@@ -114,6 +115,9 @@ bindsym $mod+Shift+9 move container to workspace 9
 bindsym $mod+Shift+0 move container to workspace 10
 
 workspace_auto_back_and_forth yes
+
+bindsym $mod+$alt+l workspace next
+bindsym $mod+$alt+h workspace prev
 
 # control the audio with keyboard buttons
 # requires aptitude install alsa-utils
