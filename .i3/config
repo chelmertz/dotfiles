@@ -116,8 +116,13 @@ bindsym $mod+Shift+0 move container to workspace 10
 
 workspace_auto_back_and_forth yes
 
+# view next/prev workspace
 bindsym $mod+$alt+l workspace next
 bindsym $mod+$alt+h workspace prev
+
+# move workspace to other monitor
+bindsym $mod+$alt+Shift+h move workspace to output left
+bindsym $mod+$alt+Shift+l move workspace to output right
 
 # control the audio with keyboard buttons
 # requires aptitude install alsa-utils
@@ -170,6 +175,3 @@ bindsym $mod+r mode "resize"
 bar {
         status_command i3status
 }
-
-# move workspace to another monitor, input in a terminal:
-# i3-msg move workspace to output left
