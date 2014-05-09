@@ -86,7 +86,7 @@ alias glp='git log --pretty="format:%Cred%h %Cblue%d %Cgreen%s %Creset%an %ar" -
 
 alias l="ls -alhX"
 
-alias ag='ag -u'
+alias ag='ag -U'
 alias v="gvim"
 alias cds="cd ~/code"
 alias cdd="cd ~/.config/dotfiles"
