@@ -90,7 +90,7 @@ bindsym $mod+a focus parent
 # switch to workspace
 bindsym $mod+1 workspace 1
 bindsym $mod+2 workspace 2
-bindsym $mod+3 workspace 3 pidgin
+bindsym $mod+3 workspace 3 chat
 bindsym $mod+4 workspace 4 spotify
 bindsym $mod+5 workspace 5
 bindsym $mod+6 workspace 6
@@ -100,12 +100,13 @@ bindsym $mod+9 workspace 9
 bindsym $mod+0 workspace 10
 
 assign [class="Spotify"] 4 spotify
-assign [class="Pidgin"] 3 pidgin
+assign [class="Pidgin"] 3 chat
+assign [class="Skype"] 3 chat
 
 # move focused container to workspace
 bindsym $mod+Shift+1 move container to workspace 1
 bindsym $mod+Shift+2 move container to workspace 2
-bindsym $mod+Shift+3 move container to workspace 3 pidgin
+bindsym $mod+Shift+3 move container to workspace 3 chat
 bindsym $mod+Shift+4 move container to workspace 4 spotify
 bindsym $mod+Shift+5 move container to workspace 5
 bindsym $mod+Shift+6 move container to workspace 6
