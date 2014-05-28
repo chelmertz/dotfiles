@@ -7,6 +7,9 @@ syntax on
 " show matching variables on hover
 ":autocmd CursorMoved * silent! exe printf('match IncSearch /\<%s\>/', expand('<cword>'))
 
+" general tip: when keeping a diary-like log file of "first I did this, then
+" that", do :r !date to get a well formed timestamp before you start
+
 " spellcheck commit messages
 " zg => mark word as good
 " z= => get suggestions for improvements
