@@ -43,7 +43,6 @@ set shiftwidth=8
 set noexpandtab
 
 set scrolloff=6
-set smartindent
 set undolevels=1000
 set wildmenu
 set ttyfast
