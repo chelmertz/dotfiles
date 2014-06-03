@@ -1,2 +1,3 @@
 setxkbmap -layout se -option caps:escape
 . ~/.screenlayout/work.sh
+xinput --list | grep -i mouse > /dev/null && synclient TouchpadOff=1 && notify-send "Turned off touchpad, see ~/.xprofile" # type =0 to turn back on
