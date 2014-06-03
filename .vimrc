@@ -139,3 +139,9 @@ inoremap <leader>vdd var_dump(__METHOD__." ".__FILE__.":".__LINE__, );<esc>odie;
 
 inoremap <leader>cl console.log();<esc>F)i
 
+""" debugging tips:
+""" http://vim.wikia.com
+""" :command (list user defined commands)
+""" :scriptnames (list loaded plugins)
+""" vim -u NONE (run vim without plugins or vimrc)
+""" vim -u NORC (run vim with plugins, without vimrc)
