@@ -1,0 +1,17 @@
+" :reh to reload config
+" :help <subject>
+
+" http://superuser.com/questions/521062/how-to-change-characters-used-for-link-hints-in-firefox-vimperator
+set hintkeys=hjklasdfgyuiopqwertnmzxcvb
+
+" trying to mimic vimium (the chrome vim plugin)
+map J :tabprevious<CR>
+map K :tabnext<CR>
+map u <PageUp>
+map d <PageDown>
+
+" allow gmail keys http://nakkaya.com/2014/01/26/pentadactyl-configuration/
+set passkeys+=mail.google.com:*
+
+set incfind
+set hlfind
