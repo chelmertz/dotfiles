@@ -48,6 +48,9 @@ set wildmenu
 set ttyfast
 set virtualedit+=block
 set wildignore+=*/tmp/*,*.so,*.swp,*.zip,*.pyc,*.o
+
+" use gx on a URL
+let g:netrw_browsex_viewer="firefox"
 let g:netrw_list_hide= '.*\.so$,.*\.swp$,.*\.zip$,.*\.pyc$,.*\.o$'
 
 " go up one visual line, not logic line
