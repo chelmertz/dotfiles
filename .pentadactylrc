@@ -15,3 +15,6 @@ set passkeys+=mail.google.com:*
 
 set incfind
 set hlfind
+
+" bookmarks:
+" :bmarks<CR> to view all, ;o and link hint to follow one, ctrl+shift+o to manage them (since pentadactyl sucks for that)
