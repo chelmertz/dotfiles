@@ -84,7 +84,7 @@ alias gs="git status"
 alias gl="git log -p -M -w --stat --pretty=fuller"
 alias glp='git log --pretty="format:%Cred%h %Cblue%d %Cgreen%s %Creset%an %ar" --graph --all'
 
-alias l="ls -alhX"
+alias l="ls --group-directories-first -alhX"
 
 alias ag='ag -U'
 alias v="gvim"
