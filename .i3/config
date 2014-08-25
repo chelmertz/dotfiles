@@ -176,3 +176,8 @@ bindsym $mod+r mode "resize"
 bar {
         status_command i3status
 }
+
+# startup
+# https://faq.i3wm.org/question/2/how-can-i-use-networkmanager-with-i3/
+exec --no-startup-id nm-applet
+exec --no-startup-id gnome-sound-applet
