@@ -62,7 +62,6 @@ vnoremap < <gv
 vnoremap > >gv
 
 set foldmethod=indent
-au BufWinEnter * normal zR
 au FileType gitcommit set nofoldenable
 au FileType sass set tabstop=8 shiftwidth=8 noexpandtab
 au FileType markdown set textwidth=80
