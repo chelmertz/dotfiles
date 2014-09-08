@@ -1,6 +1,8 @@
 . ~/.screenlayout/work.sh
 xinput --list | grep -i mouse > /dev/null && synclient TouchpadOff=1 && notify-send "Turned off touchpad, see ~/.xprofile" # type =0 to turn back on
 
+setxkbmap -layout se -option caps:escape
+
 feh --bg-center ~/Pictures/wallpaper/house_at_sea.jpg
 
 xmodmap ~/.Xmodmap
