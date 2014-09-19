@@ -122,8 +122,7 @@ bindsym $mod+$alt+l workspace next
 bindsym $mod+$alt+h workspace prev
 
 # move workspace to other monitor
-bindsym $mod+$alt+Shift+h move workspace to output left
-bindsym $mod+$alt+Shift+l move workspace to output right
+bindsym $mod+x move workspace to output right
 
 # control the audio with keyboard buttons
 # requires aptitude install alsa-utils
