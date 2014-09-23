@@ -1,0 +1,3 @@
+--ignore-file=is:tags
+--ignore-file=ext:sassc
+--ignore-dir=is:.sass-cache
