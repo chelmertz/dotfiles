@@ -104,6 +104,17 @@ set statusline+=\ %=%-14.(%l,%c%V%)\ %p%%  " Right aligned file nav info
 let mapleader=","
 nmap <leader>n :nohl<CR>
 
+" vimwiki
+" auto_export generates html each time a buffer is saved
+let g:vimwiki_list = [{
+	\ 'path': '~/Dropbox/vimwiki',
+	\ 'template_path': '~/Dropbox/vimwiki/style/',
+	\ 'template_default': 'template',
+	\ 'template_ext': '.html',
+	\ 'css_name': '~/Dropbox/vimwiki/style/style.css',
+	\ 'auto_export': 1
+	\ }]
+
 " buf explorer
 " after finding the buffer you want to switch to, :bN switches to buffer N
 " or just <leader>b to go to next buffer

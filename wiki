@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# PURPOSE: opens up a new gvim instance, with the vimwiki index page preselected
+# INSTALL: put in path.. if you're lazy like me, you don't have a user specific folder, so: "sudo ln -s wiki /usr/local/bin/wiki"
+gvim -c "VimwikiIndex"
