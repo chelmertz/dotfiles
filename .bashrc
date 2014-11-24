@@ -89,8 +89,23 @@ alias glp='git log --pretty="format:%Cred%h %Cblue%d %Cgreen%s %Creset%an %ar" -
 alias l="ls --group-directories-first -alhX"
 
 alias ag='ag -U'
+alias scrot='scrot "%Y-%m-%d_$wx$h.png" -e "mv $f ~/Pictures/screenshot/"'
 alias v="gvim"
 alias cds="cd ~/code"
 alias cdd="cd ~/.config/dotfiles"
 export EDITOR="gvim -f"
+export PATH=${PATH}:~/bin
+
+# start clojure with clj from a command line, or clj myfile.clj arg1 arg2
+# even better: lein repl
+function clj() {
+	# from http://en.wikibooks.org/wiki/Learning_Clojure/Installation
+	dldir="/home/chelmertz/Downloads/cloj/clojure-1.6.0"
+	if [ $# -eq 0 ]; then
+		java -server -cp .:${dldir}/clojure-1.6.0.jar clojure.main
+	else
+		java -server -cp .:${dldir}/clojure-1.6.0.jar clojure.main $1 -- "$@"
+	fi
+}
+
 source ~/.bashrc-local

@@ -22,7 +22,7 @@ au ColorScheme * highlight ExtraWhitespace ctermbg=red guibg=red
 au InsertEnter * match ExtraWhitespace /\s\+\%#\@<!$/
 au BufEnter,InsertLeave * match ExtraWhitespace /\s\+$/
 
-color molokai
+color badwolf " desert molokai
 set autoindent
 set copyindent
 set cursorline
@@ -80,9 +80,10 @@ nnoremap <leader>u :GundoToggle<CR>
 " ,t to open overview of file
 " more: http://vim.wikia.com/wiki/Browsing_programs_with_tags
 set tags=tags,./tags,~/tags;/
-nnoremap <leader>c <C
-let Tlist_Ctags_Cmd='ctags'
-nnoremap <leader>t :TlistToggle<CR>
+"nnoremap <leader>c <C
+"let Tlist_Ctags_Cmd='ctags'
+"nnoremap <leader>t :TlistToggle<CR>
+nnoremap <leader>t :TagbarToggle<CR>
 
 " marks
 nmap ö `
@@ -103,6 +104,10 @@ set statusline+=\ %=%-14.(%l,%c%V%)\ %p%%  " Right aligned file nav info
 
 let mapleader=","
 nmap <leader>n :nohl<CR>
+
+" incsearch: show all matches right away
+map / <Plug>(incsearch-forward)
+map ? <Plug>(incsearch-backward)
 
 " vimwiki
 " auto_export generates html each time a buffer is saved
@@ -152,9 +157,12 @@ inoremap <leader>vdd var_dump(__METHOD__." ".__FILE__.":".__LINE__, );<esc>odie;
 
 inoremap <leader>cl console.log();<esc>F)i
 
+
 """ debugging tips:
 """ http://vim.wikia.com
 """ :command (list user defined commands)
 """ :scriptnames (list loaded plugins)
 """ vim -u NONE (run vim without plugins or vimrc)
 """ vim -u NORC (run vim with plugins, without vimrc)
+""" :echo g:colors_name <-- current scheme
+""" :echo &ft <-- current filetype
