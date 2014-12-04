@@ -108,4 +108,4 @@ function clj() {
 	fi
 }
 
-source ~/.bashrc-local
+test -f ~/.bashrc-local && source ~/.bashrc-local
