@@ -10,9 +10,6 @@ map K :tabnext<CR>
 map u <PageUp>
 map d <PageDown>
 
-" allow gmail keys http://nakkaya.com/2014/01/26/pentadactyl-configuration/
-set passkeys+=mail.google.com:*
-
 set incfind
 set hlfind
 
