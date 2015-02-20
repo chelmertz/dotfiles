@@ -1,3 +1,4 @@
+# git config --global core.excludesfile ~/.gitignore_global
 # from http://help.github.com/ignore-files/
 # Compiled source #
 ###################
