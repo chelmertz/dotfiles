@@ -1,15 +1,5 @@
+#!/bin/sh
+
 setxkbmap -layout se -option caps:escape
 
-feh --bg-center ~/Pictures/wallpaper/house_at_sea.jpg
-
-xmodmap ~/.Xmodmap
-
-xinput --list | grep -i mouse > /dev/null && synclient TouchpadOff=1 && notify-send "Turned off touchpad, see ~/.xprofile" # type =0 to turn back on
-xinput --list | grep "Apple Inc. Apple Keyboard" > /dev/null
-xrandr | grep "HDMI1 connected" > /dev/null
-if [ $? -eq 0 ]; then
-	. ~/.screenlayout/work.sh
-else
-	. ~/.screenlayout/single.sh
-fi
-
+synclient TouchpadOff=1
