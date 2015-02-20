@@ -4,6 +4,10 @@ call pathogen#infect()
 filetype plugin indent on
 syntax on
 
+" to paste from the 'selection register':
+" <C-r> + +
+" .... since shift + insert does not work in gvim (but it does in terminal..)
+
 " show matching variables on hover
 ":autocmd CursorMoved * silent! exe printf('match IncSearch /\<%s\>/', expand('<cword>'))
 
@@ -108,6 +112,11 @@ nmap <leader>n :nohl<CR>
 " incsearch: show all matches right away
 map / <Plug>(incsearch-forward)
 map ? <Plug>(incsearch-backward)
+
+" make shift + insert paste from selection buffer even in gvim
+if has("gui_running")
+	imap <silent> <S-Insert> <Esc>"+pa
+endif
 
 " vimwiki
 " auto_export generates html each time a buffer is saved
