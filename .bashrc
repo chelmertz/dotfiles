@@ -73,6 +73,10 @@ if [ -f /etc/bash_completion ] && ! shopt -oq posix; then
     . /etc/bash_completion
 fi
 
+alias rm='rm -i'
+alias cp='cp -i'
+alias mv='mv -i'
+
 alias ga="git add -A "
 alias gb="git branch "
 alias gba="git branch --all"
