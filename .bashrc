@@ -98,6 +98,7 @@ alias v="gvim"
 alias cds="cd ~/code"
 alias cdd="cd ~/.config/dotfiles"
 export EDITOR="gvim -f"
+export VISUAL="gvim -f"
 export PATH=${PATH}:~/bin
 
 # start clojure with clj from a command line, or clj myfile.clj arg1 arg2
