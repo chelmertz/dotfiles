@@ -165,7 +165,8 @@ nnoremap <leader>f A {<esc>jo}<esc>
 
 " S requires the vim-surround plugin
 vmap <leader>vdd Sbivar_dump<esc>f(a__METHOD__." ".__FILE__.":".__LINE__, <esc>f)a;<esc>
-inoremap <leader>vdd var_dump(__METHOD__." ".__FILE__.":".__LINE__, );<esc>odie(1);<esc>kf)i
+inoremap <leader>vdd var_dump(__METHOD__." ".__FILE__.":".__LINE__, );<esc>oif(PHP_SAPI != 'cli' && !headers_sent()) header("HTTP/1.1 500 Internal Server Error");die(1);<esc>k0f)i
+
 
 inoremap <leader>cl console.log();<esc>F)i
 
