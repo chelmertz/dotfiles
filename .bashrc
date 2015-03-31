@@ -97,9 +97,10 @@ alias scrot='scrot "%Y-%m-%d_$wx$h.png" -e "mv $f ~/Pictures/screenshot/"'
 alias v="gvim"
 alias cds="cd ~/code"
 alias cdd="cd ~/.config/dotfiles"
-export EDITOR="gvim -f"
-export VISUAL="gvim -f"
-export PATH=${PATH}:~/bin
+EDITOR=vim
+VISUAL=vim
+PATH=${PATH}:~/bin
+export EDITOR VISUAL PATH
 
 # start clojure with clj from a command line, or clj myfile.clj arg1 arg2
 # even better: lein repl
