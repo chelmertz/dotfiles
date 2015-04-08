@@ -87,7 +87,7 @@ alias gd="git diff -M -w"
 alias gco="git checkout "
 alias gdc="git diff --cached"
 alias gs="git status"
-alias gl="git log -p -M -w --stat --pretty=fuller"
+alias gl="git log -p -M -w --stat --pretty=fuller --show-notes"
 alias glp='git log --pretty="format:%Cred%h %Cblue%d %Cgreen%s %Creset%an %ar" --graph --all'
 
 alias l="ls --group-directories-first -alhX"
