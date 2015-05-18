@@ -22,7 +22,6 @@ au BufNewFile,BufRead *.wiki,*.markdown,*.md,*.dox,COMMIT_EDITMSG,README,CHANGEL
 " highlight trailing whitespace,
 " http://vim.wikia.com/wiki/Highlight_unwanted_spaces
 au ColorScheme * highlight ExtraWhitespace ctermbg=red guibg=red
-"match ExtraWhitespace /\s\+$\| \+\ze\t/
 au InsertEnter * match ExtraWhitespace /\s\+\%#\@<!$/
 au BufEnter,InsertLeave * match ExtraWhitespace /\s\+$/
 
@@ -59,6 +58,8 @@ set wildignore+=*/tmp/*,*.so,*.swp,*.zip,*.pyc,*.o
 " use gx on a URL
 let g:netrw_browsex_viewer="firefox"
 let g:netrw_list_hide= '.*\.so$,.*\.swp$,.*\.zip$,.*\.pyc$,.*\.o$'
+
+let g:ycm_autoclose_preview_window_after_insertion = 1
 
 " go up one visual line, not logic line
 nnoremap j gj
