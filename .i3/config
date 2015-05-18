@@ -22,7 +22,11 @@ font pango:DejaVu Sans Mono 10
 floating_modifier $mod
 
 # start a terminal
-bindsym $mod+Return exec gnome-terminal
+bindsym $mod+Return exec i3-sensible-terminal
+
+# start a terminal from current (terminal's) working directory
+# requires xcwd https://github.com/schischi-a/xcwd
+bindsym $mod+Shift+Return exec urxvt -cd "`xcwd`"
 
 # kill focused window
 bindsym $mod+q kill
