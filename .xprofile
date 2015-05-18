@@ -3,3 +3,11 @@
 setxkbmap -layout se -option caps:escape
 
 synclient TouchpadOff=1
+xrandr --query | grep "DP2-2 connected" > /dev/null
+testing=$?
+
+if [ "x$testing" = "x0" ]; then
+	~/.screenlayout/dualscreens.sh
+else
+	xrandr --auto
+fi
