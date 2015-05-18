@@ -67,8 +67,8 @@
 
 
 
-URxvt*font: xft:dejavu sans mono:pixelsize=14
-URxvt*boldFont: xft:dejavu sans mono:bold:pixelsize=14
+URxvt*font: xft:dejavu sans mono:pixelsize=15
+URxvt*boldFont: xft:dejavu sans mono:bold:pixelsize=15
 URxvt.scrollstyle: plain
 URxvt*scrollBar_right: true
 
