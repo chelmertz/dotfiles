@@ -17,7 +17,7 @@ syntax on
 " spellcheck commit messages
 " zg => mark word as good
 " z= => get suggestions for improvements
-au BufNewFile,BufRead *.markdown,*.md,*.dox,COMMIT_EDITMSG,README,CHANGELOG,INSTALL setlocal spell
+au BufNewFile,BufRead *.wiki,*.markdown,*.md,*.dox,COMMIT_EDITMSG,README,CHANGELOG,INSTALL setlocal spell
 
 " highlight trailing whitespace,
 " http://vim.wikia.com/wiki/Highlight_unwanted_spaces
