@@ -1,6 +1,6 @@
 # Copied from /usr/share/dunst/dunstrc, place in ~/.config/dunst
 [global]
-    font = Monospace 8
+    font = Monospace 10
 
     # Allow a small subset of html markup:
     #   <b>bold</b>
