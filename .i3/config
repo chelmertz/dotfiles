@@ -32,6 +32,7 @@ bindsym $mod+Shift+Return exec urxvt -cd "`xcwd`"
 bindsym $mod+q kill
 
 bindsym $mod+space exec rofi -show run
+bindsym $mod+Shift+s exec rofi -show ssh
 # bring back alt-tab from the nineties..
 bindsym $mod+Tab exec rofi -show window
 
