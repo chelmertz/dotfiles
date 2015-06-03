@@ -102,6 +102,7 @@ assign [class="Spotify"] 10 music
 assign [class="Rhythmbox"] 10 music
 assign [class="Pidgin"] 9 chat
 assign [class="Skype"] 9 chat
+assign [class="Firefox"] 3 browser
 
 # move focused container to workspace
 bindsym $mod+Shift+1 move container to workspace 1
