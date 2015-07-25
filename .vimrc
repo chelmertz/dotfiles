@@ -1,5 +1,37 @@
-runtime bundle/vim-pathogen/autoload/pathogen.vim
-call pathogen#infect()
+set nocompatible
+filetype off
+set rtp+=~/.vim/bundle/Vundle.vim
+call vundle#begin()
+
+Plugin 'gmarik/Vundle.vim'
+
+Plugin 'vim-scripts/matchit.zip'
+Plugin 'tpope/vim-fugitive'
+Plugin 'scrooloose/nerdcommenter'
+Plugin 'spf13/vim-markdown'
+Plugin 'mattn/zencoding-vim'
+Plugin 'tpope/vim-surround'
+Plugin 'tpope/vim-repeat'
+Plugin 'groenewege/vim-less'
+Plugin 'kien/ctrlp.vim'
+Plugin 'vim-scripts/taglist.vim'
+Plugin 'sjl/gundo.vim'
+Plugin 'vimwiki/vimwiki'
+Plugin 'tpope/vim-pathogen'
+Plugin 'kchmck/vim-coffee-script'
+Plugin 'endel/vim-github-colorscheme'
+Plugin 'ap/vim-css-color'
+Plugin 'thinca/vim-visualstar'
+Plugin 'fugalh/desert.vim'
+Plugin 'tomasr/molokai'
+Plugin 'Valloric/YouCompleteMe'
+Plugin 'majutsushi/tagbar'
+Plugin 'haya14busa/incsearch.vim'
+Plugin 'sjl/badwolf'
+Plugin 'guns/vim-clojure-static'
+Plugin 'tpope/vim-fireplace'
+
+call vundle#end()
 
 filetype plugin indent on
 syntax on
@@ -24,11 +56,11 @@ au BufNewFile,BufRead *.wiki,*.markdown,*.md,*.dox,COMMIT_EDITMSG,README,CHANGEL
 au ColorScheme * highlight ExtraWhitespace ctermbg=red guibg=red
 au InsertEnter * match ExtraWhitespace /\s\+\%#\@<!$/
 au BufEnter,InsertLeave * match ExtraWhitespace /\s\+$/
+color badwolf " desert molokai
 
 set guioptions=agitc
 set guifont=Monospace\ 11
 
-color badwolf " desert molokai
 set autoindent
 set copyindent
 set cursorline
@@ -38,7 +70,6 @@ set history=1000
 set laststatus=2
 set nobackup
 set modelines=0
-set nocompatible
 set noerrorbells
 set nostartofline
 set nonumber

@@ -3,3 +3,5 @@
 .vim/spell/*
 .vim/Session.vim
 *.swp
+#handled by vundle:
+.vim/bundle
