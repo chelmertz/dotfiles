@@ -36,6 +36,7 @@ Thumbs.db
 
 # vim
 *.swp
+*.swo
 
 # ctags
 tags
