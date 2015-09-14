@@ -9,8 +9,8 @@
 #
 # Please see http://i3wm.org/docs/userguide.html for a complete reference!
 
-set $mod Mod1
-set $alt Mod4
+set $mod Mod4
+set $alt Mod1
 
 focus_follows_mouse yes
 
@@ -117,10 +117,6 @@ bindsym $mod+Shift+9 move container to workspace 9 chat
 bindsym $mod+Shift+0 move container to workspace 10 music
 
 workspace_auto_back_and_forth yes
-
-# view next/prev workspace
-bindsym $mod+$alt+l workspace next
-bindsym $mod+$alt+h workspace prev
 
 # move workspace to other monitor
 bindsym $mod+x move workspace to output right
