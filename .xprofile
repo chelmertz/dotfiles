@@ -11,3 +11,6 @@ if [ "x$testing" = "x0" ]; then
 else
 	xrandr --auto
 fi
+
+# rescan attached usb devices
+lsusb &> /dev/null
