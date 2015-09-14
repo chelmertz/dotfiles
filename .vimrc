@@ -30,6 +30,7 @@ Plugin 'haya14busa/incsearch.vim'
 Plugin 'sjl/badwolf'
 Plugin 'guns/vim-clojure-static'
 Plugin 'tpope/vim-fireplace'
+Plugin 'mileszs/ack.vim'
 
 call vundle#end()
 
@@ -142,6 +143,7 @@ set statusline+=\ %=%-14.(%l,%c%V%)\ %p%%  " Right aligned file nav info
 
 let mapleader=","
 nmap <leader>n :nohl<CR>
+nmap <leader>a :Ack 
 
 " incsearch: show all matches right away
 map / <Plug>(incsearch-forward)
