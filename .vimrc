@@ -50,6 +50,9 @@ syntax on
 " zg => mark word as good
 " z= => get suggestions for improvements
 au BufNewFile,BufRead *.wiki,*.markdown,*.md,*.dox,COMMIT_EDITMSG,README,CHANGELOG,INSTALL setlocal spell
+au BufNewFile *.py 0r ~/.vim/template.py
+au BufNewFile *.html 0r ~/.vim/template.html
+au BufNewFile *.php 0r ~/.vim/template.php
 
 " highlight trailing whitespace,
 " http://vim.wikia.com/wiki/Highlight_unwanted_spaces
@@ -124,10 +127,6 @@ set tags=tags,./tags,~/tags;/
 "nnoremap <leader>t :TlistToggle<CR>
 nnoremap <leader>t :TagbarToggle<CR>
 
-" marks
-nmap ö `
-vmap ö `
-
 " search options
 set gdefault
 set hlsearch
@@ -197,7 +196,7 @@ nnoremap <leader>f A {<esc>jo}<esc>
 
 " S requires the vim-surround plugin
 vmap <leader>vdd Sbivar_dump<esc>f(a__METHOD__." ".__FILE__.":".__LINE__, <esc>f)a;<esc>
-inoremap <leader>vdd if(PHP_SAPI != 'cli' && !headers_sent()) header("HTTP/1.1 500 Internal Server Error");<esc>ovar_dump(__METHOD__." ".__FILE__.":".__LINE__, );<esc>odie(1);<esc>k0f)i
+inoremap <leader>vdd if(PHP_SAPI != 'cli' && !headers_sent()) header("HTTP/1.1 500 Internal Server Error");<esc>oecho "<pre>";<esc>ovar_dump(__METHOD__." ".__FILE__.":".__LINE__, );<esc>odie(1);<esc>k0f)i
 
 
 inoremap <leader>cl console.log();<esc>F)i
