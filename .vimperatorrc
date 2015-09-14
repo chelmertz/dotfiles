@@ -1,6 +1,8 @@
 " :reh to reload config
 " :help <subject>
 
+" <C-i> in text fields opens vim
+
 " http://superuser.com/questions/521062/how-to-change-characters-used-for-link-hints-in-firefox-vimperator
 set hintchars=hjklasdfgyuiopqwertnmzxcvb
 
@@ -12,6 +14,8 @@ map d <PageDown>
 map D :tabclose<CR>
 
 set gui=nonavigation
+" keep urlencoding when part of path is slashed, like /a/path%2Fyolo/yo
+set yankencodedurl=true
 
 " set incfind
 " set hlfind
