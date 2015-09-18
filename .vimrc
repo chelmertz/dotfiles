@@ -206,6 +206,10 @@ inoremap <leader>cl console.log();<esc>F)i
 fun! Op5JIRA()
 	let l:issue_id = expand("<cWORD>")
 	let l:issue_id = substitute(l:issue_id, '\D', '', 'g')
+	if !len(l:issue_id)
+		echo "You must have cursor over MON-123 or 123 to use Op5JIRA"
+		return
+	endif
 	call netrw#NetrwBrowseX("https://jira.op5.com/browse/MON-".l:issue_id, 0)
 endfun
 nnoremap gj :call Op5JIRA()<CR>
