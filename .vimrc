@@ -201,8 +201,14 @@ nnoremap <leader>f A {<esc>jo}<esc>
 vmap <leader>vdd Sbivar_dump<esc>f(a__METHOD__." ".__FILE__.":".__LINE__, <esc>f)a;<esc>
 inoremap <leader>vdd if(PHP_SAPI != 'cli' && !headers_sent()) header("HTTP/1.1 500 Internal Server Error");<esc>oecho "<pre>";<esc>ovar_dump(__METHOD__." ".__FILE__.":".__LINE__, );<esc>odie(1);<esc>k0f)i
 
-
 inoremap <leader>cl console.log();<esc>F)i
+
+fun! Op5JIRA()
+	let l:issue_id = expand("<cWORD>")
+	let l:issue_id = substitute(l:issue_id, '\D', '', 'g')
+	call netrw#NetrwBrowseX("https://jira.op5.com/browse/MON-".l:issue_id, 0)
+endfun
+nnoremap gj :call Op5JIRA()<CR>
 
 
 """ debugging tips:
