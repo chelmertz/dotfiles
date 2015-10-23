@@ -157,11 +157,11 @@ endif
 " vimwiki
 " auto_export generates html each time a buffer is saved
 let g:vimwiki_list = [{
-	\ 'path': '~/Dropbox/vimwiki',
-	\ 'template_path': '~/Dropbox/vimwiki/style/',
+	\ 'path': '~/vimwiki',
+	\ 'template_path': '~/vimwiki/style/',
 	\ 'template_default': 'template',
 	\ 'template_ext': '.html',
-	\ 'css_name': '~/Dropbox/vimwiki/style/style.css',
+	\ 'css_name': '~/vimwiki/style/style.css',
 	\ 'auto_export': 1
 	\ }]
 
