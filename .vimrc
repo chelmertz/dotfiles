@@ -91,7 +91,6 @@ set virtualedit+=block
 set wildignore+=*/tmp/*,*.so,*.swp,*.zip,*.pyc,*.o
 
 " use gx on a URL
-let g:netrw_browsex_viewer="firefox"
 let g:netrw_list_hide= '.*\.so$,.*\.swp$,.*\.zip$,.*\.pyc$,.*\.o$'
 
 let g:ycm_autoclose_preview_window_after_insertion = 1
