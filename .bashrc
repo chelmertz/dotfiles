@@ -99,7 +99,7 @@ alias cds="cd ~/code"
 alias cdd="cd ~/.config/dotfiles"
 EDITOR=vim
 VISUAL=vim
-PATH=${PATH}:~/bin
+PATH=${PATH}:~/bin:~/.local/bin
 export EDITOR VISUAL PATH
 
 # start clojure with clj from a command line, or clj myfile.clj arg1 arg2
