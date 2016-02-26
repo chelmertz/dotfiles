@@ -91,6 +91,7 @@ alias gl="git log -p -M -w --stat --pretty=fuller --show-notes"
 alias glp='git log --pretty="format:%Cred%h %Cblue%d %Cgreen%s %Creset%an %ar" --graph --all'
 
 alias l="ls --group-directories-first -alhX"
+alias less='less -i' # smart case search (case insensitive unless uppercase is input)
 
 alias ag='ag -U'
 alias scrot='scrot "%Y-%m-%d_$wx$h.png" -e "mv $f ~/Pictures/screenshot/"'
