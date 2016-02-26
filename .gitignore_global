@@ -43,6 +43,7 @@ tags
 
 # python
 *.pyc
+*.pyo
 
 # clojure
 .lein-failures
