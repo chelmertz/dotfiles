@@ -111,8 +111,8 @@ au FileType gitcommit set nofoldenable
 au FileType sass set tabstop=8 shiftwidth=8 noexpandtab
 au FileType markdown set textwidth=80
 
-let mapleader=","
 
+let mapleader=","
 " gundo.vim
 nnoremap <leader>u :GundoToggle<CR>
 
@@ -125,9 +125,6 @@ nnoremap <leader>u :GundoToggle<CR>
 " ,t to open overview of file
 " more: http://vim.wikia.com/wiki/Browsing_programs_with_tags
 set tags=tags,./tags,~/tags;/
-"nnoremap <leader>c <C
-"let Tlist_Ctags_Cmd='ctags'
-"nnoremap <leader>t :TlistToggle<CR>
 nnoremap <leader>t :TagbarToggle<CR>
 
 " search options
@@ -140,10 +137,7 @@ set showmatch
 set statusline=%<%{getcwd()}/%f\    " Filename
 set statusline+=\ %{fugitive#statusline()} "  Git historyotness
 set statusline+=\ %=%-14.(%l,%c%V%)\ %p%%  " Right aligned file nav info
-"set list
-"set listchars=nbsp:¬,tab:>-,extends:»,precedes:«,trail:•
 
-let mapleader=","
 nmap <leader>n :nohl<CR>
 nmap <leader>a :Ack 
 
