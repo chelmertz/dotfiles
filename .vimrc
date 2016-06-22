@@ -61,6 +61,8 @@ au BufNewFile *.php 0r ~/.vim/template.php
 au ColorScheme * highlight ExtraWhitespace ctermbg=red guibg=red
 au InsertEnter * match ExtraWhitespace /\s\+\%#\@<!$/
 au BufEnter,InsertLeave * match ExtraWhitespace /\s\+$/
+
+set background=light
 color github " (badwolf is nice in the winter, but in a light room.. go github) badwolf desert molokai
 
 set guioptions=agitc
