@@ -28,8 +28,6 @@ Plugin 'Valloric/YouCompleteMe'
 Plugin 'majutsushi/tagbar'
 Plugin 'haya14busa/incsearch.vim'
 Plugin 'sjl/badwolf'
-Plugin 'guns/vim-clojure-static'
-Plugin 'tpope/vim-fireplace'
 Plugin 'mileszs/ack.vim'
 Plugin 'scrooloose/nerdtree'
 
