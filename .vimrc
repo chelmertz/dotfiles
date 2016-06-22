@@ -140,6 +140,7 @@ set statusline+=\ %=%-14.(%l,%c%V%)\ %p%%  " Right aligned file nav info
 
 nmap <leader>n :nohl<CR>
 nmap <leader>a :Ack 
+nnoremap <leader>m :NERDTree<CR>
 
 " incsearch: show all matches right away
 map / <Plug>(incsearch-forward)
