@@ -50,6 +50,8 @@ syntax on
 " zg => mark word as good
 " z= => get suggestions for improvements
 au BufNewFile,BufRead *.wiki,*.markdown,*.md,*.dox,COMMIT_EDITMSG,README,CHANGELOG,INSTALL setlocal spell
+au BufNewFile,BufRead *.yml set ts=2 sw=2 expandtab
+
 au BufNewFile *.py 0r ~/.vim/template.py
 au BufNewFile *.html 0r ~/.vim/template.html
 au BufNewFile *.php 0r ~/.vim/template.php
