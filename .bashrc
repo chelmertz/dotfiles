@@ -72,6 +72,7 @@ fi
 if [ -f /etc/bash_completion ] && ! shopt -oq posix; then
     . /etc/bash_completion
 fi
+test -f /usr/share/doc/git/contrib/completion/git-completion.bash && . /usr/share/doc/git/contrib/completion/git-completion.bash
 
 alias rm='rm -i'
 alias cp='cp -i'
