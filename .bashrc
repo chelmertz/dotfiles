@@ -105,16 +105,4 @@ PATH=${PATH}:~/bin:~/.local/bin
 TZ='Europe/Stockholm'
 export EDITOR VISUAL PATH TZ
 
-# start clojure with clj from a command line, or clj myfile.clj arg1 arg2
-# even better: lein repl
-function clj() {
-	# from http://en.wikibooks.org/wiki/Learning_Clojure/Installation
-	dldir="/home/chelmertz/Downloads/cloj/clojure-1.6.0"
-	if [ $# -eq 0 ]; then
-		java -server -cp .:${dldir}/clojure-1.6.0.jar clojure.main
-	else
-		java -server -cp .:${dldir}/clojure-1.6.0.jar clojure.main $1 -- "$@"
-	fi
-}
-
 test -f ~/.bashrc-local && source ~/.bashrc-local

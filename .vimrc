@@ -30,6 +30,9 @@ Plugin 'haya14busa/incsearch.vim'
 Plugin 'sjl/badwolf'
 Plugin 'mileszs/ack.vim'
 Plugin 'scrooloose/nerdtree'
+Plugin 'guns/vim-clojure-static'
+Plugin 'tpope/vim-fireplace'
+
 
 call vundle#end()
 
