@@ -95,7 +95,7 @@ alias l="ls --group-directories-first -alhX"
 alias less='less -i' # smart case search (case insensitive unless uppercase is input)
 
 alias ag='ag -U'
-alias scrot='scrot "%Y-%m-%d_$wx$h.png" -e "mv $f ~/Pictures/screenshot/"'
+alias scrot='scrot "%Y-%m-%d_$wx$h.png"'
 alias v="gvim"
 alias cds="cd ~/code"
 alias cdd="cd ~/.config/dotfiles"
