@@ -54,7 +54,7 @@ PS4="+ "
 # Try to keep environment pollution down, EPA loves us.
 unset use_color safe_term match_lhs sadness
 
-PROMPT_COMMAND="echo -ne \"[\$(date +%T)] \033]0;Terminal - ${PWD##*/}\007\""
+PROMPT_COMMAND='echo -ne "\033]0;Terminal - ${PWD##*/}\007"'
 
 # enable color support of ls and also add handy aliases
 if [ -x /usr/bin/dircolors ]; then
