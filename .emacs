@@ -20,7 +20,7 @@
  ;; If there is more than one, they won't work right.
  '(package-selected-packages
    (quote
-    (evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
+    (helm magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
@@ -30,6 +30,16 @@
 
 ;; do not show startup screen
 (setq inhibit-startup-screen t)
+;; stop asking if I want to follow symlinks, I do
+(setq vc-follow-symlinks nil)
+
+;; helm, an autocompleter (maybe like vim's ctrlp?)
+(require 'helm)
+(require 'helm-config)
+(helm-mode 1)
+(helm-autoresize-mode t)
+(global-set-key (kbd "C-SPC") 'helm-find-files) ;; this overrides
+;; Emacs' marks, but I can still use evil's marks
 
 ;; "You should enable global-evil-leader-mode before you enable
 ;; evil-mode, otherwise evil-leader won’t be enabled in initial
