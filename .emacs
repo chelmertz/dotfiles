@@ -50,6 +50,16 @@
       auto-save-interval 200            ; number of keystrokes between auto-saves (default: 300)
       )
 
+;; use tabs in favor of spaces in some file types
+(add-hook 'php-mode-hook '(lambda ()
+			    (setq indent-tabs-mode t
+				  tab-width 4
+				  c-basic-offset 4)))
+(add-hook 'js-mode-hook '(lambda ()
+			    (setq indent-tabs-mode t
+				  tab-width 4
+				  c-basic-offset 4)))
+
 ;; helm, an autocompleter (maybe like vim's ctrlp?)
 (require 'helm)
 (require 'helm-config)
