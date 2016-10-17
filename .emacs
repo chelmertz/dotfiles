@@ -61,12 +61,15 @@
 				  c-basic-offset 4)))
 
 ;; helm, an autocompleter (maybe like vim's ctrlp?)
+;; while in the 'helm-find-files view, C-s will enter "ack mode"
 (require 'helm)
 (require 'helm-config)
 (helm-mode 1)
 (helm-autoresize-mode t)
-(global-set-key (kbd "C-SPC") 'helm-find-files) ;; this overrides
-;; Emacs' marks, but I can still use evil's marks
+;; override the builtin file finder with helm's variant
+(global-set-key (kbd "C-x C-f") 'helm-find-files)
+;; (setq helm-ff-skip-boring-files t)
+;; (setq helm-boring-file-regexp-list '("^tags$"))
 
 ;; "You should enable global-evil-leader-mode before you enable
 ;; evil-mode, otherwise evil-leader won’t be enabled in initial
@@ -78,9 +81,18 @@
 (evil-leader/set-key
  "c" 'evilnc-comment-or-uncomment-lines
  )
+;; C-u is already taken by emacs for *something* (no idea yet) but I
+;; use it a lot in evil mode, so, let's hijack it within the evil
+;; domain
+(define-key evil-normal-state-map (kbd "C-u") 'evil-scroll-up)
+;; make sure that search & replace in evil is global by default
+(setq evil-ex-substitute-global t)
 
 (require 'evil)
 (evil-mode 1)
+
+;; enable vim keys while in magit, to avoid learning movement commands
+(require 'evil-magit)
 
 ;; in vim this means "vnoremap > >gv", to re-enter visual mode after
 ;; shifting indent: http://superuser.com/a/489121/9539
@@ -122,7 +134,7 @@
 ;; think.. but M-: is also some sort of command mode
 ;; C-g ;; cancel current command
 ;; C-x C-s ;; save current file
-;; C-x Cf ;; find file
+;; C-x Cf ;; find file, (helm adds: put spaces in between search terms)
 ;; M-x package-install RET package-name RET ;; install package-name
 ;; M-x eval-buffer ;; reload .emacs without restarting emacs (if
 ;; .emacs is the file currently being edited
@@ -133,5 +145,5 @@
 ;; C-x b buffername RET ;; select buffer or create new. tab completion
 ;; works
 ;; C-x LEFT ;; prev buffer, C-x RIGHT works too
-;; C-x k ENT ;; current buffer
+;; C-x k ENT ;; kill current buffer
 ;; M-: buffer-file-name ;; display the filename of the current buffer
