@@ -18,6 +18,7 @@
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
+ '(markdown-command "pandoc --from markdown --to html5")
  '(package-selected-packages
    (quote
     (gruvbox-theme php-mode markdown-mode lua-mode evil-magit helm magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
@@ -27,6 +28,8 @@
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
  )
+
+;; to edit the rules above, see M-x customize-mode
 
 ;; do not make bell sound or flash
 (setq ring-bell-function 'ignore)
@@ -160,3 +163,8 @@
 ;; C-x LEFT ;; prev buffer, C-x RIGHT works too
 ;; C-x k ENT ;; kill current buffer
 ;; M-: buffer-file-name ;; display the filename of the current buffer
+;;
+;; markdown
+;; C-c C-c l ;; live preview in buffer
+;; C-c C-c p ;; live preview in browser
+;; C-c C-c e ;; export to html file
