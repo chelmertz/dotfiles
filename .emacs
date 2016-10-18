@@ -70,8 +70,11 @@
 (require 'helm-config)
 (helm-mode 1)
 (helm-autoresize-mode t)
+
 ;; override the builtin file finder with helm's variant
-(global-set-key (kbd "C-x C-f") 'helm-find-files)
+;; separate search terms with space
+(global-set-key (kbd "C-x C-f") 'helm-find)
+
 ;; (setq helm-ff-skip-boring-files t)
 ;; (setq helm-boring-file-regexp-list '("^tags$"))
 
