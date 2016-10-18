@@ -78,6 +78,9 @@
 (require 'evil-leader)
 (global-evil-leader-mode)
 (evil-leader/set-leader ",")
+
+;; evil-nerd-commenter, toggles comments from visual selections
+;; leader + c (,+c) will toggle the current row
 (evil-leader/set-key
  "c" 'evilnc-comment-or-uncomment-lines
  )
@@ -125,7 +128,6 @@
 (require 'evil-matchit)
 (global-evil-matchit-mode 1)
 
-;; evil-nerd-commenter, toggles comments from visual selections
 (evilnc-default-hotkeys)
 
 
