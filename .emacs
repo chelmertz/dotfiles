@@ -84,10 +84,14 @@
 (evil-leader/set-key
  "c" 'evilnc-comment-or-uncomment-lines
  )
+
+(define-key evil-normal-state-map (kbd "gx") 'browse-url-at-point)
+
 ;; C-u is already taken by emacs for *something* (no idea yet) but I
 ;; use it a lot in evil mode, so, let's hijack it within the evil
 ;; domain
 (define-key evil-normal-state-map (kbd "C-u") 'evil-scroll-up)
+
 ;; make sure that search & replace in evil is global by default
 (setq evil-ex-substitute-global t)
 
