@@ -28,6 +28,8 @@
  ;; If there is more than one, they won't work right.
  )
 
+;; do not make bell sound or flash
+(setq ring-bell-function 'ignore)
 ;; do not show startup screen
 (setq inhibit-startup-screen t)
 ;; stop asking if I want to follow symlinks, I do
