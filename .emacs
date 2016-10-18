@@ -20,7 +20,7 @@
  ;; If there is more than one, they won't work right.
  '(package-selected-packages
    (quote
-    (markdown-mode lua-mode evil-magit helm magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
+    (gruvbox-theme php-mode markdown-mode lua-mode evil-magit helm magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
@@ -32,6 +32,8 @@
 (setq inhibit-startup-screen t)
 ;; stop asking if I want to follow symlinks, I do
 (setq vc-follow-symlinks nil)
+
+(load-theme 'gruvbox t)
 
 ;; how to handle emacs backup files (like vim's swap files)
 ;; from https://stackoverflow.com/questions/151945/how-do-i-control-how-emacs-makes-backup-files
