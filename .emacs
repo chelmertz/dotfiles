@@ -105,6 +105,10 @@
 ;; make sure that search & replace in evil is global by default
 (setq evil-ex-substitute-global t)
 
+;; make * search for whole a_variable, instead of either "a" or
+;; "variable"
+(setq-default evil-symbol-word-search t)
+
 (require 'evil)
 (evil-mode 1)
 
