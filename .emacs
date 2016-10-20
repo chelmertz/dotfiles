@@ -66,6 +66,9 @@
 			    (setq indent-tabs-mode t
 				  tab-width 4
 				  c-basic-offset 4)))
+(add-hook 'ruby-mode-hook '(lambda ()
+			    (setq tab-width 2
+				  c-basic-offset 2)))
 
 ;; helm, an autocompleter (maybe like vim's ctrlp?)
 ;; while in the 'helm-find-files view, C-s will enter "ack mode"
