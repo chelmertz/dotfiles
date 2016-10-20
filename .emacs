@@ -175,3 +175,7 @@
 ;; C-c C-c l ;; live preview in buffer
 ;; C-c C-c p ;; live preview in browser
 ;; C-c C-c e ;; export to html file
+;;
+;; packages
+;; M-x package-install ;; install a package
+;; M-x package-list-packages ;; installing packages from here sometimes "works better" :(
