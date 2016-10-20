@@ -28,6 +28,12 @@ bindsym $mod+Return exec gnome-terminal
 # requires xcwd https://github.com/schischi-a/xcwd
 bindsym $mod+Shift+Return exec gnome-terminal --working-directory "`xcwd`"
 
+# rename current workspace
+bindsym $mod+p exec i3-input -F 'rename workspace to "%s"' -P 'rename to: '
+
+# go to named workspace
+bindsym $mod+o exec i3-input -F 'workspace "%s"' -P 'select workspace: '
+
 # kill focused window
 bindsym $mod+q kill
 
