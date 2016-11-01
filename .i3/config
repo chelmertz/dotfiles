@@ -94,7 +94,7 @@ bindsym $mod+a focus parent
 
 # switch to workspace
 bindsym $mod+1 workspace 1
-bindsym $mod+2 workspace 2
+bindsym $mod+2 workspace 2 docker
 bindsym $mod+3 workspace 3 browser
 bindsym $mod+4 workspace 4
 bindsym $mod+5 workspace 5
@@ -112,7 +112,7 @@ assign [class="Firefox"] 3 browser
 
 # move focused container to workspace
 bindsym $mod+Shift+1 move container to workspace 1
-bindsym $mod+Shift+2 move container to workspace 2
+bindsym $mod+Shift+2 move container to workspace 2 docker
 bindsym $mod+Shift+3 move container to workspace 3 browser
 bindsym $mod+Shift+4 move container to workspace 4
 bindsym $mod+Shift+5 move container to workspace 5
