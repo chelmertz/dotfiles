@@ -32,6 +32,7 @@ Plugin 'mileszs/ack.vim'
 Plugin 'scrooloose/nerdtree'
 Plugin 'guns/vim-clojure-static'
 Plugin 'tpope/vim-fireplace'
+Plugin 'morhetz/gruvbox'
 
 
 call vundle#end()
@@ -65,8 +66,8 @@ au ColorScheme * highlight ExtraWhitespace ctermbg=red guibg=red
 au InsertEnter * match ExtraWhitespace /\s\+\%#\@<!$/
 au BufEnter,InsertLeave * match ExtraWhitespace /[^\t]\zs\t\+\|\s\+$\| \+\ze\t/
 
-set background=light
-color github " (badwolf is nice in the winter, but in a light room.. go github) badwolf desert molokai
+set background=dark
+color gruvbox " (badwolf is nice in the winter, but in a light room.. go github) badwolf desert molokai
 
 set guioptions=agitc
 set guifont=Monospace\ 11
