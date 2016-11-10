@@ -108,5 +108,8 @@ export EDITOR VISUAL PATH TZ
 
 test -f ~/.bashrc-local && source ~/.bashrc-local
 
-# `xset q` for viewing keypress rates, then `xset r rate 200 25` to possibly
-# lower the initial delay
+# `xset q` for viewing keypress rates
+# lower the initial keypress delay:
+xset r rate 200 25
+
+[ -f ~/.fzf.bash ] && source ~/.fzf.bash
