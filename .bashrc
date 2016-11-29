@@ -100,8 +100,8 @@ alias scrot='scrot "%Y-%m-%d_$wx$h.png"'
 alias v="gvim"
 alias cds="cd ~/code"
 alias cdd="cd ~/.config/dotfiles"
-EDITOR=emacs
-VISUAL=emacs
+EDITOR=vim
+VISUAL=vim
 PATH=${PATH}:~/bin:~/.local/bin
 TZ='Europe/Stockholm'
 export EDITOR VISUAL PATH TZ
