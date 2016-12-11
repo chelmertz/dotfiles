@@ -97,7 +97,7 @@ alias less='less -i' # smart case search (case insensitive unless uppercase is i
 
 alias ag='ag -U'
 alias scrot='scrot "%Y-%m-%d_$wx$h.png"'
-alias v="gvim"
+alias v="vim"
 alias cds="cd ~/code"
 alias cdd="cd ~/.config/dotfiles"
 EDITOR=vim
