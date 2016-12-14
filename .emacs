@@ -179,3 +179,9 @@
 ;; packages
 ;; M-x package-install ;; install a package
 ;; M-x package-list-packages ;; installing packages from here sometimes "works better" :(
+;;
+;; if I start emacs from a directory, I don't want 'helm-find to
+;; change that directory for me, so don't do C-x C-f from the current
+;; file, but change to the scratch buffer in between (with C-x b), and
+;; then use C-x C-f. This will reuse the original current working
+;; directory. From: http://stackoverflow.com/a/2627086/49879
