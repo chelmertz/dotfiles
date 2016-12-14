@@ -50,6 +50,7 @@ syntax on
 " z= => get suggestions for improvements
 au BufNewFile,BufRead *.wiki,*.markdown,*.md,*.dox,COMMIT_EDITMSG,README,CHANGELOG,INSTALL setlocal spell
 au BufNewFile,BufRead *.yml set ts=2 sw=2 expandtab
+au BufNewFile,BufRead *.py set ts=4 sw=4 expandtab
 
 au BufNewFile *.py 0r ~/.vim/template.py
 au BufNewFile *.html 0r ~/.vim/template.html
