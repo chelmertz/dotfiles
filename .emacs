@@ -21,7 +21,7 @@
  '(markdown-command "pandoc --from markdown --to html5")
  '(package-selected-packages
    (quote
-    (yaml-mode gruvbox-theme php-mode markdown-mode lua-mode evil-magit helm magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
+    (feature-mode evil-vimish-fold yaml-mode gruvbox-theme php-mode markdown-mode lua-mode evil-magit helm magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
@@ -69,6 +69,10 @@
 (add-hook 'ruby-mode-hook '(lambda ()
 			    (setq tab-width 2
 				  c-basic-offset 2)))
+(add-hook 'feature-mode-hook '(lambda()
+			    (setq indent-tabs-mode t
+				  tab-with 4
+				  c-basic-offset 4)))
 
 ;; helm, an autocompleter (maybe like vim's ctrlp?)
 ;; while in the 'helm-find-files view, C-s will enter "ack mode"
@@ -114,6 +118,10 @@
 
 (require 'evil)
 (evil-mode 1)
+
+;; enable folds (which were disabled in at least Ruby)
+(require 'evil-vimish-fold)
+(evil-vimish-fold-mode 1)
 
 ;; enable vim keys while in magit, to avoid learning movement commands
 (require 'evil-magit)
