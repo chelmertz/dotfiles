@@ -5,3 +5,7 @@
 *.swp
 #handled by vundle:
 .vim/bundle
+nvim/.cache/
+nvim/cache_nvim
+nvim/state_nvim.vim
+nvim/repos/*
