@@ -10,7 +10,7 @@ set runtimepath+=~/.config/nvim/repos/github.com/Shougo/dein.vim
 
 if dein#load_state('~/.config/nvim')
   call dein#begin('~/.config/nvim')
-  
+
   " new for neovim
   call dein#add('~/.config/nvim/repos/github.com/Shougo/dein.vim') " async plugin manager
   call dein#add('Shougo/neocomplete.vim') " async completion engine
@@ -27,10 +27,17 @@ if dein#load_state('~/.config/nvim')
   call dein#add('vim-scripts/matchit.zip') " % to not only jump to matching brace, but to if-endif, switch-cases etc
   call dein#add('scrooloose/nerdcommenter') " leader+c+c to toggle comment of visual selection
   call dein#add('ap/vim-css-color') " display actual color of rgb + hex notation in css files
-  
+
   call dein#end()
   call dein#save_state()
 endif
 
 filetype plugin indent on
 syntax enable
+
+colorscheme gruvbox
+set bg=dark
+
+set gdefault
+set ignorecase
+set smartcase
