@@ -1,3 +1,7 @@
+" Selecting text in neovim in a terminal enters visual mode and disables the
+" select + middle-click worfklow. Press shift while selecting text with the
+" mouse to avoid this.
+
 if &compatible
   set nocompatible
 endif
