@@ -31,6 +31,7 @@ if dein#load_state('~/.config/nvim')
   call dein#add('vim-scripts/matchit.zip') " % to not only jump to matching brace, but to if-endif, switch-cases etc
   call dein#add('scrooloose/nerdcommenter') " leader+c+c to toggle comment of visual selection
   call dein#add('ap/vim-css-color') " display actual color of rgb + hex notation in css files
+  call dein#add('ctrlpvim/ctrlp.vim') " ctrlp to search through files
 
   call dein#end()
   call dein#save_state()
