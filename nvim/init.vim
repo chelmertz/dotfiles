@@ -11,7 +11,6 @@ set runtimepath+=~/.config/nvim/repos/github.com/Shougo/dein.vim
 
 " Whenever you add a new plugin, start nvim and
 " :call dein#install()
-
 if dein#load_state('~/.config/nvim')
   call dein#begin('~/.config/nvim')
 
@@ -19,6 +18,7 @@ if dein#load_state('~/.config/nvim')
   call dein#add('~/.config/nvim/repos/github.com/Shougo/dein.vim') " async plugin manager
   call dein#add('Shougo/neocomplete.vim') " async completion engine
   call dein#add('neomake/neomake') " async :make
+  call dein#add('luochen1990/rainbow') " rainbow parens, mainly for clojure
 
   " brought over from plain-old-vim-workflow
   call dein#add('tpope/vim-surround') " exchange delimiters for others, use delimiters for text objects
@@ -45,3 +45,6 @@ set bg=dark
 set gdefault
 set ignorecase
 set smartcase
+set foldmethod=indent
+
+let g:rainbow_active = 1
