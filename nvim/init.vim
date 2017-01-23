@@ -19,6 +19,7 @@ if dein#load_state('~/.config/nvim')
   call dein#add('Shougo/neocomplete.vim') " async completion engine
   call dein#add('neomake/neomake') " async :make
   call dein#add('luochen1990/rainbow') " rainbow parens, mainly for clojure
+  call dein#add('bling/vim-airline') " neovim does not have a default for the status bar, use the most popular option
 
   " brought over from plain-old-vim-workflow
   call dein#add('tpope/vim-surround') " exchange delimiters for others, use delimiters for text objects
@@ -49,3 +50,5 @@ set smartcase
 set foldmethod=indent
 
 let g:rainbow_active = 1
+
+let g:airline_powerline_fonts = 1 " available after dnf install powerline-fonts
