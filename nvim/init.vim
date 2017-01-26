@@ -48,6 +48,7 @@ set gdefault
 set ignorecase
 set smartcase
 set foldmethod=indent
+set mouse= " disable neovim's annoying 'enter visual mode on mouse selection'; I just want to place it in a buffer, dammit!
 
 let g:rainbow_active = 1
 
