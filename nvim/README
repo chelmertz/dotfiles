@@ -1,2 +1,0 @@
-- Install dein.vim from https://github.com/Shougo/dein.vim
-- ln -s $PWD/nvim ~/config/nvim
