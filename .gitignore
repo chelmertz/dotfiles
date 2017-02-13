@@ -10,3 +10,4 @@ nvim/cache_nvim
 nvim/state_nvim.vim
 nvim/repos/*
 nvim/.netrwhist
+nvim/spell
