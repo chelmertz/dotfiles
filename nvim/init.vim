@@ -34,7 +34,7 @@ Plug 'carlitux/deoplete-ternjs', { 'do': 'npm install -g tern' }
 " c, c++
 Plug 'zchee/deoplete-clang'
 
-Plug 'haya14busa/incsearch.vim' " highlight all matched patterns while writing search keyword
+" clojure
 Plug 'guns/vim-clojure-static' " highlighting, indentation etc for clojure
 Plug 'tpope/vim-fireplace' " clojure repl
 
@@ -52,6 +52,7 @@ Plug 'tpope/vim-fugitive' " git support, see :Gblame in a tracked file
 Plug 'tpope/vim-surround' " exchange delimiters for others, use delimiters for text objects
 Plug 'thinca/vim-visualstar' " make * search for visual selection rather than finding a text object before
 Plug 'vim-scripts/matchit.zip' " % to not only jump to matching brace, but to if-endif, switch-cases etc
+Plug 'haya14busa/incsearch.vim' " highlight all matched patterns while writing search keyword
 Plug 'scrooloose/nerdcommenter' " leader+c+c to toggle comment of visual selection
 Plug 'ctrlpvim/ctrlp.vim' " ctrlp to search through files
 
