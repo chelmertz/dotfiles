@@ -92,8 +92,6 @@ let g:deoplete#sources#clang#clang_header = '/usr/lib64/clang'
 
 " toggle light/dark color scheme with <F4>
 let s:lightscheme = 0
-colorscheme gruvbox
-set bg=dark
 function! ToggleBackgroundLightness()
 	if s:lightscheme
 		colorscheme gruvbox
@@ -106,6 +104,7 @@ function! ToggleBackgroundLightness()
 	endif
 endfunction
 nnoremap <F4> :call ToggleBackgroundLightness()<CR>
+call ToggleBackgroundLightness()
 
 set foldmethod=indent
 autocmd FileType gitcommit set nofoldenable
