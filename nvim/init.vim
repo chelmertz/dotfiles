@@ -97,10 +97,15 @@ function! ToggleBackgroundLightness()
 		colorscheme gruvbox
 		set bg=dark
 		let s:lightscheme = 0
+		let g:rainbow_active = 1
 	else
 		colorscheme louver
 		set bg=light
 		let s:lightscheme = 1
+		" Deactivating rainbow colors because it's messy to configure,
+		" and configured for dark schemes by default. I.e. Clojure
+		" will be coded from within a dark theme
+		let g:rainbow_active = 0
 	endif
 endfunction
 nnoremap <F4> :call ToggleBackgroundLightness()<CR>
@@ -142,8 +147,6 @@ augroup resCur
 	autocmd!
 	autocmd BufWinEnter * call ResCur()
 augroup END
-
-let g:rainbow_active = 1
 
 let g:airline_powerline_fonts = 1 " available after dnf install powerline-fonts (in Fedora at least)
 
