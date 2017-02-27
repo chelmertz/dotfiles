@@ -1,6 +1,7 @@
 " binding strategy:
 " leader+d => lookup *d*efinition for word under cursor
 " leader+m => *m*ake current file
+" leader+e => show *e*rrors from syntastic's compilation/analysis
 " <f4> switch between light/dark theme
 
 if &compatible
@@ -61,6 +62,8 @@ call plug#end()
 filetype plugin indent on
 syntax enable
 let mapleader = ","
+
+nnoremap <leader>e :Errors<cr>
 
 " spellcheck
 " zg => mark word as good
