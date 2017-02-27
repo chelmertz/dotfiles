@@ -96,7 +96,7 @@ alias cds="cd ~/code"
 alias cdd="cd ~/.config/dotfiles"
 EDITOR=nvim
 VISUAL=nvim
-PATH=${PATH}:~/bin:~/.local/bin
+PATH=/usr/java/jdk1.8.0_121/jre/bin:${PATH}:~/bin:~/.local/bin
 TZ='Europe/Stockholm'
 export EDITOR VISUAL PATH TZ
 
