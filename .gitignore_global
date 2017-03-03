@@ -43,6 +43,9 @@ tags
 *.pyc
 *.pyo
 
+# erlang
+*.beam
+
 # clojure
 .lein-failures
 .lein-repl-history
