@@ -123,6 +123,8 @@ autocmd FileType gitcommit set nofoldenable
 set gdefault " regexes automatically gets /g
 set ignorecase
 set smartcase
+" for ctrlp and file explorer:
+set wildignore+=*/.git/*,*/.hg/*,*/.svn/*,*.beam,*.o,*.pyc
 nmap <leader>n :nohl<CR>
 " incsearch: show all matches right away
 map / <Plug>(incsearch-forward)
