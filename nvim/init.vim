@@ -1,6 +1,8 @@
 " binding strategy:
 " leader+d => lookup *d*efinition for word under cursor
 " leader+m => *m*ake current file
+" leader+n => disable highlight (*n*o highlight)
+" leader+f => wrap single line i*f* case in braces
 " leader+e => show *e*rrors from syntastic's compilation/analysis
 " <f4> switch between light/dark theme
 
