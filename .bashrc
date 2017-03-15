@@ -90,6 +90,7 @@ alias l="ls --group-directories-first -alhX"
 alias less='less -i' # smart case search (case insensitive unless uppercase is input)
 
 alias til='nvim ~/Dropbox/tagspaces/til.md'
+alias tilv='~/.config/dotfiles/bin/til.sh && evince ~/til.pdf'
 alias ag='ag -U'
 alias scrot='scrot "%Y-%m-%d_$wx$h.png"'
 alias v="vim"
