@@ -89,6 +89,7 @@ alias glp='git log --pretty="format:%Cred%h %Cblue%d %Cgreen%s %Creset%an %ar" -
 alias l="ls --group-directories-first -alhX"
 alias less='less -i' # smart case search (case insensitive unless uppercase is input)
 
+alias til='nvim ~/Dropbox/tagspaces/til.md'
 alias ag='ag -U'
 alias scrot='scrot "%Y-%m-%d_$wx$h.png"'
 alias v="vim"
