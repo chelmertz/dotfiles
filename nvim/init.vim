@@ -34,6 +34,12 @@ Plug 'hdima/python-syntax'
 " js
 Plug 'carlitux/deoplete-ternjs', { 'do': 'npm install -g tern' }
 
+" haskell
+Plug 'eagletmt/neco-ghc'
+Plug 'eagletmt/ghcmod-vim', { 'do': 'cabal install ghc-mod' }
+Plug 'neovimhaskell/haskell-vim'
+Plug 'Shougo/vimproc.vim', { 'do': 'make' }
+
 " c, c++
 Plug 'zchee/deoplete-clang'
 
