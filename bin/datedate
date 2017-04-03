@@ -1,0 +1,77 @@
+#!/usr/bin/env php
+<?php
+
+// See https://github.com/chelmertz/datedate
+// By Carl Helmertz, helmertz@gmail.com
+
+function datedate_help() {
+	return <<<APA
+datedate - Translate date to timestamp, and timestamp to date.
+
+Born out of frustation of remembering `date +%s` or `date -d @0`. We include
+some php magic string-to-date parsing powers into the mix.
+
+SYNOPSIS
+
+	datedate
+	datedate [timestamp]
+	datedate [English textual datetime]
+	datedate yesterday
+	datedate yesterday 20:00
+
+	datedate -h
+	datedate --help
+
+
+EXAMPLE OUTPUT
+
+	$ datedate
+	Monday 2016-01-04 16:19:38 UTC 2016
+	1451924378
+
+	$ datedate 0
+	Thursday 1970-01-01 00:00:00 UTC 1970
+
+	$ datedate yesterday -20 seconds
+	Saturday 2016-01-02 23:59:40 UTC 2016
+	1451779180
+
+
+SEE ALSO
+	See https://secure.php.net/strtotime for specification about
+	"English textual datetime".
+APA;
+}
+
+function datedate($arg) {
+	$full_format = "l Y-m-d H:i:s e Y";
+	// see http://php.net/manual/en/function.date.php
+	if(!strlen($arg)) {
+		return array(date($full_format), time());
+	}
+	if(is_numeric($arg)) {
+		return array(date($full_format, $arg));
+	}
+	return array(date($full_format, strtotime($arg)), strtotime($arg));
+}
+
+// "php's version" of python's "if __name__ == '__main__'"
+if(!debug_backtrace() && PHP_SAPI == 'cli') {
+	if(array_intersect(array('-h', '--help'), $argv)) {
+		echo datedate_help()."\n";
+		exit(0);
+	}
+
+	// PHP's timezone can be configured as UTC, and PHP through CLI reuses
+	// that setting. This script is made desktop usage, so let's override
+	// the 'server time' with what's stored in the environment variable TZ,
+	// if applicable.
+	if(getenv('TZ')) {
+		date_default_timezone_set(getenv('TZ'));
+	}
+
+	$arg = $argv;
+	array_shift($arg);
+	$arg = implode(" ", array_map('trim', $arg));
+	echo implode("\n", datedate($arg))."\n";
+}
