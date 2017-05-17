@@ -43,6 +43,10 @@ SEE ALSO
 APA;
 }
 
+function debug_print($message) {
+	fwrite(STDERR, "debug: $message\n");
+}
+
 function datedate($arg) {
 	$full_format = "l Y-m-d H:i:s e Y";
 	// see http://php.net/manual/en/function.date.php
@@ -50,6 +54,10 @@ function datedate($arg) {
 		return array(date($full_format), time());
 	}
 	if(is_numeric($arg)) {
+		if(strlen($arg) == 13) {
+			debug_print("Assuming UNIX timestamp was given with millisecond precision, rounding");
+			$arg = substr($arg, 0, 10);
+		}
 		return array(date($full_format, $arg));
 	}
 	return array(date($full_format, strtotime($arg)), strtotime($arg));
