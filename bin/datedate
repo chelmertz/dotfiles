@@ -44,7 +44,7 @@ APA;
 }
 
 function debug_print($message) {
-	fwrite(STDERR, "debug: $message\n");
+	fwrite(STDERR, wordwrap("debug: $message\n", 75, "\ndebug: ", true));
 }
 
 function datedate($arg) {
@@ -55,8 +55,8 @@ function datedate($arg) {
 	}
 	if(is_numeric($arg)) {
 		if(strlen($arg) == 13) {
-			debug_print("Assuming UNIX timestamp was given with millisecond precision, rounding");
 			$arg = substr($arg, 0, 10);
+			debug_print("Assuming UNIX timestamp was given with millisecond precision, rounding to $arg");
 		}
 		return array(date($full_format, $arg));
 	}
