@@ -96,6 +96,11 @@ alias scrot='scrot "%Y-%m-%d_$wx$h.png"'
 alias v="vim"
 alias cds="cd ~/code"
 alias cdd="cd ~/.config/dotfiles"
+
+function r {
+	rg -i "\b$1\b"
+}
+
 EDITOR=nvim
 VISUAL=nvim
 PATH=~/.cabal/bin:/usr/java/jdk1.8.0_121/jre/bin:${PATH}:~/bin:~/.local/bin
