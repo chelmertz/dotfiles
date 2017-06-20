@@ -167,6 +167,7 @@
 ;; C-x C-s ;; save current file
 ;; C-x Cf ;; find file, (helm adds: put spaces in between search terms)
 ;; M-x package-install RET package-name RET ;; install package-name
+;; M-x package-refresh-contents RET ;; if the package-install fails
 ;; M-x eval-buffer ;; reload .emacs without restarting emacs (if
 ;; .emacs is the file currently being edited
 ;;
