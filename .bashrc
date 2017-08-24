@@ -95,7 +95,7 @@ alias ag='ag -U'
 alias scrot='scrot "%Y-%m-%d_$wx$h.png"'
 
 alias cds="cd ~/code"
-alias cdd="cd ~/.config/dotfiles"
+alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
 function r {
 	rg -i "\b$1\b"
