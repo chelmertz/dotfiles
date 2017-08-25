@@ -105,6 +105,9 @@ autocmd FileType ruby setlocal ts=2 sw=2 expandtab
 let g:deoplete#sources#clang#libclang_path = '/usr/lib64/libclang.so'
 let g:deoplete#sources#clang#clang_header = '/usr/lib64/clang'
 
+" yaml
+autocmd Filetype yaml setlocal ts=4 sw=4 expandtab
+
 " toggle light/dark color scheme with <F4>
 let s:lightscheme = 0
 function! ToggleBackgroundLightness()
