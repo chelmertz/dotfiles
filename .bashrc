@@ -74,7 +74,7 @@ alias cp='cp -i'
 alias mv='mv -i'
 
 alias ga="git add -A "
-alias gb="git branch "
+alias gb="git branch -vv "
 alias gba="git branch --all"
 alias gc="git commit -sv"
 alias gca="git commit -asv"
