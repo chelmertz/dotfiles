@@ -108,6 +108,9 @@ let g:deoplete#sources#clang#clang_header = '/usr/lib64/clang'
 " yaml
 autocmd Filetype yaml setlocal ts=4 sw=4 expandtab
 
+" markdown
+autocmd Filetype markdown setlocal ts=4 sw=4 expandtab
+
 " toggle light/dark color scheme with <F4>
 let s:lightscheme = 1
 function! ToggleBackgroundLightness()
