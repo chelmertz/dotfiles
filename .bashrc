@@ -93,7 +93,7 @@ alias til='nvim ~/Dropbox/tagspaces/til.md'
 alias tilv='~/.config/dotfiles/bin/til.sh && evince ~/til.pdf'
 alias ag='ag -U'
 alias scrot='scrot "%Y-%m-%d_$wx$h.png"'
-alias v="vim"
+
 alias cds="cd ~/code"
 alias cdd="cd ~/.config/dotfiles"
 
