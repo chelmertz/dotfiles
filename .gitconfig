@@ -1,0 +1,17 @@
+[user]
+	name = Carl Helmertz
+	email = my@email
+[pull]
+	rebase = true
+[diff]
+	tool = kompare
+[merge]
+	tool = meld
+[color]
+	ui = always
+[push]
+	default = current
+[log]
+	decorate = true
+[core]
+	excludesfile = ~/.gitignore_global
