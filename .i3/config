@@ -120,6 +120,7 @@ assign [class="Skype"] $ws9
 assign [class="Slack"] $ws9
 assign [class="Firefox"] $ws3
 assign [class="Google-chrome"] $ws3
+assign [class="Steam"] $ws4
 # cannot use assign, see https://github.com/i3/i3/issues/2060
 for_window [class="Spotify"] move to workspace $ws10
 
