@@ -104,6 +104,9 @@ autocmd FileType ruby setlocal ts=2 sw=2 expandtab
 " sh
 autocmd FileType sh setlocal ts=2 sw=2 expandtab
 
+" groovy (.gradle etc) files
+autocmd FileType groovy setlocal ts=2 sw=2 expandtab
+
 " c/c++
 let g:deoplete#sources#clang#libclang_path = '/usr/lib64/libclang.so'
 let g:deoplete#sources#clang#clang_header = '/usr/lib64/clang'
