@@ -98,6 +98,9 @@ let g:elm_format_autosave = 1
 " python
 let g:deoplete#sources#jedi#show_docstring = 1
 
+" javascript
+autocmd FileType javascript setlocal ts=2 sw=2 expandtab
+
 " ruby
 autocmd FileType ruby setlocal ts=2 sw=2 expandtab
 
