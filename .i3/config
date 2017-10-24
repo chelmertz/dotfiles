@@ -32,12 +32,11 @@ font pango:DejaVu Sans Mono 10
 # Use Mouse+$mod to drag floating windows to their wanted position
 floating_modifier $mod
 
-# start a terminal
-bindsym $mod+Return exec gnome-terminal
+# start a terminal from the "last opened terminal window"'s cwd
+bindsym $mod+Return exec ~/code/github/chelmertz/dotfiles/new_window.sh
 
-# start a terminal from current (terminal's) working directory
-# requires xcwd https://github.com/schischi-a/xcwd
-bindsym $mod+Shift+Return exec gnome-terminal --working-directory "`xcwd`"
+# start a terminal
+bindsym $mod+Shift+Return exec gnome-terminal
 
 # rename current workspace
 bindsym $mod+p exec i3-input -F 'rename workspace to "%s"' -P 'rename to: '
