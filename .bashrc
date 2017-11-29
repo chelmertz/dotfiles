@@ -93,6 +93,8 @@ alias til='nvim ~/Dropbox/tagspaces/til.md'
 alias tilv='~/.config/dotfiles/bin/til.sh && evince ~/til.pdf'
 alias scrot='scrot "%Y-%m-%d_$wx$h.png"'
 
+alias e=emacs
+
 alias cds="cd ~/code"
 alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
@@ -100,8 +102,8 @@ function r {
 	rg -i "\b$1\b"
 }
 
-EDITOR=nvim
-VISUAL=nvim
+EDITOR=emacs
+VISUAL=emacs
 PATH=~/.cabal/bin:/usr/java/jdk1.8.0_121/jre/bin:${PATH}:~/bin:~/.local/bin
 TZ='Europe/Stockholm'
 export EDITOR VISUAL PATH TZ
