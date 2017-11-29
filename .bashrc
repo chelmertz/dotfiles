@@ -91,7 +91,6 @@ alias less='less -i' # smart case search (case insensitive unless uppercase is i
 
 alias til='nvim ~/Dropbox/tagspaces/til.md'
 alias tilv='~/.config/dotfiles/bin/til.sh && evince ~/til.pdf'
-alias ag='ag -U'
 alias scrot='scrot "%Y-%m-%d_$wx$h.png"'
 
 alias cds="cd ~/code"
