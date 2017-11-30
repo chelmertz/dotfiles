@@ -98,9 +98,7 @@ alias e=emacs
 alias cds="cd ~/code"
 alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
-function r {
-	rg -i "\b$1\b"
-}
+alias r="ranger"
 
 EDITOR=emacs
 VISUAL=emacs
