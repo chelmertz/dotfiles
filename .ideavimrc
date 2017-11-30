@@ -1,2 +1,4 @@
 set surround
 set incsearch
+set ignorecase
+set smartcase
