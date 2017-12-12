@@ -13,7 +13,7 @@ set $mod Mod4
 set $alt Mod1
 
 set $ws1 1
-set $ws2 2 docker
+set $ws2 2
 set $ws3 3 browser
 set $ws4 4
 set $ws5 5
