@@ -49,3 +49,6 @@ tags
 # clojure
 .lein-failures
 .lein-repl-history
+
+# front end dev stuff
+.sass-cache
