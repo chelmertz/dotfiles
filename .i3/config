@@ -114,12 +114,13 @@ bindsym $mod+8 workspace $ws8
 bindsym $mod+9 workspace $ws9
 bindsym $mod+0 workspace $ws10
 
-assign [class="Pidgin"] $ws9
-assign [class="Skype"] $ws9
-assign [class="Slack"] $ws9
+assign [class="jetbrains-idea"] $ws1
 assign [class="Firefox"] $ws3
 assign [class="Google-chrome"] $ws3
 assign [class="Steam"] $ws4
+assign [class="Skype"] $ws8
+assign [class="Pidgin"] $ws9
+assign [class="Slack"] $ws9
 # cannot use assign, see https://github.com/i3/i3/issues/2060
 for_window [class="Spotify"] move to workspace $ws10
 
