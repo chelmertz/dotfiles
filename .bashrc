@@ -100,8 +100,8 @@ alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
 alias r="ranger"
 
-EDITOR=emacs
-VISUAL=emacs
+EDITOR=nvim
+VISUAL=nvim
 PATH=~/.cabal/bin:/usr/java/jdk1.8.0_121/jre/bin:${PATH}:~/bin:~/.local/bin
 TZ='Europe/Stockholm'
 export EDITOR VISUAL PATH TZ
