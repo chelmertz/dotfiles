@@ -23,7 +23,8 @@ set $ws8 8
 set $ws9 9 chat
 set $ws10 10 music
 
-focus_follows_mouse yes
+# this is a nice feature, but it breaks the "shift+shift" finder in IDEA :(
+focus_follows_mouse no
 
 # Font for window titles. Will also be used by the bar unless a different font
 # is used in the bar {} block below. ISO 10646 = Unicode
