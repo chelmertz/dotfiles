@@ -94,6 +94,7 @@ alias tilv='~/.config/dotfiles/bin/til.sh && evince ~/til.pdf'
 alias scrot='scrot "%Y-%m-%d_$wx$h.png"'
 
 alias e=emacs
+alias j='nvim ~/Dropbox/docs/journal/$(date +%Y_%m_%d).md'
 
 alias cds="cd ~/code"
 alias cdd="cd ~/code/github/chelmertz/dotfiles"
