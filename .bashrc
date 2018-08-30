@@ -95,6 +95,14 @@ alias scrot='scrot "%Y-%m-%d_$wx$h.png"'
 
 alias e=emacs
 alias j='nvim ~/Dropbox/docs/journal/$(date +%Y_%m_%d).md'
+function wi() {
+  local files=$(fd $1 ~/Dropbox/docs/knowledge)
+  if [ -z "$files" ]; then
+    nvim "~/Dropbox/docs/knowledge/$1.md"
+  else
+    nvim $files
+  fi
+}
 
 alias cds="cd ~/code"
 alias cdd="cd ~/code/github/chelmertz/dotfiles"
