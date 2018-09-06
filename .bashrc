@@ -94,14 +94,19 @@ alias tilv='~/.config/dotfiles/bin/til.sh && evince ~/til.pdf'
 alias scrot='scrot "%Y-%m-%d_$wx$h.png"'
 
 alias e=emacs
+wiki_dir=~/Dropbox/docs/knowledge
 alias j='nvim ~/Dropbox/docs/journal/$(date +%Y_%m_%d).md'
 function wi() {
-  local files=$(fd $1 ~/Dropbox/docs/knowledge)
+  local files=$(fd $1 $wiki_dir)
   if [ -z "$files" ]; then
-    nvim "~/Dropbox/docs/knowledge/$1.md"
+    nvim "$wiki_dir/$1.md"
   else
     nvim $files
   fi
+}
+
+function wis() {
+  rg $1 $wiki_dir
 }
 
 alias cds="cd ~/code"
