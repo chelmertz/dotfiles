@@ -116,7 +116,7 @@ alias cds="cd ~/code"
 alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
 alias r="ranger"
-alias uuid="python -c 'from uuid import uuid4; print(str(uuid4()));'"
+alias uuid="python -c 'from uuid import uuid4; print(str(uuid4()));' | xclip -i -selection primary -f"
 
 EDITOR=nvim
 VISUAL=nvim
