@@ -1,0 +1,4 @@
+#!/bin/bash
+
+python -c 'from uuid import uuid4; print(str(uuid4()));' | xclip -i -selection primary -f
+
