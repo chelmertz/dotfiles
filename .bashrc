@@ -116,6 +116,7 @@ alias cds="cd ~/code"
 alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
 alias r="ranger"
+alias x="xdg-open"
 
 EDITOR=nvim
 VISUAL=nvim
