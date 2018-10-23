@@ -93,8 +93,6 @@ alias til='nvim ~/Dropbox/tagspaces/til.md'
 alias tilv='~/.config/dotfiles/bin/til.sh && evince ~/til.pdf'
 alias scrot='scrot "%Y-%m-%d_$wx$h.png"'
 
-alias e=emacs
-
 alias j='nvim ~/Dropbox/docs/journal/$(date +%Y_%m_%d).md'
 wiki_dir=~/Dropbox/docs/knowledge
 function wi() {
@@ -117,6 +115,7 @@ alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
 alias r="ranger"
 alias x="xdg-open"
+alias t="todo.sh"
 
 EDITOR=nvim
 VISUAL=nvim
