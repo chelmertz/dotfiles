@@ -115,7 +115,7 @@ alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
 alias r="ranger"
 alias x="xdg-open"
-alias t="todo.sh"
+alias t="todo.sh -t"
 
 EDITOR=nvim
 VISUAL=nvim
