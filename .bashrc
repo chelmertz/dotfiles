@@ -94,6 +94,20 @@ alias tilv='~/.config/dotfiles/bin/til.sh && evince ~/til.pdf'
 alias scrot='scrot "%Y-%m-%d_$wx$h.png"'
 
 alias j='nvim ~/Dropbox/docs/journal/$(date +%Y_%m_%d).md'
+
+alias retro="nvim $(ls -1r ~/Dropbox/docs/20*elvaco_retro*.md | head -n1)"
+
+alias cds="cd ~/code"
+alias cdd="cd ~/code/github/chelmertz/dotfiles"
+
+alias rg="ripgrep.rg"
+alias r="ranger"
+alias x="xdg-open"
+alias t="todo.sh -t -d ~/code/github/chelmertz/dotfiles/todo/config"
+
+export TODOTXT_DEFAULT_ACTION="ls"
+complete -F _todo t
+
 wiki_dir=~/Dropbox/docs/knowledge
 function wi() {
   local files=$(fd $1 $wiki_dir)
@@ -107,15 +121,6 @@ function wi() {
 function wis() {
   rg $1 $wiki_dir
 }
-
-alias retro="nvim $(ls -1r ~/Dropbox/docs/20*elvaco_retro*.md | head -n1)"
-
-alias cds="cd ~/code"
-alias cdd="cd ~/code/github/chelmertz/dotfiles"
-
-alias r="ranger"
-alias x="xdg-open"
-alias t="todo.sh -t"
 
 EDITOR=nvim
 VISUAL=nvim
