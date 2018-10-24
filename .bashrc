@@ -104,6 +104,8 @@ alias rg="ripgrep.rg"
 alias r="ranger"
 alias x="xdg-open"
 alias t="todo.sh -t -d ~/code/github/chelmertz/dotfiles/todo/config"
+alias elv="t ls +elvaco"
+alias elva="t a +elvaco +mvp"
 
 export TODOTXT_DEFAULT_ACTION="ls"
 complete -F _todo t
