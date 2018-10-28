@@ -1,6 +1,0 @@
---ignore-file=is:tags
---ignore-file=ext:sassc
---ignore-dir=is:.sass-cache
---ignore-file=ext:po
-
-# use `ack --dump` to see all options that are actually used
