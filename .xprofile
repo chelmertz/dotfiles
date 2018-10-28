@@ -1,7 +1,5 @@
 #!/bin/sh
 
-setxkbmap -layout se -option caps:escape
-
 touchpad_id=$(xinput list | grep TouchPad | grep -oP '(?<=id=)[[:alnum:]]+')
 xinput disable $touchpad_id
 
