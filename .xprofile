@@ -2,7 +2,9 @@
 
 setxkbmap -layout se -option caps:escape
 
-synclient TouchpadOff=1
+touchpad_id=$(xinput list | grep TouchPad | grep -oP '(?<=id=)[[:alnum:]]+')
+xinput disable $touchpad_id
+
 xrandr --query | grep "DP2-2 connected" > /dev/null
 testing=$?
 
