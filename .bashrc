@@ -108,7 +108,6 @@ alias t="todo.sh -t -d ~/code/github/chelmertz/dotfiles/todo/config"
 
 alias elv="t ls +elvaco"
 function elva() {
-	echo "hejhej"
 	t a $@ +elvaco +mvp
 }
 
