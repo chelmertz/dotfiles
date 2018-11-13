@@ -1,7 +1,8 @@
 #!/bin/sh
 
 touchpad_id=$(xinput list | grep TouchPad | grep -oP '(?<=id=)[[:alnum:]]+')
-xinput disable $touchpad_id
+# this causes bugs when logging into newly booted ubuntu:
+#xinput disable $touchpad_id
 
 xrandr --query | grep "DP2-2 connected" > /dev/null
 testing=$?
