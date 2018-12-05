@@ -127,7 +127,7 @@ function wi() {
 }
 
 function wis() {
-  rg $1 $wiki_dir
+  rg -i "$*" $wiki_dir
 }
 
 EDITOR=nvim
