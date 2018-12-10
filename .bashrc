@@ -115,6 +115,7 @@ export TODOTXT_DEFAULT_ACTION="ls"
 complete -F _todo t
 . /usr/share/bash-completion/completions/git
 __git_complete gco _git_checkout
+__git_complete gl _git_log
 
 wiki_dir=~/Dropbox/docs/knowledge
 function wi() {
