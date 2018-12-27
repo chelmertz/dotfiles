@@ -95,8 +95,6 @@ alias scrot='scrot "%Y-%m-%d_$wx$h.png"'
 
 alias j='nvim ~/Dropbox/docs/journal/$(date +%Y_%m_%d).md'
 
-alias retro="nvim $(ls -1r ~/Dropbox/docs/20*elvaco_retro*.md | head -n1)"
-
 alias cds="cd ~/code"
 alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
@@ -117,7 +115,7 @@ complete -F _todo t
 __git_complete gco _git_checkout
 __git_complete gl _git_log
 
-wiki_dir=~/Dropbox/docs/knowledge
+wiki_dir=~/Dropbox/docs
 function wi() {
   local files=$(fd $1 $wiki_dir)
   if [ -z "$files" ]; then
@@ -129,6 +127,10 @@ function wi() {
 
 function wis() {
   rg -i "$*" $wiki_dir
+}
+
+function w() {
+  /home/ch/code/gitlab/chelmertz/markdown-overview/gen.sh $wiki_dir
 }
 
 EDITOR=nvim
