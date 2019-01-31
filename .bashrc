@@ -137,7 +137,7 @@ EDITOR=nvim
 VISUAL=nvim
 PATH=~/.cabal/bin:/usr/java/jdk1.8.0_121/jre/bin:${PATH}:~/bin:~/.local/bin
 TZ='Europe/Stockholm'
-MANPAGER="nvim -c 'set ft=man' -"
+MANPAGER=most
 export EDITOR MANPAGER VISUAL PATH TZ
 
 test -f ~/.bashrc-local && source ~/.bashrc-local
