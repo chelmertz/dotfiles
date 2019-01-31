@@ -54,6 +54,11 @@ Plug 'zchee/deoplete-clang'
 Plug 'guns/vim-clojure-static' " highlighting, indentation etc for clojure
 Plug 'tpope/vim-fireplace' " clojure repl
 
+" ocaml
+let g:opamshare = substitute(system('opam config var share'),'\n$','','''')
+execute "set rtp+=" . g:opamshare . "/merlin/vim"
+let g:syntastic_ocaml_checkers = ['merlin']
+
 " colors
 Plug 'morhetz/gruvbox' " pretty colors, dark scheme
 Plug 'vim-scripts/louver.vim' " a light colorscheme
