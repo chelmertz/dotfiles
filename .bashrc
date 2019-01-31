@@ -130,7 +130,7 @@ function wis() {
 }
 
 function w() {
-  /home/ch/code/gitlab/chelmertz/markdown-overview/gen.sh $wiki_dir
+  /home/ch/code/gitlab/chelmertz/markdown-overview/examples/docs.sh $wiki_dir
 }
 
 EDITOR=nvim
