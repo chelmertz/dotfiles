@@ -1,3 +1,5 @@
+" neovim wants ~/.config/nvim/init.vim, place it there
+
 " binding strategy:
 " leader+d => lookup *d*efinition for word under cursor
 " leader+m => *m*ake current file
