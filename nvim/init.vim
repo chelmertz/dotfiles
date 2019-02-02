@@ -93,7 +93,21 @@ nnoremap <leader>e :Errors<cr>
 autocmd BufNewFile,BufRead *.wiki,*.markdown,*.md,*.dox,COMMIT_EDITMSG,README,CHANGELOG,INSTALL setlocal spell
 
 " autocomplete
-inoremap <expr><tab> pumvisible() ? "\<c-n>" : "\<tab>"
+function! CleverTab()
+	" uses omni completion when available
+	" from http://vim.wikia.com/wiki/Smart_mapping_for_tab_completion
+	if pumvisible()
+		return "\<C-N>"
+	endif
+	if strpart( getline('.'), 0, col('.')-1 ) =~ '^\s*$'
+		return "\<Tab>"
+	elseif exists('&omnifunc') && &omnifunc != ''
+		return "\<C-X>\<C-O>"
+	else
+		return "\<C-N>"
+	endif
+endfunction
+inoremap <Tab> <C-R>=CleverTab()<CR>
 let g:deoplete#enable_at_startup = 1
 let g:deoplete#omni#functions = {}
 let g:deoplete#omni#input_patterns = {}
