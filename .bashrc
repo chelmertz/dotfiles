@@ -147,3 +147,6 @@ test -f ~/.bashrc-local && source ~/.bashrc-local
 xset r rate 200 25
 
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
+
+# OPAM configuration
+. ~/.opam/opam-init/init.sh > /dev/null 2> /dev/null || true
