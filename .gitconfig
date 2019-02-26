@@ -5,6 +5,7 @@
 	rebase = true
 [diff]
 	tool = kompare
+	algorithm = patience
 [merge]
 	tool = meld
 [color]
