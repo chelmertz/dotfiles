@@ -14,5 +14,6 @@
 	default = current
 [log]
 	decorate = true
+	date = human
 [core]
 	excludesfile = ~/.gitignore_global
