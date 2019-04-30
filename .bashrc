@@ -115,11 +115,12 @@ complete -F _todo t
 __git_complete gco _git_checkout
 __git_complete gl _git_log
 
-wiki_dir=~/Dropbox/docs
+wiki_dir=~/code/wiki
+wiki_url=http://localhost:5001/_index
 function wi() {
   local files=$(fd $1 $wiki_dir)
   if [ -z "$files" ]; then
-    nvim "$wiki_dir/$1.md"
+    nvim "$wiki_dir/$1.page"
   else
     nvim $files
   fi
@@ -130,7 +131,7 @@ function wis() {
 }
 
 function w() {
-  /home/ch/code/gitlab/chelmertz/markdown-overview/examples/docs.sh $wiki_dir
+  xdg-open $wiki_url
 }
 
 EDITOR=nvim
@@ -138,7 +139,8 @@ VISUAL=nvim
 PATH=~/.cabal/bin:/usr/java/jdk1.8.0_121/jre/bin:${PATH}:~/bin:~/.local/bin
 TZ='Europe/Stockholm'
 MANPAGER=most
-export EDITOR MANPAGER VISUAL PATH TZ
+XDG_CONFIG_HOME=~/.config
+export EDITOR MANPAGER VISUAL PATH TZ XDG_CONFIG_HOME
 
 test -f ~/.bashrc-local && source ~/.bashrc-local
 

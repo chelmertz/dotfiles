@@ -90,7 +90,7 @@ nnoremap <leader>e :Errors<cr>
 " spellcheck
 " zg => mark word as good
 " z= => get suggestions for improvements
-autocmd BufNewFile,BufRead *.wiki,*.markdown,*.md,*.dox,COMMIT_EDITMSG,README,CHANGELOG,INSTALL setlocal spell
+autocmd BufNewFile,BufRead *.page,*.wiki,*.markdown,*.md,*.dox,COMMIT_EDITMSG,README,CHANGELOG,INSTALL setlocal spell
 
 " autocomplete
 function! CleverTab()
@@ -149,6 +149,7 @@ let g:deoplete#sources#clang#clang_header = '/usr/lib64/clang'
 autocmd Filetype yaml setlocal ts=2 sw=2 expandtab
 
 " markdown
+autocmd BufNewFile,BufRead *.page set syntax=markdown
 autocmd Filetype markdown setlocal ts=4 sw=4 expandtab
 
 " toggle light/dark color scheme with <F4>
