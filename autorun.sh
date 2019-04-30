@@ -11,3 +11,4 @@ run() {
 }
 
 run setxkbmap -layout se -option caps:escape
+run copyq
