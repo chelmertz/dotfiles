@@ -128,7 +128,7 @@ end
 -- from https://awesomewm.org/recipes/watch/
 -- battery infos from freedesktop upower
 local mybattery = awful.widget.watch(
-    { awful.util.shell, "-c", "upower -i /org/freedesktop/UPower/devices/battery_BAT0 | sed -n '/present/,/icon-name/p'" },
+    { awful.util.shell, "-c", "upower -i /org/freedesktop/UPower/devices/battery_BAT1 | sed -n '/present/,/icon-name/p'" },
     30,
     function(widget, stdout)
         local bat_now = {
