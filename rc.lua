@@ -289,6 +289,8 @@ root.buttons(gears.table.join(
 ))
 -- }}}
 
+local rofi_run = function() awful.spawn("rofi -show run", false) end
+
 -- {{{ Key bindings
 globalkeys = gears.table.join(
     awful.key({ modkey,           }, "s",      hotkeys_popup.show_help,
@@ -390,6 +392,8 @@ globalkeys = gears.table.join(
               {description = "volume up", group = "media"}),
 
     -- Prompt
+    awful.key({ modkey },            "a", rofi_run,
+              {description = "run prompt", group = "launcher"}),
     awful.key({ modkey },            "r",     function () awful.screen.focused().mypromptbox:run() end,
               {description = "run prompt", group = "launcher"}),
 
