@@ -15,3 +15,6 @@ fi
 
 # rescan attached usb devices
 lsusb &> /dev/null
+
+# repeat keys
+xset r rate 220 40
