@@ -1,0 +1,2 @@
+// symlink to ~/.config/rofi/config
+rofi.theme: /usr/share/rofi/themes/blue.rasi
