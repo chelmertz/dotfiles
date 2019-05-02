@@ -391,6 +391,12 @@ globalkeys = gears.table.join(
               end,
               {description = "volume up", group = "media"}),
 
+    -- Utils
+    awful.key({}, "Print", function()
+                  awful.spawn("flameshot gui", false)
+              end,
+              {description = "screenshot", group = "media"}),
+
     -- Prompt
     awful.key({ modkey },            "a", rofi_run,
               {description = "run prompt", group = "launcher"}),
