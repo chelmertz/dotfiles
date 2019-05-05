@@ -544,8 +544,6 @@ awful.rules.rules = {
 	    properties = {
 		    tag = "www",
 		    switchtotag = true,
-		    maximized_horizontal = true,
-		    maximized_vertical = true,
 	    },
     },
 
