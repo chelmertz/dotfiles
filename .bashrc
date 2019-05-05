@@ -102,15 +102,6 @@ alias rg="ripgrep.rg"
 alias r="ranger"
 alias x="xdg-open"
 
-alias t="todo.sh -t -d ~/code/github/chelmertz/dotfiles/todo/config"
-
-alias elv="t ls +elvaco"
-function elva() {
-	t a $@ +elvaco +mvp
-}
-
-export TODOTXT_DEFAULT_ACTION="ls"
-complete -F _todo t
 . /usr/share/bash-completion/completions/git
 __git_complete gco _git_checkout
 __git_complete gl _git_log
