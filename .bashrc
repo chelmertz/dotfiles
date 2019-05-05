@@ -108,6 +108,7 @@ __git_complete gl _git_log
 
 wiki_dir=~/code/wiki
 wiki_url=http://localhost:5001/_index
+alias cdw="cd $wiki_dir"
 function wi() {
   local files=$(fd $1 $wiki_dir)
   if [ -z "$files" ]; then
