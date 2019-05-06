@@ -1,6 +1,6 @@
 #!/bin/sh
 
-touchpad_id=$(xinput list | grep TouchPad | grep -oP '(?<=id=)[[:alnum:]]+')
+#touchpad_id=$(xinput list | grep TouchPad | grep -oP '(?<=id=)[[:alnum:]]+')
 # this causes bugs when logging into newly booted ubuntu:
 #xinput disable $touchpad_id
 
@@ -8,7 +8,7 @@ xrandr --query | grep "DP2-2 connected" > /dev/null
 testing=$?
 
 if [ "x$testing" = "x0" ]; then
-	~/.screenlayout/dualscreens.sh
+	~/code/github/chelmertz/dotfiles/.screenlayout/docked_3_screen.sh
 else
 	xrandr --auto
 fi
