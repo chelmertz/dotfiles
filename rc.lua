@@ -159,7 +159,9 @@ local mybattery = awful.widget.watch(
             end
         end
 
-        -- customize here
+	if bat_now.percentage == 100 and bat_now.state == "fully" then
+		return
+	end
         widget:set_text("Bat: " .. bat_now.percentage .. "% " .. bat_now.state)
     end
 )
