@@ -151,6 +151,8 @@ autocmd Filetype yaml setlocal ts=2 sw=2 expandtab
 " markdown
 autocmd BufNewFile,BufRead *.page set syntax=markdown
 autocmd Filetype markdown setlocal ts=4 sw=4 expandtab
+" markdown, but in gitit..
+autocmd Filetype mallard setlocal ts=4 sw=4 expandtab
 
 " toggle light/dark color scheme with <F4>
 let s:lightscheme = 1
