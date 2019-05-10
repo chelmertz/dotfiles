@@ -102,6 +102,8 @@ alias rg="ripgrep.rg"
 alias r="ranger"
 alias x="xdg-open"
 
+alias docker-ps='docker ps --format "{{.Status}}\t{{.Names}}\t{{.Ports}}" -a'
+
 . /usr/share/bash-completion/completions/git
 __git_complete gco _git_checkout
 __git_complete gl _git_log
