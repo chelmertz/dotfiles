@@ -159,10 +159,15 @@ local mybattery = awful.widget.watch(
             end
         end
 
-	if bat_now.state == "fully" or bat_now.percentage > 98 then
-		return
-	end
-        widget:set_text("Bat: " .. bat_now.percentage .. "% " .. bat_now.state)
+        if bat_now.state == "fully" or bat_now.percentage > 98 then
+            return
+        end
+
+        if bat_now.percentage < 16 and bat_now.state ~= "charging" then
+            widget:set_markup("Bat: <span foreground=\"red\">" .. bat_now.percentage .. "% " .. bat_now.state .. "</span>")
+        else
+            widget:set_text("Bat: " .. bat_now.percentage .. "% " .. bat_now.state)
+        end
     end
 )
 
