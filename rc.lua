@@ -298,7 +298,7 @@ root.buttons(gears.table.join(
 -- }}}
 
 local rofi_run = function() awful.spawn("rofi -show run", false) end
-local focus_trigger = "cd /home/ch/code/gitlab/chelmertz/focus_trigger; ./focus-trigger.py &> /tmp/focus_all.log"
+local focus_trigger = "/home/ch/code/gitlab/chelmertz/focus_trigger/focus-trigger.py &> /tmp/focus_all.log"
 
 -- {{{ Key bindings
 globalkeys = gears.table.join(
