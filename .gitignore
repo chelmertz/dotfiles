@@ -12,3 +12,4 @@ nvim/repos/*
 nvim/.netrwhist
 nvim/spell
 !*jar
+gitit/gitit.log

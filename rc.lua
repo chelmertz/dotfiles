@@ -297,6 +297,7 @@ root.buttons(gears.table.join(
 -- }}}
 
 local rofi_run = function() awful.spawn("rofi -show run", false) end
+local focus_trigger = "cd /home/ch/code/gitlab/chelmertz/focus_trigger; ./focus-trigger.py &> /tmp/focus_all.log"
 
 -- {{{ Key bindings
 globalkeys = gears.table.join(
@@ -395,6 +396,12 @@ globalkeys = gears.table.join(
                   awful.spawn("pactl set-sink-volume @DEFAULT_SINK@ +5%", false)
               end,
               {description = "volume up", group = "media"}),
+
+    -- focus trigger
+    awful.key({}, "XF86Explorer", function() awful.spawn.with_shell(focus_trigger) end,
+              {description = "do something with the focused window", group = "media"}),
+    awful.key({}, "F12", function() awful.spawn.with_shell(focus_trigger) end,
+              {description = "do something with the focused window", group = "media"}),
 
     -- Utils
     awful.key({}, "Print", function()
