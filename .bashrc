@@ -109,7 +109,6 @@ __git_complete gco _git_checkout
 __git_complete gl _git_log
 
 wiki_dir=~/code/wiki
-wiki_url=http://localhost:5001/_index
 alias cdw="cd $wiki_dir"
 function wi() {
   local files=$(fd $1 $wiki_dir)
@@ -120,12 +119,12 @@ function wi() {
   fi
 }
 
-function wis() {
-  rg -i "$*" $wiki_dir
-}
-
 function w() {
-  xdg-open $wiki_url
+  if [ -z "$1" ]; then
+    xdg-open http://localhost:5001/_index 2> /dev/null
+  else
+    xdg-open "http://localhost:5001/_search?patterns=$1" 2> /dev/null
+  fi
 }
 
 EDITOR=nvim
