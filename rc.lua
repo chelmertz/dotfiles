@@ -687,5 +687,7 @@ client.connect_signal("unfocus", function(c) c.border_color = beautiful.border_n
 
 awful.spawn.with_shell("~/.config/awesome/autorun.sh")
 awful.spawn.with_shell("cd /home/ch/code/github/chelmertz/dotfiles/gitit; nohup gitit -f gitit.conf &")
+-- tap to click
+awful.spawn("xinput set-prop 11 278 1")
 
 -- }}}
