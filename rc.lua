@@ -160,7 +160,7 @@ local mybattery = awful.widget.watch(
             end
         end
 
-        if bat_now.state == "fully" or bat_now.percentage > 98 then
+        if bat_now.state == "fully" or (bat_now.percentage > 90 and bat_now.state == "charging") then
             return
         end
 
