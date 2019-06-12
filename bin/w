@@ -1,0 +1,3 @@
+#!/bin/sh
+
+xdg-open "http://wiki:5001/_search?patterns=$*"

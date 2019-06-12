@@ -1,0 +1,3 @@
+#!/bin/sh
+
+xdg-open "https://en.wikipedia.org/w/index.php?search=$*"
