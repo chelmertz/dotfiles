@@ -78,6 +78,9 @@ alias gb="git branch -vv "
 alias gba="git branch --all"
 alias gc="git commit -v"
 alias gca="git commit -av"
+gcf() {
+  git commit -a --fixup "$*"
+}
 alias gcaa="git commit -a --amend --no-edit"
 alias gd="git diff -M -w"
 alias gco="git checkout "

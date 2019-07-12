@@ -8,6 +8,8 @@
 	algorithm = patience
 [merge]
 	tool = meld
+[rebase]
+	autoSquash = true
 [color]
 	ui = always
 [push]
