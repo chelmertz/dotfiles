@@ -21,7 +21,8 @@
  '(markdown-command "pandoc --from markdown --to html5")
  '(package-selected-packages
    (quote
-    (feature-mode evil-vimish-fold yaml-mode gruvbox-theme php-mode markdown-mode lua-mode evil-magit helm magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
+    (org-journal org feature-mode evil-vimish-fold yaml-mode gruvbox-theme php-mode markdown-mode lua-mode evil-magit helm magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
+
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
@@ -57,6 +58,18 @@
       auto-save-timeout 20     ; number of seconds idle time before auto-save (default: 30)
       auto-save-interval 200   ; number of keystrokes between auto-saves (default: 300)
       )
+
+; org-tempo is used for e.g. expanding < + s + TAB to a code block
+(require 'org-tempo)
+(setq org-directory "~/Dropbox/orgzly")
+(setq org-journal-dir org-directory)
+(setq org-agenda-files (list org-directory))
+(setq org-journal-file-format "%Y-%m-%d.org")
+(org-babel-do-load-languages 'org-babel-load-languages
+    '(
+        (shell . t)
+    )
+)
 
 ;; use tabs in favor of spaces in some file types
 (add-hook 'php-mode-hook '(lambda ()
