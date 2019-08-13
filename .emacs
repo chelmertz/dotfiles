@@ -39,6 +39,7 @@
 (setq vc-follow-symlinks nil)
 
 (load-theme 'gruvbox t)
+(setq visual-line-mode t)
 
 ;; how to handle emacs backup files (like vim's swap files)
 ;; from https://stackoverflow.com/questions/151945/how-do-i-control-how-emacs-makes-backup-files
