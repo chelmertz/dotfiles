@@ -41,6 +41,7 @@
 
 (load-theme 'gruvbox t)
 (setq visual-line-mode t)
+(add-hook 'text-mode-hook 'turn-on-auto-fill)
 
 ;; how to handle emacs backup files (like vim's swap files)
 ;; from https://stackoverflow.com/questions/151945/how-do-i-control-how-emacs-makes-backup-files
@@ -65,13 +66,46 @@
 (setq org-journal-dir org-directory)
 (setq org-agenda-files (list org-directory))
 (setq org-journal-file-format "%Y-%m-%d.org")
+(setq org-log-done 'time)
+(setq org-tag-alist '(
+		      (:startgrouptag)
+		      ("family")
+		      (:grouptags)
+		      ("Alfred")
+		      ("Linnéa")
+		      (:endgrouptag)
+
+		      (:startgrouptag)
+		      ("emacs")
+		      (:grouptags)
+		      ("org")
+		      (:endgrouptag)
+
+		      (:startgrouptag)
+		      ("reviews")
+		      (:grouptags)
+		      ("games")
+		      ("books")
+		      (:endgrouptag)
+
+		      (:startgrouptag)
+		      ("games")
+		      (:grouptags)
+		      ("ps4")
+		      ("pc")
+		      (:endgrouptag)
+		      ))
+(require 'org)
+(require 'ob-clojure)
+(setq org-babel-clojure-backend 'cider)
+(require 'cider)
 (org-babel-do-load-languages 'org-babel-load-languages
     '(
         (shell . t)
+        (clojure . t)
     )
 )
 
-;; use tabs in favor of spaces in some file types
 (add-hook 'php-mode-hook '(lambda ()
 			    (setq indent-tabs-mode t
 				  tab-width 4
@@ -87,6 +121,9 @@
 			    (setq indent-tabs-mode t
 				  tab-with 4
 				  c-basic-offset 4)))
+
+(add-hook 'text-mode-hook 'flyspell-mode)
+(add-hook 'prog-mode-hook 'flyspell-prog-mode)
 
 ;; helm, an autocompleter (maybe like vim's ctrlp?)
 ;; while in the 'helm-find-files view, C-s will enter "ack mode"
