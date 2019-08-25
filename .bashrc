@@ -148,3 +148,9 @@ xset r rate 200 25
 
 # OPAM configuration
 . ~/.opam/opam-init/init.sh > /dev/null 2> /dev/null || true
+
+# hold caps for ctrl modifier, press for escape
+# inside .bashrc to make it execute (well, let's hope we open a new terminal)
+# after sleep/lid is closed (known issue, it seems like, when googling)
+setxkbmap -layout se -option caps:ctrl_modifier
+xcape -e "Caps_Lock=Escape" -t 50
