@@ -153,4 +153,4 @@ xset r rate 200 25
 # inside .bashrc to make it execute (well, let's hope we open a new terminal)
 # after sleep/lid is closed (known issue, it seems like, when googling)
 setxkbmap -layout se -option caps:ctrl_modifier
-xcape -e "Caps_Lock=Escape" -t 50
+pgrep xcape &> /dev/null || xcape -e "Caps_Lock=Escape" -t 200
