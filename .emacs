@@ -23,6 +23,8 @@
    (quote
     (org-journal org feature-mode evil-vimish-fold yaml-mode gruvbox-theme php-mode markdown-mode lua-mode evil-magit helm magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
 
+(add-to-list 'default-frame-alist '(fullscreen . maximized))
+
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
