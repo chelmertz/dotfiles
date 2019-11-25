@@ -21,7 +21,7 @@
  '(markdown-command "pandoc --from markdown --to html5")
  '(package-selected-packages
    (quote
-    (org-journal org feature-mode evil-vimish-fold yaml-mode gruvbox-theme php-mode markdown-mode lua-mode evil-magit helm magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
+    (evil-org tuareg atom-dark-theme haskell-mode org-journal org feature-mode evil-vimish-fold yaml-mode gruvbox-theme php-mode markdown-mode lua-mode evil-magit magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
 
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
 
@@ -40,10 +40,11 @@
 (setq inhibit-startup-screen t)
 ;; stop asking if I want to follow symlinks, I do
 (setq vc-follow-symlinks nil)
+;; show line numbers
+(global-linum-mode t)
 
-(load-theme 'gruvbox t)
+(load-theme 'leuven t)
 (setq visual-line-mode t)
-(add-hook 'text-mode-hook 'turn-on-auto-fill)
 
 ;; how to handle emacs backup files (like vim's swap files)
 ;; from https://stackoverflow.com/questions/151945/how-do-i-control-how-emacs-makes-backup-files
@@ -105,8 +106,39 @@
     '(
         (shell . t)
         (clojure . t)
+        (haskell . t)
+        (ocaml . t)
+        (sql . t)
     )
 )
+
+; see https://orgmode.org/manual/Code-evaluation-security.html
+(setq org-confirm-babel-evaluate nil)
+
+; see https://emacs.stackexchange.com/questions/14788/org-mode-refile-to-other-files-does-not-work
+(setq org-refile-targets '(
+			   (nil :maxlevel . 2)
+			   (org-agenda-files :maxlevel . 2)
+			   ))
+
+; see https://emacs.stackexchange.com/questions/13353/how-to-use-org-refile-to-move-a-headline-to-a-file-as-a-toplevel-headline
+(setq org-refile-use-outline-path 'file)
+
+
+
+(setq org-todo-keywords
+      '((sequence "TODO" "|" "DONE" "WONT")))
+
+;; see https://github.com/Somelauw/evil-org-mode for key bindings etc
+(require 'evil-org)
+(add-hook 'org-mode-hook 'evil-org-mode)
+(add-hook 'org-mode-hook '(lambda ()
+			    (setq visual-line-mode t)
+			    (setq truncate-lines nil) ; soft wrap
+			    ))
+(evil-org-set-key-theme '(navigation insert textobjects additional calendar))
+(require 'evil-org-agenda)
+(evil-org-agenda-set-keys)
 
 (add-hook 'php-mode-hook '(lambda ()
 			    (setq indent-tabs-mode t
@@ -123,9 +155,21 @@
 			    (setq indent-tabs-mode t
 				  tab-with 4
 				  c-basic-offset 4)))
+(add-hook 'haskell-mode-hook #'hindent-mode)
 
 (add-hook 'text-mode-hook 'flyspell-mode)
+(add-hook 'text-mode-hook 'turn-on-auto-fill)
 (add-hook 'prog-mode-hook 'flyspell-prog-mode)
+
+(add-hook 'before-save-hook 'delete-trailing-whitespace)
+
+;; ocaml
+(let ((opam-share (ignore-errors (car (process-lines "opam" "config" "var" "share")))))
+  (when (and opam-share (file-directory-p opam-share))
+    (add-to-list 'load-path (expand-file-name "emacs/site-lisp" opam-share))
+    (autoload 'merlin-mode "merlin" nil t nil)
+    (add-hook 'tuareg-mode-hook 'merlin-mode t)
+    (add-hook 'caml-mode-hook 'merlin-mode t)))
 
 ;; helm, an autocompleter (maybe like vim's ctrlp?)
 ;; while in the 'helm-find-files view, C-s will enter "ack mode"
@@ -133,6 +177,9 @@
 (require 'helm-config)
 (helm-mode 1)
 (helm-autoresize-mode t)
+
+;; use tab to auto complete (C-n from evil-mode also works)
+(setq tab-always-indent 'complete)
 
 ;; override the builtin file finder with helm's variant
 ;; separate search terms with space
@@ -149,10 +196,16 @@
 (global-evil-leader-mode)
 (evil-leader/set-leader ",")
 
+(defun work-journal ()
+  (interactive)
+  (find-file (expand-file-name "~/Dropbox/orgzly/elvaco.org")))
+
 ;; evil-nerd-commenter, toggles comments from visual selections
 ;; leader + c (,+c) will toggle the current row
 (evil-leader/set-key
  "c" 'evilnc-comment-or-uncomment-lines
+ "j" 'org-journal-new-entry
+ "e" 'work-journal
  )
 
 (define-key evil-normal-state-map (kbd "gx") 'browse-url-at-point)
@@ -211,7 +264,6 @@
 (global-evil-matchit-mode 1)
 
 (evilnc-default-hotkeys)
-
 
 ;; small guide for an emacs noob:
 ;; M-x ;; (alt+x) is akin close to vim's :e (command mode), I
