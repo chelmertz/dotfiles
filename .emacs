@@ -135,6 +135,14 @@
 (setq org-todo-keywords
       '((sequence "TODO" "|" "DONE" "WONT")))
 
+;; "You should enable global-evil-leader-mode before you enable
+;; evil-mode, otherwise evil-leader won’t be enabled in initial
+;; buffers (*scratch*, *Messages*, …).", from
+;; https://github.com/cofi/evil-leader
+(require 'evil-leader)
+(global-evil-leader-mode)
+(evil-leader/set-leader ",")
+
 ;; see https://github.com/Somelauw/evil-org-mode for key bindings etc
 (require 'evil-org)
 (add-hook 'org-mode-hook 'evil-org-mode)
@@ -194,24 +202,16 @@
 ;; (setq helm-ff-skip-boring-files t)
 ;; (setq helm-boring-file-regexp-list '("^tags$"))
 
-;; "You should enable global-evil-leader-mode before you enable
-;; evil-mode, otherwise evil-leader won’t be enabled in initial
-;; buffers (*scratch*, *Messages*, …).", from
-;; https://github.com/cofi/evil-leader
-(require 'evil-leader)
-(global-evil-leader-mode)
-(evil-leader/set-leader ",")
-
 (defun work-journal ()
   (interactive)
   (find-file (expand-file-name "~/Dropbox/orgzly/elvaco.org")))
 
-;; evil-nerd-commenter, toggles comments from visual selections
-;; leader + c (,+c) will toggle the current row
 (evil-leader/set-key
- "c" 'evilnc-comment-or-uncomment-lines
+ "c" 'org-capture
+ "a" 'org-agenda
  "j" 'org-journal-new-entry
  "e" 'work-journal
+ "b" 'helm-buffers-list
  )
 
 (define-key evil-normal-state-map (kbd "gx") 'browse-url-at-point)
