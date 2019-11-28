@@ -74,6 +74,7 @@
 (setq org-journal-dir org-directory)
 (setq org-agenda-files (list org-directory))
 (setq org-journal-file-format "%Y-%m-%d.org")
+(setq org-default-notes-file (concat org-directory "/inbox.org"))
 (setq org-log-done 'time)
 (setq org-tag-alist '(
 		      (:startgrouptag)
