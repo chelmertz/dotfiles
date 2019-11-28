@@ -18,6 +18,9 @@
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
+ '(erc-modules
+   (quote
+    (autojoin button completion fill irccontrols keep-place list match menu move-to-prompt netsplit networks noncommands notifications readonly ring stamp track)))
  '(markdown-command "pandoc --from markdown --to html5")
  '(package-selected-packages
    (quote
@@ -62,6 +65,8 @@
       auto-save-timeout 20     ; number of seconds idle time before auto-save (default: 30)
       auto-save-interval 200   ; number of keystrokes between auto-saves (default: 300)
       )
+
+(setq erc-hide-list '("JOIN" "PART" "QUIT" "NICK" "KICK" "MODE"))
 
 ; org-tempo is used for e.g. expanding < + s + TAB to a code block
 (require 'org-tempo)
