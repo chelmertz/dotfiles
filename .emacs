@@ -273,6 +273,7 @@
 (evilnc-default-hotkeys)
 
 ;; small guide for an emacs noob:
+;;
 ;; M-x ;; (alt+x) is akin close to vim's :e (command mode), I
 ;; think.. but M-: is also some sort of command mode
 ;; C-g ;; cancel current command
@@ -283,21 +284,21 @@
 ;; M-x eval-buffer ;; reload .emacs without restarting emacs (if
 ;; .emacs is the file currently being edited
 ;;
-;; buffers, from
-;; https://www.gnu.org/software/emacs/manual/html_node/emacs/Select-Buffer.html
-;; C-x b RET ;; switch to previous buffer, "cd -" style
-;; C-x b buffername RET ;; select buffer or create new. tab completion
-;; works
-;; C-x LEFT ;; prev buffer, C-x RIGHT works too
-;; C-x k ENT ;; kill current buffer
-;; M-: buffer-file-name ;; display the filename of the current buffer
+;;
+;; buffers
+;;
+;; ,b ;; show all buffers in a helm, auto complete, MRU
+;;
 ;;
 ;; markdown
+;;
 ;; C-c C-c l ;; live preview in buffer
 ;; C-c C-c p ;; live preview in browser
 ;; C-c C-c e ;; export to html file
 ;;
+;;
 ;; packages
+;;
 ;; M-x package-install ;; install a package
 ;; M-x package-list-packages ;; installing packages from here sometimes "works better" :(
 ;;
@@ -306,3 +307,15 @@
 ;; file, but change to the scratch buffer in between (with C-x b), and
 ;; then use C-x C-f. This will reuse the original current working
 ;; directory. From: http://stackoverflow.com/a/2627086/49879
+;;
+;;
+;; org mode
+;;
+;; <s TAB ;; new code block
+;; C-c C-c ;; execute code in babel
+;; C-c C-t ;; toggle TODO state
+;; C-c C-s ;; schedule entry
+;; C-c C-d ;; deadline entry
+;; ,a ;; agenda
+;; C-x n s ;; narrow on entry (zoom in)
+;; C-x n w ;; widen (zoom out again)
