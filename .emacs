@@ -25,7 +25,7 @@
  '(markdown-command "pandoc --from markdown --to html5")
  '(package-selected-packages
    (quote
-    (evil-collection elfeed-org elfeed evil-org tuareg atom-dark-theme haskell-mode org-journal org feature-mode evil-vimish-fold yaml-mode gruvbox-theme php-mode markdown-mode lua-mode evil-magit magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
+    (dune evil-collection elfeed-org elfeed evil-org tuareg atom-dark-theme haskell-mode org-journal org feature-mode evil-vimish-fold yaml-mode gruvbox-theme php-mode markdown-mode lua-mode evil-magit magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
 
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
 
