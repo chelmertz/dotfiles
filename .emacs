@@ -199,6 +199,7 @@
 (require 'helm-config)
 (helm-mode 1)
 (helm-autoresize-mode t)
+(setq helm-find-noerrors t)
 
 ;; use tab to auto complete (C-n from evil-mode also works)
 (setq tab-always-indent 'complete)
