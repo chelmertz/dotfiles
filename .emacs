@@ -25,7 +25,7 @@
  '(markdown-command "pandoc --from markdown --to html5")
  '(package-selected-packages
    (quote
-    (evil-org tuareg atom-dark-theme haskell-mode org-journal org feature-mode evil-vimish-fold yaml-mode gruvbox-theme php-mode markdown-mode lua-mode evil-magit magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
+    (evil-collection elfeed-org elfeed evil-org tuareg atom-dark-theme haskell-mode org-journal org feature-mode evil-vimish-fold yaml-mode gruvbox-theme php-mode markdown-mode lua-mode evil-magit magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
 
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
 
@@ -131,11 +131,18 @@
 ; see https://emacs.stackexchange.com/questions/13353/how-to-use-org-refile-to-move-a-headline-to-a-file-as-a-toplevel-headline
 (setq org-refile-use-outline-path 'file)
 
+(require 'elfeed-org)
+(elfeed-org)
+(setq rmh-elfeed-org-files (list (concat org-directory "/feeds.org")))
+
 
 
 (setq org-todo-keywords
       '((sequence "TODO" "|" "DONE" "WONT")))
 
+;; evil-collection needs evil to load with these settings
+(setq evil-want-integration t)
+(setq evil-want-keybinding nil)
 ;; "You should enable global-evil-leader-mode before you enable
 ;; evil-mode, otherwise evil-leader won’t be enabled in initial
 ;; buffers (*scratch*, *Messages*, …).", from
@@ -230,6 +237,8 @@
 (setq-default evil-symbol-word-search t)
 
 (require 'evil)
+(when (require 'evil-collection nil t)
+  (evil-collection-init))
 (evil-mode 1)
 
 ;; enable folds (which were disabled in at least Ruby)
@@ -283,6 +292,13 @@
 ;; M-x package-refresh-contents RET ;; if the package-install fails
 ;; M-x eval-buffer ;; reload .emacs without restarting emacs (if
 ;; .emacs is the file currently being edited
+;;
+;;
+;; help
+;;
+;; C-h f ;; emacs functions
+;; C-h v ;; emacs variables
+;; C-h m ;; help scoped to currently loaded major/minor modes
 ;;
 ;;
 ;; buffers
