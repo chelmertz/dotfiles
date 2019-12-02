@@ -222,6 +222,7 @@
  "j" 'org-journal-new-entry
  "e" 'work-journal
  "b" 'helm-buffers-list
+ "r" 'org-refile
  )
 
 (define-key evil-normal-state-map (kbd "gx") 'browse-url-at-point)
