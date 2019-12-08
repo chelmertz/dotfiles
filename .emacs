@@ -134,7 +134,12 @@
 (require 'elfeed-org)
 (elfeed-org)
 (setq rmh-elfeed-org-files (list (concat org-directory "/feeds.org")))
-
+; see https://kitchingroup.cheme.cmu.edu/blog/2017/01/05/Scoring-elfeed-articles/
+(defface personal-elfeed-entry
+  `((t :background ,(color-lighten-name "orange1" 40)))
+  "Marks a personal Elfeed entry.")
+(push '(personal personal-elfeed-entry)
+      elfeed-search-face-alist)
 
 
 (setq org-todo-keywords
@@ -338,3 +343,21 @@
 ;; ,a ;; agenda
 ;; C-x n s ;; narrow on entry (zoom in)
 ;; C-x n w ;; widen (zoom out again)
+;;
+;;
+;; elfeed search
+;;
+;; s ;; search
+;; gr ;; remove entries not matching filter
+;; gR ;; trigger remote update
+;; u ;; mark read
+;; U ;; mark unread
+;; + ;; add tag
+;; - ;; remove tag
+;;
+;;
+;; elfeed entry
+;;
+;; S-RETURN ;; open url in browser
+;; + ;; add tag
+;; - ;; remove tag
