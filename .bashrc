@@ -101,7 +101,7 @@ alias j='nvim ~/Dropbox/docs/journal/$(date +%Y_%m_%d).md'
 alias cds="cd ~/code"
 alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
-alias rg="ripgrep.rg"
+alias rg="ripgrep.rg -uu" # exclude binary files, include gitignored + hidden files
 alias r="ranger"
 alias x="xdg-open"
 
