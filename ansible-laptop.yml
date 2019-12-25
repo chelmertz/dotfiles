@@ -7,12 +7,18 @@
     - name: glances, htop-like
       apt:
         name: glances
-        state: present
 
     - name: meld, for merging conflicts
       apt:
         name: meld
-        state: present
+
+    - name: emacs repo
+      apt_repository:
+        repo: ppa:kelleyk/emacs
+
+    - name: emacs
+      apt:
+        name: emacs26
 
 # as user
 - hosts: localhost
