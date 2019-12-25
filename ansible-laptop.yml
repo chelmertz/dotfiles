@@ -3,10 +3,17 @@
 - hosts: localhost
   become: yes
   tasks:
-    - name: Install htop-like glances
+
+    - name: glances, htop-like
       apt:
         name: glances
         state: present
+
+    - name: meld, for merging conflicts
+      apt:
+        name: meld
+        state: present
+
 # as user
 - hosts: localhost
   tasks:
