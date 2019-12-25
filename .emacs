@@ -240,8 +240,9 @@
  "a" 'org-agenda
  "j" 'org-journal-new-entry
  "e" 'work-journal
- "b" 'helm-buffers-list
+ "," 'helm-buffers-list
  "r" 'org-refile
+ "w" 'kill-buffer-and-window
  )
 
 (define-key evil-normal-state-map (kbd "gx") 'browse-url-at-point)
@@ -309,6 +310,7 @@
 ;; think.. but M-: is also some sort of command mode
 ;; C-g ;; cancel current command
 ;; C-x C-s ;; save current file
+;; C-x C-e ;; execute expression under cursor ("apply" new config in .emacs for example)
 ;; C-x Cf ;; find file, (helm adds: put spaces in between search terms)
 ;; M-x package-install RET package-name RET ;; install package-name
 ;; M-x package-refresh-contents RET ;; if the package-install fails
