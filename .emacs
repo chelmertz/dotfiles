@@ -134,6 +134,13 @@
 ; see https://emacs.stackexchange.com/questions/13353/how-to-use-org-refile-to-move-a-headline-to-a-file-as-a-toplevel-headline
 (setq org-refile-use-outline-path 'file)
 
+(setq org-return-follows-link t)
+
+(setq org-html-doctype "html5")
+
+; show link under pointer when hovering with mouse
+(setq help-at-pt-display-when-idle t)
+
 (require 'elfeed-org)
 (elfeed-org)
 (setq rmh-elfeed-org-files (list (concat org-directory "/feeds.org")))
@@ -158,6 +165,10 @@
 (require 'evil-leader)
 (global-evil-leader-mode)
 (evil-leader/set-leader ",")
+
+; https://emacs.stackexchange.com/questions/46371/how-can-i-get-ret-to-follow-org-mode-links-when-using-evil-mode
+(with-eval-after-load 'evil-maps
+  (define-key evil-motion-state-map (kbd "RET") nil))
 
 ;; see https://github.com/Somelauw/evil-org-mode for key bindings etc
 (require 'evil-org)
@@ -346,6 +357,8 @@
 ;; ,a ;; agenda
 ;; C-x n s ;; narrow on entry (zoom in)
 ;; C-x n w ;; widen (zoom out again)
+;; C-c C-o ;; follow link under cursor
+;; C-c C-e ;; export dialog (h o will export to html and open in browser)
 ;;
 ;;
 ;; elfeed search
