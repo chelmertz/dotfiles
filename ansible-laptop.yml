@@ -1,0 +1,23 @@
+---
+# as root
+- hosts: localhost
+  become: yes
+  tasks:
+    - name: Install htop-like glances
+      apt:
+        name: glances
+        state: present
+# as user
+- hosts: localhost
+  tasks:
+
+    - name: Global gitignore file
+      file:
+        src: ~/code/github/chelmertz/dotfiles/.gitignore_global
+        dest: ~/.gitignore_global
+        state: link
+    - name: Global gitconfig file (includeIf handles work stuff)
+      file:
+        src: ~/code/github/chelmertz/dotfiles/.gitconfig
+        dest: ~/.gitconfig
+        state: link

@@ -1,6 +1,6 @@
 [user]
 	name = Carl Helmertz
-	email = my@email
+	email = helmertz@gmail.com
 [pull]
 	rebase = true
 [diff]
@@ -19,3 +19,5 @@
 	date = human
 [core]
 	excludesfile = ~/.gitignore_global
+[includeIf "gitdir:~/code/elvaco/"]
+	path = ~/code/github/chelmertz/dotfiles/work.gitconfig

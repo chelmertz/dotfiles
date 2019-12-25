@@ -95,6 +95,7 @@ alias less='less -i' # smart case search (case insensitive unless uppercase is i
 alias til='nvim ~/Dropbox/tagspaces/til.md'
 alias tilv='~/.config/dotfiles/bin/til.sh && evince ~/til.pdf'
 alias scrot='scrot "%Y-%m-%d_$wx$h.png"'
+alias apply-ansible='ansible-playbook --connection=local --ask-become-pass ~/code/github/chelmertz/dotfiles/ansible-laptop.yml'
 
 alias j='nvim ~/Dropbox/docs/journal/$(date +%Y_%m_%d).md'
 
