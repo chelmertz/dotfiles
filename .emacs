@@ -235,6 +235,10 @@
   (interactive)
   (find-file (expand-file-name "~/Dropbox/orgzly/elvaco.org")))
 
+(defun edit-ansible ()
+  (interactive)
+  (find-file (expand-file-name "~/code/github/chelmertz/dotfiles/ansible-laptop.yml")))
+
 (evil-leader/set-key
  "c" 'org-capture
  "a" 'org-agenda
@@ -243,6 +247,7 @@
  "," 'helm-buffers-list
  "r" 'org-refile
  "w" 'kill-buffer-and-window
+ "m" 'edit-ansible
  )
 
 (define-key evil-normal-state-map (kbd "gx") 'browse-url-at-point)
