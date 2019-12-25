@@ -1,4 +1,4 @@
-;; from http://ergoemacs.org/emacs/emacs_package_system.html
+; from http://ergoemacs.org/emacs/emacs_package_system.html
 (when (>= emacs-major-version 24)
   (require 'package)
   (add-to-list
@@ -19,13 +19,16 @@
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
  '(calendar-week-start-day 1)
+ '(custom-safe-themes
+   (quote
+    ("a9c619535d63719a15f22e3c450a03062d3fed1e356ef96d33015849c4c43946" "9d54f3a9cf99c3ffb6ac8e84a89e8ed9b8008286a81ef1dbd48d24ec84efb2f1" "0c9f63c9d90d0d135935392873cd016cc1767638de92841a5b277481f1ec1f4a" default)))
  '(erc-modules
    (quote
     (autojoin button completion fill irccontrols keep-place list match menu move-to-prompt netsplit networks noncommands notifications readonly ring stamp track)))
  '(markdown-command "pandoc --from markdown --to html5")
  '(package-selected-packages
    (quote
-    (dune evil-collection elfeed-org elfeed evil-org tuareg atom-dark-theme haskell-mode org-journal org feature-mode evil-vimish-fold yaml-mode gruvbox-theme php-mode markdown-mode lua-mode evil-magit magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
+    (doom-themes zenburn-theme darktooth-theme dune evil-collection elfeed-org elfeed evil-org tuareg atom-dark-theme haskell-mode org-journal org feature-mode evil-vimish-fold yaml-mode gruvbox-theme php-mode markdown-mode lua-mode evil-magit magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
 
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
 
@@ -47,7 +50,7 @@
 ;; show line numbers
 (global-linum-mode t)
 
-(load-theme 'leuven t)
+(load-theme 'doom-nord-light t)
 (setq visual-line-mode t)
 
 ;; how to handle emacs backup files (like vim's swap files)
