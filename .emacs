@@ -75,10 +75,17 @@
 ; org-tempo is used for e.g. expanding < + s + TAB to a code block
 (require 'org-tempo)
 (setq org-directory "~/Dropbox/orgzly")
-(setq org-journal-dir org-directory)
 (setq org-agenda-files (list org-directory))
-(setq org-journal-file-format "%Y-%m-%d.org")
 (setq org-default-notes-file (concat org-directory "/inbox.org"))
+(setq org-capture-templates
+      '(
+	("t" "TODO" entry (file "inbox.org") "* TODO %?\n  %i\n  %a")
+	("j" "Journal" entry (file+datetree "journal.org") "* %?")
+	("e" "Elvaco TODO" entry (file+headline "elvaco.org" "TODOs")
+	 "* TODO %?\n:PROPERTIES:\n:CREATED: %T\n:END:\n\n  %i")
+	("r" "Elvaco retrospective" entry (file+headline "elvaco.org" "Retrospective")
+	 "* TODO %?\n:PROPERTIES:\n:CREATED: %T\n:END:\n\n  %i")
+	))
 (setq org-log-done 'time)
 (setq org-tag-alist '(
 		      (:startgrouptag)
@@ -239,10 +246,19 @@
   (interactive)
   (find-file (expand-file-name "~/code/github/chelmertz/dotfiles/ansible-laptop.yml")))
 
+(defun capture-into-journal ()
+  (interactive)
+  (org-capture nil "j"))
+
+(defun view-journal ()
+  (interactive)
+  (find-file (expand-file-name "~/Dropbox/orgzly/journal.org")))
+
 (evil-leader/set-key
  "c" 'org-capture
+ "j" 'view-journal
+ "." 'capture-into-journal
  "a" 'org-agenda
- "j" 'org-journal-new-entry
  "e" 'work-journal
  "," 'helm-buffers-list
  "r" 'org-refile
