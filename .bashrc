@@ -133,7 +133,7 @@ function w() {
 
 EDITOR=nvim
 VISUAL=nvim
-PATH=~/.cabal/bin:/usr/java/jdk1.8.0_121/jre/bin:${PATH}:~/bin:~/.local/bin
+PATH=~/.cabal/bin:/usr/java/jdk1.8.0_121/jre/bin:${PATH}:~/bin:~/.local/bin:~/go/bin
 TZ='Europe/Stockholm'
 MANPAGER=most
 XDG_CONFIG_HOME=~/.config
