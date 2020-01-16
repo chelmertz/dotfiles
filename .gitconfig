@@ -4,7 +4,7 @@
 [pull]
 	rebase = true
 [diff]
-	tool = kompare
+	tool = meld
 	algorithm = patience
 [merge]
 	tool = meld
