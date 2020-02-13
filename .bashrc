@@ -139,6 +139,20 @@ MANPAGER=most
 XDG_CONFIG_HOME=~/.config
 export EDITOR MANPAGER VISUAL PATH TZ XDG_CONFIG_HOME
 
+unz() {
+  archive="$1"
+  tmpdir=$(mktemp -d)
+  mv "$archive" "$tmpdir"
+  cd "$tmpdir"
+  case "$archive" in
+    *.tar.gz)
+      tar -xf "$archive";;
+    *.zip)
+      unzip -q "$archive";;
+  esac
+  ls -alsh
+}
+
 test -f ~/.bashrc-local && source ~/.bashrc-local
 
 # `xset q` for viewing keypress rates
