@@ -88,6 +88,9 @@ alias gdc="git diff --cached -M -w"
 alias gs="git status"
 alias gl="git -c core.pager='less -p^commit.*$' log -p -M -w --stat --pretty=fuller --show-notes"
 alias glp='git log --pretty="format:%Cred%h %Cblue%d %Cgreen%s %Creset%an %ar" --graph'
+# create an easy target to compare/rollback to after difficult rebase/merge
+# etc and the reflog contains too many similar entries
+alias gp="git tag -d prebase; git tag prebase; git log -n1 prebase"
 
 alias l="ls --group-directories-first -alhX"
 alias less='less -i' # smart case search (case insensitive unless uppercase is input)
