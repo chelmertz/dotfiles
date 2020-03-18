@@ -167,6 +167,8 @@ xset r rate 200 25
 
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
 
+[ -f ~/code/github/rupa/z/z.sh ] && source ~/code/github/rupa/z/z.sh
+
 # OPAM configuration
 . ~/.opam/opam-init/init.sh > /dev/null 2> /dev/null || true
 

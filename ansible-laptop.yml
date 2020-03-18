@@ -1,4 +1,6 @@
 ---
+# to apply (alias defined in .bashrc): $ apply-ansible
+#
 # as root
 - hosts: localhost
   become: yes
@@ -20,6 +22,18 @@
       apt:
         name: emacs26
 
+    - name: cloc, counts lines of code by language
+      apt:
+        name: cloc
+
+    - name: simplescreenrecorder
+      apt:
+        name: simplescreenrecorder
+
+    - name: gron (makes json greppable)
+      snap:
+        name: gron
+
 # as user
 - hosts: localhost
   tasks:
@@ -29,8 +43,15 @@
         src: ~/code/github/chelmertz/dotfiles/.gitignore_global
         dest: ~/.gitignore_global
         state: link
+
     - name: Global gitconfig file (includeIf handles work stuff)
       file:
         src: ~/code/github/chelmertz/dotfiles/.gitconfig
         dest: ~/.gitconfig
         state: link
+
+    - name: Clone z (autojump for bash)
+      git:
+        repo: https://github.com/rupa/z.git
+        version: master
+        dest: ~/code/github/rupa/z/
