@@ -141,10 +141,15 @@ XDG_CONFIG_HOME=~/.config
 export EDITOR MANPAGER VISUAL PATH TZ XDG_CONFIG_HOME
 
 unz() {
-  archive="$1"
   tmpdir=$(mktemp -d)
-  mv "$archive" "$tmpdir"
+  cwd=$(pwd)
   cd "$tmpdir"
+  archive="$1"
+  case "$archive" in
+    http*)
+      curl -O "$archive"
+  esac
+  mv "$cwd/$archive" "$tmpdir"
   case "$archive" in
     *.tar.gz)
       tar -xf "$archive";;
