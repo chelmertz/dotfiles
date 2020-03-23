@@ -51,16 +51,16 @@ function datedate($arg) {
 	$full_format = "l Y-m-d H:i:s e Y";
 	// see http://php.net/manual/en/function.date.php
 	if(!strlen($arg)) {
-		return array(date($full_format), time());
+		return array(date($full_format), date('c'), time());
 	}
 	if(is_numeric($arg)) {
 		if(strlen($arg) == 13) {
 			$arg = substr($arg, 0, 10);
 			debug_print("Assuming UNIX timestamp was given with millisecond precision, rounding to $arg");
 		}
-		return array(date($full_format, $arg));
+		return array(date($full_format, $arg), date('c', $arg));
 	}
-	return array(date($full_format, strtotime($arg)), strtotime($arg));
+	return array(date($full_format, strtotime($arg)), date('c', strtotime($arg)), strtotime($arg));
 }
 
 // "php's version" of python's "if __name__ == '__main__'"
