@@ -115,6 +115,18 @@
 		      ("pc")
 		      (:endgrouptag)
 		      ))
+
+; see https://jblevins.org/projects/deft/ for a guide to configuring deft
+(setq deft-extensions '("org"))
+(setq deft-directory org-directory)
+(setq deft-recursive t)
+(setq deft-use-filename-as-title t)
+(setq deft-file-naming-rules
+      '((nospace . "_")
+        (case-fn . downcase)))
+(setq deft-org-mode-title-prefix t)
+(setq deft-auto-save-interval 0)
+
 (require 'org)
 (require 'ob-clojure)
 (setq org-babel-clojure-backend 'cider)
