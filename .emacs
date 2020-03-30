@@ -153,6 +153,21 @@
 ; show link under pointer when hovering with mouse
 (setq help-at-pt-display-when-idle t)
 
+; from https://github.com/abo-abo/oremacs/commit/6c86696c0a1f66bf690e1a934683f85f04c6f34d
+; but slightly modified (to txt instead of html)
+(defun org-to-plaintext-to-clipboard ()
+  "Export region to HTML, and copy it to the clipboard."
+  (interactive)
+  (org-export-to-file 'ascii "/tmp/org.txt")
+  (apply
+   'start-process "xclip" "*xclip*"
+   (split-string
+    "xclip -verbose -i /tmp/org.txt -t text/plain -selection clipboard" " ")))
+
+(defun org-export-to-html-and-open ()
+  (interactive)
+  (org-open-file (org-html-export-to-html)))
+
 (require 'elfeed-org)
 (elfeed-org)
 (setq rmh-elfeed-org-files (list (concat org-directory "/feeds.org")))
@@ -299,7 +314,9 @@
  "r" 'org-refile
  "w" 'kill-buffer-and-window
  "m" 'edit-ansible
- )
+ "t" 'org-to-plaintext-to-clipboard
+ "h" 'org-export-to-html-and-open
+)
 
 (define-key evil-normal-state-map (kbd "gx") 'browse-url-at-point)
 
