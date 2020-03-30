@@ -19,6 +19,7 @@
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
  '(calendar-week-start-day 1)
+ '(custom-enabled-themes (quote (leuven)))
  '(custom-safe-themes
    (quote
     ("a9c619535d63719a15f22e3c450a03062d3fed1e356ef96d33015849c4c43946" "9d54f3a9cf99c3ffb6ac8e84a89e8ed9b8008286a81ef1dbd48d24ec84efb2f1" "0c9f63c9d90d0d135935392873cd016cc1767638de92841a5b277481f1ec1f4a" default)))
@@ -50,7 +51,9 @@
 ;; show line numbers
 (global-linum-mode t)
 
-(load-theme 'doom-nord-light t)
+(if (display-graphic-p)
+    (load-theme 'doom-nord-light t))
+
 (setq visual-line-mode t)
 
 ;; how to handle emacs backup files (like vim's swap files)
