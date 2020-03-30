@@ -151,7 +151,7 @@ unz() {
   esac
   mv "$cwd/$archive" "$tmpdir"
   case "$archive" in
-    *.tar.gz)
+    *.tar.gz|*.tar)
       tar -xf "$archive";;
     *.zip)
       unzip -q "$archive";;
