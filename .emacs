@@ -29,7 +29,7 @@
  '(markdown-command "pandoc --from markdown --to html5")
  '(package-selected-packages
    (quote
-    (doom-themes zenburn-theme darktooth-theme dune evil-collection elfeed-org elfeed evil-org tuareg atom-dark-theme haskell-mode org-journal org feature-mode evil-vimish-fold yaml-mode gruvbox-theme php-mode markdown-mode lua-mode evil-magit magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
+    (htmlize company tide go-mode lsp-ui lsp-mode doom-themes zenburn-theme darktooth-theme dune evil-collection elfeed-org elfeed evil-org tuareg atom-dark-theme haskell-mode org feature-mode evil-vimish-fold yaml-mode gruvbox-theme php-mode markdown-mode lua-mode evil-magit magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
 
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
 
@@ -188,9 +188,39 @@
 			    (setq visual-line-mode t)
 			    (setq truncate-lines nil) ; soft wrap
 			    ))
+(add-hook 'org-mode-hook
+          (lambda ()
+        (define-key evil-normal-state-map (kbd "TAB") 'org-cycle)))
 (evil-org-set-key-theme '(navigation insert textobjects additional calendar))
 (require 'evil-org-agenda)
 (evil-org-agenda-set-keys)
+
+(require 'lsp-mode)
+(add-hook 'go-mode-hook #'lsp-deferred)
+; auto completion
+(require 'lsp-ui)
+
+; tide, for typescript - https://github.com/ananthakumaran/tide
+(defun setup-tide-mode ()
+  (interactive)
+  (tide-setup)
+  (flycheck-mode +1)
+  (setq flycheck-check-syntax-automatically '(save mode-enabled))
+  (eldoc-mode +1)
+  (tide-hl-identifier-mode +1)
+  ;; company is an optional dependency. You have to
+  ;; install it separately via package-install
+  ;; `M-x package-install [ret] company`
+  (company-mode +1))
+
+;; formats the buffer before saving
+(add-hook 'before-save-hook 'tide-format-before-save)
+
+(add-hook 'typescript-mode-hook #'setup-tide-mode)
+
+; company, auto completion
+(setq company-tooltip-align-annotations t)
+(add-hook 'after-init-hook 'global-company-mode)
 
 (add-hook 'php-mode-hook '(lambda ()
 			    (setq indent-tabs-mode t
