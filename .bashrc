@@ -104,8 +104,8 @@ alias cds="cd ~/code"
 alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
 alias rg="ripgrep.rg"
-alias r="ranger"
 alias x="xdg-open"
+alias e="emacsclient -tc"
 
 alias docker-ps='docker ps --format "{{.Status}}\t{{.Names}}\t{{.Ports}}" -a'
 
@@ -113,27 +113,8 @@ alias docker-ps='docker ps --format "{{.Status}}\t{{.Names}}\t{{.Ports}}" -a'
 __git_complete gco _git_checkout
 __git_complete gl _git_log
 
-wiki_dir=~/code/wiki
-alias cdw="cd $wiki_dir"
-function wi() {
-  local files=$(fd $1 $wiki_dir)
-  if [ -z "$files" ]; then
-    nvim "$wiki_dir/$1.page"
-  else
-    nvim $files
-  fi
-}
-
-function w() {
-  if [ -z "$1" ]; then
-    xdg-open http://localhost:5001/_index 2> /dev/null
-  else
-    xdg-open "http://localhost:5001/_search?patterns=$1" 2> /dev/null
-  fi
-}
-
-EDITOR=nvim
-VISUAL=nvim
+EDITOR="emacsclient -tc"
+VISUAL="emacsclient -tc"
 PATH=~/.cabal/bin:/usr/java/jdk1.8.0_121/jre/bin:${PATH}:~/bin:~/.local/bin:~/go/bin
 TZ='Europe/Stockholm'
 MANPAGER=most
