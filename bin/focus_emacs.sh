@@ -3,12 +3,10 @@
 set -x
 set -e
 
-# bind this to F8 or such
-
 title="emacsclient - terminal"
 
 start_emacs() {
-  gnome-terminal --title "$title" -- emacsclient -tc ~
+    gnome-terminal --title "$title" -- emacsclient -tc ~/Dropbox/orgzly/
 }
 
 pidof emacsclient >/dev/null || start_emacs
