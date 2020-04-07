@@ -93,6 +93,7 @@ alias glp='git log --pretty="format:%Cred%h %Cblue%d %Cgreen%s %Creset%an %ar" -
 alias gp="git tag -d prebase; git tag prebase; git log -n1 prebase"
 
 alias l="ls --group-directories-first -alhX"
+alias b="bat --theme ansi-light"
 alias less='less -i' # smart case search (case insensitive unless uppercase is input)
 
 alias til='nvim ~/Dropbox/tagspaces/til.md'
