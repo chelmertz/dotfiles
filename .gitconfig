@@ -11,7 +11,7 @@
 [rebase]
 	autoSquash = true
 [color]
-	ui = always
+	ui = auto
 [push]
 	default = current
 [log]
