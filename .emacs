@@ -27,6 +27,8 @@
    (quote
     (autojoin button completion fill irccontrols keep-place list match menu move-to-prompt netsplit networks noncommands notifications readonly ring stamp track)))
  '(markdown-command "pandoc --from markdown --to html5")
+ '(org-adapt-indentation nil)
+ '(org-export-with-sub-superscripts nil)
  '(package-selected-packages
    (quote
     (htmlize company tide go-mode lsp-ui lsp-mode doom-themes zenburn-theme darktooth-theme dune evil-collection elfeed-org elfeed evil-org tuareg atom-dark-theme haskell-mode org feature-mode evil-vimish-fold yaml-mode gruvbox-theme php-mode markdown-mode lua-mode evil-magit magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
