@@ -7,6 +7,7 @@ title="emacsclient - terminal"
 
 start_emacs() {
     gnome-terminal --title "$title" -- emacsclient -tc ~/Dropbox/orgzly/
+    sleep 0.1
 }
 
 pidof emacsclient >/dev/null || start_emacs
