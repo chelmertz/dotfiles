@@ -28,6 +28,7 @@
     (autojoin button completion fill irccontrols keep-place list match menu move-to-prompt netsplit networks noncommands notifications readonly ring stamp track)))
  '(markdown-command "pandoc --from markdown --to html5")
  '(org-adapt-indentation nil)
+ '(org-export-with-properties t)
  '(org-export-with-sub-superscripts nil)
  '(package-selected-packages
    (quote
