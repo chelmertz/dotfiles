@@ -34,6 +34,11 @@
       snap:
         name: gron
 
+    - name: shellcheck
+      snap:
+        name: shellcheck
+        channel: edge
+
 # as user
 - hosts: localhost
   tasks:
