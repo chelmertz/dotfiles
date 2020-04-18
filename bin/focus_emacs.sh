@@ -1,7 +1,6 @@
 #!/bin/sh
 
-set -x
-set -e
+set -xe
 
 title="emacsclient - terminal"
 
@@ -10,7 +9,8 @@ start_emacs() {
     sleep 0.1
 }
 
-pidof emacsclient >/dev/null || start_emacs
+wid=$(wmctrl -l -p | grep "$title" |  cut -d' ' -f1)
+test -z "$wid" && start_emacs
 wid=$(wmctrl -l -p | grep "$title" |  cut -d' ' -f1)
 test -z "$wid" && exit 1
 wmctrl -i -a "$wid"
