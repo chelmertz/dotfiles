@@ -34,7 +34,7 @@
  '(org-export-with-sub-superscripts nil)
  '(package-selected-packages
    (quote
-    (flycheck solidity-flycheck htmlize company tide go-mode lsp-ui lsp-mode doom-themes zenburn-theme darktooth-theme dune evil-collection elfeed-org elfeed evil-org tuareg atom-dark-theme haskell-mode org feature-mode evil-vimish-fold yaml-mode gruvbox-theme php-mode markdown-mode lua-mode evil-magit magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
+    (projectile flycheck-color-mode-line flycheck solidity-flycheck htmlize company tide go-mode lsp-ui lsp-mode doom-themes zenburn-theme darktooth-theme dune evil-collection elfeed-org elfeed evil-org tuareg atom-dark-theme haskell-mode org feature-mode evil-vimish-fold yaml-mode gruvbox-theme php-mode markdown-mode lua-mode evil-magit magit evil-leader evil-nerd-commenter evil-matchit cider evil ##))))
 
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
 
@@ -289,6 +289,7 @@
 ;; separate search terms with space
 (global-set-key (kbd "C-x C-f") 'helm-find)
 (global-set-key (kbd "<f2>") 'merlin-error-next)
+(global-set-key (kbd "<f6>") 'projectile-replace)
 
 ;; (setq helm-ff-skip-boring-files t)
 ;; (setq helm-boring-file-regexp-list '("^tags$"))
