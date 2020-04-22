@@ -97,6 +97,8 @@
                                  "* TODO %?\n:PROPERTIES:\n:CREATED: %T\n:END:\n\n  %i")
                                 )
         ))
+(after! evil-snipe
+  (evil-snipe-mode -1))
 
 (defun export-html-and-open ()
   (interactive)
