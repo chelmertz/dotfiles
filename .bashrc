@@ -81,6 +81,16 @@ alias gca="git commit -av"
 gcf() {
   git commit -a --fixup "$*"
 }
+git-clone-github() {
+  clone_url="$1"
+  user=$(echo "$clone_url" | cut -d / -f4)
+  project=$(echo "$clone_url" | cut -d / -f5 | sed 's/\.git$//')
+  user_dir=~/code/github/"$user"
+  mkdir -p "$user_dir"
+  target_dir="$user_dir"/"$project"
+  git clone "$clone_url" "$target_dir"
+  cd "$target_dir"
+}
 alias gcaa="git commit -a --amend --no-edit"
 alias gd="git diff -M -w"
 alias gco="git checkout "
