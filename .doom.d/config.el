@@ -87,6 +87,7 @@
 (after! org
   (setq org-adapt-indentation nil
         org-startup-indented nil
+        org-agenda-start-on-weekday 1
         org-export-with-sub-superscripts nil
         org-capture-templates '(
                                 ("t" "TODO" entry (file "inbox.org") "* TODO %?\n:PROPERTIES:\n:CREATED: %T\n:END:\n\n  %i")
