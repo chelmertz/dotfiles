@@ -91,7 +91,7 @@
         org-export-with-sub-superscripts nil
         org-capture-templates '(
                                 ("t" "TODO" entry (file "inbox.org") "* TODO %?\n:PROPERTIES:\n:CREATED: %T\n:END:\n\n  %i")
-                                ("j" "Journal" entry (file+datetree "journal.org") "* %?\n:PROPERTIES:\n:CREATED: %T\n:END:\n" :jump-to-captured t)
+                                ("j" "Journal" entry (file+olp+datetree "journal.org") "* %?\n:PROPERTIES:\n:CREATED: %T\n:END:\n" :jump-to-captured t)
                                 ("e" "Elvaco TODO" entry (file+headline "elvaco.org" "TODOs")
                                  "* TODO %?\n:PROPERTIES:\n:CREATED: %T\n:END:\n\n  %i")
                                 ("r" "Elvaco retrospective" entry (file+headline "elvaco.org" "Retrospective")
