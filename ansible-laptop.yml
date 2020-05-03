@@ -39,6 +39,12 @@
         name: shellcheck
         channel: edge
 
+    - name: alacritty (terminal)
+      snap:
+        name: alacritty
+        channel: edge
+        classic: yes
+
 # as user
 - hosts: localhost
   tasks:
