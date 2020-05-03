@@ -131,6 +131,10 @@ MANPAGER=most
 XDG_CONFIG_HOME=~/.config
 export EDITOR MANPAGER VISUAL PATH TZ XDG_CONFIG_HOME
 
+cdt() {
+  cd $(mktemp -d)
+}
+
 unz() {
   tmpdir=$(mktemp -d)
   cwd=$(pwd)
