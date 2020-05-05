@@ -45,6 +45,10 @@
         channel: edge
         classic: yes
 
+    - name: cheese (record photo/video with webcam)
+      apt:
+        name: cheese
+
 # as user
 - hosts: localhost
   tasks:
