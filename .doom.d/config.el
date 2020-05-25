@@ -81,6 +81,7 @@
 ; list buffers: ,<
 ; org capture: ,X
 
+(require 'iso-transl)
 
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
 (setq confirm-kill-emacs nil)
