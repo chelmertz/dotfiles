@@ -1,6 +1,9 @@
 ---
 # to apply (alias defined in .bashrc): $ apply-ansible
 #
+# help for snaps: https://docs.ansible.com/ansible/latest/modules/snap_module.html
+
+
 # as root
 - hosts: localhost
   become: yes
@@ -49,6 +52,19 @@
       apt:
         name: cheese
 
+    - name: copyq (clipboard manager)
+      apt:
+        name: copyq
+
+    - name: jhead (exif extraction from photos)
+      apt:
+        name: jhead
+
+    - name: espanso (text expander)
+      snap:
+        name: espanso
+        classic: yes
+
 # as user
 - hosts: localhost
   tasks:
@@ -70,3 +86,16 @@
         repo: https://github.com/rupa/z.git
         version: master
         dest: ~/code/github/rupa/z/
+
+    - name: Clone gallery.sh (script for generating image gallery from folder of image files)
+      git:
+        repo: https://github.com/Cyclenerd/gallery_shell.git
+        version: master
+        dest: ~/code/github/Cyclenerd/gallery/
+
+    - name: Add gallery.sh to path
+      file:
+        src: ~/code/github/Cyclenerd/gallery/gallery.sh
+        dest: ~/bin/gallery.sh
+        state: link
+
