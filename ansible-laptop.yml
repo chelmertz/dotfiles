@@ -42,12 +42,6 @@
         name: shellcheck
         channel: edge
 
-    - name: alacritty (terminal)
-      snap:
-        name: alacritty
-        channel: edge
-        classic: yes
-
     - name: cheese (record photo/video with webcam)
       apt:
         name: cheese
@@ -60,10 +54,13 @@
       apt:
         name: jhead
 
-    - name: espanso (text expander)
-      snap:
-        name: espanso
-        classic: yes
+    - name: pavucontrol (ubuntu sucks at choosing output device when headset/bluetooth devices are connected, this is the solution)
+      apt:
+        name: pavucontrol
+
+    - name: yad (dialogs in GTK launched through CLI, like zenity)
+      apt:
+        name: yad
 
 # as user
 - hosts: localhost
@@ -99,3 +96,14 @@
         dest: ~/bin/gallery.sh
         state: link
 
+    - name: Emoji mode for rofi
+      git:
+        repo: https://github.com/nkoehring/rofiemoji
+        version: master
+        dest: ~/code/github/nkoehring/rofiemoji
+
+    - name: dust (rust version of du -sh, easier to parse)
+      shell: cargo install du-dust
+
+    - name: sd (rust version sed, for the "replace things" use case)
+      shell: cargo install sd
