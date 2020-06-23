@@ -98,6 +98,7 @@ alias gdc="git diff --cached -M -w"
 alias gs="git status"
 alias gl="git -c core.pager='less -p^commit.*$' log -p -M -w --stat --pretty=fuller --show-notes"
 alias glp='git log --pretty="format:%Cred%h %Cblue%d %Cgreen%s %Creset%an %ar" --graph'
+
 # create an easy target to compare/rollback to after difficult rebase/merge
 # etc and the reflog contains too many similar entries
 alias gp="git tag -d prebase; git tag prebase; git log -n1 prebase"
@@ -136,22 +137,27 @@ cdt() {
 }
 
 unz() {
-  tmpdir=$(mktemp -d)
-  cwd=$(pwd)
-  cd "$tmpdir"
   archive="$1"
   case "$archive" in
     http*)
       curl -O "$archive"
   esac
-  mv "$cwd/$archive" "$tmpdir"
-  case "$archive" in
-    *.tar.gz|*.tar)
-      tar -xf "$archive";;
-    *.zip)
-      unzip -q "$archive";;
-  esac
-  ls -alsh
+  if [ -f "$cwd/$archive" ]; then
+    tmpdir=$(mktemp -d)
+    cwd=$(pwd)
+    cd "$tmpdir"
+    mv "$cwd/$archive" "$tmpdir"
+    case "$archive" in
+      *.tar.gz|*.tar)
+        tar -xf "$archive";;
+      *.zip)
+        unzip -q "$archive";;
+    esac
+    ls -alsh
+  else
+    echo "Invalid archive: $archive"
+    return 1
+  fi
 }
 
 test -f ~/.bashrc-local && source ~/.bashrc-local
