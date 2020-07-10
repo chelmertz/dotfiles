@@ -142,9 +142,9 @@ unz() {
     http*)
       curl -O "$archive"
   esac
+  cwd=$(pwd)
   if [ -f "$cwd/$archive" ]; then
     tmpdir=$(mktemp -d)
-    cwd=$(pwd)
     cd "$tmpdir"
     mv "$cwd/$archive" "$tmpdir"
     case "$archive" in
