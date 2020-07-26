@@ -1,3 +1,0 @@
-#!/bin/sh
-
-xdg-open "https://www.imdb.com/find?q=$*"
