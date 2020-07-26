@@ -1,6 +1,8 @@
-# Copied from /usr/share/dunst/dunstrc, place in ~/.config/dunst
+# Copied from /etc/xdg/dunst/dunstrc, place in ~/.config/dunst/
+# after editing: systemctl restart --user dunst
+# and to try it out: notify-send hio
 [global]
-    font = Monospace 10
+    font = Monospace 12
 
     # Allow a small subset of html markup:
     #   <b>bold</b>
