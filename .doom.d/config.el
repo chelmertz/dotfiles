@@ -87,6 +87,7 @@
 (setq confirm-kill-emacs nil)
 (after! org
   (setq org-adapt-indentation nil
+        org-descriptive-links nil
         org-startup-indented nil
         org-agenda-start-on-weekday 1
         org-export-with-sub-superscripts nil
