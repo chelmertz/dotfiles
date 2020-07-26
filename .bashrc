@@ -126,7 +126,7 @@ __git_complete gl _git_log
 
 EDITOR="emacsclient -tc"
 VISUAL="emacsclient -tc"
-PATH=~/.cabal/bin:/usr/java/jdk1.8.0_121/jre/bin:${PATH}:~/bin:~/.local/bin:~/go/bin
+PATH=~/.cabal/bin:/usr/java/jdk1.8.0_121/jre/bin:${PATH}:~/bin:~/.local/bin:~/go/bin:~/.emacs.d/bin
 TZ='Europe/Stockholm'
 MANPAGER=most
 XDG_CONFIG_HOME=~/.config
