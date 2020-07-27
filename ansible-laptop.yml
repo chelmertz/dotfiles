@@ -62,6 +62,30 @@
       apt:
         name: yad
 
+    - name: bitwarden-cli
+      snap:
+        name: bw
+
+    - name: keyutils (provides keyctl, needed for bitwarden cli rofi)
+      apt:
+        name: keyutils
+
+    - name: font awesome
+      apt:
+        name: fonts-font-awesome
+
+    - name: entr (execute command when files change)
+      apt:
+        name: entr
+
+    - name: playerctl (media player, lets i3blocks query spotify for current song)
+      apt:
+        name: playerctl
+
+    - name: jq (parse json, mostly a dep, I use gron more often)
+      apt:
+        name: jq
+
 # as user
 - hosts: localhost
   tasks:
@@ -76,6 +100,12 @@
       file:
         src: ~/code/github/chelmertz/dotfiles/.gitconfig
         dest: ~/.gitconfig
+        state: link
+
+    - name: i3blocks, status bar for i3
+      file:
+        src: ~/code/github/chelmertz/dotfiles/.i3blocks.conf
+        dest: ~/.i3blocks.conf
         state: link
 
     - name: Clone z (autojump for bash)
@@ -96,14 +126,24 @@
         dest: ~/bin/gallery.sh
         state: link
 
-    - name: Emoji mode for rofi
-      git:
-        repo: https://github.com/nkoehring/rofiemoji
-        version: master
-        dest: ~/code/github/nkoehring/rofiemoji
+#    - name: Emoji mode for rofi
+#      git:
+#        repo: https://github.com/nkoehring/rofiemoji
+#        version: master
+#        dest: ~/code/github/nkoehring/rofiemoji
 
     - name: dust (rust version of du -sh, easier to parse)
       shell: cargo install du-dust
 
     - name: sd (rust version sed, for the "replace things" use case)
       shell: cargo install sd
+
+    - name: bitwarden-rofi
+      git:
+        repo: https://github.com/mattydebie/bitwarden-rofi.git
+        version: master
+        dest: ~/code/github/mattydebie/bitwarden-rofi
+
+    - name: uni (unicode tool for identifying/searching, used in rofi-binding)
+      shell: go get arp242.net/uni
+
