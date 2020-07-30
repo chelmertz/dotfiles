@@ -53,6 +53,7 @@ bindsym $mod+e exec ~/bin/rofi_emoji.sh
 bindsym $mod+u exec ~/bin/rofi_uni.sh
 bindsym $mod+c exec ~/bin/rofi_snippets.sh
 bindsym $mod+p exec ~/bin/rofi_power.sh
+bindsym $mod+t exec ~/bin/rofi_timer.sh
 
 bindsym F1 exec /home/ch/bin/ror.py Emacs "/home/ch/.emacs.d/bin/doom run"
 bindsym F2 exec /home/ch/bin/ror.py Firefox firefox
