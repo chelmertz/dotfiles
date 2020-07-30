@@ -86,6 +86,20 @@
       apt:
         name: jq
 
+    - name: Deps for dunstify, see https://github.com/dunst-project/dunst/wiki/Dependencies
+      apt:
+        pkg:
+          - libdbus-1-dev
+          - libx11-dev
+          - libxinerama-dev
+          - libxrandr-dev
+          - libxss-dev
+          - libglib2.0-dev
+          - libpango1.0-dev
+          - libgtk-3-dev
+          - libxdg-basedir-dev
+          - libnotify-dev
+
 # as user
 - hosts: localhost
   tasks:
@@ -125,6 +139,17 @@
         src: ~/code/github/Cyclenerd/gallery/gallery.sh
         dest: ~/bin/gallery.sh
         state: link
+
+    - name: Clone dunst (for dunstify)
+      git:
+        repo: https://github.com/dunst-project/dunst
+        version: master
+        dest: ~/code/github/dunst-project/dunst
+
+    - name: Build and install dunstify
+      shell: make dunstify && cp -f dunstify ~/bin/dunstify
+      args:
+        chdir: ~/code/github/dunst-project/dunst
 
 #    - name: Emoji mode for rofi
 #      git:
