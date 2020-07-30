@@ -58,7 +58,7 @@ bindsym $mod+t exec ~/bin/rofi_timer.sh
 bindsym F1 exec /home/ch/bin/ror.py Emacs "/home/ch/.emacs.d/bin/doom run"
 bindsym F2 exec /home/ch/bin/ror.py Firefox firefox
 bindsym F4 exec /home/ch/code/gitlab/chelmertz/focus_trigger/focus-trigger.py
-bindsym Print exec flameshot gui -p /home/ch
+bindsym Print exec flameshot full -p ~
 
 # There also is the (new) i3-dmenu-desktop which only displays applications
 # shipping a .desktop file. It is a wrapper around dmenu, so you need that
