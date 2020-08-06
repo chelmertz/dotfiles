@@ -185,3 +185,5 @@ bar {
         #status_command 2>/tmp/blocks.err i3blocks -vvv | tee /tmp/blocks.out
         status_command i3blocks
 }
+
+exec --no-startup-id dropbox start
