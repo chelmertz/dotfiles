@@ -100,6 +100,10 @@
           - libxdg-basedir-dev
           - libnotify-dev
 
+    - name: surfraw (shortcut for searching a bunch of search engines)
+      apt:
+        name: surfraw
+
 # as user
 - hosts: localhost
   tasks:
@@ -171,4 +175,7 @@
 
     - name: uni (unicode tool for identifying/searching, used in rofi-binding)
       shell: go get arp242.net/uni
+
+    - name: custom search engines for surfraw
+      shell: mkdir -p ~/.config/surfraw/ && ln -sf ~/code/github/chelmertz/dotfiles/bookmarks ~/.config/surfraw/bookmarks
 
