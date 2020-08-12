@@ -132,10 +132,17 @@ MANPAGER=most
 XDG_CONFIG_HOME=~/.config
 export EDITOR MANPAGER VISUAL PATH TZ XDG_CONFIG_HOME
 
+# create and cd into a temp dir
 cdt() {
   cd $(mktemp -d)
 }
 
+# get only keycode and keysym when pressing a button, xev is very noisy otherwise
+key() {
+  xev -event keyboard  | egrep -o 'keycode.*\)'
+}
+
+# unzips any archive into a newly created temporary dir
 unz() {
   archive="$1"
   case "$archive" in
