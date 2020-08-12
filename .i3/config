@@ -187,3 +187,10 @@ bar {
 }
 
 exec --no-startup-id dropbox start
+exec --no-startup-id feh --no-fehbg --bg-max ~/Dropbox/rsi.png
+
+# hold caps for ctrl modifier, press for escape
+# inside .bashrc to make it execute (well, let's hope we open a new terminal)
+# after sleep/lid is closed (known issue, it seems like, when googling)
+exec --no-startup-id setxkbmap -layout se -option caps:ctrl_modifier
+exec --no-startup-id xcape -e "Caps_Lock=Escape" -t 200
