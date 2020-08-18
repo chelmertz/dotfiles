@@ -112,21 +112,27 @@
 - hosts: localhost
   tasks:
 
+    - name: Symlink dotfiles, since you modify it so much..
+      file:
+        src: ~/code/github/chelmertz/dotfiles
+        dest: ~/dotfiles
+        state: link
+
     - name: Global gitignore file
       file:
-        src: ~/code/github/chelmertz/dotfiles/.gitignore_global
+        src: ~/dotfiles/.gitignore_global
         dest: ~/.gitignore_global
         state: link
 
     - name: Global gitconfig file (includeIf handles work stuff)
       file:
-        src: ~/code/github/chelmertz/dotfiles/.gitconfig
+        src: ~/dotfiles/.gitconfig
         dest: ~/.gitconfig
         state: link
 
     - name: i3blocks, status bar for i3
       file:
-        src: ~/code/github/chelmertz/dotfiles/.i3blocks.conf
+        src: ~/dotfiles/.i3blocks.conf
         dest: ~/.i3blocks.conf
         state: link
 
@@ -181,5 +187,5 @@
       shell: go get arp242.net/uni
 
     - name: custom search engines for surfraw
-      shell: mkdir -p ~/.config/surfraw/ && ln -sf ~/code/github/chelmertz/dotfiles/bookmarks ~/.config/surfraw/bookmarks
+      shell: mkdir -p ~/.config/surfraw/ && ln -sf ~/dotfiles/bookmarks ~/.config/surfraw/bookmarks
 
