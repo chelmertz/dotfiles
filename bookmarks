@@ -3,3 +3,4 @@ y https://www.youtube.com/results?search_query=%s
 w https://en.wikipedia.org/w/index.php?search=%s
 wi https://en.wiktionary.org/wiki/Special:Search?search=%s
 t https://tyda.se/search/%s?lang%5B0%5D=en&lang%5B1%5D=sv
+gr https://www.goodreads.com/search?q=%s
