@@ -104,6 +104,10 @@
       apt:
         name: surfraw
 
+    - name: arandr (gui for xrandr, manage monitors & output)
+      apt:
+        name: arandr
+
 # as user
 - hosts: localhost
   tasks:
