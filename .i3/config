@@ -47,20 +47,6 @@ bindsym shift+F5 exec i3-sensible-terminal
 # kill focused window
 bindsym $mod+Shift+q kill
 
-# section = §, left of 1 on my keyboard, search for "sect" in unicode rofi below to find that sign :)
-bindsym section exec ~/bin/rofi.sh
-bindsym $mod+e exec ~/bin/rofi_emoji.sh
-bindsym $mod+u exec ~/bin/rofi_uni.sh
-bindsym $mod+c exec ~/bin/rofi_snippets.sh
-bindsym $mod+p exec ~/bin/rofi_power.sh
-bindsym $mod+t exec ~/bin/rofi_timer.sh
-bindsym $mod+space exec ~/bin/rofi_surfraw.sh
-
-bindsym F1 exec /home/ch/bin/ror.py Emacs "/home/ch/.emacs.d/bin/doom run"
-bindsym F2 exec /home/ch/bin/ror.py Firefox firefox
-bindsym F4 exec /home/ch/code/gitlab/chelmertz/focus_trigger/focus-trigger.py
-bindsym Print exec flameshot full -p ~
-
 # There also is the (new) i3-dmenu-desktop which only displays applications
 # shipping a .desktop file. It is a wrapper around dmenu, so you need that
 # installed.
@@ -126,6 +112,20 @@ set $ws8 "8"
 set $ws9 "9"
 set $ws10 "10"
 
+# section = §, left of 1 on my keyboard, search for "sect" in unicode rofi below to find that sign :)
+bindsym section exec ~/bin/rofi.sh
+bindsym $mod+e exec ~/bin/rofi_emoji.sh
+bindsym $mod+u exec ~/bin/rofi_uni.sh
+bindsym $mod+c exec ~/bin/rofi_snippets.sh
+bindsym $mod+p exec ~/bin/rofi_power.sh
+bindsym $mod+t exec ~/bin/rofi_timer.sh
+bindsym $mod+space exec ~/bin/rofi_surfraw.sh
+
+bindsym F1 exec /home/ch/bin/ror.py Emacs "/home/ch/.emacs.d/bin/doom run"; workspace number $ws1
+bindsym F2 exec /home/ch/bin/ror.py Firefox firefox; workspace number $ws2
+bindsym Shift+F4 exec /home/ch/code/gitlab/chelmertz/focus_trigger/focus-trigger.py
+bindsym Print exec flameshot full -p ~
+
 # switch to workspace
 bindsym $mod+1 workspace number $ws1
 bindsym $mod+2 workspace number $ws2
@@ -137,6 +137,15 @@ bindsym $mod+7 workspace number $ws7
 bindsym $mod+8 workspace number $ws8
 bindsym $mod+9 workspace number $ws9
 bindsym $mod+0 workspace number $ws10
+
+bindsym F3 workspace number $ws3
+bindsym F4 workspace number $ws4
+bindsym F5 workspace number $ws5
+bindsym F6 workspace number $ws6
+bindsym F7 workspace number $ws7
+bindsym F8 workspace number $ws8
+bindsym F9 workspace number $ws9
+bindsym F10 workspace number $ws10
 
 # move focused container to workspace
 bindsym $mod+Shift+1 move container to workspace number $ws1
