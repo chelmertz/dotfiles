@@ -108,6 +108,10 @@
       apt:
         name: arandr
 
+    - name: autorandr (udev rules + small cli config for detecting monitors being attached/detached)
+      apt:
+        name: autorandr
+
 # as user
 - hosts: localhost
   tasks:

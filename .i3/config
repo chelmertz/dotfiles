@@ -112,6 +112,20 @@ set $ws8 "8"
 set $ws9 "9"
 set $ws10 "10"
 
+set_from_resource $monitor_primary monitor.primary "eDP1"
+set_from_resource $monitor_secondary monitor.secondary "eDP1"
+
+workspace $ws1 output $monitor_primary
+workspace $ws2 output $monitor_primary
+workspace $ws3 output $monitor_primary
+workspace $ws4 output $monitor_primary
+workspace $ws5 output $monitor_primary
+workspace $ws6 output $monitor_primary
+workspace $ws7 output $monitor_primary
+workspace $ws8 output $monitor_primary
+workspace $ws9 output $monitor_primary
+workspace $ws10 output $monitor_secondary
+
 # section = §, left of 1 on my keyboard, search for "sect" in unicode rofi below to find that sign :)
 bindsym section exec ~/bin/rofi.sh
 bindsym $mod+e exec ~/bin/rofi_emoji.sh
