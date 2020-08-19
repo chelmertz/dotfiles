@@ -13,4 +13,6 @@
 [[ "$BLOCK_BUTTON" -eq 4 ]] && i3-msg "workspace number 10" >/dev/null
 [[ "$BLOCK_BUTTON" -eq 5 ]] && i3-msg "workspace back_and_forth" >/dev/null
 
+# font awesome: f28b
+[ "Paused" = "$(playerctl --player spotify status)" ] && echo -n " "
 playerctl --player spotify metadata --format '{{artist}} - {{title}}'
