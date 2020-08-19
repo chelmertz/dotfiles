@@ -85,6 +85,7 @@ assign [class="Google-chrome"] $ws2
 assign [class="jetbrains-idea"] $ws3
 assign [class="Slack"] $ws9
 assign [class="Emacs"] $ws1
+assign [class="microsoft teams - preview"] $ws10
 # cannot use assign, see https://github.com/i3/i3/issues/2060
 for_window [class="Spotify"] move to workspace $ws10
 
