@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+status=$(playerctl --player spotify status)
+
+[ $? -ne 0 ] && exit 0
+
 # left click
 [[ "$BLOCK_BUTTON" -eq 1 ]] && playerctl --player spotify previous
 # middle click
@@ -14,5 +18,5 @@
 [[ "$BLOCK_BUTTON" -eq 5 ]] && i3-msg "workspace back_and_forth" >/dev/null
 
 # font awesome: f28b
-[ "Paused" = "$(playerctl --player spotify status)" ] && echo -n " "
+[ "Paused" = "$status" ] && echo -n " "
 playerctl --player spotify metadata --format '{{artist}} - {{title}}'
