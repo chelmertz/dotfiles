@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 # encoding: utf-8
-import logging
-import os
-import subprocess
-import sys
-
 """
+Gitlab merge request status script
+
 Usage:
 
 ./glmr.py
@@ -18,8 +15,13 @@ Configure i3blocks with:
 [gitlabmr]
 interval=300
 command=~/bin/glmr.py i3blocks awesome
-instance=~/file-with-only-your-gitlab-token
+instance=~/.gitlab-token
 """
+
+import logging
+import os
+import subprocess
+import sys
 
 # gitlab API docs for the merge request endpoint:
 # https://docs.gitlab.com/ee/api/merge_requests.html#list-merge-requests
@@ -33,21 +35,30 @@ python3 -mpip install --user requests""")
 log = logging.getLogger(__name__)
 log.addHandler(logging.StreamHandler(sys.stderr))
 
+default_token_path='~/.gitlab-token'
 api_host='https://gitlab.elvaco.se'
 mr_url='{}/api/v4/merge_requests'.format(api_host)
 
-missing_token="""Missing GITLAB_TOKEN
+missing_token='''Missing gitlab token
 
 Go to Gitlab, create a personal token with API rights.
 
-Copy the next line to ~/.bashrc
-export GITLAB_TOKEN="token-from-gitlabs-gui"
+Copy the token to {} and run this script again.
 
-and then type this in your terminal:
+Advanced:
+
+Copy the token to any file, and enter the following line into ~/.bashrc:
+
+export GITLAB_TOKEN="~/path-to-file-with-gitlab-token"
+
+Then type this in your terminal:
 source ~/.bashrc
 
 and execute this script again.
-"""
+'''.format(default_token_path)
+
+no_connection='''Could not connect to gitlab ({}),
+please check the URL, your internet connection and/or VPN'''.format(api_host)
 
 def ansi_red(string):
     """See https://en.wikipedia.org/wiki/ANSI_escape_code"""
@@ -191,12 +202,8 @@ def my_mrs_needing_attention(bearer_token):
     return len(urls), (separator).join(out), urls
 
 def get_token(env):
-    token=env.get('GITLAB_TOKEN')
-    if token is not None:
-        return token
-
     # BLOCK_INSTANCE comes from i3blocks
-    token_file=env.get('BLOCK_INSTANCE')
+    token_file=env.get('GITLAB_TOKEN', env.get('BLOCK_INSTANCE', default_token_path))
     if token_file is None:
         return None
 
@@ -215,15 +222,27 @@ if __name__ == '__main__':
     if 'debug' in sys.argv:
         log.setLevel(logging.DEBUG)
 
-    count_others, others, other_urls = review_needed(token)
+    i3blocks = 'i3blocks' in sys.argv
+    awesome = 'awesome' in sys.argv
+
+    try:
+        count_others, others, other_urls = review_needed(token)
+    except requests.exceptions.ConnectionError:
+        if i3blocks:
+            # https://fontawesome.com/icons/plug?style=solid
+            print('{} (no connection for {})'.format('' if awesome else 'disconnected', api_host))
+            exit(33)
+        else:
+            print(no_connection)
+        exit(1)
     count_yours, yours, your_urls = my_mrs_needing_attention(token)
 
-    if 'i3blocks' in sys.argv:
+    if i3blocks:
         if os.environ.get('BLOCK_BUTTON') == '1':
             #  xdg-open opens *all* urls that needs attention, on left-click in i3blocks
             for u in other_urls | your_urls:
                 subprocess.call(['xdg-open', u])
-        if 'awesome' in sys.argv:
+        if awesome:
             # https://fontawesome.com/icons/code-branch?style=solid
             # https://fontawesome.com/icons/magic?style=solid
             labels = '', ''
