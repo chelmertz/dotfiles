@@ -89,6 +89,8 @@ assign [class="jetbrains-idea"] $ws3
 assign [class="Slack"] $ws9
 assign [class="Emacs"] $ws1
 for_window [class="Microsoft Teams - Preview"] move to workspace $ws10
+for_window [class="copyq"] floating enable; resize set 640 480
+for_window [class="copyq"] move position center
 # cannot use assign, see https://github.com/i3/i3/issues/2060 (prob the same above, for Teams)
 for_window [class="Spotify"] move to workspace $ws10
 
@@ -205,10 +207,11 @@ bar {
 }
 
 exec --no-startup-id dropbox start
-exec --no-startup-id feh --no-fehbg --bg-max ~/Dropbox/rsi.png
+exec --no-startup-id copyq
 
 # hold caps for ctrl modifier, press for escape
 # inside .bashrc to make it execute (well, let's hope we open a new terminal)
 # after sleep/lid is closed (known issue, it seems like, when googling)
 exec --no-startup-id setxkbmap -layout se -option caps:ctrl_modifier
 exec --no-startup-id xcape -e "Caps_Lock=Escape" -t 200
+exec --no-startup-id feh --no-fehbg --bg-max ~/Dropbox/rsi.png
