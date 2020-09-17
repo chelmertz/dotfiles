@@ -18,6 +18,7 @@ command=~/bin/glmr.py i3blocks awesome
 instance=~/.gitlab-token
 """
 
+import json
 import logging
 import os
 import subprocess
@@ -35,7 +36,11 @@ python3 -mpip install --user requests""")
 log = logging.getLogger(__name__)
 log.addHandler(logging.StreamHandler(sys.stderr))
 
+lockfile=os.path.expanduser('~/.glmr_onoff')
+
 default_token_path='~/.gitlab-token'
+
+# TODO this should be configurable
 api_host='https://gitlab.elvaco.se'
 mr_url='{}/api/v4/merge_requests'.format(api_host)
 
@@ -92,17 +97,44 @@ def username_for_token(bearer_token):
     }
 
     graphql_url='{}/api/graphql'.format(api_host)
-    import json
     data=json.dumps({'query': 'query {currentUser {name}}'})
     username = requests.post(graphql_url, data=data, headers=headers)
     username.raise_for_status()
-    return username.json()['data']['currentUser']['name']
+    currentUser=username.json()['data']['currentUser']
+    assert currentUser != None, "Most probably not a valid token, double check its expiration date"
+    return currentUser['name']
 
-def review_needed(bearer_token):
+def projects_starred_by_current_user(bearer_token):
     params_others={
+        'starred': 'true',
+
+        # we only need a single field, minimize payload
+        'simple': 'true',
+    }
+    headers={
+        'authorization': 'Bearer ' + bearer_token
+    }
+
+    starred_url='{}/api/v4/projects'.format(api_host)
+    starred = requests.get(starred_url, params=params_others, headers=headers)
+    starred.raise_for_status()
+
+    project_ids=set(map(lambda x: x['id'], starred.json()))
+    log.debug('Starred projects: {}'.format(project_ids))
+    return project_ids
+
+def review_needed(my_username, project_id_allowlist, bearer_token):
+    params_others={
+        # try to get the newest status of the MR
         'with_merge_status_recheck': 'true',
+
+        # not merged
         'state': 'opened',
+
         'wip': 'no',
+
+        # not only mine
+        'scope': 'all',
     }
     headers={
         'authorization': 'Bearer ' + bearer_token
@@ -111,30 +143,43 @@ def review_needed(bearer_token):
     review_plz = requests.get(mr_url, params=params_others, headers=headers)
     review_plz.raise_for_status()
 
-    my_username = username_for_token(bearer_token)
-
     out=[]
     urls=set()
 
+    def skip(mr_url):
+        def x(reason):
+            log.debug('Skipping, {}: {}'.format(reason, mr_url))
+        return x
+
+    # TODO if interactive, and no config exists, ask for needed info and write it to a file
+
     # TODO hide if I already upvoted
+    # TODO hide if I already commented, and that comment is not resolved
     for mr in review_plz.json():
         url=mr['web_url']
+        skipper=skip(url)
+
+
+        if mr['project_id'] not in project_id_allowlist:
+            # I couldn't find an easier way to filter out relevant projects
+            skipper('irrelevant project')
+            continue
 
         if mr['author']['name'] == my_username:
-            log.debug('Skipping, created by me: ' + url)
+            skipper('created by me')
             continue
 
         if mr['merge_status'] != 'can_be_merged':
-            log.debug("Cannot be merged: " + url)
+            skipper('cannot be merged')
             continue
 
         tasks_left = mr['task_completion_status']['count'] - mr['task_completion_status']['completed_count']
         if tasks_left > 0:
-            log.debug('Still unsolved tasks: ' + url)
+            skipper('still unsolved tasks')
             continue
 
         if mr['upvotes'] > 0:
-            log.debug('Already has upvotes: ' + url)
+            skipper('already has upvotes')
             continue
 
         out.append('{}\n{}\n{}'.format(
@@ -163,13 +208,19 @@ def my_mrs_needing_attention(bearer_token):
     out=[]
     urls=set()
 
+    def skip(mr_url):
+        def x(reason):
+            log.debug('Skipping, {}: {}'.format(reason, mr_url))
+        return x
+
     for mr in needs_attn.json():
         todos=[]
         url=mr['web_url']
         interesting=False
+        skipper=skip(url)
 
         if mr['merge_when_pipeline_succeeds']:
-            log.debug('Merging when pipeline succeeds: ' + url)
+            skipper('merging when pipeline succeeds')
             continue
 
         if mr['merge_status'] != 'can_be_merged':
@@ -188,7 +239,9 @@ def my_mrs_needing_attention(bearer_token):
         if mr['downvotes'] > 0:
             todos.append('Downvotes: {}'.format(mr['downvotes']))
 
+        # TODO the newer gitlab version seems to use "approval" instead (or complimentary?) to upvotes
         # TODO this could be tweaked.. 1+ upvotes = "gogo merge"? 0 upvotes = "gogo spam invites"?
+        # https://fontawesome.com/icons/volume-up?style=solid  (speaker icon) for separating OK mrs (len(todos) == 0) from "needs work"
         todos.append('{} upvotes'.format(mr['upvotes']))
 
         if len(todos) > 0:
@@ -209,11 +262,45 @@ def get_token(env):
 
     try:
         with open(os.path.expanduser(token_file)) as f:
-            return f.read().strip()
+            token=f.read().strip()
+            assert token != "", "Token must be non-empty, please check the file {}".format(token_file)
+            return token
     except:
         return None
 
+def printer():
+    def x(string):
+        print("{}".format(string))
+    return x
+
+def glmr_is_toggled_off():
+    try:
+        open(lockfile, 'r').read()
+        return True
+    except:
+        return False
+        
+def toggle_glmr():
+    if glmr_is_toggled_off():
+        os.remove(lockfile)
+    else:
+        open(lockfile, 'a')
+
 if __name__ == '__main__':
+    i3blocks = '--i3blocks' in sys.argv
+    awesome = '--awesome' in sys.argv
+
+    p=printer()
+
+    if os.environ.get('BLOCK_BUTTON') == '3':
+        toggle_glmr()
+
+    if i3blocks and glmr_is_toggled_off():
+        #https://fontawesome.com/icons/toggle-off?style=solid
+        p('{} (right click to activate)'.format('' if awesome else 'disconnected', api_host))
+        exit(0)
+    
+    # TODO place config etc in a single ini file (configparser), and replace all sys.argv shit with argparse
     token=get_token(os.environ)
     if token is None:
         sys.stderr.write(missing_token)
@@ -222,20 +309,21 @@ if __name__ == '__main__':
     if 'debug' in sys.argv:
         log.setLevel(logging.DEBUG)
 
-    i3blocks = 'i3blocks' in sys.argv
-    awesome = 'awesome' in sys.argv
-
     try:
-        count_others, others, other_urls = review_needed(token)
+        count_others, others, other_urls = review_needed(
+            username_for_token(token),
+            projects_starred_by_current_user(token),
+            token
+        )
+        count_yours, yours, your_urls = my_mrs_needing_attention(token)
     except requests.exceptions.ConnectionError:
         if i3blocks:
             # https://fontawesome.com/icons/plug?style=solid
-            print('{} (no connection for {})'.format('' if awesome else 'disconnected', api_host))
+            p('{} (no connection for {})'.format('' if awesome else 'disconnected', api_host))
             exit(33)
         else:
-            print(no_connection)
+            p(no_connection)
         exit(1)
-    count_yours, yours, your_urls = my_mrs_needing_attention(token)
 
     if i3blocks:
         if os.environ.get('BLOCK_BUTTON') == '1':
@@ -250,13 +338,14 @@ if __name__ == '__main__':
             labels = 'others', 'yours'
 
         summary="{} {} {} {}".format(labels[0], count_others, labels[1], count_yours)
-        print(summary)
+        p(summary)
         if count_others + count_yours > 0:
             # i3blocks lines logic: https://vivien.github.io/i3blocks/#_format
-            print(summary)
-            print('#00ff00')
+            p(summary)
+            p('#00ff00')
+            pass
     else:
-        print(ansi_cyan('NEEDS REVIEW ({})'.format(count_others)))
-        print(others)
-        print(ansi_cyan('YOUR MRS ({})'.format(count_yours)))
-        print(yours)
+        p(ansi_cyan('NEEDS REVIEW ({})'.format(count_others)))
+        p(others)
+        p(ansi_cyan('YOUR MRS ({})'.format(count_yours)))
+        p(yours)
