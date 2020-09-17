@@ -23,6 +23,7 @@ import logging
 import os
 import subprocess
 import sys
+import urllib
 
 # gitlab API docs for the merge request endpoint:
 # https://docs.gitlab.com/ee/api/merge_requests.html#list-merge-requests
@@ -43,6 +44,7 @@ default_token_path='~/.gitlab-token'
 # TODO this should be configurable
 api_host='https://gitlab.elvaco.se'
 mr_url='{}/api/v4/merge_requests'.format(api_host)
+notes_url='{}/api/v4/projects/{}/merge_requests/{}/notes'
 
 missing_token='''Missing gitlab token
 
@@ -123,6 +125,26 @@ def projects_starred_by_current_user(bearer_token):
     log.debug('Starred projects: {}'.format(project_ids))
     return project_ids
 
+def unanswered_mr_notes_by_me(bearer_token, my_username, project_name, mr_id):
+    headers={
+        'authorization': 'Bearer ' + bearer_token
+    }
+    
+    # '/' is considered safe by default, we want it encoded though
+    url=notes_url.format(api_host, urllib.parse.quote(project_name, safe=''), mr_id)
+    notes=requests.get(url, headers=headers)
+    notes.raise_for_status()
+
+    decoded=notes.json()
+
+    my_unresolved_notes=list(filter(lambda x:
+                       x['author']['name'] == my_username
+                       and x['resolvable'] == True
+                       and x['resolved'] == False,
+                       decoded))
+
+    return len(my_unresolved_notes)
+
 def review_needed(my_username, project_id_allowlist, bearer_token):
     params_others={
         # try to get the newest status of the MR
@@ -180,6 +202,13 @@ def review_needed(my_username, project_id_allowlist, bearer_token):
 
         if mr['upvotes'] > 0:
             skipper('already has upvotes')
+            continue
+
+        # expensive check, do this last
+        project_name=mr['references']['full'].split('!')[0]
+        unresolved_comments=unanswered_mr_notes_by_me(bearer_token, my_username, project_name, mr['iid']) 
+        if unresolved_comments > 0:
+            skipper('my comments are unresolved ({})'.format(unresolved_comments))
             continue
 
         out.append('{}\n{}\n{}'.format(
