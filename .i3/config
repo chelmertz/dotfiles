@@ -86,6 +86,7 @@ bindsym $mod+Shift+space focus mode_toggle
 assign [class="Firefox"] $ws2
 assign [class="Google-chrome"] $ws2
 assign [class="jetbrains-idea"] $ws3
+assign [class="jetbrains-toolbox"] $ws10
 assign [class="Slack"] $ws9
 assign [class="Emacs"] $ws1
 for_window [class="Microsoft Teams - Preview"] move to workspace $ws10
