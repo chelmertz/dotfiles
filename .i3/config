@@ -220,5 +220,5 @@ exec --no-startup-id copyq
 # after sleep/lid is closed (known issue, it seems like, when googling)
 exec --no-startup-id setxkbmap -layout se -option caps:ctrl_modifier
 exec --no-startup-id xcape -e "Caps_Lock=Escape" -t 200
-exec --no-startup-id feh --no-fehbg --bg-max ~/Dropbox/rsi.png
+exec --no-startup-id feh --no-fehbg --bg-scale ~/Dropbox/desktop_bg.jpg
 exec --no-startup-id gedit # for scratchpad
