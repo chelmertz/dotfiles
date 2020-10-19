@@ -31,3 +31,5 @@
 	file-decoration-style = none
 [includeIf "gitdir:~/code/elvaco/"]
 	path = ~/code/github/chelmertz/dotfiles/work.gitconfig
+[help]
+	autocorrect = 1
