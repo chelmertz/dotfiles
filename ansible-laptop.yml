@@ -189,6 +189,9 @@
     - name: sd (rust version sed, for the "replace things" use case)
       shell: cargo install sd
 
+    - name: git-delta ("better", contextual diff, see https://github.com/dandavison/delta)
+      shell: cargo install git-delta
+
     - name: bitwarden-rofi
       git:
         repo: https://github.com/mattydebie/bitwarden-rofi.git
