@@ -92,6 +92,8 @@ assign [class="Emacs"] $ws1
 for_window [class="Microsoft Teams - Preview"] move to workspace $ws10
 for_window [class="copyq"] floating enable; resize set 640 480
 for_window [class="copyq"] move position center
+# xev, getting keycodes etc
+for_window [title="Event Tester"] floating enable
 # cannot use assign, see https://github.com/i3/i3/issues/2060 (prob the same above, for Teams)
 for_window [class="Spotify"] move to workspace $ws10
 
