@@ -53,6 +53,15 @@ PS4="+ "
 # Try to keep environment pollution down, EPA loves us.
 unset use_color safe_term match_lhs sadness
 
+# render man pages in colors
+export LESS_TERMCAP_mb=$'\e[1;32m'
+export LESS_TERMCAP_md=$'\e[1;32m'
+export LESS_TERMCAP_me=$'\e[0m'
+export LESS_TERMCAP_se=$'\e[0m'
+export LESS_TERMCAP_so=$'\e[01;33m'
+export LESS_TERMCAP_ue=$'\e[0m'
+export LESS_TERMCAP_us=$'\e[1;4;31m'
+
 PROMPT_COMMAND='echo -ne "\033]0;Terminal - ${PWD##*/}\007"'
 
 # enable color support of ls and also add handy aliases
@@ -128,9 +137,8 @@ EDITOR="emacsclient -tc"
 VISUAL="emacsclient -tc"
 PATH=~/.cabal/bin:/usr/java/jdk1.8.0_121/jre/bin:${PATH}:~/bin:~/.local/bin:~/go/bin:~/.emacs.d/bin
 TZ='Europe/Stockholm'
-MANPAGER=most
 XDG_CONFIG_HOME=~/.config
-export EDITOR MANPAGER VISUAL PATH TZ XDG_CONFIG_HOME
+export EDITOR VISUAL PATH TZ XDG_CONFIG_HOME
 
 # create and cd into a temp dir
 cdt() {
