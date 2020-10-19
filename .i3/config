@@ -132,7 +132,6 @@ workspace $ws10 output $monitor_secondary
 bindsym section exec ~/bin/rofi.sh
 bindsym $mod+e exec ~/bin/rofi_emoji.sh
 bindsym $mod+u exec ~/bin/rofi_uni.sh
-bindsym $mod+c exec ~/bin/rofi_snippets.sh
 bindsym $mod+p exec ~/bin/rofi_power.sh
 bindsym $mod+t exec ~/bin/rofi_timer.sh
 bindsym $mod+space exec ~/bin/rofi_surfraw.sh
