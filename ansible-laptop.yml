@@ -33,6 +33,10 @@
       apt:
         name: simplescreenrecorder
 
+    - name: screenkey (displays pressed buttons on screen)
+      apt:
+        name: screenkey
+
     - name: gron (makes json greppable)
       snap:
         name: gron
