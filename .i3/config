@@ -129,7 +129,7 @@ workspace $ws9 output $monitor_primary
 workspace $ws10 output $monitor_secondary
 
 # section = §, left of 1 on my keyboard, search for "sect" in unicode rofi below to find that sign :)
-bindsym section exec ~/bin/rofi.sh
+bindsym Scroll_Lock exec ~/bin/rofi.sh
 bindsym $mod+e exec ~/bin/rofi_emoji.sh
 bindsym $mod+u exec ~/bin/rofi_uni.sh
 bindsym $mod+p exec ~/bin/rofi_power.sh
@@ -160,7 +160,7 @@ bindsym F6 workspace number $ws6
 bindsym F7 workspace number $ws7
 bindsym F8 workspace number $ws8
 bindsym F9 workspace number $ws9
-bindsym F10 workspace number $ws10
+#bindsym F10 workspace number $ws10
 
 # move focused container to workspace
 bindsym $mod+Shift+1 move container to workspace number $ws1
