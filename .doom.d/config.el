@@ -89,6 +89,7 @@
   (setq org-adapt-indentation nil
         org-descriptive-links nil
         org-startup-indented nil
+        calendar-week-start-day 1
         org-agenda-start-on-weekday 1
         org-export-with-sub-superscripts nil
         org-todo-keywords '((sequence "TODO" "|" "DONE" "WONT"))
