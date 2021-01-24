@@ -124,12 +124,10 @@
       apt:
         name: hstr
 
-    - name: deps for jgmenu
+    # add yourself to the group "video" to use without sudo
+    - name: brightnessctl (brightness via cli)
       apt:
-        pkg:
-          - libxml2-dev
-          - librsvg2-dev
-          - libmenu-cache-dev
+        name: brightnessctl
 
 # as user
 - hosts: localhost
@@ -171,6 +169,12 @@
         version: master
         dest: ~/code/github/Cyclenerd/gallery/
 
+    - name: Clone grasp (org capture web pages)
+      git:
+        repo: https://github.com/karlicoss/grasp
+        version: master
+        dest: ~/code/github/karlicoss/grasp
+
     - name: Add gallery.sh to path
       file:
         src: ~/code/github/Cyclenerd/gallery/gallery.sh
@@ -197,9 +201,6 @@
     - name: dust (rust version of du -sh, easier to parse)
       shell: cargo install du-dust
 
-    - name: sd (rust version sed, for the "replace things" use case)
-      shell: cargo install sd
-
     - name: git-delta ("better", contextual diff, see https://github.com/dandavison/delta)
       shell: cargo install git-delta
 
@@ -214,16 +215,4 @@
 
     - name: custom search engines for surfraw
       shell: mkdir -p ~/.config/surfraw/ && ln -sf ~/dotfiles/bookmarks ~/.config/surfraw/bookmarks
-
-    - name: Clone jgmenu
-      git:
-        repo: https://github.com/johanmalm/jgmenu
-        version: master
-        dest: ~/code/github/johanmalm/jgmenu
-
-    - name: Build and install jgmenu
-        # from https://github.com/johanmalm/jgmenu/blob/master/INSTALL.md##build-and-install-in-home-directory
-      shell: ./configure --prefix=$HOME --with-lx --with-pmenu && make && make install
-      args:
-        chdir: ~/code/github/johanmalm/jgmenu
 
