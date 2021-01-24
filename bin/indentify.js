@@ -41,7 +41,7 @@ const print = (str) => {
 }
 
 
-if (process.argv.length > 2 && process.argv[2] === 'gui') {
+if (process.argv.includes('gui')) {
   const zenityCancelExitCode = 1;
   exec('zenity --text-info --editable', (error, stdout, stderr) => {
     if (error && error.code) {
