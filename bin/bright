@@ -1,0 +1,20 @@
+#!/bin/sh
+
+set -eu
+
+curr=$(brightnessctl get)
+max=$(brightnessctl max)
+
+min="$((max / 5))"
+step="$((max / 4))"
+
+echo min: $min
+
+case $1 in
+    up)
+        brightnessctl set $((curr + step))
+        ;;
+    down)
+        new=$((curr - step))
+        brightnessctl set $((new < min ? min : new))
+esac
