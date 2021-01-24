@@ -19,6 +19,7 @@
 	date = human
 [core]
 	excludesfile = ~/.gitignore_global
+	# GIT_PAGER=less git diff, if you want to opt out
 	pager = delta
 [interactive]
 	diffFilter = delta --color-only
