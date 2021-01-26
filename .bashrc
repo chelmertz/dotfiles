@@ -118,7 +118,7 @@ alias gp="git tag -d prebase; git tag prebase; git log -n1 prebase"
 
 alias l="ls --group-directories-first -alhX"
 # order by time modified
-alias ll="ls -ltr"
+alias ll="ls --group-directories-first -alhXtr"
 alias less='less -i' # smart case search (case insensitive unless uppercase is input)
 
 alias til='nvim ~/Dropbox/tagspaces/til.md'
