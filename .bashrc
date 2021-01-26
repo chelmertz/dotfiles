@@ -133,7 +133,7 @@ alias rg="ripgrep.rg"
 alias x="xdg-open"
 alias e="emacsclient -tc"
 batt() {
-  bat $(fd $*)
+  fd "$*" | xargs bat
 }
 
 alias docker-ps='docker ps --format "{{.Status}}\t{{.Names}}\t{{.Ports}}" -a'
