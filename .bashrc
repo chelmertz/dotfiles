@@ -138,6 +138,9 @@ batt() {
 
 alias docker-ps='docker ps --format "{{.Status}}\t{{.Names}}\t{{.Ports}}" -a'
 
+# VLC bugs out otherwise, on my Ubuntu..
+alias vlc='vlc -V x11'
+
 . /usr/share/bash-completion/completions/git
 __git_complete gco _git_checkout
 __git_complete gl _git_log
