@@ -141,6 +141,8 @@ alias docker-ps='docker ps --format "{{.Status}}\t{{.Names}}\t{{.Ports}}" -a'
 . /usr/share/bash-completion/completions/git
 __git_complete gco _git_checkout
 __git_complete gl _git_log
+__git_complete glp _git_log
+__git_complete gd _git_diff
 
 EDITOR="emacsclient -tc"
 VISUAL="emacsclient -tc"
