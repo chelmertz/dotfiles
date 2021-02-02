@@ -121,7 +121,8 @@
     "xclip -verbose -i /tmp/org.txt -t text/plain -selection clipboard" " ")))
 
 
-(setq doom-leader-key ",")
+(setq doom-leader-key ","
+      doom-localleader-key ",")
 (map! "<f6>" 'projectile-replace)
 (map! :leader "e" (lambda() (interactive) (find-file (concat org-directory "elvaco.org"))))
 (map! :leader "j" (lambda() (interactive) (find-file (concat org-directory "journal.org"))))
@@ -130,3 +131,5 @@
 (map! :leader "a" 'org-agenda)
 (map! :map org-mode-map :leader "h" 'export-html-and-open)
 (map! :map org-mode-map :leader "t" 'org-to-plaintext-to-clipboard)
+(map! :map org-mode-map :leader "c i" 'org-clock-in)
+(map! :map org-mode-map :leader "c o" 'org-clock-out)
