@@ -133,3 +133,5 @@
 (map! :map org-mode-map :leader "t" 'org-to-plaintext-to-clipboard)
 (map! :map org-mode-map :leader "c i" 'org-clock-in)
 (map! :map org-mode-map :leader "c o" 'org-clock-out)
+(map! :leader "+" 'doom/increase-font-size)
+(map! :leader "-" 'doom/decrease-font-size)
