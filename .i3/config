@@ -154,6 +154,23 @@ bindsym $mod+8 workspace number $ws8
 bindsym $mod+9 workspace number $ws9
 bindsym $mod+0 workspace number $ws10
 
+# I want to use the F-keys for changing workspaces, but when playing (or using htop), those keys needs to be unbound
+mode "fkey" {
+	bindsym $mod+m mode "default"; exec notify-send "fkey mode off (mod + m)"
+	bindsym $mod+1 workspace number $ws1
+	bindsym $mod+2 workspace number $ws2
+	bindsym $mod+3 workspace number $ws3
+	bindsym $mod+4 workspace number $ws4
+	bindsym $mod+5 workspace number $ws5
+	bindsym $mod+6 workspace number $ws6
+	bindsym $mod+7 workspace number $ws7
+	bindsym $mod+8 workspace number $ws8
+	bindsym $mod+9 workspace number $ws9
+	bindsym $mod+0 workspace number $ws10
+}
+
+bindsym $mod+m mode "fkey"; exec notify-send "fkey mode on (mod + m)"
+
 bindsym F1 exec /home/ch/bin/ror.py Emacs "/home/ch/.emacs.d/bin/doom run"; workspace number $ws1
 bindsym F2 exec /home/ch/bin/ror.py Firefox firefox; workspace number $ws2
 bindsym F3 workspace number $ws3
