@@ -94,7 +94,8 @@
         calendar-week-start-day 1
         org-agenda-start-on-weekday 1
         org-export-with-sub-superscripts nil
-        org-todo-keywords '((sequence "TODO" "|" "DONE" "WONT"))
+        org-log-into-drawer t ; this logs to :LOGBOOK: by default
+        org-todo-keywords '((sequence "TODO(!)" "PROGRESS(!)" "|" "DONE(!)" "WONT(!)"))
         org-capture-templates '(
                                 ("t" "TODO" entry (file "inbox.org") "* TODO %?\n:PROPERTIES:\n:CREATED: %T\n:END:\n\n  %i")
                                 ("j" "Journal" entry (file+olp+datetree "journal.org") "* %?\n:PROPERTIES:\n:CREATED: %T\n:END:\n" :jump-to-captured t)
@@ -106,7 +107,6 @@
         ))
 (after! evil-snipe
   (evil-snipe-mode -1))
-
 (defun export-html-and-open ()
   (interactive)
   (org-open-file (org-html-export-to-html)))
