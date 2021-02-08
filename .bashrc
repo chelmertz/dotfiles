@@ -83,8 +83,8 @@ alias cp='cp -i'
 alias mv='mv -i'
 
 alias ga="git add -A "
-alias gb="git branch -vv "
-alias gba="git branch --all"
+alias gb="git branch -vv --sort=-committerdate "
+alias gba="git branch --all --sort=-committerdate "
 alias gc="git commit -v"
 alias gca="git commit -av"
 gcf() {
