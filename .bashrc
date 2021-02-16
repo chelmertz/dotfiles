@@ -104,6 +104,7 @@ alias gcaa="git commit -a --amend --no-edit"
 alias gd="git diff -M -w"
 alias gco="git checkout "
 alias gdc="git diff --cached -M -w"
+alias gfa="git fetch --all"
 alias gs="git status"
 alias glp='git log --pretty="format:%Cred%h %Cblue%d %Cgreen%s %Creset%an %ar" --graph'
 alias gls="git -c core.pager='less -p^commit.*$' log -M -w --stat --pretty=fuller --show-notes"
@@ -114,7 +115,8 @@ gll() {
 
 # create an easy target to compare/rollback to after difficult rebase/merge
 # etc and the reflog contains too many similar entries
-alias gp="git tag -d prebase; git tag prebase; git log -n1 prebase"
+alias gpre="git tag -d prebase; git tag prebase; git log -n1 prebase"
+alias gp="git pull"
 
 alias l="ls --group-directories-first -alhX"
 # order by time modified
