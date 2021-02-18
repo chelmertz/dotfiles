@@ -3,6 +3,7 @@
 status=$(playerctl --player spotify status)
 
 [ $? -ne 0 ] && exit 0
+[ "Stopped" = "$status" ] && exit 0
 
 # left click
 [[ "$BLOCK_BUTTON" -eq 1 ]] && playerctl --player spotify previous
