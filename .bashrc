@@ -102,6 +102,7 @@ git-clone-github() {
 }
 alias gcaa="git commit -a --amend --no-edit"
 alias gd="git diff -M -w"
+alias gdw="git diff -M -w --word-diff --color-words"
 alias gco="git checkout "
 alias gdc="git diff --cached -M -w"
 alias gfa="git fetch --all"
@@ -115,7 +116,7 @@ gll() {
 
 # create an easy target to compare/rollback to after difficult rebase/merge
 # etc and the reflog contains too many similar entries
-alias gpre="git tag -d prebase; git tag prebase; git log -n1 prebase"
+alias gpre="git tag -d prebase 2>/dev/null; git tag prebase; git log -n1 prebase"
 alias gp="git pull"
 
 alias l="ls --group-directories-first -alhX"
