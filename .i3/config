@@ -231,13 +231,16 @@ bar {
         status_command i3blocks
 }
 
-exec --no-startup-id dropbox start
-exec --no-startup-id copyq
+# exec_always because some things (like keyboard mappings) are reset
+# when e.g. unplugging monitor, and a simple i3 reload solves it
+
+exec_always --no-startup-id dropbox start
+exec_always --no-startup-id copyq
 
 # hold caps for ctrl modifier, press for escape
 # inside .bashrc to make it execute (well, let's hope we open a new terminal)
 # after sleep/lid is closed (known issue, it seems like, when googling)
-exec --no-startup-id setxkbmap -layout se -option caps:ctrl_modifier
-exec --no-startup-id xcape -e "Caps_Lock=Escape" -t 200
-exec --no-startup-id feh --no-fehbg --bg-scale ~/Dropbox/desktop_bg.jpg
+exec_always --no-startup-id setxkbmap -layout se -option caps:ctrl_modifier
+exec_always --no-startup-id xcape -e "Caps_Lock=Escape" -t 200
+exec_always --no-startup-id feh --no-fehbg --bg-scale ~/Dropbox/desktop_bg.jpg
 exec --no-startup-id gedit # for scratchpad
