@@ -136,6 +136,7 @@ workspace $ws9 output $monitor_primary
 workspace $ws10 output $monitor_secondary
 
 # section = §, left of 1 on my keyboard, search for "sect" in unicode rofi below to find that sign :)
+bindsym section exec rofi -sidebar-mode -show ssh -matching fuzzy -modi "ssh"
 bindsym Scroll_Lock exec ~/bin/rofi.sh
 bindsym $mod+e exec ~/bin/rofi_emoji.sh
 bindsym $mod+u exec ~/bin/rofi_uni.sh
