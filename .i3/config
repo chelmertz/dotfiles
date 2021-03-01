@@ -145,8 +145,7 @@ bindsym $mod+t exec ~/bin/rofi_timer.sh
 bindsym $mod+space exec ~/bin/rofi_surfraw.sh
 
 #bindsym Shift+F4 exec /home/ch/code/gitlab/chelmertz/focus_trigger/focus-trigger.py
-bindsym Print exec flameshot full -p ~
-bindsym Shift+Print exec flameshot full -p ~ && sleep 1 && screenshot_edit.sh
+bindsym Print exec flameshot gui
 
 # switch to workspace
 bindsym $mod+1 workspace number $ws1
