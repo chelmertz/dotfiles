@@ -41,19 +41,14 @@ const print = (str) => {
 }
 
 
-if (process.argv.includes('gui')) {
-  const zenityCancelExitCode = 1;
-  exec('zenity --text-info --editable', (error, stdout, stderr) => {
-    if (error && error.code) {
-      if (error.code !== zenityCancelExitCode) {
-        console.error(`error: ${error}`);
-        console.error("Double check that you have installed zenity");
-      }
-      return;
+const zenityCancelExitCode = 1;
+exec('zenity --text-info --editable', (error, stdout, stderr) => {
+  if (error && error.code) {
+    if (error.code !== zenityCancelExitCode) {
+      console.error(`error: ${error}`);
+      console.error("Double check that you have installed zenity");
     }
-    console.log(print(stdout.trim()));
-  });
-} else {
-  const text = 'demo<thingy (hello=there)>';
-  console.log(print(text));
-}
+    return;
+  }
+  console.log(print(stdout.trim()));
+});
