@@ -7,8 +7,8 @@ const ind = (level) => "  ".repeat(level);
 const print = (str) => {
 
   // totally disregarding quoting, cross your fingers
-  const bracketsIn = '<([';
-  const bracketsOut = '>)]';
+  const bracketsIn = '<([{';
+  const bracketsOut = '>)]}';
   let indent = 0;
   let prevNewline = false;
   let out = '';
