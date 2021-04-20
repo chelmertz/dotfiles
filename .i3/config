@@ -233,7 +233,12 @@ bar {
         #status_command 2>/tmp/blocks.err i3blocks -vvv | tee /tmp/blocks.out
         tray_output $monitor_primary
         status_command i3blocks
+        position top
+        tray_padding 1
+        separator_symbol " "
 }
+
+hide_edge_borders both
 
 # exec_always because some things (like keyboard mappings) are reset
 # when e.g. unplugging monitor, and a simple i3 reload solves it
