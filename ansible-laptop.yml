@@ -20,10 +20,12 @@
     - name: emacs repo
       apt_repository:
         repo: ppa:kelleyk/emacs
+        codename: focal # groovy (20.10) is not yet supported
 
     - name: emacs
       apt:
-        name: emacs26
+        update_cache: yes
+        name: emacs27
 
     - name: cloc, counts lines of code by language
       apt:
@@ -45,6 +47,11 @@
       snap:
         name: shellcheck
         channel: edge
+
+    - name: ripgrep
+      snap:
+        name: ripgrep
+        classic: yes
 
     - name: cheese (record photo/video with webcam)
       apt:
@@ -137,6 +144,66 @@
       apt:
         name: pv
 
+    - name: i3blocks
+      apt:
+        name: i3blocks
+
+    - name: htop
+      apt:
+        name: htop
+
+    - name: xcape (bind keys, depending on time pressed)
+      apt:
+        name: xcape
+
+    - name: rofi (dmenu like autocompleting menu GUI thing)
+      apt:
+        name: rofi
+
+    - name: flameshot (screenshot)
+      apt:
+        name: flameshot
+
+    - name: xclip (clipboard)
+      apt:
+        name: xclip
+
+    # begin docker
+    - name: docker pre-reqs
+      apt:
+        pkg:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+
+    - name: docker gpg key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+
+    - name: docker repo
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu groovy stable
+
+    - name: docker packages
+      apt:
+        update_cache: yes
+        pkg:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+
+    # end docker
+
+    - name: xdotool (api for X, kinda)
+      apt:
+        name: xdotool
+
+    - name: nodejs
+      apt:
+        name: nodejs
+
 # as user
 - hosts: localhost
   tasks:
@@ -145,6 +212,18 @@
       file:
         src: ~/code/github/chelmertz/dotfiles
         dest: ~/dotfiles
+        state: link
+
+    - name: Symlink dotfiles/bin to ~/bin
+      file:
+        src: ~/code/github/chelmertz/dotfiles/bin
+        dest: ~/bin
+        state: link
+
+    - name: Symlink .bashrc
+      file:
+        src: ~/code/github/chelmertz/dotfiles/.bashrc
+        dest: ~/.bashrc
         state: link
 
     - name: Global gitignore file
@@ -165,29 +244,42 @@
         dest: ~/.i3blocks.conf
         state: link
 
+    - name: rofi-blah-blah (snippet manager)
+      git:
+        repo: https://github.com/chelmertz/rofi-blah-blah
+        version: master
+        dest: ~/code/github/chelmertz/rofi-blah-blah/
+
     - name: Clone z (autojump for bash)
       git:
         repo: https://github.com/rupa/z.git
         version: master
         dest: ~/code/github/rupa/z/
 
-    - name: Clone gallery.sh (script for generating image gallery from folder of image files)
+    # doom emacs begin
+    - name: Clone doom emacs (a nice emacs "distribution"(?))
       git:
-        repo: https://github.com/Cyclenerd/gallery_shell.git
-        version: master
-        dest: ~/code/github/Cyclenerd/gallery/
+        repo: https://github.com/hlissner/doom-emacs.git
+        #depth: 1
+        dest: ~/.emacs.d
+        # now, add ~/.emacs.d/bin to PATH and $ doom install
+
+    - name: Remove default config
+      shell: rm -rf ~/.doom.d
+
+    - name: Use my doom emacs config
+      file:
+        src: ~/dotfiles/.doom.d
+        dest: ~/.doom.d
+        state: link
+
+    # doom emacs end
 
     - name: Clone grasp (org capture web pages)
       git:
         repo: https://github.com/karlicoss/grasp
         version: master
         dest: ~/code/github/karlicoss/grasp
-
-    - name: Add gallery.sh to path
-      file:
-        src: ~/code/github/Cyclenerd/gallery/gallery.sh
-        dest: ~/bin/gallery.sh
-        state: link
 
     - name: Clone dunst (for dunstify)
       git:
@@ -196,21 +288,24 @@
         dest: ~/code/github/dunst-project/dunst
 
     - name: Build and install dunstify
-      shell: make dunstify && cp -f dunstify ~/bin/dunstify
+      shell: which dunstify || make dunstify && cp -f dunstify ~/bin/dunstify
       args:
         chdir: ~/code/github/dunst-project/dunst
 
-#    - name: Emoji mode for rofi
-#      git:
-#        repo: https://github.com/nkoehring/rofiemoji
-#        version: master
-#        dest: ~/code/github/nkoehring/rofiemoji
+    - name: Emoji mode for rofi
+      git:
+        repo: https://github.com/nkoehring/rofiemoji
+        version: master
+        dest: ~/code/github/nkoehring/rofiemoji
 
     - name: dust (rust version of du -sh, easier to parse)
       shell: cargo install du-dust
 
     - name: git-delta ("better", contextual diff, see https://github.com/dandavison/delta)
       shell: cargo install git-delta
+
+    - name: bat (cat with colors)
+      shell: cargo install bat
 
     - name: bitwarden-rofi
       git:
