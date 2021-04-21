@@ -124,17 +124,11 @@ alias l="ls --group-directories-first -alhX"
 alias ll="ls --group-directories-first -alhXtr"
 alias less='less -i' # smart case search (case insensitive unless uppercase is input)
 
-alias til='nvim ~/Dropbox/tagspaces/til.md'
-alias tilv='~/.config/dotfiles/bin/til.sh && evince ~/til.pdf'
-alias scrot='scrot "%Y-%m-%d_$wx$h.png"'
-alias apply-ansible='ansible-playbook --connection=local --ask-become-pass ~/code/github/chelmertz/dotfiles/ansible-laptop.yml'
-
 alias cds="cd ~/code"
 alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
 alias rg="ripgrep.rg"
 alias x="xdg-open"
-alias e="emacsclient -tc"
 batt() {
   fd "$*" | xargs bat
 }
