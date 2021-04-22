@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cmd=$(echo -e "lock screen\nshutdown\nreboot" | rofi -p 'Session action' -dmenu)
+cmd=$(echo -e "lock screen\nshutdown\nreboot\nlog out" | rofi -p 'Session action' -dmenu)
 
 case $cmd in
     "lock screen")
@@ -12,5 +12,8 @@ case $cmd in
         ;;
     reboot)
         reboot
+        ;;
+    "log out")
+        i3-msg 'exit'
         ;;
 esac
