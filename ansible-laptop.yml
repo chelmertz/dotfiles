@@ -193,6 +193,13 @@
           - docker-ce
           - docker-ce-cli
           - containerd.io
+          - docker-compose
+
+    - name: add myself to the docker group
+      user:
+        name: ch
+        groups: docker
+        append: yes
 
     # end docker
 
@@ -203,6 +210,24 @@
     - name: nodejs
       apt:
         name: nodejs
+
+    - name: yarnpkg (npm alternative, handles javascript builds)
+      apt:
+        name: yarnpkg
+
+    - name: Symlink yarn
+      file:
+        src: /usr/bin/yarnpkg
+        dest: /usr/bin/yarn
+        state: link
+
+    - name: sqlite3
+      apt:
+        name: sqlite3
+
+    - name: node-gyp (enables bindings for nodejs)
+      apt:
+        name: node-gyp
 
 # as user
 - hosts: localhost
