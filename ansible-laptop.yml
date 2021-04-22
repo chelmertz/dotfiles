@@ -229,6 +229,14 @@
       apt:
         name: node-gyp
 
+    - name: openjdk
+      apt:
+        name: openjdk-11-jre
+
+    - name: psql etc
+      apt:
+        name: postgresql-client-12
+
 # as user
 - hosts: localhost
   tasks:
