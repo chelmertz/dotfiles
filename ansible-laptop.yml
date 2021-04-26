@@ -237,6 +237,10 @@
       apt:
         name: postgresql-client-12
 
+    - name: gimp (photoshopping)
+      apt:
+        name: gimp
+
 # as user
 - hosts: localhost
   tasks:
