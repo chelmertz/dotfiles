@@ -168,6 +168,10 @@
       apt:
         name: xclip
 
+    - name: xsel (clipboard)
+      apt:
+        name: xsel
+
     # begin docker
     - name: docker pre-reqs
       apt:
@@ -343,6 +347,9 @@
 
     - name: bat (cat with colors)
       shell: cargo install bat
+
+    - name: fd (find with good performance and smarter syntax)
+      shell: cargo install fd-find
 
     - name: bitwarden-rofi
       git:
