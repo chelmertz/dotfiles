@@ -233,9 +233,11 @@
       apt:
         name: node-gyp
 
-    - name: openjdk
+    - name: java
       apt:
-        name: openjdk-11-jre
+        pkg:
+          - openjdk-11-jre # java
+          - openjdk-11-jdk-headless # for `jps`
 
     - name: psql etc
       apt:
