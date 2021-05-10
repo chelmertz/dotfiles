@@ -244,6 +244,18 @@
       apt:
         name: gimp
 
+    - name: tree
+      apt:
+        name: tree
+
+    - name: libreoffice
+      apt:
+        name: libreoffice
+
+    - name: php-cli (for the datedate script in my dotfiles/bin)
+      apt:
+        name: php-cli
+
 # as user
 - hosts: localhost
   tasks:
