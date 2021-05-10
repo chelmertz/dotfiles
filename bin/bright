@@ -2,6 +2,7 @@
 
 set -eu
 
+# add yourself to the group "video" to use without sudo
 curr=$(brightnessctl get)
 max=$(brightnessctl max)
 
