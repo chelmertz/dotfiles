@@ -123,10 +123,15 @@
       apt:
         name: autorandr
 
-    # add yourself to the group "video" to use without sudo
     - name: brightnessctl (brightness via cli)
       apt:
         name: brightnessctl
+
+    - name: add myself to the video group (for brightnessctl without sudo)
+      user:
+        name: ch
+        groups: video
+        append: yes
 
     - name: sqlitebrowser
       apt:
