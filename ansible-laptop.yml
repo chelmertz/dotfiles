@@ -123,14 +123,6 @@
       apt:
         name: autorandr
 
-    - name: hstr ppa repo
-      apt_repository:
-        repo: ppa:ultradvorka/ppa
-
-    - name: hstr (history alternative, ctrl+r boosted)
-      apt:
-        name: hstr
-
     # add yourself to the group "video" to use without sudo
     - name: brightnessctl (brightness via cli)
       apt:
