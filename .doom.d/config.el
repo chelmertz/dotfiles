@@ -137,3 +137,7 @@
 (map! :map org-mode-map :leader "c o" 'org-clock-out)
 (map! :leader "+" 'doom/increase-font-size)
 (map! :leader "-" 'doom/decrease-font-size)
+
+
+; see https://github.com/hlissner/doom-emacs/issues/3172
+(add-hook 'org-mode-hook (lambda () (electric-indent-local-mode -1)))
