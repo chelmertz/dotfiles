@@ -260,6 +260,11 @@
 - hosts: localhost
   tasks:
 
+    - name: python formatting
+      pip:
+        name: black
+        extra_args: --user
+
     - name: Symlink dotfiles, since you modify it so much..
       file:
         src: ~/code/github/chelmertz/dotfiles
@@ -373,4 +378,7 @@
 
     - name: custom search engines for surfraw
       shell: mkdir -p ~/.config/surfraw/ && ln -sf ~/dotfiles/bookmarks ~/.config/surfraw/bookmarks
+
+    - name: bash format
+      shell: GO111MODULE=on go get mvdan.cc/sh/v3/cmd/shfmt
 
