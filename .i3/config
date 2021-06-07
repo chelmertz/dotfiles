@@ -71,7 +71,7 @@ bindsym $mod+f fullscreen toggle
 # change container layout (stacked, tabbed, toggle split)
 bindsym $mod+s layout stacking
 bindsym $mod+w layout tabbed
-#bindsym $mod+e layout toggle split
+bindsym $mod+e layout toggle split
 
 # toggle tiling / floating
 bindsym $mod+Shift+space floating toggle
@@ -143,7 +143,6 @@ bindsym section exec i3-sensible-terminal
 bindsym Scroll_Lock exec ~/bin/rofi.sh
 # my new laptop has a button I'm not gonna use for its intended purpose:
 bindsym XF86Calculator exec ~/bin/rofi.sh
-bindsym $mod+e exec ~/bin/rofi_emoji.sh
 bindsym $mod+u exec ~/bin/rofi_uni.sh
 bindsym $mod+p exec ~/bin/rofi_power.sh
 bindsym $mod+t exec ~/bin/rofi_timer.sh
