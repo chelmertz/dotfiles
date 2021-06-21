@@ -17,6 +17,15 @@
       apt:
         name: meld
 
+    - name: git (latest version)
+      apt_repository:
+        repo: ppa:git-core/ppa
+
+    - name: git
+      apt:
+        update_cache: yes
+        name: git
+
     - name: emacs repo
       apt_repository:
         repo: ppa:kelleyk/emacs
@@ -42,6 +51,14 @@
     - name: gron (makes json greppable)
       snap:
         name: gron
+
+    - name: spotify
+      snap:
+        name: spotify
+
+    - name: vlc (video player)
+      snap:
+        name: vlc
 
     - name: shellcheck
       snap:
@@ -244,6 +261,10 @@
       apt:
         name: gimp
 
+    - name: inkscape (illustrator, vector)
+      apt:
+        name: inkscape
+
     - name: tree
       apt:
         name: tree
@@ -255,6 +276,26 @@
     - name: php-cli (for the datedate script in my dotfiles/bin)
       apt:
         name: php-cli
+
+    - name: redshift (night screen)
+      apt:
+        name: redshift
+
+    - name: figlet (large text in terminals, good for WARNING TEXTS etc)
+      apt:
+        name: figlet
+
+    - name: wmctrl (manage x windows through cli)
+      apt:
+        name: wmctrl
+
+    - name: tidy (formats html/xml, used when exporting org mode to html)
+      apt:
+        name: tidy
+
+    - name: amqp-tools (amqp-publish etc that lets you publish to rabbitmq)
+      apt:
+        name: amqp-tools
 
 # as user
 - hosts: localhost
@@ -375,6 +416,9 @@
 
     - name: uni (unicode tool for identifying/searching, used in rofi-binding)
       shell: go get arp242.net/uni
+
+    - name: gopls (golang language server)
+      shell: GO111MODULE=on go get golang.org/x/tools/gopls@latest
 
     - name: custom search engines for surfraw
       shell: mkdir -p ~/.config/surfraw/ && ln -sf ~/dotfiles/bookmarks ~/.config/surfraw/bookmarks
