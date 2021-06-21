@@ -2,3 +2,6 @@ set surround
 set incsearch
 set ignorecase
 set smartcase
+
+vnoremap < <gv
+vnoremap > >gv
