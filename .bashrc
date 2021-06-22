@@ -119,9 +119,9 @@ gll() {
 alias gpre="git tag -d prebase 2>/dev/null; git tag prebase; git log -n1 prebase"
 alias gp="git pull"
 
-alias l="ls --group-directories-first -alhX"
+alias l="ls --group-directories-first -alhX --hyperlink=auto"
 # order by time modified
-alias ll="ls --group-directories-first -alhXtr"
+alias ll="ls --group-directories-first -alhXtr --hyperlink=auto"
 alias less='less -i' # smart case search (case insensitive unless uppercase is input)
 
 alias cds="cd ~/code"
