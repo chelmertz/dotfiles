@@ -106,6 +106,8 @@ for_window [class="Spotify"] move to workspace $ws10
 for_window [instance="gedit"] floating enable;
 for_window [instance="gedit"] move scratchpad; [instance="gedit"] scratchpad show; move position center; move scratchpad
 bindsym Pause [instance="gedit"] scratchpad show, resize set 1200 650
+# "+" key on the far right
+bindsym KP_Add scratchpad show, resize set 1200 650
 
 # Microsoft teams' notifications should float
 # see https://i3wm.org/docs/userguide.html#command_criteria
