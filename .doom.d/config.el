@@ -141,3 +141,6 @@
 
 ; see https://github.com/hlissner/doom-emacs/issues/3172
 (add-hook 'org-mode-hook (lambda () (electric-indent-local-mode -1)))
+
+; at work, Dockerfile-x is a common naming scheme
+(add-to-list 'auto-mode-alist '("Dockerfile.*" . dockerfile-mode))
