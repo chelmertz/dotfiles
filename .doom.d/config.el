@@ -90,6 +90,7 @@
 (after! org
   (setq org-adapt-indentation nil
         org-descriptive-links nil
+        org-return-follows-link t
         org-startup-indented nil
         calendar-week-start-day 1
         org-agenda-start-on-weekday 1
