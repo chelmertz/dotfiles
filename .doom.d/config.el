@@ -90,7 +90,8 @@
 (setq confirm-kill-emacs nil)
 (after! org
   (setq org-adapt-indentation nil
-        org-descriptive-links nil
+        org-links-descriptive nil
+        org-html-doctype "html5"
         org-return-follows-link t
         org-startup-indented nil
         calendar-week-start-day 1
