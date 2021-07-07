@@ -108,8 +108,7 @@
                                  "* TODO %?\n:PROPERTIES:\n:CREATED: %T\n:END:\n\n  %i")
                                 )
         ))
-(after! evil-snipe
-  (evil-snipe-mode -1))
+(remove-hook 'doom-first-input-hook #'evil-snipe-mode)
 (defun export-html-and-open ()
   (interactive)
   (org-open-file (org-html-export-to-html)))
