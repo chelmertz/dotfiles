@@ -124,6 +124,12 @@
    (split-string
     "xclip -verbose -i /tmp/org.txt -t text/plain -selection clipboard" " ")))
 
+(defun my-comment-dwim ()
+  (interactive)
+  (if (use-region-p)
+      (comment-or-uncomment-region (region-beginning) (region-end))
+    (comment-or-uncomment-region (line-beginning-position) (line-end-position))))
+
 
 (setq doom-leader-key ","
       doom-localleader-key ",")
@@ -133,6 +139,7 @@
 (map! :leader "w" 'kill-buffer-and-window)
 (map! :leader "m" '(lambda() (interactive) (org-capture nil "j")))
 (map! :leader "a" 'org-agenda)
+(map! :leader "(" 'my-comment-dwim)
 (map! :map org-mode-map :leader "h" 'export-html-and-open)
 (map! :map org-mode-map :leader "t" 'org-to-plaintext-to-clipboard)
 (map! :map org-mode-map :leader "c i" 'org-clock-in)
