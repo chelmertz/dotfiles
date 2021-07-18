@@ -183,7 +183,8 @@ mode "fkey" {
 
 bindsym $mod+m mode "fkey"; exec notify-send "fkey mode on (mod + m)"
 
-bindsym F1 exec /home/ch/bin/ror.py Emacs "/home/ch/.emacs.d/bin/doom run"; workspace number $ws1
+bindsym F1 exec /home/ch/bin/ror.py Emacs "/home/ch/.emacs.d/bin/doom run" && workspace number $ws1
+#bindsym F1 exec /home/ch/bin/ror.py Code /usr/bin/code; workspace number $ws1
 bindsym F2 exec /home/ch/bin/ror.py Google-chrome /opt/google/chrome/chrome; workspace number $ws2
 bindsym F3 workspace number $ws3
 bindsym F4 workspace number $ws4
