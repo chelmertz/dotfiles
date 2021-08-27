@@ -5,3 +5,5 @@ set smartcase
 
 vnoremap < <gv
 vnoremap > >gv
+
+nnoremap ,w :tabclose<cr>
