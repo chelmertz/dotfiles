@@ -152,5 +152,13 @@
 ; see https://github.com/hlissner/doom-emacs/issues/3172
 (add-hook 'org-mode-hook (lambda () (electric-indent-local-mode -1)))
 
+
+; see https://joy.pm/post/2017-09-17-a_graphviz_primer/
+(defun my/fix-inline-images ()
+  (when org-inline-image-overlays
+    (org-redisplay-inline-images)))
+
+(add-hook 'org-babel-after-execute-hook 'my/fix-inline-images)
+
 ; at work, Dockerfile-x is a common naming scheme
 (add-to-list 'auto-mode-alist '("Dockerfile.*" . dockerfile-mode))
