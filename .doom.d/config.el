@@ -147,6 +147,7 @@
 (map! :map org-mode-map :leader "c o" 'org-clock-out)
 (map! :leader "+" 'doom/increase-font-size)
 (map! :leader "-" 'doom/decrease-font-size)
+(map! :leader "." '+default/search-project)
 
 
 ; see https://github.com/hlissner/doom-emacs/issues/3172
