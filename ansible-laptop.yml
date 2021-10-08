@@ -90,14 +90,6 @@
       apt:
         name: yad
 
-    - name: bitwarden-cli
-      snap:
-        name: bw
-
-    - name: keyutils (provides keyctl, needed for bitwarden cli rofi)
-      apt:
-        name: keyutils
-
     - name: font awesome
       apt:
         name: fonts-font-awesome
@@ -408,11 +400,18 @@
     - name: fd (find with good performance and smarter syntax)
       shell: cargo install fd-find
 
+    # install the native bitwarden client instead of the (broken) one in snap
     - name: bitwarden-rofi
       git:
         repo: https://github.com/mattydebie/bitwarden-rofi.git
         version: master
         dest: ~/code/github/mattydebie/bitwarden-rofi
+
+    - name: Symlink bwmenu (bitwarden cli) into something on $PATH
+      file:
+        src: ~/code/github/mattydebie/bitwarden-rofi/bwmenu
+        dest: ~/bin/bwmenu
+        state: link
 
     - name: uni (unicode tool for identifying/searching, used in rofi-binding)
       shell: go get arp242.net/uni

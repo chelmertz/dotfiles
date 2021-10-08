@@ -103,9 +103,9 @@ for_window [class="Spotify"] move to workspace $ws10
 
 for_window [instance="gedit"] floating enable;
 for_window [instance="gedit"] move scratchpad; [instance="gedit"] scratchpad show; move position center; move scratchpad
-bindsym Pause [instance="gedit"] scratchpad show, resize set 1200 650
+bindsym Pause exec bwmenu
 # "+" key on the far right
-bindsym KP_Add scratchpad show, resize set 1200 650
+bindsym KP_Add [instance="gedit"] scratchpad show, resize set 1200 650
 
 # Microsoft teams' notifications should float
 # see https://i3wm.org/docs/userguide.html#command_criteria
@@ -260,4 +260,6 @@ exec_always --no-startup-id feh --no-fehbg --bg-scale ~/Dropbox/desktop_bg.jpg
 exec --no-startup-id autorandr -l $(autorandr --detected)
 # turn on num look on boot
 exec --no-startup-id xdotool key --clearmodifiers Num_Lock
-exec --no-startup-id gedit # for scratchpad
+
+exec --no-startup-id gedit ~/scratchpad.txt # for scratchpad
+
