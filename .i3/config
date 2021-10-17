@@ -103,7 +103,7 @@ for_window [class="Spotify"] move to workspace $ws10
 
 for_window [instance="gedit"] floating enable;
 for_window [instance="gedit"] move scratchpad; [instance="gedit"] scratchpad show; move position center; move scratchpad
-bindsym Pause exec bwmenu
+bindsym Pause exec bwmenu --auto-lock -1 --clear 20
 # "+" key on the far right
 bindsym KP_Add [instance="gedit"] scratchpad show, resize set 1200 650
 
