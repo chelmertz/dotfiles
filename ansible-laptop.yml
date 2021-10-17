@@ -17,6 +17,10 @@
       apt:
         name: meld
 
+    - name: fzf (fuzzy picker/list thing, kind of like rofi in the terminal)
+      apt:
+        name: fzf
+
     - name: git (latest version)
       apt_repository:
         repo: ppa:git-core/ppa
@@ -25,6 +29,16 @@
       apt:
         update_cache: yes
         name: git
+
+    - name: gdu ppa (du/ncdu alternative)
+      apt_repository:
+        repo: ppa:daniel-milde/gdu
+        codename: focal # groovy (20.10) is not yet supported
+
+    - name: gdu (du/ncdu alternative)
+      apt:
+        update_cache: yes
+        name: gdu
 
     - name: emacs repo
       apt_repository:
@@ -68,6 +82,11 @@
     - name: ripgrep
       snap:
         name: ripgrep
+        classic: yes
+
+    - name: slack
+      snap:
+        name: slack
         classic: yes
 
     - name: cheese (record photo/video with webcam)
@@ -289,13 +308,45 @@
       apt:
         name: amqp-tools
 
+    - name: ncdu (interactive & visual alternative to du)
+      apt:
+        name: ncdu
+
+    - name: postgresql-devel (needed for pgcli)
+      apt:
+        name: libpq-dev
+
+    - name: nmap
+      apt:
+        name: nmap
+
+    - name: pandoc & markdown-to-pdf (yes, my cv is so original)
+      apt:
+        pkg:
+          - pandoc
+          - texlive-latex-recommended
+
+    - name: graphviz (dot et al.)
+      apt:
+        name: graphviz
+
 # as user
 - hosts: localhost
   tasks:
 
-    - name: python formatting
+    - name: black (python formatting)
       pip:
         name: black
+        extra_args: --user
+
+    - name: pgcli (more autocompleting (suggestions & joins) & colors than psql)
+      pip:
+        name: pgcli
+        extra_args: --user
+
+    - name: git-filter-repo (rewriting git repo history, useful when extracting parts of repo to new repo)
+      pip:
+        name: git-filter-repo
         extra_args: --user
 
     - name: Symlink dotfiles, since you modify it so much..
@@ -400,6 +451,12 @@
     - name: fd (find with good performance and smarter syntax)
       shell: cargo install fd-find
 
+    - name: atuin (ctrl+r and history replacement)
+      shell: cargo install --git https://github.com/ellie/atuin.git --rev 0b9dc6696be # fuzzy search is HEAD now but not yet tagged, I want it!
+
+    - name: xsv (cli util for dealing with csv)
+      shell: cargo install xsv
+
     # install the native bitwarden client instead of the (broken) one in snap
     - name: bitwarden-rofi
       git:
@@ -424,4 +481,3 @@
 
     - name: bash format
       shell: GO111MODULE=on go get mvdan.cc/sh/v3/cmd/shfmt
-
