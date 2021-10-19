@@ -451,9 +451,6 @@
     - name: fd (find with good performance and smarter syntax)
       shell: cargo install fd-find
 
-    - name: atuin (ctrl+r and history replacement)
-      shell: cargo install --git https://github.com/ellie/atuin.git --rev 0b9dc6696be # fuzzy search is HEAD now but not yet tagged, I want it!
-
     - name: xsv (cli util for dealing with csv)
       shell: cargo install xsv
 

@@ -194,8 +194,6 @@ test -f ~/.bashrc-local && source ~/.bashrc-local
 # lower the initial keypress delay:
 xset r rate 200 25
 
-[ -f ~/.fzf.bash ] && source ~/.fzf.bash
-
 [ -f ~/code/github/rupa/z/z.sh ] && source ~/code/github/rupa/z/z.sh
 
 # OPAM configuration
@@ -203,5 +201,6 @@ xset r rate 200 25
 
 source "$HOME/.cargo/env"
 
-[[ -f ~/.bash-preexec.sh ]] && source ~/.bash-preexec.sh
-eval "$(atuin init bash)"
+
+source /usr/share/doc/fzf/examples/key-bindings.bash
+source /usr/share/doc/fzf/examples/completion.bash
