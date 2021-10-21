@@ -457,13 +457,13 @@
     # install the native bitwarden client instead of the (broken) one in snap
     - name: bitwarden-rofi
       git:
-        repo: https://github.com/mattydebie/bitwarden-rofi.git
+        repo: https://github.com/chelmertz/bitwarden-rofi.git
         version: master
-        dest: ~/code/github/mattydebie/bitwarden-rofi
+        dest: ~/code/github/chelmertz/bitwarden-rofi
 
     - name: Symlink bwmenu (bitwarden cli) into something on $PATH
       file:
-        src: ~/code/github/mattydebie/bitwarden-rofi/bwmenu
+        src: ~/code/github/chelmertz/bitwarden-rofi/bwmenu
         dest: ~/bin/bwmenu
         state: link
 
