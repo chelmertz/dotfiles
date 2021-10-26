@@ -3,10 +3,16 @@
 set -euo pipefail
 
 if [ -z "$@" ]; then
-    printf "gnome-control-center\npavucontrol"
+    printf "autorandr\ngnome-control-center\npavucontrol\narandr"
 else
     case $1 in
-        gnome-control-center | pavucontrol)
+        autorandr)
+            det=$(autorandr | grep detected)
+            if [ $? -eq 0 ]; then
+                coproc (autorandr -l $(echo "$det" | cut -d ' ' -f1))
+            fi
+            ;;
+        gnome-control-center | pavucontrol | arandr)
             # see https://github.com/davatorium/rofi/issues/857
             # for hint about coproc
             coproc ("$1")
