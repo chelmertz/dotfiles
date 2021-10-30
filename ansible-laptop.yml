@@ -500,3 +500,11 @@
       args:
         chdir: ~/code/github/joehillen/sysz
     # end sysz
+
+    # fzf-docker
+    - name: "fzf-docker: git"
+      git:
+        repo: https://github.com/chelmertz/fzf-docker.git
+        version: master
+        dest: ~/code/github/chelmertz/fzf-docker
+    # end fzf-docker
