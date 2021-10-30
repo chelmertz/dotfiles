@@ -487,3 +487,16 @@
       args:
         chdir: ~/code/github/junegunn/fzf
     # end fzf
+
+    # start sysz (tui with fuzzy matching for systemd interfaces, systemctl and journalctl)
+    - name: "sysz: git"
+      git:
+        repo: https://github.com/joehillen/sysz.git
+        version: master
+        dest: ~/code/github/joehillen/sysz
+
+    - name: "sysz: build & install"
+      shell: make && install -m755 sysz ~/bin
+      args:
+        chdir: ~/code/github/joehillen/sysz
+    # end sysz
