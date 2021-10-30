@@ -202,5 +202,5 @@ xset r rate 200 25
 source "$HOME/.cargo/env"
 
 
-source /usr/share/doc/fzf/examples/key-bindings.bash
-source /usr/share/doc/fzf/examples/completion.bash
+source ~/code/github/junegunn/fzf/shell/key-bindings.bash
+source ~/code/github/junegunn/fzf/shell/completion.bash

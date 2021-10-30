@@ -17,10 +17,6 @@
       apt:
         name: meld
 
-    - name: fzf (fuzzy picker/list thing, kind of like rofi in the terminal)
-      apt:
-        name: fzf
-
     - name: git (latest version)
       apt_repository:
         repo: ppa:git-core/ppa
@@ -478,3 +474,16 @@
 
     - name: bash format
       shell: GO111MODULE=on go get mvdan.cc/sh/v3/cmd/shfmt
+
+    # start fzf (fuzzy picker/list thing, kind of like rofi in the terminal)
+    - name: "fzf: git"
+      git:
+        repo: https://github.com/junegunn/fzf.git
+        version: master
+        dest: ~/code/github/junegunn/fzf
+
+    - name: "fzf: build & install"
+      shell: make && make install && mv bin/fzf ~/bin/fzf
+      args:
+        chdir: ~/code/github/junegunn/fzf
+    # end fzf
