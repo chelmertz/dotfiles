@@ -15,9 +15,19 @@ const print = (str) => {
 
   for (let i = 0; i<str.length; i++) {
     const c = str.charAt(i);
-    if (bracketsIn.includes(c)) {
-      indent++;
-      out += c + "\n";
+    const bracketsIndex = bracketsIn.indexOf(c);
+
+    if (bracketsIndex !== -1) {
+      if (i === str.length) {
+        out += c;
+      } else if(str.charAt(i+1) === bracketsOut[bracketsIndex]) {
+        // lookahead, () et al. shouldn't be split up over lines
+        out += c + str.charAt(i+1);
+        i++;
+      } else {
+        out += c + "\n";
+        indent++;
+      }
       prevNewline = true;
     } else if (bracketsOut.includes(c)) {
       indent--;
