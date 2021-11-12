@@ -47,6 +47,15 @@ def main():
     subprocess.check_output(["git", "tag", "-a", new_version, "-F", "-"], input=changes)
     subprocess.run(["git", "show", new_version])
 
+    print(
+        "\nWrite 'push' to push new tag to remote 'origin', anything else or ctrl+c to abort"
+    )
+    maybe_push = input("--> ")
+    if maybe_push == "push":
+        subprocess.check_output(["git", "push", "origin", new_version])
+    else:
+        print(f"OK, not pushing. You may run this later: git push origin {new_version}")
+
 
 if __name__ == "__main__":
     main()
