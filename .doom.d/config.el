@@ -90,7 +90,7 @@
 (setq confirm-kill-emacs nil)
 (after! org
   (setq org-adapt-indentation nil
-        org-links-descriptive nil
+        org-link-descriptive nil
         org-html-doctype "html5"
         org-return-follows-link t
         org-startup-indented nil
