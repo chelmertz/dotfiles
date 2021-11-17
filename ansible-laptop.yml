@@ -326,6 +326,11 @@
       apt:
         name: graphviz
 
+- hosts: localhost
+  # requires $ ansible-galaxy install staticdev.signal
+  roles:
+    - role: staticdev.signal
+
 # as user
 - hosts: localhost
   tasks:
