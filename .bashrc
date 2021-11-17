@@ -149,8 +149,8 @@ __git_complete gls _git_log
 __git_complete gd _git_diff
 __git_complete gb _git_branch
 
-EDITOR="emacsclient -tc"
-VISUAL="emacsclient -tc"
+EDITOR="nvim"
+VISUAL="nvim"
 PATH=~/.cabal/bin:/usr/java/jdk1.8.0_121/jre/bin:${PATH}:~/bin:/usr/local/go/bin:~/.local/bin:~/go/bin:~/.emacs.d/bin
 TZ='Europe/Stockholm'
 XDG_CONFIG_HOME=~/.config
