@@ -34,3 +34,9 @@
 	path = ~/code/github/chelmertz/dotfiles/work.gitconfig
 [help]
 	autocorrect = 1
+[branch]
+	autoSetupMerge = always
+[init]
+	defaultBranch = main
+[github]
+	user = chelmertz
