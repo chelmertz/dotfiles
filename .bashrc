@@ -122,6 +122,7 @@ alias gp="git pull"
 alias l="ls --group-directories-first -alhX --hyperlink=auto"
 # order by time modified
 alias ll="ls --group-directories-first -alhXtr --hyperlink=auto"
+alias l1="ls -1"
 alias less='less -i' # smart case search (case insensitive unless uppercase is input)
 
 alias cds="cd ~/code"
