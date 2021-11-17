@@ -129,6 +129,8 @@ alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
 alias rg="ripgrep.rg"
 alias x="xdg-open"
+alias bat="bat"
+#alias bat="bat --theme=Coldark-Cold" #useful when terminal bg is light
 batt() {
   fd "$*" | xargs bat
 }

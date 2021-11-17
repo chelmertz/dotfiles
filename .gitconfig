@@ -20,7 +20,7 @@
 [core]
 	excludesfile = ~/.gitignore_global
 	# GIT_PAGER=less git diff, if you want to opt out
-	pager = delta
+	pager = delta --dark --navigate
 [interactive]
 	diffFilter = delta --color-only
 [delta]
