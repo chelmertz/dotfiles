@@ -471,6 +471,9 @@
     - name: uni (unicode tool for identifying/searching, used in rofi-binding)
       shell: go get arp242.net/uni
 
+    - name: lazydocker (tui for managing docker)
+      shell: go get github.com/jesseduffield/lazydocker
+
     - name: gopls (golang language server)
       shell: GO111MODULE=on go get golang.org/x/tools/gopls@latest
 
