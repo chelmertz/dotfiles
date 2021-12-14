@@ -362,12 +362,6 @@
         name: git-filter-repo
         extra_args: --user
 
-    - name: Symlink dotfiles, since you modify it so much..
-      file:
-        src: ~/code/github/chelmertz/dotfiles
-        dest: ~/dotfiles
-        state: link
-
     - name: Symlink dotfiles/bin to ~/bin
       file:
         src: ~/code/github/chelmertz/dotfiles/bin
