@@ -165,6 +165,10 @@
       apt:
         name: pv
 
+    - name: i3
+      apt:
+        name: i3
+
     - name: i3blocks
       apt:
         name: i3blocks
@@ -251,6 +255,7 @@
         name: sqlite3
 
     - name: node-gyp (enables bindings for nodejs)
+      when: "'eta' in inventory_hostname"
       apt:
         name: node-gyp
 
@@ -261,6 +266,7 @@
           - openjdk-11-jdk-headless # for `jps`
 
     - name: psql etc
+      when: "'eta' in inventory_hostname"
       apt:
         name: postgresql-client-12
 
@@ -301,6 +307,7 @@
         name: tidy
 
     - name: amqp-tools (amqp-publish etc that lets you publish to rabbitmq)
+      when: "'eta' in inventory_hostname"
       apt:
         name: amqp-tools
 
@@ -326,6 +333,10 @@
       apt:
         name: graphviz
 
+    - name: cargo (rust package manager)
+      apt:
+        name: cargo
+
 - hosts: localhost
   # requires $ ansible-galaxy install staticdev.signal
   roles:
@@ -341,6 +352,7 @@
         extra_args: --user
 
     - name: pgcli (more autocompleting (suggestions & joins) & colors than psql)
+      when: "'eta' in inventory_hostname"
       pip:
         name: pgcli
         extra_args: --user
@@ -380,10 +392,22 @@
         dest: ~/.gitconfig
         state: link
 
+    - name: Global gitconfig file (includeIf handles work stuff)
+      file:
+        src: ~/dotfiles/.gitconfig
+        dest: ~/.gitconfig
+        state: link
+
     - name: i3blocks, status bar for i3
       file:
         src: ~/dotfiles/.i3blocks.conf
         dest: ~/.i3blocks.conf
+        state: link
+
+    - name: Symlink i3 settings
+      file:
+        src: ~/dotfiles/.i3/config
+        dest: ~/.config/i3/config
         state: link
 
     - name: rofi-blah-blah (snippet manager)
@@ -466,6 +490,12 @@
       file:
         src: ~/code/github/chelmertz/bitwarden-rofi/bwmenu
         dest: ~/bin/bwmenu
+        state: link
+
+    - name: Symlink Xresources
+      file:
+        src: ~/code/github/chelmertz/dotfiles/.Xresources
+        dest: ~/.Xresources
         state: link
 
     - name: uni (unicode tool for identifying/searching, used in rofi-binding)
