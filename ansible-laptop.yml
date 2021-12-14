@@ -448,7 +448,7 @@
         dest: ~/code/github/dunst-project/dunst
 
     - name: Build and install dunstify
-      shell: which dunstify || make dunstify && cp -f dunstify ~/bin/dunstify
+      shell: which dunstify || (make dunstify && cp -f dunstify ~/bin/dunstify)
       args:
         chdir: ~/code/github/dunst-project/dunst
 
