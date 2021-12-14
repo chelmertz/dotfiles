@@ -144,12 +144,10 @@ workspace $ws10 output $monitor_secondary
 bindsym Shift+section exec rofi -sidebar-mode -show ssh -matching fuzzy -modi "ssh"
 bindsym section exec i3-sensible-terminal
 bindsym Scroll_Lock exec ~/bin/rofi.sh
-# my new laptop has a button I'm not gonna use for its intended purpose:
-bindsym XF86Calculator exec ~/bin/rofi.sh
 bindsym $mod+u exec ~/bin/rofi_uni.sh
 bindsym $mod+p exec ~/bin/rofi_power.sh
 bindsym $mod+t exec ~/bin/rofi_timer.sh
-bindsym $mod+space exec ~/bin/rofi_surfraw.sh
+bindsym $mod+space exec ~/bin/rofi.sh
 
 #bindsym Shift+F4 exec /home/ch/code/gitlab/chelmertz/focus_trigger/focus-trigger.py
 bindsym Print exec flameshot gui
