@@ -151,7 +151,7 @@ __git_complete gb _git_branch
 
 EDITOR="nvim"
 VISUAL="nvim"
-PATH=~/.cabal/bin:/usr/java/jdk1.8.0_121/jre/bin:${PATH}:~/bin:/usr/local/go/bin:~/.local/bin:~/go/bin:~/.emacs.d/bin
+PATH=~/.cabal/bin:/usr/java/jdk1.8.0_121/jre/bin:${PATH}:~/bin:/usr/local/go/bin:~/.local/bin:~/go/bin:~/.emacs.d/bin:~/.cargo/bin
 TZ='Europe/Stockholm'
 XDG_CONFIG_HOME=~/.config
 export EDITOR VISUAL PATH TZ XDG_CONFIG_HOME
@@ -201,9 +201,6 @@ xset r rate 200 25
 
 # OPAM configuration
 . ~/.opam/opam-init/init.sh >/dev/null 2>/dev/null || true
-
-source "$HOME/.cargo/env"
-
 
 source ~/code/github/junegunn/fzf/shell/key-bindings.bash
 source ~/code/github/junegunn/fzf/shell/completion.bash
