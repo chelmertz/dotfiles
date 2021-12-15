@@ -1,1 +1,3 @@
 Xft.dpi: 141
+rofi.dpi: 141
+*.dpi: 141
