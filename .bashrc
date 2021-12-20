@@ -161,6 +161,10 @@ cdt() {
   cd $(mktemp -d)
 }
 
+mk() {
+  mkdir -p "$1" && cd "$1"
+}
+
 # get only keycode and keysym when pressing a button, xev is very noisy otherwise
 key() {
   xev -event keyboard  | egrep -o 'keycode.*\)'
