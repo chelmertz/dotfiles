@@ -135,7 +135,7 @@
 (setq doom-leader-key ","
       doom-localleader-key ",")
 (map! "<f6>" 'projectile-replace)
-(map! :leader "e" (lambda() (interactive) (find-file (concat org-directory "elvaco.org"))))
+(map! :leader "e" (lambda() (interactive) (find-file (concat org-directory "matchi.org"))))
 (map! :leader "j" (lambda() (interactive) (find-file (concat org-directory "journal.org"))))
 (map! :leader "w" 'kill-buffer-and-window)
 (map! :leader "m" '(lambda() (interactive) (org-capture nil "j")))
