@@ -265,3 +265,5 @@ exec --no-startup-id gedit ~/Dropbox/scratchpad.txt
 # stop screensaver/power saving:
 exec_always killall caffeine-indicator; caffeine-indicator
 
+# rescuetime tracks program usage
+exec_always pidof rescuetime || rescuetime
