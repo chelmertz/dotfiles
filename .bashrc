@@ -208,3 +208,7 @@ xset r rate 200 25
 
 source ~/code/github/junegunn/fzf/shell/key-bindings.bash
 source ~/code/github/junegunn/fzf/shell/completion.bash
+
+#THIS MUST BE AT THE END OF THE FILE FOR SDKMAN TO WORK!!!
+export SDKMAN_DIR="$HOME/.sdkman"
+[[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
