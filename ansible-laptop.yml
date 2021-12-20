@@ -492,6 +492,12 @@
         dest: ~/.Xresources
         state: link
 
+    - name: Symlink .ideavimrc
+      file:
+        src: ~/code/github/chelmertz/dotfiles/.ideavimrc
+        dest: ~/.ideavimrc
+        state: link
+
     - name: uni (unicode tool for identifying/searching, used in rofi-binding)
       shell: go get arp242.net/uni
 
