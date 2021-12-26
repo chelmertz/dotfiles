@@ -254,7 +254,7 @@ exec_always --no-startup-id pidof copyq || copyq
 exec_always --no-startup-id setxkbmap -layout se -option caps:ctrl_modifier
 exec --no-startup-id xcape -e "Caps_Lock=Escape" -t 199
 
-exec_always --no-startup-id feh --no-fehbg --bg-scale ~/Dropbox/desktop_bg.jpg
+exec_always --no-startup-id feh --randomize --no-fehbg --bg-scale ~/Dropbox/wallpapers/*
 
 exec --no-startup-id autorandr -l $(autorandr --detected)
 # turn on num look on boot
