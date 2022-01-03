@@ -102,10 +102,7 @@
         org-capture-templates '(
                                 ("t" "TODO" entry (file "inbox.org") "* TODO %?\n:PROPERTIES:\n:CREATED: %T\n:END:\n\n  %i")
                                 ("j" "Journal" entry (file+olp+datetree "journal.org") "* %?\n:PROPERTIES:\n:CREATED: %T\n:END:\n" :jump-to-captured t)
-                                ("e" "Elvaco TODO" entry (file+headline "elvaco.org" "TODOs")
-                                 "* TODO %?\n:PROPERTIES:\n:CREATED: %T\n:END:\n\n  %i")
-                                ("r" "Elvaco retrospective" entry (file+headline "elvaco.org" "Retrospective")
-                                 "* TODO %?\n:PROPERTIES:\n:CREATED: %T\n:END:\n\n  %i")
+                                ("m" "MATCHi DS" entry (file+olp+datetree "matchi.org" "DS") "* %T %?\n  %i" :jump-to-captured t)
                                 )
         ))
 (remove-hook 'doom-first-input-hook #'evil-snipe-mode)
