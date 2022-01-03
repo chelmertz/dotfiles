@@ -7,3 +7,15 @@ vnoremap < <gv
 vnoremap > >gv
 
 nnoremap ,w :tabclose<cr>
+
+# https://github.com/JetBrains/ideavim/blob/9eeab756e401ba2c5198c4b28b1c732cddac46c2/doc/ideajoin-examples.md
+set ideajoin
+
+# sync vim marks & idea bookmarks
+set ideamarks
+
+# https://github.com/JetBrains/ideavim/wiki/%22set%22-commands there actually is decent vim support...
+set hlsearch
+set incsearch
+set ignorecase
+set smartcase
