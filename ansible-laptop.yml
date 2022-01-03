@@ -85,6 +85,10 @@
         name: slack
         classic: yes
 
+    - name: btop (htop alternative)
+      snap:
+        name: btop
+
     - name: cheese (record photo/video with webcam)
       apt:
         name: cheese
@@ -336,6 +340,10 @@
     - name: cargo (rust package manager)
       apt:
         name: cargo
+
+    - name: caffeine (keep the display/system alive and non-idle)
+      apt:
+        name: caffeine
 
 - hosts: localhost
   # requires $ ansible-galaxy install staticdev.signal
