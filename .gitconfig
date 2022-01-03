@@ -30,7 +30,7 @@
 	commit-decoration-style = bold yellow box ul
 	file-style = bold yellow ul
 	file-decoration-style = none
-[includeIf "gitdir:~/code/elvaco/"]
+[includeIf "gitdir:~/code/matchi/"]
 	path = ~/code/github/chelmertz/dotfiles/work.gitconfig
 [help]
 	autocorrect = 1
