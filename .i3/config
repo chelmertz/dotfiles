@@ -150,8 +150,12 @@ bindsym $mod+t exec ~/bin/rofi_timer.sh
 bindsym $mod+space exec ~/bin/rofi.sh
 
 #bindsym Shift+F4 exec /home/ch/code/gitlab/chelmertz/focus_trigger/focus-trigger.py
+
+# to copy the capture to clipboard: ctrl+c when viewing the image (there's some
+# help text about "enter" that doesn't work for me)
 bindsym Print exec flameshot gui
-bindsym Shift+Print exec flameshot full -p ~/Dropbox/screenshots
+# -c copies image to clipboard
+bindsym Shift+Print exec flameshot full -c -p ~/Dropbox/screenshots
 
 # switch to workspace
 bindsym $mod+1 workspace number $ws1
