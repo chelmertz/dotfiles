@@ -345,6 +345,10 @@
       apt:
         name: caffeine
 
+    - name: zsh
+      apt:
+        name: zsh
+
 - hosts: localhost
   # requires $ ansible-galaxy install staticdev.signal
   roles:
@@ -380,6 +384,12 @@
       file:
         src: ~/code/github/chelmertz/dotfiles/.bashrc
         dest: ~/.bashrc
+        state: link
+
+    - name: Symlink .zshrc
+      file:
+        src: ~/code/github/chelmertz/dotfiles/.zshrc
+        dest: ~/.zshrc
         state: link
 
     - name: Global gitignore file
@@ -448,6 +458,18 @@
         repo: https://github.com/karlicoss/grasp
         version: master
         dest: ~/code/github/karlicoss/grasp
+
+    - name: Clone powerlevel10k (zsh prompt)
+      git:
+        repo: https://github.com/romkatv/powerlevel10k
+        dest: ~/powerlevel10k
+        depth: 1
+
+    - name: Install powerlevel10k into zshrc
+      ansible.builtin.lineinfile:
+        path: ~/.zshrc
+        line: 'source ~/powerlevel10k/powerlevel10k.zsh-theme'
+        create: yes
 
     - name: Clone dunst (for dunstify)
       git:

@@ -2,56 +2,11 @@
 export HISTCONTROL=erasedups:ignorespace
 
 # append to the history file, don't overwrite it
-shopt -s histappend
+setopt APPEND_HISTORY
 
 # for setting history length see HISTSIZE and HISTFILESIZE in bash(1)
 HISTSIZE=10000
 HISTFILESIZE=20000
-
-# check the window size after each command and, if necessary,
-# update the values of LINES and COLUMNS.
-shopt -s checkwinsize
-
-# make less more friendly for non-text input files, see lesspipe(1)
-[ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
-
-[[ $- != *i* ]] && return
-_git_cur_branch() {
-	git rev-parse --abbrev-ref HEAD 2>/dev/null
-}
-[[ $'\n'${match_lhs} == *$'\n'"TERM "${safe_term}* ]] && use_color=true
-if ${use_color} ; then
-	# create a red "sad" smile if the previous command had returned an error
-	gitmark='$(_git_cur_branch)'
-	# Enable colors for ls, etc. Prefer ~/.dir_colors #64489
-	if type -P dircolors >/dev/null ; then
-		if [[ -f ~/.dir_colors ]] ; then
-			eval $(dircolors -b ~/.dir_colors)
-		elif [[ -f /etc/DIR_COLORS ]] ; then
-			eval $(dircolors -b /etc/DIR_COLORS)
-		fi
-	fi
-	if [[ ${EUID} == 0 ]] ; then
-		PS1="\[\033[01;31m\]\h\[\033[00;33m\] \W \[\033[00;31m\]$gitmark\[\033[01;34m\]\$\[\033[00m\] "
-	else
-		PS1="\[\033[01;32m\]\u @ \h\[\033[00;33m\] \w \[\033[00;31m\]$gitmark\[\033[01;34m\]\$\[\033[00m\] "
-	fi
-	alias grep="grep --colour=auto"
-else
-	# create a "sad" smile if the previous command had returned an error
-	gitmark='$(_git_cur_branch)'
-	if [[ ${EUID} == 0 ]] ; then
-		# show root@ when we do not have colors
-		PS1="\h \W $gitmark\$ "
-	else
-		PS1="\u @ \h \w $gitmark\$ "
-	fi
-fi
-PS2="> "
-PS3="> "
-PS4="+ "
-# Try to keep environment pollution down, EPA loves us.
-unset use_color safe_term match_lhs sadness
 
 # render man pages in colors
 export LESS_TERMCAP_mb=$'\e[1;32m'
@@ -61,22 +16,6 @@ export LESS_TERMCAP_se=$'\e[0m'
 export LESS_TERMCAP_so=$'\e[01;33m'
 export LESS_TERMCAP_ue=$'\e[0m'
 export LESS_TERMCAP_us=$'\e[1;4;31m'
-
-PROMPT_COMMAND='echo -ne "\033]0;Terminal - ${PWD##*/}\007"'
-
-# enable color support of ls and also add handy aliases
-if [ -x /usr/bin/dircolors ]; then
-    test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
-    alias ls='ls --color=auto'
-
-    alias grep='grep --color=auto'
-    alias fgrep='fgrep --color=auto'
-    alias egrep='egrep --color=auto'
-fi
-
-[[ $PS1 && -f /usr/share/bash-completion/bash_completion ]] && \
-    . /usr/share/bash-completion/bash_completion
-
 
 alias rm='rm -i'
 alias cp='cp -i'
@@ -123,7 +62,9 @@ alias l="ls --group-directories-first -alhX --hyperlink=auto"
 # order by time modified
 alias ll="ls --group-directories-first -alhXtr --hyperlink=auto"
 alias l1="ls -1"
-alias less='less -i' # smart case search (case insensitive unless uppercase is input)
+# -i smart case search (case insensitive unless uppercase is input)
+# -R color ascii
+alias less='less -iR'
 
 alias cds="cd ~/code"
 alias cdd="cd ~/code/github/chelmertz/dotfiles"
@@ -137,21 +78,19 @@ batt() {
 }
 
 alias docker-ps='docker ps --format "{{.Status}}\t{{.Names}}\t{{.Ports}}" -a'
-
+#
 # VLC bugs out otherwise, on my Ubuntu..
 alias vlc='vlc -V x11'
 
-. /usr/share/bash-completion/completions/git
-__git_complete gco _git_checkout
-__git_complete gl _git_log
-__git_complete glp _git_log
-__git_complete gls _git_log
-__git_complete gd _git_diff
-__git_complete gb _git_branch
+compdef g='git'
+
+# zsh on gnome-terminal doesn't support ctrl+left/right by default..?
+bindkey ";5C" forward-word
+bindkey ";5D" backward-word
 
 EDITOR="nvim"
 VISUAL="nvim"
-PATH=~/.cabal/bin:/usr/java/jdk1.8.0_121/jre/bin:${PATH}:~/bin:/usr/local/go/bin:~/.local/bin:~/go/bin:~/.emacs.d/bin:~/.cargo/bin
+PATH=${PATH}:~/bin:/usr/local/go/bin:~/.local/bin:~/go/bin:~/.emacs.d/bin:~/.cargo/bin
 TZ='Europe/Stockholm'
 XDG_CONFIG_HOME=~/.config
 export EDITOR VISUAL PATH TZ XDG_CONFIG_HOME
@@ -203,12 +142,21 @@ xset r rate 200 25
 
 [ -f ~/code/github/rupa/z/z.sh ] && source ~/code/github/rupa/z/z.sh
 
-# OPAM configuration
-. ~/.opam/opam-init/init.sh >/dev/null 2>/dev/null || true
+source ~/code/github/junegunn/fzf/shell/key-bindings.zsh
+source ~/code/github/junegunn/fzf/shell/completion.zsh
 
-source ~/code/github/junegunn/fzf/shell/key-bindings.bash
-source ~/code/github/junegunn/fzf/shell/completion.bash
+# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
+# Initialization code that may require console input (password prompts, [y/n]
+# confirmations, etc.) must go above this block; everything else may go below.
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
 
 #THIS MUST BE AT THE END OF THE FILE FOR SDKMAN TO WORK!!!
 export SDKMAN_DIR="$HOME/.sdkman"
 [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
+source ~/powerlevel10k/powerlevel10k.zsh-theme
+
+# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
+[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
