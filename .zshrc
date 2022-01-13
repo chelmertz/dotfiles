@@ -49,6 +49,7 @@ alias gco="git checkout "
 alias gdc="git diff --cached -M -w"
 alias gfa="git fetch --all"
 alias gs="git status"
+alias gr="git reflog --date=iso"
 alias glp='git log --pretty="format:%Cred%h %Cblue%d %Cgreen%s %Creset%an %ar" --graph'
 alias gls="git -c core.pager='less -p^commit.*$' log -M -w --stat --pretty=fuller --show-notes"
 alias gl="git -c core.pager='less -p^commit.*$' log -p -M -w --stat --pretty=fuller --show-notes"
