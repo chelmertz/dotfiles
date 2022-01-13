@@ -462,13 +462,24 @@
     - name: Clone powerlevel10k (zsh prompt)
       git:
         repo: https://github.com/romkatv/powerlevel10k
-        dest: ~/powerlevel10k
+        dest: ~/github/romkatv/powerlevel10k
         depth: 1
 
     - name: Install powerlevel10k into zshrc
       ansible.builtin.lineinfile:
         path: ~/.zshrc
-        line: 'source ~/powerlevel10k/powerlevel10k.zsh-theme'
+        line: 'source ~/github/romkatv/powerlevel10k/powerlevel10k.zsh-theme'
+        create: yes
+
+    - name: zsh-autosuggestions
+      git:
+        repo: https://github.com/zsh-users/zsh-autosuggestions
+        dest: ~/code/github/zsh-users/zsh-autosuggestions
+
+    - name: Install zsh-autosuggestions into zshrc
+      ansible.builtin.lineinfile:
+        path: ~/.zshrc
+        line: 'source ~/code/github/zsh-users/zsh-autosuggestions/zsh-autosuggestions.zsh'
         create: yes
 
     - name: Clone dunst (for dunstify)

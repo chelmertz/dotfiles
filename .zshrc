@@ -160,3 +160,5 @@ source ~/powerlevel10k/powerlevel10k.zsh-theme
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+source ~/github/romkatv/powerlevel10k/powerlevel10k.zsh-theme
+source ~/code/github/zsh-users/zsh-autosuggestions/zsh-autosuggestions.zsh
