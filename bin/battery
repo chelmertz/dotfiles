@@ -41,6 +41,9 @@ if ($status eq 'Discharging') {
 	$full_text .= ' DIS';
 } elsif ($status eq 'Charging') {
 	$full_text .= ' CHR';
+} elsif ($status eq 'Full') {
+	# don't print anything when full, the status quo when laptop is "stationary"
+	exit(0);
 }
 
 $short_text = $full_text;
