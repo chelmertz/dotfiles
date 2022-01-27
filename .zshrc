@@ -82,9 +82,6 @@ batt() {
 }
 
 alias docker-ps='docker ps --format "{{.Status}}\t{{.Names}}\t{{.Ports}}" -a'
-#
-# VLC bugs out otherwise, on my Ubuntu..
-alias vlc='vlc -V x11'
 
 compdef g='git'
 
