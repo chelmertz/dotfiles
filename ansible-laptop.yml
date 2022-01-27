@@ -236,6 +236,22 @@
 
     # end docker
 
+    # begin gh (github cli)
+    - name: github gpg key
+      apt_key:
+        url: https://cli.github.com/packages/githubcli-archive-keyring.gpg
+
+    - name: github apt repo
+      apt_repository:
+        repo: deb [arch=amd64] https://cli.github.com/packages stable main
+
+    - name: gh (github cli)
+      apt:
+        update_cache: yes
+        pkg:
+          - gh
+    # end gh
+
     - name: xdotool (api for X, kinda)
       apt:
         name: xdotool
