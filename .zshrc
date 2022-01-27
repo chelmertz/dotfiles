@@ -163,3 +163,6 @@ source ~/powerlevel10k/powerlevel10k.zsh-theme
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 source ~/github/romkatv/powerlevel10k/powerlevel10k.zsh-theme
 source ~/code/github/zsh-users/zsh-autosuggestions/zsh-autosuggestions.zsh
+
+source ~/code/github/chelmertz/dotfiles/zsh-scripts/_gh
+compdef _gh gh
