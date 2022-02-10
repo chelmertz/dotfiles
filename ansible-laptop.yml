@@ -383,6 +383,14 @@
         name: black
         extra_args: --user
 
+    - name: gh extension list
+      command: gh extension list
+      register: gh_extension_list
+
+    - name: gh-notify (github cli extension for notifications)
+      when: gh_extension_list.stdout.find('meiji163/gh-notify') == -1
+      shell: gh extension install meiji163/gh-notify
+
     - name: pgcli (more autocompleting (suggestions & joins) & colors than psql)
       when: "'eta' in inventory_hostname"
       pip:
