@@ -45,6 +45,7 @@ git-clone-github() {
 alias gcaa="git commit -a --amend --no-edit"
 alias gd="git diff -M -w"
 alias gdw="git diff -M -w --word-diff --color-words"
+alias gds="git diff --stat"
 alias gco="git checkout "
 alias gdc="git diff --cached -M -w"
 alias gfa="git fetch --all"
