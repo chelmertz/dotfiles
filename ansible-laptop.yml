@@ -420,6 +420,12 @@
         dest: ~/.zshrc
         state: link
 
+    - name: Symlink dunstrc (notification daemon settings)
+      file:
+        src: ~/code/github/chelmertz/dotfiles/dunst
+        dest: ~/.config/dunst
+        state: link
+
     - name: Global gitignore file
       file:
         src: ~/dotfiles/.gitignore_global
