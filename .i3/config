@@ -112,6 +112,7 @@ bindsym KP_Add [instance="gedit"] scratchpad show, resize set 1200 650
 for_window [window_type="notification"] floating enable
 
 for_window [class=".*"] title_format " %title"
+for_window [class=".*"] border pixel 1
 
 # Define names for default workspaces for which we configure key bindings later on.
 # We use variables to avoid repeating the names in multiple places.
