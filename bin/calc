@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+gnome-terminal -- python3 -q
+i3-msg floating enable
