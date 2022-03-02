@@ -40,3 +40,5 @@
 	defaultBranch = main
 [github]
 	user = chelmertz
+[url "ssh://git@github.com/"]
+	insteadOf = https://github.com/
