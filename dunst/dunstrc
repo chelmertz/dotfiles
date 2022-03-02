@@ -24,7 +24,7 @@
     # I copied the dunstrc from git's HEAD, but the version I'm currently using
     # (from ubuntu, because it handles systemd bindings), uses "geometry"
     # rather than the newer "width" directive below
-    geometry = "300x5-30+20"
+    geometry = "400x5-30+20"
 
     # dynamic width from 0 to 300
     # width = (0, 300)
@@ -81,10 +81,10 @@
     separator_height = 2
 
     # Padding between text and separator.
-    padding = 8
+    padding = 16
 
     # Horizontal padding.
-    horizontal_padding = 8
+    horizontal_padding = 12
 
     # Padding between text and icon.
     text_icon_padding = 0
@@ -304,7 +304,7 @@
     #default_icon = /path/to/icon
 
 [urgency_normal]
-    background = "#285577"
+    background = "#41484d"
     foreground = "#ffffff"
     timeout = 10
     # Icon for notifications with normal urgency, uncomment to enable
