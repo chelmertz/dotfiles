@@ -57,6 +57,9 @@ alias gl="git -c core.pager='less -p^commit.*$' log -p -M -w --stat --pretty=ful
 gll() {
   git -c core.pager='less -p^commit.*$' log -p -M -w --stat --pretty=fuller --show-notes -- $(fd $*)
 }
+glf() {
+  gl $(fd $*)
+}
 
 # create an easy target to compare/rollback to after difficult rebase/merge
 # etc and the reflog contains too many similar entries
