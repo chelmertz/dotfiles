@@ -54,6 +54,10 @@
       apt:
         name: simplescreenrecorder
 
+    - name: peek (also a screen recorder)
+      apt:
+        name: peek
+
     - name: screenkey (displays pressed buttons on screen)
       apt:
         name: screenkey
