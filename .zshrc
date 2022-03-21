@@ -6,6 +6,8 @@ setopt INC_APPEND_HISTORY_TIME # append command to history file immediately afte
 setopt EXTENDED_HISTORY # record command start time
 setopt SHARE_HISTORY # save history
 
+setopt interactive_comments # as default in bash: allows writing $ echo hello # a comment here
+
 export HISTFILE=~/.zsh_history
 export HISTSIZE=10000
 export SAVEHIST=10000
