@@ -42,3 +42,5 @@
 	user = chelmertz
 [url "ssh://git@github.com/"]
 	insteadOf = https://github.com/
+[rerere]
+	enabled = true
