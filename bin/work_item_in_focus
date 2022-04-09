@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+
+from functools import cmp_to_key
+from orgparse import load # from pypi
+
+def cmp(x, y):
+    return (x > y) - (x < y)
+
+work_file = "/home/ch/Dropbox/orgzly/matchi.org"
+org = load(work_file)
+terminal_states = set(['WONT', 'DONE'])
+
+def custom_sort(a, b):
+    if a.deadline:
+        if b.deadline:
+            return cmp(a.deadline.start, b.deadline.start)
+        else:
+            return -1
+    elif b.deadline:
+        return 1
+
+    if a.priority:
+        if b.priority:
+            return cmp(a.priority, b.priority)
+        else:
+            return -1
+    elif b.priority:
+        return 1
+
+    if a.scheduled:
+        if b.scheduled:
+            return cmp(a.scheduled.start, b.scheduled.start)
+        else:
+            return -1
+    elif b.scheduled:
+        return 1
+
+    # arbitrary but deterministic
+    return cmp(a.heading, b.heading)
+
+if __name__ == '__main__':
+    prio = sorted([n for n in org[1:]
+        if n.todo
+        and n.todo not in terminal_states
+        ], key=cmp_to_key(custom_sort), reverse=True)
+
+    if prio:
+        print(prio[0].heading)
