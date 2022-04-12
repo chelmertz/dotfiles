@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 
 from functools import cmp_to_key
-from orgparse import load # from pypi
+from orgparse import load  # from pypi
+import subprocess
+import os
+
 
 def cmp(x, y):
     return (x > y) - (x < y)
 
+
 work_file = "/home/ch/Dropbox/orgzly/matchi.org"
 org = load(work_file)
-terminal_states = set(['WONT', 'DONE'])
+terminal_states = set(["WONT", "DONE"])
+
 
 def custom_sort(a, b):
     if a.deadline:
@@ -38,11 +43,20 @@ def custom_sort(a, b):
     # arbitrary but deterministic
     return cmp(a.heading, b.heading)
 
-if __name__ == '__main__':
-    prio = sorted([n for n in org[1:]
-        if n.todo
-        and n.todo not in terminal_states
-        ], key=cmp_to_key(custom_sort), reverse=True)
+
+if __name__ == "__main__":
+    prio = sorted(
+        [n for n in org[1:] if n.todo and n.todo not in terminal_states],
+        key=cmp_to_key(custom_sort),
+    )
 
     if prio:
-        print(prio[0].heading)
+        shown = prio[0]
+        print(shown.heading)
+
+        button = os.getenv("BLOCK_BUTTON")
+        if button and int(button) == 1:
+            # open browser, Popen() opens process in background
+            subprocess.Popen(["xdg-open", shown.properties.get("URL")])
+            # focus the window
+            subprocess.Popen(["wmctrl", "-a", "Google chrome"])
