@@ -80,7 +80,17 @@ alias cds="cd ~/code"
 alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
 alias rg="ripgrep.rg"
-alias x="xdg-open"
+x() {
+case $1 in
+  http*|*html)
+    xdg-open $1
+    wmctrl -a "Google chrome"
+    ;;
+  *)
+    xdg-open $1
+    ;;
+esac
+}
 alias bat="bat"
 #alias bat="bat --theme=Coldark-Cold" #useful when terminal bg is light
 batt() {
