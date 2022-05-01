@@ -83,7 +83,7 @@ alias rg="ripgrep.rg"
 x() {
 case $1 in
   http*|*html)
-    xdg-open $1
+    xdg-open $1 2>/dev/null # Chrome outputs some error that I can't act on
     wmctrl -a "Google chrome"
     ;;
   *)
@@ -95,10 +95,6 @@ alias bat="bat"
 #alias bat="bat --theme=Coldark-Cold" #useful when terminal bg is light
 batt() {
   fd "$*" | xargs bat
-}
-
-caps_turn_off() {
-  python3 -c 'from ctypes import *; X11 = cdll.LoadLibrary("libX11.so.6"); display = X11.XOpenDisplay(None); X11.XkbLockModifiers(display, c_uint(0x0100), c_uint(2), c_uint(0)); X11.XCloseDisplay(display)'
 }
 
 alias docker-ps='docker ps --format "{{.Status}}\t{{.Names}}\t{{.Ports}}" -a'
