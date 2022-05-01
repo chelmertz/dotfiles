@@ -16,6 +16,12 @@ terminal_states = set(["WONT", "DONE"])
 
 
 def custom_sort(a, b):
+    if a.todo and a.todo == "PROGRESS":
+        if b.todo and b.todo != "PROGRESS":
+            return -1
+    elif b.todo and b.todo != "PROGRESS":
+        return 1
+
     if a.deadline:
         if b.deadline:
             return cmp(a.deadline.start, b.deadline.start)
