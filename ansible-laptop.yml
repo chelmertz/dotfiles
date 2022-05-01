@@ -576,6 +576,12 @@
         dest: ~/bin/bwmenu
         state: link
 
+    - name: Rofi config
+      file:
+        src: ~/code/github/chelmertz/dotfiles/rofi
+        dest: ~/.config/rofi
+        state: link
+
     - name: Symlink Xresources
       file:
         src: ~/code/github/chelmertz/dotfiles/.Xresources

@@ -1,2 +1,0 @@
-// symlink to ~/.config/rofi/config
-rofi.theme: /usr/share/rofi/themes/Pop-Dark.rasi
