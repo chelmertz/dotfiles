@@ -158,6 +158,7 @@ bindsym $mod+space exec ~/bin/rofi.sh
 bindsym Print exec flameshot gui
 # -c copies image to clipboard
 bindsym Shift+Print exec flameshot full -c -p ~/Dropbox/screenshots
+bindsym Ctrl+Shift+Print exec peek
 
 # switch to workspace
 bindsym $mod+1 workspace number $ws1
