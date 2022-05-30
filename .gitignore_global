@@ -51,3 +51,5 @@ tags
 
 # front end dev stuff
 .sass-cache
+
+.vscode
