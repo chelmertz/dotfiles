@@ -91,9 +91,9 @@ assign [class="Google-chrome"] $ws2
 assign [class="jetbrains-idea"] $ws3
 assign [class="jetbrains-toolbox"] $ws10
 assign [class="Slack"] $ws9
-assign [class="Emacs"] $ws1
+assign [class="Emacs"] $ws4
 # generic name for Visual Studio Code
-assign [class="Code"] $ws4
+assign [class="Code"] $ws1
 for_window [class="Microsoft Teams - Preview"] move to workspace $ws10
 for_window [class="Yad"] floating enable
 # xev, getting keycodes etc
@@ -188,10 +188,10 @@ mode "fkey" {
 
 bindsym $mod+m mode "fkey"; exec notify-send "fkey mode on (mod + m)"
 
-bindsym F1 exec /home/ch/bin/ror.py Emacs "/home/ch/.emacs.d/bin/doom run" && workspace number $ws1
+bindsym F1 exec /home/ch/bin/ror.py Code /usr/bin/code; workspace number $ws1
 bindsym F2 exec /home/ch/bin/ror.py Google-chrome /opt/google/chrome/chrome; workspace number $ws2
 bindsym F3 workspace number $ws3
-bindsym F4 exec /home/ch/bin/ror.py Code /usr/bin/code; workspace number $ws4
+bindsym F4 exec /home/ch/bin/ror.py Emacs "/home/ch/.emacs.d/bin/doom run" && workspace number $ws4
 bindsym F5 workspace number $ws5
 bindsym F6 workspace number $ws6
 bindsym F7 workspace number $ws7
