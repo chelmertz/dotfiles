@@ -398,6 +398,11 @@
         name: black
         extra_args: --user
 
+    - name: litecli (sqlite alternative cli)
+      pip:
+        name: litecli
+        extra_args: --user
+
     - name: gh extension list
       command: gh extension list
       register: gh_extension_list
@@ -410,6 +415,11 @@
       when: "'eta' in inventory_hostname"
       pip:
         name: pgcli
+        extra_args: --user
+
+    - name: i3pystatus
+      pip:
+        name: git+https://github.com/enkore/i3pystatus.git
         extra_args: --user
 
     - name: git-filter-repo (rewriting git repo history, useful when extracting parts of repo to new repo)
@@ -548,19 +558,39 @@
         version: master
         dest: ~/code/github/nkoehring/rofiemoji
 
+    - name: check dust version
+      command: dust --version
+      register: dust_version
+
     - name: dust (rust version of du -sh, easier to parse)
+      when: dust_version.rc != 0
       shell: cargo install du-dust
 
     - name: git-delta ("better", contextual diff, see https://github.com/dandavison/delta)
       shell: cargo install git-delta
 
+    - name: check bat version
+      command: bat --version
+      register: bat_version
+
     - name: bat (cat with colors)
+      when: bat_version.rc != 0
       shell: cargo install bat
 
+    - name: fd version
+      command: fd --version
+      register: fd_version
+
     - name: fd (find with good performance and smarter syntax)
+      when: fd_version.rc != 0
       shell: cargo install fd-find
 
+    - name: xsv version
+      command: xsv --version
+      register: xsv_version
+
     - name: xsv (cli util for dealing with csv)
+      when: xsv_version.rc != 0
       shell: cargo install xsv
 
     # install the native bitwarden client instead of the (broken) one in snap
@@ -595,19 +625,19 @@
         state: link
 
     - name: uni (unicode tool for identifying/searching, used in rofi-binding)
-      shell: go get arp242.net/uni
+      shell: go install arp242.net/uni@v1.1.1
 
     - name: lazydocker (tui for managing docker)
-      shell: go get github.com/jesseduffield/lazydocker
+      shell: go install github.com/jesseduffield/lazydocker@v0.18.1
 
     - name: gopls (golang language server)
-      shell: GO111MODULE=on go get golang.org/x/tools/gopls@latest
+      shell: GO111MODULE=on go install golang.org/x/tools/gopls@latest
 
     - name: custom search engines for surfraw
       shell: mkdir -p ~/.config/surfraw/ && ln -sf ~/dotfiles/bookmarks ~/.config/surfraw/bookmarks
 
     - name: bash format
-      shell: GO111MODULE=on go get mvdan.cc/sh/v3/cmd/shfmt
+      shell: GO111MODULE=on go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.1
 
     # start fzf (fuzzy picker/list thing, kind of like rofi in the terminal)
     - name: "fzf: git"
@@ -642,3 +672,11 @@
         version: master
         dest: ~/code/github/chelmertz/fzf-docker
     # end fzf-docker
+
+    - name: fx version
+      command: fx --version
+      register: fx_version
+
+    - name: fx (interactive json explorer for cli)
+      when: fx_version.rc != 0
+      shell: go install github.com/antonmedv/fx@latest
