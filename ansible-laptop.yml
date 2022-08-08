@@ -411,6 +411,11 @@
         name: litecli
         extra_args: --user
 
+    - name: orgparse (parsing org mode in python, used in a i3blocks block for _currently working on_)
+      pip:
+        name: orgparse
+        extra_args: --user
+
     - name: gh extension list
       command: gh extension list
       register: gh_extension_list
