@@ -101,10 +101,11 @@ for_window [title="Event Tester"] floating enable
 # cannot use assign, see https://github.com/i3/i3/issues/2060 (prob the same above, for Teams)
 for_window [class="Spotify"] move to workspace $ws10
 
-for_window [instance="gedit"] floating enable;
-for_window [instance="gedit"] move scratchpad; [instance="gedit"] scratchpad show; move position center; move scratchpad
 # bitwarden through rofi
 bindsym Pause exec bwmenu --auto-lock -1 --clear 60
+
+for_window [instance="gedit"] floating enable;
+for_window [instance="gedit"] move scratchpad; [instance="gedit"] scratchpad show; move position center; move scratchpad
 # "+" key on the far right, on the larger (external) keyboard
 bindsym KP_Add [instance="gedit"] scratchpad show, resize set 1200 650
 bindsym Insert [instance="gedit"] scratchpad show, resize set 1200 650
