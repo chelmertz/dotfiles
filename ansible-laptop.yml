@@ -637,6 +637,9 @@
         dest: ~/.ideavimrc
         state: link
 
+    - name: serve (http server to quickly serve a directory)
+      shell: go install github.com/chelmertz/serve@latest
+
     - name: uni (unicode tool for identifying/searching, used in rofi-binding)
       shell: go install arp242.net/uni@v1.1.1
 
