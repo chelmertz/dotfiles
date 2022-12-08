@@ -16,10 +16,10 @@ terminal_states = set(["WONT", "DONE"])
 
 
 def custom_sort(a, b):
-    if a.todo and a.todo == "PROGRESS":
-        if b.todo and b.todo != "PROGRESS":
+    if a.todo == "PROGRESS":
+        if b.todo != "PROGRESS":
             return -1
-    elif b.todo and b.todo != "PROGRESS":
+    elif b.todo == "PROGRESS":
         return 1
 
     if a.deadline:
@@ -61,8 +61,18 @@ if __name__ == "__main__":
         print(shown.heading)
 
         button = os.getenv("BLOCK_BUTTON")
-        if button and int(button) == 1:
-            # open browser, Popen() opens process in background
-            subprocess.Popen(["xdg-open", shown.properties.get("URL")])
-            # focus the window
-            subprocess.Popen(["wmctrl", "-a", "Google chrome"])
+        if button:
+            if int(button) == 1:
+                subprocess.Popen(["xdg-open", shown.properties.get("URL")])
+                # focus the window
+                subprocess.Popen(["wmctrl", "-a", "Google chrome"])
+
+            elif int(button) == 3:
+                proc = subprocess.Popen(
+                    ["/home/ch/bin/ror.py", "Emacs", "/home/ch/.emacs.d/bin/doom run"]
+                )
+                proc.wait()
+                subprocess.check_call(
+                    ["emacsclient", f"+{shown.linenumber}", work_file]
+                )
+                subprocess.Popen(["i3-msg", "workspace number 1"])
