@@ -105,8 +105,8 @@ compdef g='git'
 bindkey ";5C" forward-word
 bindkey ";5D" backward-word
 
-EDITOR="nvim"
-VISUAL="nvim"
+EDITOR="vim"
+VISUAL="vim"
 PATH=${PATH}:~/bin:/usr/local/go/bin:~/.local/bin:~/go/bin:~/.emacs.d/bin:~/.cargo/bin
 TZ='Europe/Stockholm'
 XDG_CONFIG_HOME=~/.config
