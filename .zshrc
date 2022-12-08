@@ -44,14 +44,14 @@ git-clone-github() {
   git clone "$clone_url" "$target_dir"
   cd "$target_dir"
 }
-alias gcaa="git commit -a --amend --no-edit"
+alias gcaa="git commit -a --amend --no-edit --date=now"
 alias gd="git diff -M -w"
 alias gdw="git diff -M -w --word-diff --color-words"
 alias gds="git diff --stat"
 alias gco="git checkout "
 alias gdc="git diff --cached -M -w"
 alias gfa="git fetch --all"
-alias gs="git status"
+alias gs="git status --short"
 alias gr="git reflog --date=iso"
 alias glp='git log --pretty="format:%Cred%h %Cblue%d %Cgreen%s %Creset%an %ar" --graph'
 alias gls="git -c core.pager='less -p^commit.*$' log -M -w --stat --pretty=fuller --show-notes"
