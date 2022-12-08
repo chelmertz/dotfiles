@@ -392,6 +392,10 @@
       apt:
         name: visidata
 
+    - name: keyutils (for keyctl, needed in bwmenu (bitwarden cli for rofi))
+      apt:
+        name: keyutils
+
 - hosts: localhost
   # requires $ ansible-galaxy install staticdev.signal
   roles:
@@ -606,7 +610,7 @@
       when: xsv_version.rc != 0
       shell: cargo install xsv
 
-    # install the native bitwarden client instead of the (broken) one in snap
+    # this depends on the native bitwarden client (install it manually first, instead of the (broken) one in snap), then "bw login"
     - name: bitwarden-rofi
       git:
         repo: https://github.com/chelmertz/bitwarden-rofi.git
