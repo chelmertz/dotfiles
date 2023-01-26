@@ -50,5 +50,6 @@
         "!Split sequence"
     ],
     "window.zoomLevel": 1,
-    "workbench.editor.revealIfOpen": true
+    "workbench.editor.revealIfOpen": true,
+    "terminal.integrated.scrollback": 100000
 }
