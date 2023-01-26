@@ -30,7 +30,10 @@ const print = (str) => {
       }
       prevNewline = true;
     } else if (bracketsOut.includes(c)) {
-      indent--;
+      if (indent > 0) {
+        // input might be unbalanced
+        indent--;
+      }
       out += "\n" + ind(indent) + c;
       prevNewline = true;
     } else if (c === ',') {
