@@ -6,6 +6,7 @@
 [diff]
 	tool = meld
 	algorithm = patience
+	external = difft
 [merge]
 	tool = meld
 [rebase]
@@ -14,13 +15,14 @@
 	ui = auto
 [push]
 	default = current
+	autoSetupRemote = true
 [log]
 	decorate = true
 	date = human
 [core]
 	excludesfile = ~/.gitignore_global
 	# GIT_PAGER=less git diff, if you want to opt out
-	pager = delta --dark --navigate
+	#pager = delta --dark --navigate
 [interactive]
 	diffFilter = delta --color-only
 [delta]
