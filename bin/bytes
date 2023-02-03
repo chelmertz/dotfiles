@@ -1,0 +1,3 @@
+#!/bin/sh
+
+numfmt --to=iec --format='%.2fB' $1
