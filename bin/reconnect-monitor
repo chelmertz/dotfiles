@@ -1,0 +1,5 @@
+#!/bin/sh
+
+#per https://askubuntu.com/questions/1333688/how-to-get-external-monitor-to-reconnect-after-sleep-or-power-off
+
+xset dpms force on; sleep 2; xset dpms force off
