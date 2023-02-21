@@ -18,7 +18,7 @@
     "json.schemas": [],
     "redhat.telemetry.enabled": true,
     "sqltools.useNodeRuntime": true,
-    "workbench.colorTheme": "Visual Studio Dark",
+    "workbench.colorTheme": "Default Light+",
     "workbench.iconTheme": "material-icon-theme",
     "yaml.customTags": [
         "!And",
@@ -49,7 +49,21 @@
         "!Split",
         "!Split sequence"
     ],
-    "window.zoomLevel": 1,
     "workbench.editor.revealIfOpen": true,
-    "terminal.integrated.scrollback": 100000
+    "terminal.integrated.scrollback": 100000,
+    "[python]": {
+        "editor.formatOnType": true
+    },
+    "window.zoomLevel": 1,
+    "vim.useCtrlKeys": true,
+    "vim.normalModeKeyBindingsNonRecursive": [
+        {
+            "before": ["u"],
+            "commands": ["undo"]
+        },
+        {
+            "before": ["<C-r>"],
+            "commands": ["redo"]
+        }
+    ]
 }
