@@ -54,7 +54,6 @@
     "[python]": {
         "editor.formatOnType": true
     },
-    "window.zoomLevel": 1,
     "vim.useCtrlKeys": true,
     "vim.normalModeKeyBindingsNonRecursive": [
         {
@@ -65,5 +64,7 @@
             "before": ["<C-r>"],
             "commands": ["redo"]
         }
-    ]
+    ],
+    "editor.inlineSuggest.enabled": true,
+    "window.zoomLevel": 1
 }
