@@ -23,8 +23,8 @@
 	excludesfile = ~/.gitignore_global
 	# GIT_PAGER=less git diff, if you want to opt out
 	#pager = delta --dark --navigate
-[interactive]
-	diffFilter = delta --color-only
+#[interactive]
+#	diffFilter = delta --color-only
 [delta]
 	features = side-by-side line-numbers decorations
 	whitespace-error-style = 22 reverse
