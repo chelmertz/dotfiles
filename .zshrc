@@ -139,7 +139,7 @@ unz() {
     cd "$tmpdir"
     mv "$cwd/$archive" "$tmpdir"
     case "$archive" in
-      *.tar.gz|*.tar)
+      *.tar.gz|*.tar|*.tgz)
         tar -xf "$archive";;
       *.zip)
         unzip -q "$archive";;
