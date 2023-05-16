@@ -1,4 +1,4 @@
-#!/usr/bin/env nodejs
+#!/usr/bin/env node
 const {exec} = require('child_process');
 
 const ind = (level) => "  ".repeat(level);
