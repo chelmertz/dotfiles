@@ -6,6 +6,7 @@
 [diff]
 	tool = meld
 	algorithm = patience
+	# git diff --no-ext-diff, if you want to opt out
 	external = difft
 [merge]
 	tool = meld
