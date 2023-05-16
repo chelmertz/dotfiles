@@ -156,6 +156,9 @@ test -f ~/.shrc-local && source ~/.shrc-local
 # `xset q` for viewing keypress rates
 # lower the initial keypress delay:
 xset r rate 200 25
+# disable power saving for external monitors (this is *so* the wrong place to do this)
+# see https://wiki.archlinux.org/title/Display_Power_Management_Signaling
+xset s off -dpms
 
 [ -f ~/code/github/rupa/z/z.sh ] && source ~/code/github/rupa/z/z.sh
 
