@@ -1,6 +1,6 @@
 #!/bin/bash
 
 uuid=$(python3 -c 'from uuid import uuid4; print(str(uuid4()));')
-echo "$uuid" | xclip -i -selection primary
-echo "$uuid" | xclip -i -selection clipboard
+echo -n "$uuid" | xclip -i -selection primary
+echo -n "$uuid" | xclip -i -selection clipboard
 notify-send "Copied UUID $uuid"
