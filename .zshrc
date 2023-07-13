@@ -63,6 +63,11 @@ glf() {
   gl $(fd $*)
 }
 
+gtodo() {
+	# https://stackoverflow.com/a/25042219 with one more sed, to allow ctrl+click in vscode's terminal
+	git grep -l TODO | xargs -n1 git blame -f -n -w | grep "$(git config user.name)" | grep TODO | sed "s/.\{9\}//" | sed "s/(.*)[[:space:]]*//" | sed "s/ \+/:/"
+}
+
 # create an easy target to compare/rollback to after difficult rebase/merge
 # etc and the reflog contains too many similar entries
 alias gpre="git tag -d prebase 2>/dev/null; git tag prebase; git log -n1 prebase"
