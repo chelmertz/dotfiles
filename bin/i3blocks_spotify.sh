@@ -5,12 +5,18 @@ status=$(playerctl --player spotify status)
 [ $? -ne 0 ] && exit 0
 [ "Stopped" = "$status" ] && exit 0
 
-# left click
-[[ "$BLOCK_BUTTON" -eq 1 ]] && playerctl --player spotify previous
-# middle click
-[[ "$BLOCK_BUTTON" -eq 2 ]] && playerctl --player spotify play-pause
-# right click
-[[ "$BLOCK_BUTTON" -eq 3 ]] && playerctl --player spotify next
+if [[ "$BLOCK_BUTTON" -eq 1 ]]; then
+	# left click
+	playerctl --player spotify previous
+	[ "Paused" = "$status" ] && playerctl --player spotify play-pause
+elif [[ "$BLOCK_BUTTON" -eq 2 ]]; then
+	# middle click
+	playerctl --player spotify play-pause
+elif [[ "$BLOCK_BUTTON" -eq 3 ]]; then
+	# right click
+	playerctl --player spotify next
+	[ "Paused" = "$status" ] && playerctl --player spotify play-pause
+fi
 
 # wmctrl -a Spotify does not work :/ so, we work around this by .. depending on i3-msg, yuck
 # 
