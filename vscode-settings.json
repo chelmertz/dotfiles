@@ -1,5 +1,5 @@
 {
-    "editor.fontFamily": "'Fira Mono','Droid Sans Mono', 'monospace', monospace",
+    "editor.fontFamily": "Inconsolata,'Droid Sans Mono','Fira Mono', 'monospace', monospace",
     "editor.fontSize": 16,
     "explorer.confirmDragAndDrop": false,
     "files.autoSave": "onWindowChange",
@@ -66,5 +66,5 @@
         }
     ],
     "editor.inlineSuggest.enabled": true,
-    "window.zoomLevel": 1
+    "window.zoomLevel": 2
 }
