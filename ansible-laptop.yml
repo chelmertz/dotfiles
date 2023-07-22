@@ -169,17 +169,6 @@
       apt:
         name: sqlitebrowser
 
-    # begin dbeaver, useful for quickly sketching db designs
-    - name: dbeaver (db gui) apt repo
-      apt_repository:
-        repo: ppa:serge-rider/dbeaver-ce
-
-    - name: dbeaver (db gui)
-      apt:
-        update_cache: yes
-        name: dbeaver-ce
-    # end dbeaver
-
     - name: pv (progress bar for pipes)
       apt:
         name: pv
