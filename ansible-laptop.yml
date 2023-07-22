@@ -572,9 +572,6 @@
       when: dust_version.rc != 0
       shell: cargo install du-dust
 
-    - name: git-delta ("better", contextual diff, see https://github.com/dandavison/delta)
-      shell: cargo install git-delta
-
     - name: check bat version
       command: bat --version
       register: bat_version
