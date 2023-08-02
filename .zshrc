@@ -173,6 +173,14 @@ xset s off -dpms
 source ~/code/github/junegunn/fzf/shell/key-bindings.zsh
 source ~/code/github/junegunn/fzf/shell/completion.zsh
 
+# auto complete z via fzf
+# https://github.com/junegunn/fzf/wiki/Examples#integration-with-z
+unalias z 2> /dev/null
+z() {
+  [ $# -gt 0 ] && _z "$*" && return
+  cd "$(_z -l 2>&1 | fzf --height 40% --nth 2.. --reverse --inline-info +s --tac --query "${*##-* }" | sed 's/^[0-9,.]* *//')"
+}
+
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block; everything else may go below.
