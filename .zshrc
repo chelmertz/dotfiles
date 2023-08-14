@@ -104,9 +104,6 @@ batt() {
 
 alias docker-ps='docker ps --format "{{.Status}}\t{{.Names}}\t{{.Ports}}" -a'
 
-alias pbcopy='xclip -selection clipboard'
-alias pbpaste='xclip -selection clipboard -o'
-
 compdef g='git'
 
 # zsh on gnome-terminal doesn't support ctrl+left/right by default..?
