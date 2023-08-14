@@ -86,7 +86,7 @@ bindsym $mod+Shift+space floating toggle
 # focus the child container
 #bindsym $mod+d focus child
 
-assign [class="Firefox"] $ws2
+assign [class="firefox"] $ws2
 assign [class="Google-chrome"] $ws2
 assign [class="jetbrains-idea"] $ws3
 assign [class="jetbrains-toolbox"] $ws10
@@ -192,7 +192,8 @@ mode "fkey" {
 bindsym $mod+m mode "fkey"; exec notify-send "fkey mode on (mod + m)"
 
 bindsym F1 exec /home/ch/bin/ror.py Code /usr/bin/code; workspace number $ws1
-bindsym F2 exec /home/ch/bin/ror.py Google-chrome /opt/google/chrome/chrome; workspace number $ws2
+#bindsym F2 exec /home/ch/bin/ror.py Google-chrome /usr/bin/google-chrome; workspace number $ws2
+bindsym F2 exec /home/ch/bin/ror.py Firefox /usr/bin/firefox; workspace number $ws2
 bindsym F3 workspace number $ws3
 bindsym F4 exec /home/ch/bin/ror.py Emacs "/home/ch/.emacs.d/bin/doom run" && workspace number $ws4
 bindsym F5 workspace number $ws5
