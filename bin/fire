@@ -1,0 +1,12 @@
+#!/bin/sh
+
+# I have two firefox profiles, personal/work
+# I _think_ you cannot change profile from within the GUI.
+
+echo $#
+if [ $# -ge 1 ]; then
+	firefox -P default
+else
+	firefox -P work
+fi
+
