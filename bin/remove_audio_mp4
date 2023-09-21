@@ -1,0 +1,20 @@
+#!/bin/sh
+
+if [ "$#" -ne 2 ]; then
+	echo "Usage: $0 input-file.mp4 output-file.mp4"
+	exit 1
+fi
+
+if ! [ -f "$1" ]; then
+	echo "Usage: $0 input-file.mp4 output-file.mp4"
+	echo "$1 is not a file"
+	exit 1
+fi
+
+if [ -f "$2" ]; then
+	echo "Usage: $0 input-file.mp4 output-file.mp4"
+	echo "$2 is already a file, specify a new file name please"
+	exit 1
+fi
+
+ffmpeg -i "$1" -vcodec copy -an "$2"
