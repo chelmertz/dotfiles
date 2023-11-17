@@ -108,6 +108,8 @@ for_window [instance="gedit"] floating enable;
 for_window [instance="gedit"] move scratchpad; [instance="gedit"] scratchpad show; move position center; move scratchpad
 # "+" key on the far right, on the larger (external) keyboard
 bindsym KP_Add [instance="gedit"] scratchpad show, resize set 1200 650
+# "-" key on the far right, on the larger (external) keyboard
+bindsym KP_Subtract exec xdg-open "http://localhost:9876" && wmctrl -a firefox
 bindsym Insert [instance="gedit"] scratchpad show, resize set 1200 650
 
 # Microsoft teams' notifications should float
