@@ -68,5 +68,11 @@
     "window.zoomLevel": 2,
     "workbench.colorTheme": "Default Light Modern",
     "githubPullRequests.terminalLinksHandler": "github",
-    "editor.fontWeight": "600"
+    "editor.fontWeight": "600",
+    "yaml.maxItemsComputed": 10000,
+    "githubPullRequests.pullBranch": "never",
+    "rust-analyzer.procMacro.enabled": false,
+    "rust-analyzer.server.extraEnv": {
+        "DATABASE_URL": "postgres://pb:pb@localhost:5432/padelboard"
+    }
 }
