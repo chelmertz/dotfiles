@@ -46,6 +46,7 @@ git-clone-github() {
 }
 alias gcaa="git commit -a --amend --no-edit --date=now"
 alias gd="git diff -M -w"
+alias gdd="git diff -M -w --no-ext-diff" # bypass the configured git diff display tool, which is buggy sometimes
 alias gdw="git diff -M -w --word-diff --color-words"
 alias gds="git diff --stat"
 alias gco="git checkout "
