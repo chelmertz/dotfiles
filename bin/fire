@@ -2,11 +2,6 @@
 
 # I have two firefox profiles, personal/work
 # I _think_ you cannot change profile from within the GUI.
+# The 'work' profile is standard, so that's started with plain `firefox`
 
-echo $#
-if [ $# -ge 1 ]; then
-	firefox -P default
-else
-	firefox -P work
-fi
-
+firefox -P default
