@@ -35,7 +35,7 @@
 [help]
 	autocorrect = 1
 [branch]
-	autoSetupMerge = always
+	autoSetupMerge = simple
 [init]
 	defaultBranch = main
 [github]
