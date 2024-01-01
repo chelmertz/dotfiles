@@ -113,7 +113,7 @@ bindkey ";5D" backward-word
 
 EDITOR="vim"
 VISUAL="vim"
-PATH=${PATH}:~/bin:/usr/local/go/bin:~/.local/bin:~/go/bin:~/.emacs.d/bin:~/.cargo/bin
+PATH=${PATH}:~/bin:/usr/local/go/bin:~/.local/bin:~/go/bin:~/.emacs.d/bin:~/.cargo/bin:~/.yarn/bin
 TZ='Europe/Stockholm'
 XDG_CONFIG_HOME=~/.config
 export EDITOR VISUAL PATH TZ XDG_CONFIG_HOME
@@ -199,3 +199,10 @@ source ~/code/github/zsh-users/zsh-autosuggestions/zsh-autosuggestions.zsh
 
 source ~/code/github/chelmertz/dotfiles/zsh-scripts/_gh
 compdef _gh gh
+
+# bun completions
+[ -s "/home/ch/.bun/_bun" ] && source "/home/ch/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
