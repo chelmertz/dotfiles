@@ -1,0 +1,21 @@
+#!/bin/sh
+
+if [ ! `which goda` ]; then
+	echo "missing dep, do:"
+	echo "go install github.com/loov/goda@latest"
+	exit 1
+fi
+
+if [ ! -f go.mod ]; then
+	echo "no go.mod file found in current directory"
+	exit 1
+fi
+
+if [ ! $# -eq 1 ]; then
+	echo "usage: go-deps output.svg"
+	exit 1
+fi
+
+pkg=`grep module go.mod | cut -d ' ' -f2`
+goda graph $pkg/... | dot -Tsvg -o "$1"
+
