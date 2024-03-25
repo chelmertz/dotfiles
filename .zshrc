@@ -206,3 +206,8 @@ compdef _gh gh
 # bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
+
+# jj (jujutsu, vcs alternative to git)
+autoload -U compinit
+compinit
+source <(jj util completion --zsh)
