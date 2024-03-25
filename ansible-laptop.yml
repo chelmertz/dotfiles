@@ -281,16 +281,6 @@
       apt:
         name: nodejs
 
-    - name: yarnpkg (npm alternative, handles javascript builds)
-      apt:
-        name: yarnpkg
-
-    - name: Symlink yarn
-      file:
-        src: /usr/bin/yarnpkg
-        dest: /usr/bin/yarn
-        state: link
-
     - name: check mmdc version
       command: mmdc --version
       register: mmdc_version
