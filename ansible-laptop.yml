@@ -505,6 +505,12 @@
         version: master
         dest: ~/code/github/rupa/z/
 
+    - name: Clone vim-surround (wrap selection in some bracket/tag, and more)
+      git:
+        repo: https://github.com/tpope/vim-surround.git
+        version: master
+        dest: ~/.vim/pack/modules/start/vim-surround
+
     # doom emacs begin
     - name: Clone doom emacs (a nice emacs "distribution"(?))
       git:
