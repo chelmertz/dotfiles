@@ -1,0 +1,5 @@
+#!/bin/sh
+
+youtube_id=$1
+
+yt-dlp --paths home:~/Dropbox/music --format ba --extract-audio --audio-format mp3 "https://www.youtube.com/watch?v=$youtube_id" 
