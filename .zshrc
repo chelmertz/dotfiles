@@ -82,6 +82,18 @@ alias l1="ls -1"
 # -R color ascii
 alias less='less -iR'
 
+lc() {
+	# pass a dir or just default to current dir
+	local dir="${1:-.}"
+	# find needs a trailing slash of dirs, add it with sed if not present
+	#
+	# redirect xargs stderr to hide "terminated by signal 13" error
+	#
+	# less: highlight headers from "head" and colorize the search result
+	# "S" with blac"k" background and "m"agenta (pink) foreground
+	find $(echo "$dir" | sed -e 's#[^/]$#&/#') -type f | xargs head -n99 2>/dev/null | less -p '==> .* <==' --use-color --color=Skm
+}
+
 alias cds="cd ~/code"
 alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
