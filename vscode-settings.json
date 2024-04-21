@@ -66,11 +66,25 @@
     ],
     "editor.inlineSuggest.enabled": true,
     "window.zoomLevel": 2,
-    "workbench.colorTheme": "Default Light Modern",
+    "workbench.colorTheme": "Adapta Nokto",
     "githubPullRequests.terminalLinksHandler": "github",
     "editor.fontWeight": "600",
     "yaml.maxItemsComputed": 10000,
     "githubPullRequests.pullBranch": "never",
+    "git.openRepositoryInParentFolders": "never",
+    "diffEditor.hideUnchangedRegions.enabled": true,
+    "explorer.confirmDelete": false,
+    "vim.visualModeKeyBindings": [
+        
+        {
+            "before": ["<"],
+            "after": ["<", "g", "v"]
+        },
+        {
+            "before": [">"],
+            "after": [">", "g", "v"]
+        }
+    ],
     "rust-analyzer.procMacro.enabled": false,
     "rust-analyzer.server.extraEnv": {
         "DATABASE_URL": "postgres://pb:pb@localhost:5432/padelboard"
