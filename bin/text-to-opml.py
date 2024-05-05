@@ -3,13 +3,12 @@
 import sys
 from xml.sax.saxutils import quoteattr
 
-print("""
-<opml version="1.0">
+print("""<opml version="1.0">
 <body>
 """)
 for line in sys.stdin.readlines():
     if 'http' in line:
-        url = line.split(' ')[1]
+        url = line.split(' ')[1].strip()
         attr = quoteattr(url)
         print("<outline text={} xmlUrl={}/>".format(attr, attr))
 
