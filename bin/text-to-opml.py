@@ -6,11 +6,14 @@ from xml.sax.saxutils import quoteattr
 print("""<opml version="1.0">
 <body>
 """)
+
+i = 1
 for line in sys.stdin.readlines():
     if 'http' in line:
         url = line.split(' ')[1].strip()
         attr = quoteattr(url)
-        print("<outline text={} xmlUrl={}/>".format(attr, attr))
+        print("<outline text={} xmlUrl={} customOrder=\"{}\" />".format(attr, attr, i))
+        i += 1
 
     
 # this expects something like
