@@ -59,7 +59,7 @@ exec('zenity --text-info --editable', (error, stdout, stderr) => {
   if (error && error.code) {
     if (error.code !== zenityCancelExitCode) {
       console.error(`error: ${error}`);
-      console.error("Double check that you have installed zenity");
+      console.error("Double check that you have installed zenity (brew install zenity, or, apt install zenity)");
     }
     return;
   }
