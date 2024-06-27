@@ -62,9 +62,17 @@
       apt:
         name: screenkey
 
+    - name: bruno (http client à la Postman)
+      snap:
+        name: bruno
+
     - name: gron (makes json greppable)
       snap:
         name: gron
+
+    - name: yq (parse yaml)
+      snap:
+        name: yq
 
     - name: spotify
       snap:
@@ -93,9 +101,21 @@
       snap:
         name: btop
 
+    - name: vale (writing helper for prose)
+      snap:
+        name: vale
+
     - name: cheese (record photo/video with webcam)
       apt:
         name: cheese
+
+    - name: w3m (terminal web browser & pager)
+      apt:
+        name: w3m
+
+    - name: w3m-img (image viewer for w3m, including w3mimgdisplay)
+      apt:
+        name: w3m-img
 
     - name: copyq (clipboard manager)
       apt:
@@ -391,6 +411,10 @@
     - name: keyutils (for keyctl, needed in bwmenu (bitwarden cli for rofi))
       apt:
         name: keyutils
+
+    - name: asciinema for recording terminal interactions
+      apt:
+        name: asciinema
 
 - hosts: localhost
   # requires $ ansible-galaxy install staticdev.signal
