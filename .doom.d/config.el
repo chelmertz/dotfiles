@@ -106,12 +106,14 @@
                                 )
         ))
 (remove-hook 'doom-first-input-hook #'evil-snipe-mode)
+
+
 (defun export-html-and-open ()
   (interactive)
   (if (derived-mode-p 'org-mode)
       (org-open-file (org-html-export-to-html) 'system)
     (browse-url-of-buffer))
-  (shell-command "wmctrl -a chrome"))
+  (shell-command "wmctrl -a firefox"))
 
 ; from https://github.com/abo-abo/oremacs/commit/6c86696c0a1f66bf690e1a934683f85f04c6f34d
 ; but slightly modified (to txt instead of html)
