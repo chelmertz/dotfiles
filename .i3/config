@@ -94,6 +94,7 @@ assign [class="Slack"] $ws9
 assign [class="Emacs"] $ws4
 # generic name for Visual Studio Code
 assign [class="Code"] $ws1
+assign [class="Cursor"] $ws1
 for_window [class="Microsoft Teams - Preview"] move to workspace $ws10
 for_window [class="Yad"] floating enable
 # xev, getting keycodes etc
@@ -193,7 +194,8 @@ mode "fkey" {
 
 bindsym $mod+m mode "fkey"; exec notify-send "fkey mode on (mod + m)"
 
-bindsym F1 exec /home/ch/bin/ror.py Code /usr/bin/code; workspace number $ws1
+#bindsym F1 exec /home/ch/bin/ror.py Code /usr/bin/code; workspace number $ws1
+bindsym F1 exec /home/ch/bin/ror.py Cursor /home/ch/bin/cursor-0.35.1-build-240621pc2f7rl8a-x86_64.AppImage; workspace number $ws1
 #bindsym F2 exec /home/ch/bin/ror.py Google-chrome /usr/bin/google-chrome; workspace number $ws2
 bindsym F2 exec /home/ch/bin/ror.py Firefox /home/ch/bin/fire; workspace number $ws2
 bindsym F3 workspace number $ws3
