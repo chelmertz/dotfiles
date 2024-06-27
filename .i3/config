@@ -255,11 +255,6 @@ bar {
 }
 
 hide_edge_borders smart
-#hide_edge_borders both
-
-gaps inner 15px
-gaps outer 15px
-smart_gaps inverse_outer
 
 # exec_always because some things (like keyboard mappings) are reset
 # when e.g. unplugging monitor, and a simple i3 reload solves it
