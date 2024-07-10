@@ -35,10 +35,6 @@ bindsym XF86MonBrightnessUp exec --no-startup-id ~/bin/bright up
 # Use Mouse+$mod to drag floating windows to their wanted position
 floating_modifier $mod
 
-# start a terminal
-bindsym shift+F5 exec i3-sensible-terminal
-#bindsym $mod+Return exec i3-sensible-terminal
-
 # kill focused window
 bindsym $mod+q kill
 
