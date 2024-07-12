@@ -12,8 +12,18 @@ case "$current" in
 	"'prefer-light'") current_is_light="TRUE" ;;
 	"'default'") current_is_default="TRUE" ;;
 esac
-new_color_scheme=$(zenity --list --title "Color scheme" --column= --column="Color scheme" --radiolist $current_is_default default $current_is_light prefer-light $current_is_dark prefer-dark)
-if [ $? -ne 0 ]; then echo "Could not get new mode from zenity" >&2; exit 1; fi
+
+if [ "$BLOCK_BUTTON" -eq 3 ]; then
+	# right click i3blocks icon to toggle between dark & light,
+	# don't touch "default" since it has no antonym
+	case "$current" in
+		"'prefer-dark'") new_color_scheme="prefer-light" ;;
+		"'prefer-light'") new_color_scheme="prefer-dark" ;;
+	esac
+else 
+	new_color_scheme=$(zenity --list --title "Color scheme" --column= --column="Color scheme" --radiolist $current_is_default default $current_is_light prefer-light $current_is_dark prefer-dark)
+	if [ $? -ne 0 ]; then echo "Could not get new mode from zenity" >&2; exit 1; fi
+fi
 
 echo "New color-scheme: $new_color_scheme"
 
