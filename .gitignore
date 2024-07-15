@@ -13,3 +13,11 @@ nvim/.netrwhist
 nvim/spell
 !*jar
 gitit/gitit.log
+
+bin/aws-vault
+bin/bw
+bin/cursor-*.AppImage
+bin/fzf
+bin/jetbrains-toolbox
+bin/sysz
+
