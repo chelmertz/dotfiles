@@ -108,8 +108,7 @@ case $1 in
     ;;
 esac
 }
-#alias bat="bat"
-alias bat="bat --theme=Coldark-Cold" #useful when terminal bg is light
+alias bat="bat --theme=base16"
 batt() {
   fd "$*" | xargs bat
 }
