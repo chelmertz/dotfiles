@@ -191,7 +191,7 @@ mode "fkey" {
 bindsym $mod+m mode "fkey"; exec notify-send "fkey mode on (mod + m)"
 
 #bindsym F1 exec /home/ch/bin/ror.py Code /usr/bin/code; workspace number $ws1
-bindsym F1 exec /home/ch/bin/ror.py Cursor /home/ch/bin/cursor-0.35.1-build-240621pc2f7rl8a-x86_64.AppImage; workspace number $ws1
+bindsym F1 exec /home/ch/bin/ror.py Cursor /home/ch/bin/cursor-*.AppImage; workspace number $ws1
 #bindsym F2 exec /home/ch/bin/ror.py Google-chrome /usr/bin/google-chrome; workspace number $ws2
 bindsym F2 exec /home/ch/bin/ror.py Firefox "firefox -P default"; workspace number $ws2
 bindsym F3 workspace number $ws3
