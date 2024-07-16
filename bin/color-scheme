@@ -7,6 +7,7 @@ echo "Current color-scheme: $current"
 case "$current" in
 	"'prefer-dark'") new_color_scheme="prefer-light" ;;
 	"'prefer-light'"|"'default'") new_color_scheme="prefer-dark" ;;
+	*) new_color_scheme="prefer-dark" ;;
 esac
 
 echo "New color-scheme: $new_color_scheme"
