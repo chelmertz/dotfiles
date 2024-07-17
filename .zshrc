@@ -103,6 +103,9 @@ case $1 in
     xdg-open $1 2>/dev/null # Chrome outputs some error that I can't act on
     wmctrl -a "Google chrome"
     ;;
+  *md)
+    pandoc $1 | lynx -stdin
+    ;;
   *)
     xdg-open $1
     ;;
