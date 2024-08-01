@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 
-gnome-terminal -- python3 -q
-i3-msg floating enable
+xdg-open 'https://numbr.dev/#new' &>/dev/null
+i3-msg [class=firefox] focus &>/dev/null
