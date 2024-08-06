@@ -27,7 +27,8 @@
 ;; available. You can either set `doom-theme' or manually load a theme with the
 ;; `load-theme' function. This is the default:
 (setq doom-theme 'doom-one) ; dark, default
-;(setq doom-theme 'doom-acario-light) ; light
+;;(setq doom-theme 'doom-acario-light) ; light
+;; this is overridden by auto-dark-mode
 
 ;; If you use `org' and don't want your org files in the default location below,
 ;; change `org-directory'. It must be set before org loads!
@@ -107,6 +108,10 @@
         ))
 (remove-hook 'doom-first-input-hook #'evil-snipe-mode)
 
+(after! doom-ui
+  (setq! auto-dark-dark-theme 'doom-one)
+  (setq! auto-dark-light-theme 'doom-acario-light)
+  (auto-dark-mode 1))
 
 (defun export-html-and-open ()
   (interactive)
