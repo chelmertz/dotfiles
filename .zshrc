@@ -99,6 +99,10 @@ grony() {
 	yq eval -o=p $*
 }
 
+e() {
+	$EDITOR $*
+}
+
 alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
 alias rg="ripgrep.rg"
