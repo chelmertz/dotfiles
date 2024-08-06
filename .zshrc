@@ -94,6 +94,11 @@ lc() {
 	find $(echo "$dir" | sed -e 's#[^/]$#&/#') -type f | xargs head -n99 2>/dev/null | less -p '==> .* <==' --use-color --color=Skm
 }
 
+grony() {
+	# like jq but for yml files
+	yq eval -o=p $*
+}
+
 alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
 alias rg="ripgrep.rg"

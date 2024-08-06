@@ -666,6 +666,9 @@
     - name: serve (http server to quickly serve a directory)
       shell: go install github.com/chelmertz/serve@latest
 
+    - name: yq (jq but for yaml)
+      shell: go install github.com/mikefarah/yq/v4@latest
+
     - name: uni (unicode tool for identifying/searching, used in rofi-binding)
       shell: go install arp242.net/uni@v1.1.1
 
