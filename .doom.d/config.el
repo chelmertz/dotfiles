@@ -104,6 +104,7 @@
                                 ("t" "TODO" entry (file "inbox.org") "* TODO %?\n:PROPERTIES:\n:CREATED: %T\n:END:\n\n  %i" :empty-lines-after 1)
                                 ("j" "Journal" entry (file+olp+datetree "journal.org") "* %?\n:PROPERTIES:\n:CREATED: %T\n:END:\n" :jump-to-captured t :empty-lines-after 1)
                                 ("m" "MATCHi DS" entry (file+olp+datetree "matchi.org" "DS") "* %?\n:PROPERTIES:\n:CREATED: %U\n:END:\n%i" :jump-to-captured t :empty-lines 1)
+                                ("b" "Bug" entry (file+olp+datetree "bugs.org") "* %?\n:PROPERTIES:\n:CREATED: %U\n:END:\n%i" :jump-to-captured t :empty-lines 1)
                                 )
         ))
 (remove-hook 'doom-first-input-hook #'evil-snipe-mode)
