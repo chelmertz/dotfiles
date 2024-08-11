@@ -57,33 +57,33 @@
 ;; they are implemented.
 
 
-; from installation notes:
-;
-;1. Whenever you edit your doom! block in ~/.doom.d/init.el or modify your
-;   modules, run:
-;
-;     bin/doom refresh
-;
-;   This will ensure all needed packages are installed, all orphaned packages are
-;   removed, and your autoloads files are up to date. This is important! If you
-;   forget to do this you will get errors!
-;
-;2. If something inexplicably goes wrong, try `bin/doom doctor`
-;
-;   This will diagnose common issues with your environment and setup, and may
-;   give you clues about what is wrong.
-;
-;3. Use `bin/doom upgrade` to update Doom. Doing it any other way may require
-;   additional work. When in doubt, run `bin/doom sync`.
-;
-;4. Check out `bin/doom help` to see what else `bin/doom` can do (and it is
-;   recommended you add ~/.emacs.d/bin to your PATH).
-;
-;5. You can find Doom's documentation via `M-x doom/help` or `SPC h D`.
+;; from installation notes:
+;;
+;;1. Whenever you edit your doom! block in ~/.doom.d/init.el or modify your
+;;   modules, run:
+;;
+;;     bin/doom refresh
+;;
+;;   This will ensure all needed packages are installed, all orphaned packages are
+;;   removed, and your autoloads files are up to date. This is important! If you
+;;   forget to do this you will get errors!
+;;
+;;2. If something inexplicably goes wrong, try `bin/doom doctor`
+;;
+;;   This will diagnose common issues with your environment and setup, and may
+;;   give you clues about what is wrong.
+;;
+;;3. Use `bin/doom upgrade` to update Doom. Doing it any other way may require
+;;   additional work. When in doubt, run `bin/doom sync`.
+;;
+;;4. Check out `bin/doom help` to see what else `bin/doom` can do (and it is
+;;   recommended you add ~/.emacs.d/bin to your PATH).
+;;
+;;5. You can find Doom's documentation via `M-x doom/help` or `SPC h D`.
 
-; doom bindings:
-; list buffers: ,<
-; org capture: ,X
+;; doom bindings:
+;; list buffers: ,<
+;; org capture: ,X
 
 (require 'iso-transl)
 
@@ -121,8 +121,8 @@
     (browse-url-of-buffer))
   (shell-command "wmctrl -a firefox"))
 
-; from https://github.com/abo-abo/oremacs/commit/6c86696c0a1f66bf690e1a934683f85f04c6f34d
-; but slightly modified (to txt instead of html)
+;; from https://github.com/abo-abo/oremacs/commit/6c86696c0a1f66bf690e1a934683f85f04c6f34d
+;; but slightly modified (to txt instead of html)
 (defun org-to-plaintext-to-clipboard ()
   "Export region to HTML, and copy it to the clipboard."
   (interactive)
@@ -157,16 +157,16 @@
 (map! :leader "." '+default/search-project)
 
 
-; see https://github.com/hlissner/doom-emacs/issues/3172
+;; see https://github.com/hlissner/doom-emacs/issues/3172
 (add-hook 'org-mode-hook (lambda () (electric-indent-local-mode -1)))
 
 
-; see https://joy.pm/post/2017-09-17-a_graphviz_primer/
+;; see https://joy.pm/post/2017-09-17-a_graphviz_primer/
 (defun my/fix-inline-images ()
   (when org-inline-image-overlays
     (org-redisplay-inline-images)))
 
 (add-hook 'org-babel-after-execute-hook 'my/fix-inline-images)
 
-; at work, Dockerfile-x is a common naming scheme
+;; at work, Dockerfile-x is a common naming scheme
 (add-to-list 'auto-mode-alist '("Dockerfile.*" . dockerfile-mode))
