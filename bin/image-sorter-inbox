@@ -1,0 +1,11 @@
+#!/bin/sh
+
+image-sorter -b \
+    g=/home/ch/Dropbox/inspiration/gui \
+    s=/home/ch/Dropbox/photos/gaming \
+    f=/home/ch/Dropbox/photos/movies \
+    p=/home/ch/Dropbox/photos \
+    c=/home/ch/Dropbox/inspiration/typography_colors_patterns \
+    m=/home/ch/Dropbox/matchi \
+    x=/home/ch/.local/share/Trash/files \
+    -o ~/run.sh -- ~/Downloads/ ~/Dropbox/screenshots/ ~/Dropbox
