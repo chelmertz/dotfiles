@@ -26,7 +26,8 @@
 ;; There are two ways to load a theme. Both assume the theme is installed and
 ;; available. You can either set `doom-theme' or manually load a theme with the
 ;; `load-theme' function. This is the default:
-(setq doom-theme 'doom-one) ; dark, default
+(setq doom-theme 'doom-one ; dark, default
+      doom-font (font-spec :family "Iosevka" :size 16))
 ;;(setq doom-theme 'doom-acario-light) ; light
 ;; this is overridden by auto-dark-mode
 
