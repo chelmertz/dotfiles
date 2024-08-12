@@ -1,5 +1,5 @@
 {
-    "editor.fontFamily": "Inconsolata,'Droid Sans Mono','Fira Mono', 'monospace', monospace",
+    "editor.fontFamily": "Iosevka,Inconsolata,'Droid Sans Mono','Fira Mono', 'monospace', monospace",
     "editor.fontSize": 16,
     "explorer.confirmDragAndDrop": false,
     "files.autoSave": "onWindowChange",
