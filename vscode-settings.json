@@ -86,9 +86,6 @@
         }
     ],
     "rust-analyzer.procMacro.enabled": false,
-    "rust-analyzer.server.extraEnv": {
-        "DATABASE_URL": "postgres://pb:pb@localhost:5432/padelboard"
-    },
     "github.copilot.editor.enableAutoCompletions": true,
     "workbench.sideBar.location": "right",
     "go.lintTool": "golangci-lint",
