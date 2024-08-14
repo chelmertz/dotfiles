@@ -91,5 +91,7 @@
     "go.lintTool": "golangci-lint",
     "go.lintFlags": [
         "--fast"
-    ]
+    ],
+    "workbench.colorTheme": "No Happiness in Colors Theme",
+    "editor.bracketPairColorization.enabled": false
 }
