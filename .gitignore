@@ -14,10 +14,11 @@ nvim/spell
 !*jar
 gitit/gitit.log
 
+# some binaries that I place in ~/bin, for some reason
 bin/aws-vault
 bin/bw
 bin/cursor-*.AppImage
 bin/fzf
 bin/jetbrains-toolbox
 bin/sysz
-
+bin/image-sorter

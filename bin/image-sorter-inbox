@@ -7,5 +7,4 @@ image-sorter -b \
     p=/home/ch/Dropbox/photos \
     c=/home/ch/Dropbox/inspiration/typography_colors_patterns \
     m=/home/ch/Dropbox/matchi \
-    x=/home/ch/.local/share/Trash/files \
     -o ~/run.sh -- ~/Downloads/ ~/Dropbox/screenshots/ ~/Dropbox
