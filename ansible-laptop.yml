@@ -420,6 +420,14 @@
       apt:
         name: asciinema
 
+    - name: Deps for jless, see https://github.com/PaulJuliusMartinez/jless
+      apt:
+        pkg:
+          - libxcb1-dev
+          - libxcb-render0-dev
+          - libxcb-shape0-dev
+          - libxcb-xfixes0-dev
+
 - hosts: localhost
   # requires $ ansible-galaxy install staticdev.signal
   roles:
@@ -603,6 +611,9 @@
         repo: https://github.com/nkoehring/rofiemoji
         version: master
         dest: ~/code/github/nkoehring/rofiemoji
+
+    - name: jless (json viewer, json less)
+      shell: cargo install jless
 
     - name: check dust version
       command: dust --version
