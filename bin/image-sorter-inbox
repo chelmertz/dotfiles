@@ -6,5 +6,6 @@ image-sorter -b \
     f=/home/ch/Dropbox/photos/movies \
     p=/home/ch/Dropbox/photos \
     c=/home/ch/Dropbox/inspiration/typography_colors_patterns \
+    o=/home/ch/Dropbox/orgzly \
     m=/home/ch/Dropbox/matchi \
     -o ~/run.sh -- ~/Downloads/ ~/Dropbox/screenshots/ ~/Dropbox
