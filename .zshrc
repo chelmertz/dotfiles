@@ -235,7 +235,7 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 # jj (jujutsu, vcs alternative to git)
 autoload -U compinit
 compinit
-source <(jj util completion --zsh)
+source <(jj util completion zsh)
 
 # nvm (node version manager)
 export NVM_DIR="$HOME/.config/nvm"
