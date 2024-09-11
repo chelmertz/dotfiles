@@ -1,5 +1,14 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
+# accepts 'chh0H1BZeOA'
 youtube_id=$1
+
+# accepts 'https://youtu.be/chh0H1BZeOA?si=Xz2BQjhkqGLPwQ3g'
+video_id=$(trurl "$youtube_id" --get '{path}')
+video_id="${video_id:1}"
+
+if [ -n "$video_id" ]; then
+	youtube_id="$video_id"
+fi
 
 yt-dlp --paths home:~/Dropbox/music --format ba --extract-audio --audio-format mp3 "https://www.youtube.com/watch?v=$youtube_id" 
