@@ -204,6 +204,22 @@ z() {
   cd "$(_z -l 2>&1 | fzf --height 40% --nth 2.. --reverse --inline-info +s --tac --query "${*##-* }" | sed 's/^[0-9,.]* *//')"
 }
 
+# pkill via fzf's fuzzy auto completion
+# via https://github.com/gessen/zsh-fzf-kill/blob/master/fzf-kill.plugin.zsh
+pk() {
+  local pid
+  if [[ "${UID}" != "0" ]]; then
+    pid=$(ps -f -u ${UID} | sed 1d | fzf -m | awk '{print $2}')
+  else
+    pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
+  fi
+
+  if [[ "x$pid" != "x" ]]; then
+    echo $pid | xargs kill "-${1:-9}"
+  fi
+  zle reset-prompt
+}
+
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block; everything else may go below.
