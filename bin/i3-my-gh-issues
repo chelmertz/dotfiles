@@ -6,6 +6,6 @@ count=$(gh search issues --assignee chelmertz --state open --json url --jq 'leng
 echo " $count"
 
 if [[ "$BLOCK_BUTTON" -eq 1 ]]; then
-	xdg-open "https://github.com/issues" &>/dev/null && i3-msg workspace number 2 &>/dev/null && wmctrl -a firefox &>/dev/null
+	xdg-open "https://github.com/issues/assigned" &>/dev/null && i3-msg workspace number 2 &>/dev/null && wmctrl -a firefox &>/dev/null
 fi
 
