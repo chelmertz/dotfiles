@@ -65,7 +65,8 @@ if __name__ == "__main__":
             if int(button) == 1:
                 subprocess.Popen(["xdg-open", shown.properties.get("URL")])
                 # focus the window
-                subprocess.Popen(["wmctrl", "-a", "Google chrome"])
+                subprocess.Popen(["i3-msg", "workspace number 2"])
+                subprocess.Popen(["wmctrl", "-a", "Firefox"])
 
             elif int(button) == 3:
                 proc = subprocess.Popen(
@@ -75,4 +76,4 @@ if __name__ == "__main__":
                 subprocess.check_call(
                     ["emacsclient", f"+{shown.linenumber}", work_file]
                 )
-                subprocess.Popen(["i3-msg", "workspace number 1"])
+                subprocess.Popen(["i3-msg", "workspace number 4"])
