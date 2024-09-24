@@ -66,7 +66,6 @@
     ],
     "editor.inlineSuggest.enabled": true,
     "window.zoomLevel": 2,
-    "workbench.colorTheme": "Adapta Nokto",
     "githubPullRequests.terminalLinksHandler": "github",
     "editor.fontWeight": "600",
     "yaml.maxItemsComputed": 10000,
@@ -92,6 +91,7 @@
     "go.lintFlags": [
         "--fast"
     ],
-    "workbench.colorTheme": "No Happiness in Colors Theme",
-    "editor.bracketPairColorization.enabled": false
+    "workbench.colorTheme": "Subtle Monochrome (Light)",
+    "editor.bracketPairColorization.enabled": false,
+    "vale.doNotShowWarningForFileToBeSavedBeforeLinting": true
 }
