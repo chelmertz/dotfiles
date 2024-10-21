@@ -1,11 +1,28 @@
 #!/usr/bin/env bash
 
-count=$(gh search issues --assignee chelmertz --state open --json url --jq 'length')
+count=$(gh search issues --assignee @me --state open --json url --jq 'length')
 
 # glyph from fontawesome, "bug" f188
+
+# long
 echo " $count"
+# short
+echo " $count"
+# color
+echo "#00ff00"
+
+__open() {
+	url=$1
+	xdg-open $url &>/dev/null && i3-msg workspace number 2 &>/dev/null && wmctrl -a firefox &>/dev/null
+}
 
 if [[ "$BLOCK_BUTTON" -eq 1 ]]; then
-	xdg-open "https://github.com/issues/assigned" &>/dev/null && i3-msg workspace number 2 &>/dev/null && wmctrl -a firefox &>/dev/null
+	# left click
+	# "my" board
+	__open https://github.com/orgs/matchiapp/projects/32
+elif [[ "$BLOCK_BUTTON" -eq 3 ]]; then
+	# right click
+	# all of my issues
+	__open https://github.com/issues/assigned
 fi
 
