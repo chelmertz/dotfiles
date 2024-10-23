@@ -26,6 +26,7 @@ alias rm='rm -i'
 alias cp='cp -i'
 alias mv='mv -i'
 
+alias g=lazygit
 alias ga="git add -A "
 alias gb="git branch -vv --sort=-committerdate "
 alias gba="git branch -vv --sort=-committerdate --all"

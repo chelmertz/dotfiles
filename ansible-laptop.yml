@@ -678,6 +678,9 @@
         dest: ~/.ideavimrc
         state: link
 
+    - name: lazygit (terminal CLI alternative to magit)
+      shell: go install github.com/jesseduffield/lazygit@latest
+
     - name: serve (http server to quickly serve a directory)
       shell: go install github.com/chelmertz/serve@latest
 
