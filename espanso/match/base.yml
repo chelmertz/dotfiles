@@ -25,6 +25,32 @@ matches:
         params:
           format: "%Y-%m-%d"
 
+  # Do the weird capitalization of MATCHi
+  - trigger: ":matchi"
+    replace: "MATCHi"
+
+  - trigger: ":bc"
+    replace: "backwards-compatible"
+
+  - trigger: ":lgtm"
+    replace: "Looks good to me"
+
+  - trigger: ":wdyt"
+    replace: "What do you think?"
+
+  - trigger: ":mermseq"
+    replace: >
+      sequenceDiagram
+
+      participant client
+
+      participant api
+
+      client -->>+ api: hello
+
+      api -->>- client: good bye
+
+
   # Print the output of a shell command
   - trigger: ":shell"
     replace: "{{output}}"
