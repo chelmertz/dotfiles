@@ -145,6 +145,7 @@ compdef g='git'
 # zsh on gnome-terminal doesn't support ctrl+left/right by default..?
 bindkey ";5C" forward-word
 bindkey ";5D" backward-word
+bindkey "^ " autosuggest-accept # ctrl+space to accept, instead of right arrow
 
 EDITOR="vim"
 VISUAL="vim"
