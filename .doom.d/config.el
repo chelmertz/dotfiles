@@ -110,10 +110,11 @@
         ))
 (remove-hook 'doom-first-input-hook #'evil-snipe-mode)
 
-(after! doom-ui
-  (setq! auto-dark-dark-theme 'doom-one)
-  (setq! auto-dark-light-theme 'doom-acario-light)
-  (auto-dark-mode 1))
+; tis 29 okt 2024 11:05:40 CET: I get "Loading a theme can run lisp code. Really load? (y or n)" and I don't wanna research how to get out of that
+;(after! doom-ui
+;  (setq! auto-dark-dark-theme 'doom-one)
+;  (setq! auto-dark-light-theme 'doom-acario-light)
+;  (auto-dark-mode 1))
 
 (defun export-html-and-open ()
   (interactive)
