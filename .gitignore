@@ -22,3 +22,4 @@ bin/fzf
 bin/jetbrains-toolbox
 bin/sysz
 bin/image-sorter
+*.AppImage
