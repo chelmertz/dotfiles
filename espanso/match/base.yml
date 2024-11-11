@@ -16,11 +16,18 @@ matches:
 
   # But matches can also be dynamic:
 
-  # Print the current date
   - trigger: ":date"
     replace: "{{mydate}}"
     vars:
       - name: mydate
+        type: date
+        params:
+          format: "%Y-%m-%d"
+
+  - trigger: ":today"
+    replace: "{{today}}"
+    vars:
+      - name: today
         type: date
         params:
           format: "%Y-%m-%d"
@@ -32,11 +39,73 @@ matches:
   - trigger: ":bc"
     replace: "backwards-compatible"
 
+  - trigger: ":Bc"
+    replace: "Backwards-compatible"
+
   - trigger: ":lgtm"
+    replace: "looks good to me"
+
+  - trigger: ":Lgtm"
     replace: "Looks good to me"
 
   - trigger: ":wdyt"
+    replace: "what do you think?"
+
+  - trigger: ":Wdyt"
     replace: "What do you think?"
+
+  - trigger: ":iirc"
+    replace: "if I recall correctly"
+
+  - trigger: ":Iirc"
+    replace: "If I recall correctly"
+
+  - trigger: ":afaik"
+    replace: "as far as I know"
+
+  - trigger: ":Afaik"
+    replace: "As far as I know"
+
+  - trigger: ":afaict"
+    replace: "as far as I can tell"
+
+  - trigger: ":Afaict"
+    replace: "As far as I can tell"
+
+  - trigger: ":imo"
+    replace: "in my opinion"
+
+  - trigger: ":Imo"
+    replace: "In my opinion"
+
+  - trigger: ":otoh"
+    replace: "on the other hand"
+
+  - trigger: ":Otoh"
+    replace: "On the other hand"
+
+# for icons: https://www.compart.com/en/unicode
+
+  - trigger: ":plus"
+    replace: "➕"
+
+  - trigger: ":thumb"
+    replace: "👍"
+
+  - trigger: ":pray"
+    replace: "🙏"
+
+  - trigger: ":joy"
+    replace: "😂"
+
+  - trigger: ":eye"
+    replace: "👀"
+
+  - trigger: ":see"
+    replace: "🙈"
+
+  - trigger: ":PR"
+    replace: "pull request"
 
   - trigger: ":mermseq"
     replace: >
