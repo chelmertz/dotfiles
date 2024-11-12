@@ -92,6 +92,9 @@ matches:
   - trigger: ":thumb"
     replace: "👍"
 
+  - trigger: ":raised"
+    replace: "🙌"
+
   - trigger: ":pray"
     replace: "🙏"
 
