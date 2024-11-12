@@ -20,6 +20,7 @@
 	date = human
 [core]
 	excludesfile = ~/.gitignore_global
+	attributesfile = ~/.gitattributes
 	# GIT_PAGER=less git diff, if you want to opt out
 [delta]
 	features = side-by-side line-numbers decorations
@@ -42,3 +43,6 @@
 	insteadOf = https://github.com/
 [rerere]
 	enabled = true
+[merge "mergiraf"]
+	name = mergiraf
+	driver = mergiraf merge --git %O %A %B -s %S -x %X -y %Y -p %P
