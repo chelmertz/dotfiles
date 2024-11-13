@@ -53,7 +53,7 @@ alias gds="git diff --stat"
 alias gco="git checkout "
 alias gdc="git diff --cached -M -w"
 alias gfa="git fetch --all"
-alias gs="git status --short"
+alias gs="git status --short --branch"
 alias gr="git reflog --date=iso"
 
 # stolen from https://registerspill.thorstenball.com/p/how-i-use-git
