@@ -91,7 +91,9 @@
     "go.lintFlags": [
         "--fast"
     ],
-    "workbench.colorTheme": "Subtle Monochrome (Light)",
+    "workbench.colorTheme": "No Happiness in Colors Theme",
     "editor.bracketPairColorization.enabled": false,
-    "vale.doNotShowWarningForFileToBeSavedBeforeLinting": true
+    "vale.doNotShowWarningForFileToBeSavedBeforeLinting": true,
+    "workbench.tree.indent": 24,
+    "editor.guides.highlightActiveIndentation": "always"
 }
