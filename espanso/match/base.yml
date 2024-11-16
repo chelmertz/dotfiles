@@ -36,6 +36,9 @@ matches:
   - trigger: ":matchi"
     replace: "MATCHi"
 
+  - trigger: ":pov"
+    replace: "point of view"
+
   - trigger: ":bc"
     replace: "backwards-compatible"
 
@@ -106,6 +109,12 @@ matches:
 
   - trigger: ":see"
     replace: "🙈"
+
+  - trigger: "<->"
+    replace: "↔"
+
+  - trigger: "=>"
+    replace: "⇢"
 
   - trigger: ":PR"
     replace: "pull request"
