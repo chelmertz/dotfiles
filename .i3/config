@@ -125,7 +125,9 @@ bindsym Shift+Next scratchpad show, resize set 1200 650
 for_window [window_type="notification"] floating enable
 
 for_window [class=".*"] title_format " %title"
-for_window [class=".*"] border pixel 1
+for_window [class=".*"] border pixel 3
+# from https://www.youtube.com/watch?v=dFWd0honbbw
+client.focused #000000 #285577 #ffffff #44eda7 #44eda7
 
 # Define names for default workspaces for which we configure key bindings later on.
 # We use variables to avoid repeating the names in multiple places.
