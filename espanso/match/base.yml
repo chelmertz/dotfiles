@@ -113,9 +113,6 @@ matches:
   - trigger: "<->"
     replace: "↔"
 
-  - trigger: "=>"
-    replace: "⇢"
-
   - trigger: ":PR"
     replace: "pull request"
 
