@@ -116,9 +116,9 @@ bindsym Insert [instance="gedit"] scratchpad show, resize set 1200 650
 
 # new keychron k8 pro keyboard, prior=page up, next=page down
 # elly
-bindsym Shift+Prior exec xdg-open "http://localhost:9876" && wmctrl -a firefox
-# scratchpad
-bindsym Shift+Next scratchpad show, resize set 1200 650
+bindsym Shift+Next exec xdg-open "http://localhost:9876" && wmctrl -a firefox
+# my tasks
+bindsym Shift+Prior exec BLOCK_BUTTON=1 ~/bin/i3-my-gh-issues 1 && wmctrl -a firefox
 
 # Microsoft teams' notifications should float
 # see https://i3wm.org/docs/userguide.html#command_criteria
