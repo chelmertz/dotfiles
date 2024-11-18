@@ -9,3 +9,5 @@ image-sorter -b \
     o=/home/ch/Dropbox/orgzly \
     m=/home/ch/Dropbox/matchi \
     -o ~/run.sh -- ~/Downloads/ ~/Dropbox/screenshots/ ~/Dropbox
+
+echo "output saved to ~/run.sh"
