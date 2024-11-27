@@ -104,11 +104,20 @@ matches:
   - trigger: ":joy"
     replace: "😂"
 
+  - trigger: ":sweat"
+    replace: "😅"
+
   - trigger: ":eye"
     replace: "👀"
 
   - trigger: ":see"
     replace: "🙈"
+
+  - trigger: ":woozy"
+    replace: "🥴"
+
+  - trigger: ":tada"
+    replace: "🎉"
 
   - trigger: "<->"
     replace: "↔"
