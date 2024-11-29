@@ -44,5 +44,6 @@
 [rerere]
 	enabled = true
 [merge "mergiraf"]
+	# see https://mergiraf.org/usage.html for usage & CLI flags
 	name = mergiraf
 	driver = mergiraf merge --git %O %A %B -s %S -x %X -y %Y -p %P
