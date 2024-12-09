@@ -106,7 +106,7 @@ for_window [instance="gedit"] floating enable;
 for_window [instance="gedit"] move scratchpad; [instance="gedit"] scratchpad show; move position center; move scratchpad
 # "+" key on the far right, on the larger (external) keyboard
 bindsym KP_Add [instance="gedit"] scratchpad show, resize set 1200 650
-# "-" key on the far right, on the larger (external) keyboard, opens elly (https://github.com/chelmertz/elly)
+# "-" key on the far right, on the larger, external qpad keyboard, opens elly (https://github.com/chelmertz/elly)
 bindsym KP_Subtract exec xdg-open "http://localhost:9876" && wmctrl -a firefox
 # ugly hack to simulate right click on elly i3blocks integration
 bindsym Shift+KP_Subtract exec BLOCK_BUTTON=3 ~/code/github/chelmertz/elly/contrib/elly_i3blocks.sh 1 && wmctrl -a firefox
@@ -116,9 +116,9 @@ bindsym Insert [instance="gedit"] scratchpad show, resize set 1200 650
 
 # new keychron k8 pro keyboard, prior=page up, next=page down
 # elly
-bindsym Shift+Next exec xdg-open "http://localhost:9876" && wmctrl -a firefox
+bindsym Ctrl+Next exec xdg-open "http://localhost:9876" && wmctrl -a firefox
 # my tasks
-bindsym Shift+Prior exec BLOCK_BUTTON=1 ~/bin/i3-my-gh-issues 1 && wmctrl -a firefox
+bindsym Ctrl+Prior exec BLOCK_BUTTON=1 ~/bin/i3-my-gh-issues 1 && wmctrl -a firefox
 
 # Microsoft teams' notifications should float
 # see https://i3wm.org/docs/userguide.html#command_criteria
