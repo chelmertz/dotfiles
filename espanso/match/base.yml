@@ -69,6 +69,12 @@ matches:
   - trigger: ":Afaik"
     replace: "As far as I know"
 
+  - trigger: ":ac"
+    replace: "acceptance criteria"
+
+  - trigger: ":Ac"
+    replace: "Acceptance criteria"
+
   - trigger: ":afaict"
     replace: "as far as I can tell"
 
