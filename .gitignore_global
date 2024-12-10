@@ -35,6 +35,9 @@ Thumbs.db
 # emacs
 *~
 
+# libreoffice (sheets at least)
+.~lock.*#
+
 # ctags
 tags
 
