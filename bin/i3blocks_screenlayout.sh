@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 
-layout=$(zenity --question --text="Choose screenlayout" --switch --extra-button "work" --extra-button "home" --extra-button "single")
+layout=$(zenity --question --text="Choose screenlayout" --switch --extra-button "WORK" --extra-button "HOME" --extra-button "SINGLE")
 
 case $layout in
-	"home")
+	"HOME")
 		source ~/.screenlayout/home_dual.sh
 		;;
-	"work")
+	"WORK")
 		source ~/.screenlayout/work_dual.sh
 		;;
-	"single")
+	"SINGLE")
 		source ~/.screenlayout/single_small.sh
 		;;
 	*)
