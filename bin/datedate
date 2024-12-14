@@ -54,15 +54,15 @@ function debug_print($message) {
 	fwrite(STDERR, wordwrap("debug: $message\n", 75, "\ndebug: ", true));
 }
 
-function datedate($arg) {
+function datedate($arg, $title) {
 	$full_format = "l Y-m-d H:i:s e Y";
 	// see http://php.net/manual/en/function.date.php
 	if(!strlen($arg)) {
 		return array(
-			"date\t".date($full_format),
-			"iso\t".date('c'),
-			"unix\t".time(),
-			"rel\texactly now"
+			$title("date").date($full_format),
+			$title("iso").date('c'),
+			$title("unix").time(),
+			$title("rel")."exactly now"
 		);
 	}
 
@@ -77,10 +77,10 @@ function datedate($arg) {
 	}
 
 	return array(
-		"date\t".date($full_format, $unix),
-		"iso\t".date('c', $unix),
-		"unix\t".$unix,
-		"rel\t".human_relative($unix)
+		$title("date").date($full_format, $unix),
+		$title("iso").date('c', $unix),
+		$title("unix").$unix,
+		$title("rel").human_relative($unix)
 	);
 }
 
@@ -127,5 +127,18 @@ if(!debug_backtrace() && PHP_SAPI == 'cli') {
 	$arg = $argv;
 	array_shift($arg);
 	$arg = implode(" ", array_map('trim', $arg));
-	echo implode("\n", datedate($arg))."\n";
+
+	// See https://no-color.org/
+	$yescolor = getenv("NO_COLOR") === false;
+	$stdout_is_terminal = posix_isatty(STDOUT);
+	$colorize = $yescolor && $stdout_is_terminal;
+
+	$title = function($text) use ($colorize) {
+		if ($colorize) {
+			return "\033[32m$text\033[0m\t";
+		}
+		return "$text\t";
+	};
+
+	echo implode("\n", datedate($arg, $title))."\n";
 }
