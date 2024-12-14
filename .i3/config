@@ -124,6 +124,9 @@ bindsym Ctrl+Prior exec BLOCK_BUTTON=1 ~/bin/i3-my-gh-issues 1 && wmctrl -a fire
 # see https://i3wm.org/docs/userguide.html#command_criteria
 for_window [window_type="notification"] floating enable
 
+# ripdrag: drag and drop helper, https://github.com/nik012003/ripdrag
+for_window [class="ripdrag"] floating enable
+
 for_window [class=".*"] title_format " %title"
 for_window [class=".*"] border pixel 3
 # from https://www.youtube.com/watch?v=dFWd0honbbw
