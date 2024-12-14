@@ -288,8 +288,5 @@ exec --no-startup-id xdotool key --clearmodifiers Num_Lock
 
 exec --no-startup-id gedit ~/Dropbox/scratchpad.txt
 
-# rescuetime tracks program usage
-exec_always pidof rescuetime || rescuetime
-
 # redshift tints the window for late night comfortability
 #exec_always pidof redshift || redshift # disabled because working/playing at night and.. it's just cozy to get flashbanged when switching to a new, white-bg, terminal instance
