@@ -1,7 +1,7 @@
 #!/usr/bin/env php
 <?php
 
-// See https://github.com/chelmertz/datedate
+// See https://github.com/chelmertz/dotfiles/blob/master/bin/datedate
 // By Carl Helmertz, helmertz@gmail.com
 
 function datedate_help() {
@@ -26,15 +26,22 @@ SYNOPSIS
 EXAMPLE OUTPUT
 
 	$ datedate
-	Monday 2016-01-04 16:19:38 UTC 2016
-	1451924378
+	date	Sunday 2024-12-15 00:12:42 Europe/Stockholm 2024
+	iso	2024-12-15T00:12:42+01:00
+	unix	1734217962
+	rel	exactly now
 
 	$ datedate 0
-	Thursday 1970-01-01 00:00:00 UTC 1970
+	date	Thursday 1970-01-01 01:00:00 Europe/Stockholm 1970
+	iso	1970-01-01T01:00:00+01:00
+	unix	0
+	rel	54 years, 12 months, 1 day, 23 hours, 13 minutes ago
 
 	$ datedate yesterday -20 seconds
-	Saturday 2016-01-02 23:59:40 UTC 2016
-	1451779180
+	date	Friday 2024-12-13 23:59:40 Europe/Stockholm 2024
+	iso	2024-12-13T23:59:40+01:00
+	unix	1734130780
+	rel	1 day, 13 minutes, 41 seconds ago
 
 
 SEE ALSO
@@ -51,16 +58,55 @@ function datedate($arg) {
 	$full_format = "l Y-m-d H:i:s e Y";
 	// see http://php.net/manual/en/function.date.php
 	if(!strlen($arg)) {
-		return array(date($full_format), date('c'), time());
+		return array(
+			"date\t".date($full_format),
+			"iso\t".date('c'),
+			"unix\t".time(),
+			"rel\texactly now"
+		);
 	}
+
 	if(is_numeric($arg)) {
 		if(strlen($arg) == 13) {
 			$arg = substr($arg, 0, 10);
 			debug_print("Assuming UNIX timestamp was given with millisecond precision, rounding to $arg");
 		}
-		return array(date($full_format, $arg), date('c', $arg));
+		$unix = $arg;
+	} else {
+		$unix = strtotime($arg);
 	}
-	return array(date($full_format, strtotime($arg)), date('c', strtotime($arg)), strtotime($arg));
+
+	return array(
+		"date\t".date($full_format, $unix),
+		"iso\t".date('c', $unix),
+		"unix\t".$unix,
+		"rel\t".human_relative($unix)
+	);
+}
+
+function human_relative($unix) {
+	$seconds_delta = $unix - time();
+	if ($seconds_delta == 0) {
+		return "exactly now";
+	}
+
+	$diff = abs($seconds_delta);
+	$human = [];
+	foreach(["year" => 60*60*24*365, "month" => 60*60*24*30, "week" => 60*60*24*7, "day" => 60*60*24, "hour" => 60*60, "minute" => 60, "second" => 1] as $unit => $seconds) {
+		if ($diff < $seconds) {
+			continue;
+		}
+		$units = floor($diff/$seconds);
+		$pluralized = $units == 1 ? $unit : "${unit}s";
+		array_push($human, "$units $pluralized");
+		$diff %= $seconds;
+	}
+	$humanized = implode(", ", $human);
+	if ($seconds_delta > 0) {
+		return "$humanized in the future";
+	} else {
+		return "$humanized ago";
+	}
 }
 
 // "php's version" of python's "if __name__ == '__main__'"
