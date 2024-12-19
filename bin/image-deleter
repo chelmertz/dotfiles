@@ -1,0 +1,5 @@
+#!/bin/sh
+
+image-sorter -o ~/run.sh -- $@
+
+echo "output saved to ~/run.sh"
