@@ -156,9 +156,7 @@ VISUAL="vim"
 PATH=${PATH}:~/bin:/usr/local/go/bin:~/.local/bin:~/go/bin:~/.emacs.d/bin:~/.cargo/bin:~/.yarn/bin
 TZ='Europe/Stockholm'
 XDG_CONFIG_HOME=~/.config
-# i3-sensible-terminal relies on $TERMINAL
-TERMINAL=wezterm
-export EDITOR TERMINAL VISUAL PATH TZ XDG_CONFIG_HOME
+export EDITOR VISUAL PATH TZ XDG_CONFIG_HOME
 
 # create and cd into a temp dir
 cdt() {
