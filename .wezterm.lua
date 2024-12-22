@@ -14,7 +14,7 @@ end
 function scheme_for_appearance(appearance)
 	if appearance:find 'Dark' then
 		print("schema  Dark")
-		return 'Builtin Solarized Dark'
+		return 'Batman'
 	else
 		print("schema  Light")
 		return 'Builtin Solarized Light'
