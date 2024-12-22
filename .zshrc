@@ -21,6 +21,9 @@ export LESS_TERMCAP_se=$'\e[0m'
 export LESS_TERMCAP_so=$'\e[01;33m'
 export LESS_TERMCAP_ue=$'\e[0m'
 export LESS_TERMCAP_us=$'\e[1;4;31m'
+# the above worked in Ubuntu 22.04 but something broke "in" 24.04 and this workaround does it for me
+# also see https://github.com/jedsoft/most/issues/18
+export GROFF_NO_SGR=1
 
 alias rm='rm -i'
 alias cp='cp -i'
