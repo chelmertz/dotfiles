@@ -1,0 +1,21 @@
+#!/bin/sh
+
+
+test -z "$GH_TODO_REPO" && echo missing GH_TODO_REPO && exit 1
+test -z "$GH_TODO_PROJECT" && echo missing GH_TODO_PROJECT && exit 1
+
+
+if [ -t 0 ]; then
+	# should be within a terminal
+
+	# requires access rights: gh auth refresh -s project
+	gh issue create --repo "$GH_TODO_REPO" \
+		--project "$GH_TODO_PROJECT" \
+		--assignee @me \
+		--milestone 2024:3 \
+		--editor
+	res=$?
+	exit $res
+fi
+echo Launch through terminal
+exit 1
