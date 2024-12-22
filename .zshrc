@@ -206,10 +206,9 @@ xset r rate 200 25
 # see https://wiki.archlinux.org/title/Display_Power_Management_Signaling
 xset s off -dpms
 
-[ -f ~/code/github/rupa/z/z.sh ] && source ~/code/github/rupa/z/z.sh
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
-source ~/code/github/junegunn/fzf/shell/key-bindings.zsh
-source ~/code/github/junegunn/fzf/shell/completion.zsh
+[ -f ~/code/github/rupa/z/z.sh ] && source ~/code/github/rupa/z/z.sh
 
 # auto complete z via fzf
 # https://github.com/junegunn/fzf/wiki/Examples#integration-with-z
