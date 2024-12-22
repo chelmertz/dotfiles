@@ -14,7 +14,9 @@ end
 function scheme_for_appearance(appearance)
 	if appearance:find 'Dark' then
 		print("schema  Dark")
-		return 'Batman'
+		-- 'Batman' doesn't colorize green/red git index status in lazygit
+		-- 'Builtin Solarized Dark' has too many colors going on
+		return '3024 (base16)'
 	else
 		print("schema  Light")
 		return 'Builtin Solarized Light'
