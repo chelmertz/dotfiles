@@ -127,7 +127,7 @@ x() {
 case $1 in
   http*|*html)
     xdg-open $1 2>/dev/null # Chrome outputs some error that I can't act on
-    wmctrl -a "Google chrome"
+    wmctrl -a "Firefox"
     ;;
   *md)
     pandoc $1 | lynx -stdin
