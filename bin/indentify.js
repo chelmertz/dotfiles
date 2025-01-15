@@ -63,5 +63,11 @@ exec('zenity --text-info --editable', (error, stdout, stderr) => {
     }
     return;
   }
-  console.log(print(stdout.trim()));
+  const input = stdout.trim();
+  try {
+    const asJson = JSON.parse(input);
+    console.log(JSON.stringify(asJson, null, "\t"));
+  } catch(_) {
+    console.log(print(input));
+  }
 });
