@@ -3,5 +3,9 @@
 # This is a nohup alternative, with a shorter syntax and logging through
 # journalctl.
 
-echo "Starting '$*'" | systemd-cat -t bgstart
-"$@" </dev/null |& systemd-cat -t bgstart &
+prog="$1"
+tag="bgstart-$prog"
+
+echo "Starting '$*'" | systemd-cat -t "$tag"
+"$@" </dev/null |& systemd-cat -t "$tag" &
+echo "See logs with journalctl --user -t $tag"
