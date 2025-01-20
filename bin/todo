@@ -12,7 +12,7 @@ if [ -t 0 ]; then
 	gh issue create --repo "$GH_TODO_REPO" \
 		--project "$GH_TODO_PROJECT" \
 		--assignee @me \
-		--milestone 2024:3 \
+		--milestone 2025:1 \
 		--editor
 	res=$?
 	exit $res
