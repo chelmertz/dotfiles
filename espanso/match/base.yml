@@ -36,8 +36,14 @@ matches:
   - trigger: ":matchi"
     replace: "MATCHi"
 
+  - trigger: ":shell"
+    replace: "```shell\n$|$\n```"
+
   - trigger: ":pov"
     replace: "point of view"
+
+  - trigger: ":ttm"
+    replace: "time to market (TTM)"
 
   - trigger: ":bc"
     replace: "backwards-compatible"
@@ -56,6 +62,12 @@ matches:
 
   - trigger: ":Wdyt"
     replace: "What do you think?"
+
+  - trigger: ":wrt"
+    replace: "with regard to"
+
+  - trigger: ":Wrt"
+    replace: "With regard to"
 
   - trigger: ":iirc"
     replace: "if I recall correctly"
@@ -143,14 +155,5 @@ matches:
 
       api -->>- client: good bye
 
-
-  # Print the output of a shell command
-  - trigger: ":shell"
-    replace: "{{output}}"
-    vars:
-      - name: output
-        type: shell
-        params:
-          cmd: "echo 'Hello from your shell'"
 
   # And much more! For more information, visit the docs: https://espanso.org/docs/
