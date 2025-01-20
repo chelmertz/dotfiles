@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+test "$#" -eq 1 || (echo Need a single argument; exit 1)
+
+# remove dirs
+base=$(basename -- $1)
+# remove extension
+base="${base%.*}"
+
+outfile=~/"$base".mp4
+
+ffmpeg -i "$1" -vcodec h264 -acodec aac $outfile
+
+test "$?" -eq 0 && echo "new file at $outfile"
