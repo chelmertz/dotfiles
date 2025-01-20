@@ -122,7 +122,8 @@ e() {
 
 alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
-alias rg="ripgrep.rg"
+# show hidden files by default, case in point: ./github/workflows/*
+alias rg="ripgrep.rg --hidden"
 x() {
 case $1 in
   http*|*html)
