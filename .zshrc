@@ -281,3 +281,4 @@ export MATCHI_GIT_REPO_PATH=~/code/matchi
 # Hishtory Config:
 export PATH="$PATH:/home/ch/.hishtory"
 source /home/ch/.hishtory/config.zsh
+export PATH=$PATH:$HOME/.maestro/bin
