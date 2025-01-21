@@ -123,7 +123,8 @@ e() {
 alias cdd="cd ~/code/github/chelmertz/dotfiles"
 
 # show hidden files by default, case in point: ./github/workflows/*
-alias rg="ripgrep.rg --hidden"
+# smart case = ignore case if input is lowercase, otherwise follow casing
+alias rg="ripgrep.rg --hidden --smart-case"
 x() {
 case $1 in
   http*|*html)
