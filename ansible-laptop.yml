@@ -437,11 +437,6 @@
 - hosts: localhost
   tasks:
 
-    - name: black (python formatting)
-      pip:
-        name: black
-        extra_args: --user
-
     - name: litecli (sqlite alternative cli)
       pip:
         name: litecli
