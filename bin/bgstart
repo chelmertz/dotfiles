@@ -3,6 +3,19 @@
 # This is a nohup alternative, with a shorter syntax and logging through
 # journalctl.
 
+list_executables() {
+	for dir in ${PATH//:/ }; do
+		# -L follows symlinks, I have ~/bin as a symlink, for example
+		find -L "$dir" -maxdepth 1 -type f -executable -printf "%f\n" 2>/dev/null
+	done | sort -u
+}
+
+if [[ $# -eq 0 ]]; then
+	prog=$(list_executables | fzf --prompt="Select an executable: ")
+	[[ -z "$prog" ]] && exit 1
+	set -- "$prog" # sets $1
+fi
+
 prog="$1"
 tag="bgstart-$prog"
 
