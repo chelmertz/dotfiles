@@ -273,7 +273,7 @@ hide_edge_borders smart
 # when e.g. unplugging monitor, and a simple i3 reload solves it
 
 exec_always --no-startup-id pidof dropbox || dropbox start
-exec_always --no-startup-id pidof copyq || copyq
+exec_always --no-startup-id pidof copyq || (sleep 5; copyq)
 
 # hold caps for ctrl modifier, press for escape
 # inside .bashrc to make it execute (well, let's hope we open a new terminal)
