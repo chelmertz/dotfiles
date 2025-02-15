@@ -1,20 +1,31 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
-if [ "$#" -ne 2 ]; then
-	echo "Usage: $0 input-file.mp4 output-file.mp4"
+if [ "$#" -ne 1 ]; then
+	echo "Usage: $0 input-file.mp4"
 	exit 1
 fi
 
 if ! [ -f "$1" ]; then
-	echo "Usage: $0 input-file.mp4 output-file.mp4"
+	echo "Usage: $0 input-file.mp4"
 	echo "$1 is not a file"
 	exit 1
 fi
 
-if [ -f "$2" ]; then
-	echo "Usage: $0 input-file.mp4 output-file.mp4"
-	echo "$2 is already a file, specify a new file name please"
+ext="${1##*.}"
+base="${1%.*}"
+
+if [[ "$1" == *.* ]]; then
+	out="${base}_mute.${ext}"
+else
+	out="${file}_mute"
+fi
+
+echo $out
+
+if [ -f "$out" ]; then
+	echo "Usage: $0 input-file.mp4"
+	echo "$out is already a file, specify a new file name please"
 	exit 1
 fi
 
-ffmpeg -i "$1" -vcodec copy -an "$2"
+ffmpeg -i "$1" -vcodec copy -an "$out"
