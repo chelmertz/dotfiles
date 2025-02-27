@@ -143,6 +143,9 @@ matches:
   - trigger: ":PR"
     replace: "pull request"
 
+  - trigger: ":x"
+    replace: "×"
+
   - trigger: ":mermseq"
     replace: >
       sequenceDiagram
