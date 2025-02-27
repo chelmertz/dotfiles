@@ -38,6 +38,11 @@ alias gca="git commit -av"
 gcf() {
   git commit -a --fixup "$*"
 }
+gt() {
+	# getting tags: https://stackoverflow.com/a/71690022
+	# output format: https://stackoverflow.com/a/21444068 (minus --graph)
+	git tag --format='%(objectname)^{}' | git cat-file --batch-check | awk '$2=="commit" { print $1 }' | git log --stdin --author-date-order --no-walk --oneline --pretty=format:'%C(auto)%h%d%Creset %C(cyan)(%cr)%Creset %C(green)%cn <%ce>%Creset %s'
+}
 git-clone-github() {
   clone_url="$1"
   user=$(echo "$clone_url" | cut -d / -f4)
