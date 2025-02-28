@@ -104,14 +104,6 @@ bindsym Pause exec bwmenu --auto-lock -1 --clear 60
 
 for_window [instance="gnome-text-editor"] floating enable;
 for_window [instance="gnome-text-editor"] move scratchpad; [instance="gnome-text-editor"] scratchpad show; move position center; move scratchpad
-# "+" key on the far right, on the larger (external) keyboard
-bindsym KP_Add [instance="gnome-text-editor"] scratchpad show, resize set 1200 650
-# "-" key on the far right, on the larger, external qpad keyboard, opens elly (https://github.com/chelmertz/elly)
-bindsym KP_Subtract exec xdg-open "http://localhost:9876" && wmctrl -a firefox
-# ugly hack to simulate right click on elly i3blocks integration
-bindsym Shift+KP_Subtract exec BLOCK_BUTTON=3 ~/code/github/chelmertz/elly/contrib/elly_i3blocks.sh 1 && wmctrl -a firefox
-# add a ctrl to the above shortcut, to instead show the github board
-bindsym Ctrl+Shift+KP_Subtract exec BLOCK_BUTTON=1 ~/bin/i3-my-gh-issues 1 && wmctrl -a firefox
 bindsym Insert [instance="gnome-text-editor"] scratchpad show, resize set 1200 650
 
 # new keychron k8 pro keyboard, prior=page up, next=page down
