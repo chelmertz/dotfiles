@@ -118,7 +118,7 @@ bindsym Insert [instance="gnome-text-editor"] scratchpad show, resize set 1200 6
 # elly
 bindsym Ctrl+Shift+Next exec xdg-open "http://localhost:9876" && wmctrl -a firefox
 # my tasks
-bindsym Ctrl+Shift+Prior exec BLOCK_BUTTON=1 ~/bin/i3-my-gh-issues 1 && wmctrl -a firefox
+bindsym Ctrl+Shift+Prior exec BLOCK_BUTTON=1 ~/bin/i3blocks_my_gh_issues 1 && wmctrl -a firefox
 
 # Microsoft teams' notifications should float
 # see https://i3wm.org/docs/userguide.html#command_criteria
