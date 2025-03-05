@@ -1,14 +1,5 @@
 #!/usr/bin/env bash
 
-count=$(gh search issues --assignee @me --state open --json url --jq 'length')
-
-# glyph from fontawesome, "bug" f188
-
-# long
-echo " $count"
-# short
-echo " $count"
-
 __open() {
 	url=$1
 	xdg-open $url &>/dev/null && i3-msg workspace number 2 &>/dev/null && wmctrl -a firefox &>/dev/null
@@ -22,5 +13,14 @@ elif [[ "$BLOCK_BUTTON" -eq 3 ]]; then
 	# right click
 	# all of my issues
 	__open https://github.com/issues/assigned
+else
+	count=$(gh search issues --assignee @me --owner matchiapp --state open --json url --jq 'length')
+
+	# glyph from fontawesome, "bug" f188
+
+	# long
+	echo " $count"
+	# short
+	echo " $count"
 fi
 
