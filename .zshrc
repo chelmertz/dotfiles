@@ -31,7 +31,6 @@ alias mv='mv -i'
 
 alias g=lazygit
 alias ga="git add -A "
-alias gb="git branch -vv --sort=-committerdate "
 alias gba="git branch -vv --sort=-committerdate --all"
 alias gc="git commit -v"
 alias gca="git commit -av"
@@ -42,6 +41,9 @@ gt() {
 	# getting tags: https://stackoverflow.com/a/71690022
 	# output format: https://stackoverflow.com/a/21444068 (minus --graph)
 	git tag --format='%(objectname)^{}' | git cat-file --batch-check | awk '$2=="commit" { print $1 }' | git log --stdin --author-date-order --no-walk --oneline --pretty=format:'%C(auto)%h%d%Creset %C(cyan)(%cr)%Creset %C(green)%cn <%ce>%Creset %s'
+}
+gb() {
+	git branch --format='%(objectname)^{}' | git cat-file --batch-check | awk '$2=="commit" { print $1 }' | git log --stdin --author-date-order --no-walk --oneline --pretty=format:'%C(auto)%h%d%Creset %C(cyan)(%cr)%Creset %C(green)%cn <%ce>%Creset %s'
 }
 git-clone-github() {
   clone_url="$1"
