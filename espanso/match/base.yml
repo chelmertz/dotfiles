@@ -81,7 +81,7 @@ matches:
   - trigger: ":Afaik"
     replace: "As far as I know"
 
-  - trigger: ":ac"
+  - trigger: ":AC"
     replace: "acceptance criteria"
 
   - trigger: ":Ac"
