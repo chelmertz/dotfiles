@@ -141,7 +141,7 @@ case $1 in
     wmctrl -a "Firefox"
     ;;
   *md)
-    pandoc $1 | lynx -stdin
+    glow $1
     ;;
   *)
     xdg-open $1
