@@ -12,23 +12,28 @@ if [[ $# -eq 0 ]]; then
 	fi
 fi
 
-# accepts https://www.youtube.com/watch?v=OLmqnG9b9fA&list=RDGMEM6ijAnFTG9nX1G-kbWBUCJA&index=2
-v_query_param=$(trurl "$arg" --get '{query:v}')
-if [ -n "$v_query_param" ]; then
-	youtube_id="$v_query_param"
+# accepts https://soundcloud.com/liminal-being/oslo2
+if echo "$arg" | grep soundcloud.com; then
+	url="$arg"
 else
-	# accepts 'https://youtu.be/chh0H1BZeOA?si=Xz2BQjhkqGLPwQ3g'
-	video_id=$(trurl "$arg" --get '{path}')
-	video_id="${video_id:1}"
-
-	if [ -n "$video_id" ]; then
-		youtube_id="$video_id"
+	# accepts https://www.youtube.com/watch?v=OLmqnG9b9fA&list=RDGMEM6ijAnFTG9nX1G-kbWBUCJA&index=2
+	v_query_param=$(trurl "$arg" --get '{query:v}')
+	if [ -n "$v_query_param" ]; then
+		youtube_id="$v_query_param"
 	else
-		# accepts 'chh0H1BZeOA'
-		youtube_id=$arg
-	fi
-fi
+		# accepts 'https://youtu.be/chh0H1BZeOA?si=Xz2BQjhkqGLPwQ3g'
+		video_id=$(trurl "$arg" --get '{path}')
+		video_id="${video_id:1}"
 
-url="https://www.youtube.com/watch?v=$youtube_id" 
+		if [ -n "$video_id" ]; then
+			youtube_id="$video_id"
+		else
+			# accepts 'chh0H1BZeOA'
+			youtube_id=$arg
+		fi
+	fi
+
+	url="https://www.youtube.com/watch?v=$youtube_id" 
+fi
 
 yt-dlp --paths home:~/Dropbox/music --format ba --extract-audio --audio-format mp3 "$url"
