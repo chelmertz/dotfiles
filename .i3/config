@@ -104,7 +104,10 @@ bindsym Pause exec bwmenu --auto-lock -1 --clear 60
 
 for_window [instance="gnome-text-editor"] floating enable;
 for_window [instance="gnome-text-editor"] move scratchpad; [instance="gnome-text-editor"] scratchpad show; move position center; move scratchpad
+# for the Keychron external keyboard
 bindsym Insert [instance="gnome-text-editor"] scratchpad show, resize set 1200 650
+# for the F96 external keyboard
+bindsym KP_Add [instance="gnome-text-editor"] scratchpad show, resize set 1200 650
 
 # new keychron k8 pro keyboard, prior=page up, next=page down
 # elly
