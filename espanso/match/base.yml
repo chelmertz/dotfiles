@@ -81,6 +81,12 @@ matches:
   - trigger: ":Afaik"
     replace: "As far as I know"
 
+  - trigger: ":RO"
+    replace: "read-only"
+
+  - trigger: ":RW"
+    replace: "read-write"
+
   - trigger: ":AC"
     replace: "acceptance criteria"
 
