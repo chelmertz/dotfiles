@@ -1,3 +1,22 @@
 #!/bin/sh
 
-xclip -selection clipboard
+if [ -t 0 ]; then
+	# no stdin
+	if [ -f "$1" ]; then
+		# a filename is given
+		mimetype=$(file --mime-type -b "$1")
+		if echo "$mimetype" | grep -q '^image/'; then
+			xclip -selection clipboard -target "$mimetype" -in < "$1"
+		else
+			xclip -selection clipboard -target text/plain -in < "$1"
+		fi
+	else
+		echo "Usage: pbcopy [file]"
+		echo "Tip: if you have fzf installed, type: 'pbcopy '"
+		echo "                                              ^-- press ctrl-t with cursor here"
+		exit 1
+	fi
+else
+	# reading from stdin
+	xclip -selection clipboard -t text/plain
+fi
