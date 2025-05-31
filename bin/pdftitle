@@ -1,0 +1,19 @@
+#!/bin/sh
+
+title=$(pdfinfo "$1" | grep -E "^Title:" | tr -s ' ' | cut -d ' ' -f2-)
+lower=$(echo -n "$title" | tr '[:upper:]' '[:lower:]')
+snake=$(echo -n "$lower" | tr ' ' '_')
+with_dir=$(echo -n "/home/ch/Dropbox/books_papers_articles/$snake.pdf")
+
+if [ -f "$with_dir" ]; then
+	echo "'$with_dir' already exists"
+	exit 1
+fi
+
+echo "Rename '$1' to '$with_dir'?"
+read answer
+case $answer in
+	y|Y)
+		mv "$1" "$with_dir"
+		;;
+esac
