@@ -135,12 +135,7 @@ if(!debug_backtrace() && PHP_SAPI == 'cli') {
 	$stdout_is_terminal = posix_isatty(STDOUT);
 	$colorize = $yescolor && $stdout_is_terminal;
 
-	$title = function($text) use ($colorize) {
-		if ($colorize) {
-			return "\033[32m$text\033[0m\t";
-		}
-		return "$text\t";
-	};
+	$title = fn ($text) => $colorize ? "\033[32m$text\033[0m\t": "$text\t";
 
 	echo implode("\n", datedate($arg, $title))."\n";
 }
