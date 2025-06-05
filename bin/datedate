@@ -61,6 +61,7 @@ function datedate($arg, $title) {
 		return array(
 			$title("date").date($full_format),
 			$title("iso").date('c'),
+			$title("utc").gmdate('c'),
 			$title("unix").time(),
 			$title("rel")."exactly now"
 		);
@@ -79,6 +80,7 @@ function datedate($arg, $title) {
 	return array(
 		$title("date").date($full_format, $unix),
 		$title("iso").date('c', $unix),
+		$title("utc").gmdate('c', $unix),
 		$title("unix").$unix,
 		$title("rel").human_relative($unix)
 	);
