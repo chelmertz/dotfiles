@@ -75,6 +75,12 @@ matches:
   - trigger: ":Iirc"
     replace: "If I recall correctly"
 
+  - trigger: ":lmk"
+    replace: "let me know"
+
+  - trigger: ":Lmk"
+    replace: "Let me know"
+
   - trigger: ":afaik"
     replace: "as far as I know"
 
