@@ -68,5 +68,7 @@ config.color_scheme = scheme_for_appearance(get_appearance())
 config.enable_tab_bar = false
 config.scrollback_lines = 10000
 config.enable_scroll_bar = true
+config.font = wezterm.font("Go Mono", {weight="Regular", stretch="Normal", style="Normal"})
+config.font_size = 15
 
 return config
