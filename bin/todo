@@ -1,21 +1,13 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
+# using gojo to handle newlines properly: https://github.com/itchyny/gojo
+todo=$(gojo name="$*")
 
-test -z "$GH_TODO_REPO" && echo missing GH_TODO_REPO && exit 1
-test -z "$GH_TODO_PROJECT" && echo missing GH_TODO_PROJECT && exit 1
+test -z "$FAVRO_ORG_ID" && echo missing FAVRO_ORG_ID which can be found in the URL, check your browser && exit 1
+test -z "$FAVRO_EMAIL" && echo missing FAVRO_EMAIL && exit 1
+test -z "$FAVRO_API_TOKEN" && echo missing FAVRO_API_TOKEN, generate it from your profile page && exit 1
 
-
-if [ -t 0 ]; then
-	# should be within a terminal
-
-	# requires access rights: gh auth refresh -s project
-	gh issue create --repo "$GH_TODO_REPO" \
-		--project "$GH_TODO_PROJECT" \
-		--assignee @me \
-		--milestone 2025:2 \
-		--editor
-	res=$?
-	exit $res
-fi
-echo Launch through terminal
-exit 1
+curl -X POST "https://favro.com/api/v1/cards" \
+    -d "$todo" -H "organizationId: $FAVRO_ORG_ID" \
+    -H "Content-Type: application/json" \
+    -u "$FAVRO_EMAIL":"$FAVRO_API_TOKEN"
