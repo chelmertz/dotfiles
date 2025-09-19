@@ -10,10 +10,9 @@ else
 		exit 1
 	fi
 
-	# a trailing ' 1' means that the monitored thing is up
-	out=$(echo "$out" | grep monitor_status | grep -v '^#' | grep -v ' 1$' | wc -l)
-	if [[ "$out" != "0" ]]; then
-		echo "uptime kuma errors: $out"
+	down_count=$(echo "$out" | grep monitor_status | grep -v '^#' | grep ' 0$' | wc -l)
+	if [[ "$down_count" != "0" ]]; then
+		echo "uptime kuma errors: $down_count"
 		exit 33
 	fi
 fi
