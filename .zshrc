@@ -45,6 +45,12 @@ gt() {
 gb() {
 	git branch --format='%(objectname)^{}' | git cat-file --batch-check | awk '$2=="commit" { print $1 }' | git log --stdin --author-date-order --no-walk --oneline --pretty=format:'%C(auto)%h%d%Creset %C(cyan)(%cr)%Creset %C(green)%cn <%ce>%Creset %s'
 }
+gf() {
+# which files did an author touch in a repo?
+	local author
+	author=$1
+	git log --no-merges --author="$author" --name-only --pretty=format:"" | sort -u
+}
 git-clone-github() {
   clone_url="$1"
   user=$(echo "$clone_url" | cut -d / -f4)
