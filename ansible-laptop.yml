@@ -62,6 +62,11 @@
       apt:
         name: screenkey
 
+    - name: kubectl (k8s cli)
+      snap:
+        name: kubectl
+        classic: yes
+
     - name: bruno (http client à la Postman)
       snap:
         name: bruno
