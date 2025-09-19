@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-layout=$(zenity --question --text="Choose screenlayout" --switch --extra-button "LARGE EXTERNAL" --extra-button "SINGLE" --extra-button "SINGLE-BIG")
+layout=$(zenity --question --text="Choose screenlayout" --switch --extra-button "LARGE EXTERNAL" --extra-button "SINGLE" --extra-button "SINGLE-BIG" --extra-button "Reconnect monitors")
 
 case $layout in
 	LARGE*)
@@ -39,6 +39,9 @@ case $layout in
 		;;
 	"SINGLE-BIG")
 		source ~/.screenlayout/single_big.sh
+		;;
+	"Reconnect monitors")
+		reconnect-monitor
 		;;
 	*)
 		echo >&2 No layout chosen
