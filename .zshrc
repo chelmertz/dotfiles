@@ -290,6 +290,15 @@ function Resume {
 zle -N Resume
 bindkey "^Z" Resume
 
+# edit current command in vim
+autoload -U edit-command-line # -U to not expand my aliases inside the widget iiuc
+zle -N edit-command-line # -N to define a new zle widget
+bindkey "^X" edit-command-line # ctrl+x
+# some useful bindkey commands
+# bindkey -l for listing keymaps
+# bindkey -M main for listing keybinds for a keymap
+# zle -al for listing all commands
+
 # nvm (node version manager)
 export NVM_DIR="$HOME/.config/nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
