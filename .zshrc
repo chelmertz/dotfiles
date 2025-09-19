@@ -277,6 +277,19 @@ autoload -U compinit
 compinit
 source <(jj util completion zsh)
 
+# alias (ish) ctrl+z to fg, so that ctrl+z toggles a program's suspendedness
+# https://www.reddit.com/r/vim/comments/9bm3x0/ctrlz_binding/
+function Resume {
+	# avoid the unnecessary error messages when nothing is suspended
+	[[ "$(jobs | wc -l)" == "0" ]] && return
+	fg
+	zle push-input
+	BUFFER=""
+	zle accept-line
+}
+zle -N Resume
+bindkey "^Z" Resume
+
 # nvm (node version manager)
 export NVM_DIR="$HOME/.config/nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
