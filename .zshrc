@@ -29,6 +29,9 @@ alias rm='rm -i'
 alias cp='cp -i'
 alias mv='mv -i'
 
+
+# fd's colors do not match any light wezterm theme (tried 5+)
+alias fd="fd --color never"
 alias g=lazygit
 alias ga="git add -A "
 alias gba="git branch -vv --sort=-committerdate --all"
