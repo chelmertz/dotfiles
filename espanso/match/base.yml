@@ -158,6 +158,10 @@ matches:
   - trigger: ":x"
     replace: "×"
 
+# for https://github.com/akavel/up
+  - trigger: "::up"
+    replace: "|& up"
+
   - trigger: ":mermseq"
     replace: >
       sequenceDiagram
