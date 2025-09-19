@@ -55,7 +55,6 @@ git-clone-github() {
   git clone "$clone_url" "$target_dir"
   cd "$target_dir"
   git remote rename origin upstream
-  cursor .
 }
 alias gcaa="git commit -a --amend --no-edit --date=now"
 alias gd="git diff -M -w"
