@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+
+# "d" for done or diary, a plan-like store
+# requires sqlite3, fzf
+
+DBFILE=~/d.sqlite3
+if [ ! -f "$DBFILE" ]; then
+	# soft delete because... I forgot about the shortcut and dropped a couple of rows :(
+	sqlite3 "$DBFILE" "create table log(user text, at text default (datetime('now')), entry text, deleted text default null)"
+fi
+
+read -r -d '' sql <<EOF
+with da as (
+	select rowid, julianday('now')-julianday(at) as days from log
+)
+select
+case when da.days <=3 then "🆕 " else "" end as icon,
+l.rowid,
+l.at,
+l.entry
+from log l
+inner join da
+on da.rowid = l.rowid
+where l.deleted is null
+order by l.at desc;
+EOF
+
+#TODO labels explaining binds
+rowid=$(sqlite3 -json "$DBFILE" "$sql" |
+	jq -r '.[] | "\(.rowid)\t\(.entry | gsub("\n"; " ") | gsub("\t"; " ") | gsub("\r"; " "))\t\(.at)\t\(.icon)"' |
+	fzf --ansi \
+	--style=full \
+	--color=light \
+	--delimiter=$'\t' \
+	--border \
+	--border-label ' done ' \
+	--header-label ' abc 123 ' \
+	--bind 'focus:+transform-header:echo hejhej {} || echo "nothing selected"' \
+	--padding 1,2 \
+	--bind 'focus:transform-preview-label:[[ -n {} ]] && printf " %sfrom %s " {4} {3}' \
+	--bind "tab:execute@sqlite3 $DBFILE \"insert into log(user, entry) values ('$USER', trim(trim(edit(''), X'0A')))\"@+become(d)" \
+	--bind "ctrl-d:execute@sqlite3 $DBFILE \"update log set deleted=datetime('now') where rowid={1}\"@+become(d)" \
+	--bind "enter:execute@sqlite3 $DBFILE \"update log set entry = trim(trim(edit(entry), X'0A')) where rowid={1}\"@+become(d)" \
+	--with-nth=2 \
+	--accept-nth=1 \
+	--preview "sqlite3 $DBFILE \"select entry from log where rowid={1}\" | head -n10 | glow")
+
+# X'0A' is \n, i.e. trim newlines, while trim() removes leading & trailing spaces
+# edit() opens VISUAL (i.e. `export VISUAL=vim` in your bashrc/zshrc)
+
+
+# TODO weekly report in plaintext:
+# output `cal w` at top
+# output day-of-week in caps
+# needs separators between entries and between days (each entry closed with ¶ at end of final line in entry (after a space)
+
