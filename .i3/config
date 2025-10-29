@@ -102,12 +102,12 @@ for_window [class="Spotify"] move to workspace $ws10
 # bitwarden through rofi
 bindsym Pause exec bwmenu --auto-lock -1 --clear 60
 
-for_window [instance="gnome-text-editor"] floating enable;
-for_window [instance="gnome-text-editor"] move scratchpad; [instance="gnome-text-editor"] scratchpad show; move position center; move scratchpad
+for_window [instance="gvim"] floating enable;
+for_window [instance="gvim"] move scratchpad; [instance="gvim"] scratchpad show; move position center; move scratchpad
 # for the Keychron external keyboard
-bindsym Insert [instance="gnome-text-editor"] scratchpad show, resize set 1200 650
+bindsym Insert [instance="gvim"] scratchpad show, resize set 1200 650
 # for the F96 external keyboard
-bindsym KP_Add [instance="gnome-text-editor"] scratchpad show, resize set 1200 650
+bindsym KP_Add [instance="gvim"] scratchpad show, resize set 1200 650
 
 # new keychron k8 pro keyboard, prior=page up, next=page down
 # elly
@@ -282,7 +282,7 @@ exec --no-startup-id autorandr -l $(autorandr --detected)
 # turn on num look on boot
 exec --no-startup-id xdotool key --clearmodifiers Num_Lock
 
-exec --no-startup-id gnome-text-editor ~/Dropbox/scratchpad.txt
+exec --no-startup-id gvim ~/Dropbox/scratchpad.md
 
 # redshift tints the window for late night comfortability
 #exec_always pidof redshift || redshift # disabled because working/playing at night and.. it's just cozy to get flashbanged when switching to a new, white-bg, terminal instance
