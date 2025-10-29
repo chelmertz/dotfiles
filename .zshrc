@@ -164,6 +164,7 @@ batt() {
 alias docker-ps='docker ps --format "{{.Status}}\t{{.Names}}\t{{.Ports}}" -a'
 
 compdef g='git'
+compdef _files pbcopy
 
 # zsh on gnome-terminal doesn't support ctrl+left/right by default..?
 bindkey ";5C" forward-word
