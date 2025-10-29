@@ -25,6 +25,9 @@ where l.deleted is null
 order by l.at desc;
 EOF
 
+# edit() opens VISUAL (i.e. `export VISUAL=vim` in your bashrc/zshrc)
+VISUAL="vim -c 'set filetype=markdown'"
+
 #TODO labels explaining binds
 rowid=$(sqlite3 -json "$DBFILE" "$sql" |
 	jq -r '.[] | "\(.rowid)\t\(.entry | gsub("\n"; " ") | gsub("\t"; " ") | gsub("\r"; " "))\t\(.at)\t\(.icon)"' |
@@ -46,7 +49,6 @@ rowid=$(sqlite3 -json "$DBFILE" "$sql" |
 	--preview "sqlite3 $DBFILE \"select entry from log where rowid={1}\" | head -n10 | glow")
 
 # X'0A' is \n, i.e. trim newlines, while trim() removes leading & trailing spaces
-# edit() opens VISUAL (i.e. `export VISUAL=vim` in your bashrc/zshrc)
 
 
 # TODO weekly report in plaintext:
