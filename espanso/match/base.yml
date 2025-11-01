@@ -158,6 +158,9 @@ matches:
   - trigger: ":x"
     replace: "×"
 
+  - trigger: ":check"
+    replace: "✅"
+
 # for https://github.com/akavel/up
   - trigger: "::up"
     replace: "|& up"
