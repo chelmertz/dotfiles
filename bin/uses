@@ -1,0 +1,82 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# Get the script directory's parent to find the tables folder
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TABLES_DIR="${HOME}/code/github/chelmertz/chelmertz.github.io/tables"
+
+if [ ! -d "$TABLES_DIR" ]; then
+    zenity --error --text="Tables directory not found: $TABLES_DIR"
+    exit 1
+fi
+
+# Find all usesthis CSV files
+csv_files=("$TABLES_DIR"/usesthis_*.csv)
+
+if [ ${#csv_files[@]} -eq 0 ]; then
+    zenity --error --text="No usesthis CSV files found in $TABLES_DIR"
+    exit 1
+fi
+
+# Create list for zenity selection (show basename without path)
+file_list=()
+for file in "${csv_files[@]}"; do
+    basename=$(basename "$file" .csv)
+    basename=${basename#usesthis_}
+    file_list+=("$file")
+    file_list+=("$basename")
+done
+
+# Ask user to select a CSV file
+selected_file=$(zenity --list \
+    --title="Select CSV File" \
+    --column="Path" --column="Category" \
+    --hide-column=1 \
+    --print-column=1 \
+    --width=400 --height=300 \
+    "${file_list[@]}") || exit 1
+
+if [ -z "$selected_file" ]; then
+    exit 1
+fi
+
+# Collect data using zenity forms
+result=$(zenity --forms \
+    --title="Add Entry" \
+    --text="Fill in the details:" \
+    --add-entry="Name" \
+    --add-entry="Purpose & context" \
+    --add-entry="URL" \
+    --separator="|" \
+    --width=500) || exit 1
+
+if [ -z "$result" ]; then
+    exit 1
+fi
+
+# Parse the result (separated by |)
+IFS='|' read -r name purpose url <<< "$result"
+
+# Escape fields for CSV (handle quotes and commas)
+escape_csv() {
+    local field="$1"
+    # If field contains comma, quote, or newline, wrap in quotes and escape internal quotes
+    if [[ "$field" =~ [,\"] ]]; then
+        field="${field//\"/\"\"}"
+        echo "\"$field\""
+    else
+        echo "$field"
+    fi
+}
+
+name=$(escape_csv "$name")
+purpose=$(escape_csv "$purpose")
+url=$(escape_csv "$url")
+
+# Append to CSV file
+echo "$name,$purpose,$url" >> "$selected_file"
+
+zenity --info --text="Entry added successfully to $(basename "$selected_file")" --timeout=3
+
+exit 0
