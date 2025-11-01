@@ -28,7 +28,6 @@ EOF
 # edit() opens VISUAL (i.e. `export VISUAL=vim` in your bashrc/zshrc)
 VISUAL="vim -c 'set filetype=markdown'"
 
-#TODO labels explaining binds
 rowid=$(sqlite3 -json "$DBFILE" "$sql" |
 	jq -r '.[] | "\(.rowid)\t\(.entry | gsub("\n"; " ") | gsub("\t"; " ") | gsub("\r"; " "))\t\(.at)\t\(.icon)"' |
 	fzf --ansi \
@@ -36,9 +35,7 @@ rowid=$(sqlite3 -json "$DBFILE" "$sql" |
 	--color=light \
 	--delimiter=$'\t' \
 	--border \
-	--border-label ' done ' \
-	--header-label ' abc 123 ' \
-	--bind 'focus:+transform-header:echo hejhej {} || echo "nothing selected"' \
+	--border-label ' done [ tab -> create; esc -> close ]' \
 	--padding 1,2 \
 	--bind 'focus:transform-preview-label:[[ -n {} ]] && printf " %sfrom %s " {4} {3}' \
 	--bind "tab:execute@sqlite3 $DBFILE \"insert into log(user, entry) values ('$USER', trim(trim(edit(''), X'0A')))\"@+become(d)" \
