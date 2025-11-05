@@ -25,8 +25,30 @@ where l.deleted is null
 order by l.at desc;
 EOF
 
+read -r -d '' mermaid_header <<'MERMAID_EOF'
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true });
+</script>
+MERMAID_EOF
+
+read -r -d '' mermaid_filter <<'FILTER_EOF'
+function CodeBlock(block)
+  if block.classes[1] == "mermaid" then
+    local text = block.text
+    -- Remove config section from YAML frontmatter if present, otherwise we will syntax error
+    text = text:gsub("(%-%-%-%s*\ntitle:[^\n]*\n)config:%s*\n%s*layout:[^\n]*\n(%-%-%-%s*\n)", "%1%2")
+    return pandoc.RawBlock("html", "<pre class=\"mermaid\">\n" .. text .. "\n</pre>")
+  end
+end
+FILTER_EOF
+
 # edit() opens VISUAL (i.e. `export VISUAL=vim` in your bashrc/zshrc)
 VISUAL="vim -c 'set filetype=markdown'"
+
+# Write mermaid support files once
+echo "$mermaid_header" > ~/.cache/d-mermaid-header.html
+echo "$mermaid_filter" > ~/.cache/d-mermaid-filter.lua
 
 rowid=$(sqlite3 -json "$DBFILE" "$sql" |
 	jq -r '.[] | "\(.rowid)\t\(.entry | gsub("\n"; " ") | gsub("\t"; " ") | gsub("\r"; " "))\t\(.at)\t\(.icon)"' |
@@ -35,12 +57,13 @@ rowid=$(sqlite3 -json "$DBFILE" "$sql" |
 	--color=light \
 	--delimiter=$'\t' \
 	--border \
-	--border-label ' done [ tab -> create; esc -> close ]' \
+	--border-label ' done [ tab -> create; enter -> edit; shift-tab -> render in browser; ctrl-d -> delete entry; esc -> close ]' \
 	--padding 1,2 \
 	--bind 'focus:transform-preview-label:[[ -n {} ]] && printf " %sfrom %s " {4} {3}' \
 	--bind "tab:execute@sqlite3 $DBFILE \"insert into log(user, entry) values ('$USER', trim(trim(edit(''), X'0A')))\"@+become(d)" \
 	--bind "ctrl-d:execute@sqlite3 $DBFILE \"update log set deleted=datetime('now') where rowid={1}\"@+become(d)" \
 	--bind "enter:execute@sqlite3 $DBFILE \"update log set entry = trim(trim(edit(entry), X'0A')) where rowid={1}\"@+become(d)" \
+	--bind "shift-tab:execute@sqlite3 $DBFILE \"select entry from log where rowid={1}\" | pandoc -f markdown -t html -s --include-in-header ~/.cache/d-mermaid-header.html --lua-filter ~/.cache/d-mermaid-filter.lua -o ~/.cache/d-preview-{1}.html && google-chrome ~/.cache/d-preview-{1}.html@+become(d)" \
 	--with-nth=2 \
 	--accept-nth=1 \
 	--preview "sqlite3 $DBFILE \"select entry from log where rowid={1}\" | head -n10 | glow")
