@@ -2,4 +2,4 @@
 
 # puts the last 5 items in ~/Downloads, into ripdrag (a drag & drop helper)
 
-ripdrag --icon-size 128 --content-height 720 $(ls -1t ~/Downloads/* | head -n5)
+ls -1t ~/Downloads/* | head -n5 | xargs -d '\n' ripdrag --icon-size 128 --content-height 720
