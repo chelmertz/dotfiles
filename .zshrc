@@ -149,7 +149,7 @@ case $1 in
     wmctrl -a "Firefox"
     ;;
   *md)
-    glow $1
+    glow -s light $1 | less -r
     ;;
   *)
     xdg-open $1
