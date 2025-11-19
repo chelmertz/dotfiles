@@ -104,10 +104,12 @@ bindsym Pause exec bwmenu --auto-lock -1 --clear 60
 
 for_window [instance="gvim"] floating enable;
 for_window [instance="gvim"] move scratchpad; [instance="gvim"] scratchpad show; move position center; move scratchpad
-# for the Keychron external keyboard
-bindsym Insert [instance="gvim"] scratchpad show, resize set 1200 650
-# for the F96 external keyboard
-bindsym KP_Add [instance="gvim"] scratchpad show, resize set 1200 650
+
+
+# for the Keychron keyboard
+bindsym Insert exec --no-startup-id ~/code/github/chelmertz/dotfiles/bin/toggle-gvim-scratchpad
+# for the F96 keyboard
+bindsym KP_Add exec --no-startup-id ~/code/github/chelmertz/dotfiles/bin/toggle-gvim-scratchpad
 
 # new keychron k8 pro keyboard, prior=page up, next=page down
 # elly
@@ -281,6 +283,4 @@ exec_always --no-startup-id feh --randomize --no-fehbg --bg-scale ~/Dropbox/wall
 exec --no-startup-id autorandr -l $(autorandr --detected)
 # turn on num look on boot
 exec --no-startup-id xdotool key --clearmodifiers Num_Lock
-
-exec --no-startup-id gvim ~/Dropbox/scratchpad.md
 

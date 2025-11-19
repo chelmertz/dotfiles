@@ -1,0 +1,8 @@
+#!/bin/bash
+# Toggle gvim scratchpad - start gvim if not running, then show scratchpad
+
+if ! pidof gvim > /dev/null; then
+    gvim ~/Dropbox/scratchpad.md
+fi
+
+i3-msg '[instance="gvim"] scratchpad show, resize set 1400 800'
