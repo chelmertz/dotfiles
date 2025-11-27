@@ -77,6 +77,6 @@ url=$(escape_csv "$url")
 # Append to CSV file
 echo "$name,$purpose,$url" >> "$selected_file"
 
-zenity --info --text="Entry added successfully to $(basename "$selected_file")" --timeout=3
+notify-send --expire-time=3000 "Entry added successfully to $(basename "$selected_file")"
 
 exit 0
