@@ -3,7 +3,7 @@
 # "d" for done or diary, a plan-like store
 # requires sqlite3, fzf
 
-DBFILE=~/d.sqlite3
+DBFILE=~/Dropbox/d.sqlite3
 if [ ! -f "$DBFILE" ]; then
 	# soft delete because... I forgot about the shortcut and dropped a couple of rows :(
 	sqlite3 "$DBFILE" "create table log(user text, at text default (datetime('now')), entry text, deleted text default null)"
