@@ -62,11 +62,15 @@ function CodeBlock(block)
 end
 FILTER_EOF
 
-# edit() opens VISUAL (i.e. `export VISUAL=vim` in your bashrc/zshrc)
-VISUAL="vim -c 'set filetype=markdown'"
 echo "$mermaid_header" > "$D_PREVIEW_DIR/d-mermaid-header.html"
 echo "$mermaid_filter" > "$D_PREVIEW_DIR/d-mermaid-filter.lua"
 
+# sqlite's edit() opens the editor configurued in VISUAL
+# (i.e. `export VISUAL=vim` in your bashrc/zshrc); if vim, hint that we're
+# editing markdown
+if [ "$VISUAL" = "vim" ]; then
+	VISUAL="vim -c 'set filetype=markdown'"
+fi
 
 
 rowid=$(sqlite3 -json "$DBFILE" "$sql_entries" |
