@@ -4,6 +4,9 @@
 # requires sqlite3, fzf (and pandoc, treemd for some output formats)
 
 DBFILE=~/Dropbox/d.sqlite3
+D_PREVIEW_DIR=~/Downloads/d-preview
+mkdir -p "$D_PREVIEW_DIR"
+
 if [ ! -f "$DBFILE" ]; then
 	# soft delete because... I forgot about the shortcut and dropped a couple of rows :(
 	sqlite3 "$DBFILE" "create table log(user text, at text default (datetime('now')), entry text, deleted text default null)"
@@ -45,10 +48,9 @@ FILTER_EOF
 
 # edit() opens VISUAL (i.e. `export VISUAL=vim` in your bashrc/zshrc)
 VISUAL="vim -c 'set filetype=markdown'"
+echo "$mermaid_header" > "$D_PREVIEW_DIR/d-mermaid-header.html"
+echo "$mermaid_filter" > "$D_PREVIEW_DIR/d-mermaid-filter.lua"
 
-# Write mermaid support files once
-echo "$mermaid_header" > ~/.cache/d-mermaid-header.html
-echo "$mermaid_filter" > ~/.cache/d-mermaid-filter.lua
 
 rowid=$(sqlite3 -json "$DBFILE" "$sql" |
 	jq -r '.[] | "\(.rowid)\t\(.entry | gsub("\n"; " ") | gsub("\t"; " ") | gsub("\r"; " "))\t\(.at)\t\(.icon)"' |
@@ -63,7 +65,7 @@ rowid=$(sqlite3 -json "$DBFILE" "$sql" |
 	--bind "tab:execute@sqlite3 $DBFILE \"insert into log(user, entry) values ('$USER', trim(trim(edit(''), X'0A')))\"@+become(d)" \
 	--bind "ctrl-d:execute@sqlite3 $DBFILE \"update log set deleted=datetime('now') where rowid={1}\"@+become(d)" \
 	--bind "enter:execute@sqlite3 $DBFILE \"update log set entry = trim(trim(edit(entry), X'0A')) where rowid={1}\"@+become(d)" \
-	--bind "shift-tab:execute@sqlite3 $DBFILE \"select entry from log where rowid={1}\" | pandoc -f markdown -t html -s --include-in-header ~/.cache/d-mermaid-header.html --lua-filter ~/.cache/d-mermaid-filter.lua -o ~/.cache/d-preview-{1}.html && google-chrome ~/.cache/d-preview-{1}.html@+become(d)" \
+	--bind "shift-tab:execute@sqlite3 $DBFILE \"select entry from log where rowid={1}\" | pandoc -f markdown -t html -s --include-in-header $D_PREVIEW_DIR/d-mermaid-header.html --lua-filter $D_PREVIEW_DIR/d-mermaid-filter.lua -o $D_PREVIEW_DIR/d-preview-{1}.html && xdg-open $D_PREVIEW_DIR/d-preview-{1}.html@+become(d)" \
 	--with-nth=2 \
 	--accept-nth=1 \
 	--preview "sqlite3 $DBFILE \"select entry from log where rowid={1}\" | head -n10 | glow")
