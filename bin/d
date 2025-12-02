@@ -33,7 +33,7 @@ with da as (
 	select rowid, julianday('now')-julianday(at) as days from log
 )
 select
-case when da.days <=3 then "🆕 " else "" end as icon,
+case when da.days <=3 then '🆕 ' else '' end as icon,
 l.rowid,
 l.at,
 l.entry
@@ -73,7 +73,7 @@ if [ "$VISUAL" = "vim" ]; then
 fi
 
 
-rowid=$(sqlite3 -json "$DBFILE" "$sql_entries" |
+sqlite3 -json "$DBFILE" "$sql_entries" |
 	jq -r '.[] | "\(.rowid)\t\(.entry | gsub("\n"; " ") | gsub("\t"; " ") | gsub("\r"; " "))\t\(.at)\t\(.icon)"' |
 	fzf --ansi \
 	--style=full \
@@ -90,7 +90,7 @@ rowid=$(sqlite3 -json "$DBFILE" "$sql_entries" |
 	--bind "ctrl-a:execute@treemd <(sqlite3 $DBFILE \"select entry from log where rowid={1}\")@+become(d)" \
 	--with-nth=2 \
 	--accept-nth=1 \
-	--preview "sqlite3 $DBFILE \"select entry from log where rowid={1}\" | head -n10 | glow")
+	--preview "sqlite3 $DBFILE \"select entry from log where rowid={1}\" | head -n10 | glow"
 
 # X'0A' is \n, i.e. trim newlines, while trim() removes leading & trailing spaces
 
