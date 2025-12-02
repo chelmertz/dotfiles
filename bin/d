@@ -8,11 +8,27 @@ D_PREVIEW_DIR=~/Downloads/d-preview
 mkdir -p "$D_PREVIEW_DIR"
 
 if [ ! -f "$DBFILE" ]; then
-	# soft delete because... I forgot about the shortcut and dropped a couple of rows :(
-	sqlite3 "$DBFILE" "create table log(user text, at text default (datetime('now')), entry text, deleted text default null)"
+	DB_VERSION=0
+else
+	DB_VERSION=$(sqlite3 "$DBFILE" "select value from meta where key = 'db_version'" 2>/dev/null || echo 0)
 fi
 
-read -r -d '' sql <<EOF
+while true; do
+	case $DB_VERSION in
+		0)
+			# soft delete because... I forgot about the shortcut and dropped a couple of rows :(
+			sqlite3 "$DBFILE" "create table if not exists log(user text, at text default (datetime('now')), entry text, deleted text default null)"
+			sqlite3 "$DBFILE" "create table if not exists meta(key text not null unique, value text not null)"
+			;;
+		*)
+			break
+			;;
+	esac
+	DB_VERSION=$((DB_VERSION + 1))
+	sqlite3 "$DBFILE" "insert into meta(key, value) values('db_version', '$DB_VERSION') on conflict(key) do update set value = '$DB_VERSION'"
+done
+
+read -r -d '' sql_entries <<EOF
 with da as (
 	select rowid, julianday('now')-julianday(at) as days from log
 )
@@ -52,7 +68,8 @@ echo "$mermaid_header" > "$D_PREVIEW_DIR/d-mermaid-header.html"
 echo "$mermaid_filter" > "$D_PREVIEW_DIR/d-mermaid-filter.lua"
 
 
-rowid=$(sqlite3 -json "$DBFILE" "$sql" |
+
+rowid=$(sqlite3 -json "$DBFILE" "$sql_entries" |
 	jq -r '.[] | "\(.rowid)\t\(.entry | gsub("\n"; " ") | gsub("\t"; " ") | gsub("\r"; " "))\t\(.at)\t\(.icon)"' |
 	fzf --ansi \
 	--style=full \
