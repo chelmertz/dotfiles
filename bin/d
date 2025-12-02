@@ -80,13 +80,14 @@ rowid=$(sqlite3 -json "$DBFILE" "$sql_entries" |
 	--color=light \
 	--delimiter=$'\t' \
 	--border \
-	--border-label ' done [ tab -> create; enter -> edit; shift-tab -> render in browser; ctrl-d -> delete entry; esc -> close ]' \
+	--border-label ' done [ tab -> create; enter -> edit; shift-tab -> browser; ctrl-a -> treemd; ctrl-d -> delete entry; esc -> close ]' \
 	--padding 1,2 \
 	--bind 'focus:transform-preview-label:[[ -n {} ]] && printf " %sfrom %s " {4} {3}' \
 	--bind "tab:execute@sqlite3 $DBFILE \"insert into log(user, entry) values ('$USER', trim(trim(edit(''), X'0A')))\"@+become(d)" \
 	--bind "ctrl-d:execute@sqlite3 $DBFILE \"update log set deleted=datetime('now') where rowid={1}\"@+become(d)" \
 	--bind "enter:execute@sqlite3 $DBFILE \"update log set entry = trim(trim(edit(entry), X'0A')) where rowid={1}\"@+become(d)" \
 	--bind "shift-tab:execute@sqlite3 $DBFILE \"select entry from log where rowid={1}\" | pandoc -f markdown -t html -s --include-in-header $D_PREVIEW_DIR/d-mermaid-header.html --lua-filter $D_PREVIEW_DIR/d-mermaid-filter.lua -o $D_PREVIEW_DIR/d-preview-{1}.html && xdg-open $D_PREVIEW_DIR/d-preview-{1}.html@+become(d)" \
+	--bind "ctrl-a:execute@treemd <(sqlite3 $DBFILE \"select entry from log where rowid={1}\")@+become(d)" \
 	--with-nth=2 \
 	--accept-nth=1 \
 	--preview "sqlite3 $DBFILE \"select entry from log where rowid={1}\" | head -n10 | glow")
