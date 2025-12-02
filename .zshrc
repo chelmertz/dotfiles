@@ -148,8 +148,8 @@ case $1 in
     xdg-open $1 2>/dev/null # Chrome outputs some error that I can't act on
     wmctrl -a "Firefox"
     ;;
-  *md)
-    glow -s light $1 | less -r
+  *md) #markdown
+    treemd $1
     ;;
   *)
     xdg-open $1
