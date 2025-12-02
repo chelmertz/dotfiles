@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # "d" for done or diary, a plan-like store
-# requires sqlite3, fzf
+# requires sqlite3, fzf (and pandoc, treemd for some output formats)
 
 DBFILE=~/Dropbox/d.sqlite3
 if [ ! -f "$DBFILE" ]; then
