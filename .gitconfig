@@ -21,7 +21,8 @@
 [core]
 	excludesfile = ~/.gitignore_global
 	attributesfile = ~/.gitattributes
-	pager = less -p^commit.*$
+[pager]
+	log = less -p^commit.*$
 [delta]
 	features = side-by-side line-numbers decorations
 	whitespace-error-style = 22 reverse
