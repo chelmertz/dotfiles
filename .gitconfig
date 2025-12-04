@@ -21,7 +21,7 @@
 [core]
 	excludesfile = ~/.gitignore_global
 	attributesfile = ~/.gitattributes
-	# GIT_PAGER=less git diff, if you want to opt out
+	pager = less -p^commit.*$
 [delta]
 	features = side-by-side line-numbers decorations
 	whitespace-error-style = 22 reverse
