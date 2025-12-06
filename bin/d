@@ -163,7 +163,26 @@ article.entry:last-child { border-bottom: none; }
   .rowid { color: var(--muted); font-family: monospace; font-size: 0.8rem; }
 }
 .entry-content { }
-.entry-content > *:first-child { margin-top: 0; }
+.entry-content > *:first-child {
+  margin-top: 0;
+  color: var(--bg);
+  padding: 0.2em 0.5em;
+  display: inline-block;
+  position: relative;
+}
+.entry-content > *:first-child::before {
+  content: '';
+  position: absolute;
+  inset: -3px -6px;
+  background: var(--muted);
+  z-index: -1;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' preserveAspectRatio='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2,15 C8,5 18,10 32,7 S52,12 68,6 S88,10 98,16 L97,85 C90,95 78,90 62,93 S42,88 28,94 S12,89 3,83 Z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' preserveAspectRatio='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2,15 C8,5 18,10 32,7 S52,12 68,6 S88,10 98,16 L97,85 C90,95 78,90 62,93 S42,88 28,94 S12,89 3,83 Z'/%3E%3C/svg%3E");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+.entry-content > *:first-child a { color: var(--bg); }
+.entry-content > *:first-child code { background: var(--bg); color: var(--fg); }
 .entry-content blockquote {
   margin: 1rem 0;
   padding: 0.5rem 1rem;
@@ -405,15 +424,15 @@ ARTICLE
 		# Insert into month section (using awk for safe multi-line insertion)
 		local tmp_out
 		tmp_out=$(mktemp)
-		awk -v marker="<!-- ENTRIES:$month_id -->" -v content="$article_html" '
-			$0 ~ marker { print content }
+		CONTENT="$article_html" awk -v marker="<!-- ENTRIES:$month_id -->" '
+			$0 ~ marker { print ENVIRON["CONTENT"] }
 			{ print }
 		' "$output_file" > "$tmp_out" && mv "$tmp_out" "$output_file"
 
 		# Insert into day section
 		tmp_out=$(mktemp)
-		awk -v marker="<!-- ENTRIES:$day_id -->" -v content="$article_html" '
-			$0 ~ marker { print content }
+		CONTENT="$article_html" awk -v marker="<!-- ENTRIES:$day_id -->" '
+			$0 ~ marker { print ENVIRON["CONTENT"] }
 			{ print }
 		' "$output_file" > "$tmp_out" && mv "$tmp_out" "$output_file"
 	done
