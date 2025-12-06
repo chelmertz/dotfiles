@@ -75,6 +75,12 @@ header {
   gap: 1.5rem;
   max-width: 70ch;
   margin: 0 auto 1.5rem;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 20;
+  padding: 0.5rem 0;
+  margin-top: -0.5rem;
 }
 header h1 { margin: 0; flex-shrink: 0; }
 header nav { font-size: 0.9rem; flex: 1; }
@@ -88,7 +94,7 @@ section[id^="m-"], section[id^="d-"] { display: none; }
 section:target { display: block; }
 .section-header {
   position: sticky;
-  top: 0;
+  top: 4rem;
   background: var(--bg);
   padding: 0.5rem 0;
   z-index: 10;
@@ -142,7 +148,7 @@ article.entry:last-child { border-bottom: none; }
   }
   .entry-main { max-width: 70ch; }
   .section-header { max-width: calc(70ch + 12rem); }
-  header { max-width: calc(70ch + 12rem); }
+  header { max-width: calc(70ch + 12rem); padding-left: 1rem; padding-right: 1rem; }
 }
 /* Mobile: date inline */
 @media (max-width: 899px) {
