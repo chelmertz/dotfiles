@@ -161,6 +161,11 @@ batt() {
   fd "$*" | xargs bat
 }
 
+only_in_first() {
+	# show all lines present in first file, missing from second file
+	grep -Fxvf <(tr -d '\r' < "$1") <(tr -d '\r' < "$2")
+}
+
 alias docker-ps='docker ps --format "{{.Status}}\t{{.Names}}\t{{.Ports}}" -a'
 
 compdef g='git'
