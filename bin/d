@@ -52,6 +52,20 @@ export_html() {
   reveal();
 </script>
 <style>
+/* Firefox doesn't use fontconfig for file:// URLs due to security policy.
+   Explicit @font-face needed. Alternative: about:config -> security.fileuri.strict_origin_policy = false (security risk) */
+@font-face {
+  font-family: "Go Mono";
+  src: url("file:///home/ch/.local/share/fonts/Go/Go-Mono.ttf");
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Go Mono";
+  src: url("file:///home/ch/.local/share/fonts/Go/Go-Mono-Bold.ttf");
+  font-weight: bold;
+  font-style: normal;
+}
 :root {
   --bg: #fff; --fg: #222; --muted: #666; --border: #ccc; --accent: #444;
 }
@@ -60,7 +74,7 @@ export_html() {
 }
 * { box-sizing: border-box; }
 body {
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: "Noto Serif", Georgia, "Times New Roman", serif;
   font-size: 1.15rem;
   margin: 0;
   padding: 1rem;
@@ -69,6 +83,7 @@ body {
   line-height: 1.5;
 }
 a { color: var(--accent); }
+code, pre { font-family: "Go Mono", monospace; }
 header {
   display: flex;
   align-items: baseline;
@@ -144,7 +159,7 @@ article.entry:last-child { border-bottom: none; }
     display: block;
     font-size: 0.8rem;
     color: var(--muted);
-    font-family: monospace;
+    font-family: "Go Mono", monospace;
   }
   .entry-main { max-width: 70ch; }
   .section-header { max-width: calc(70ch + 12rem); }
@@ -160,7 +175,7 @@ article.entry:last-child { border-bottom: none; }
     font-size: 0.9rem;
   }
   .entry-date time { color: var(--muted); }
-  .rowid { color: var(--muted); font-family: monospace; font-size: 0.8rem; }
+  .rowid { color: var(--muted); font-family: "Go Mono", monospace; font-size: 0.8rem; }
 }
 .entry-content { }
 .entry-content > *:first-child {
