@@ -59,3 +59,5 @@ tags
 
 # vscode golang debug artefact
 __debug_bin
+
+.claude/settings.local.json
