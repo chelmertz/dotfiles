@@ -32,24 +32,13 @@ export_html() {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>d - diary export</title>
 <script type="module">
-  // Mermaid can't render in display:none elements. Hide page, show all sections,
-  // render mermaid, then reveal. Fallback timeout if mermaid fails to load.
-  const reveal = () => document.body.style.visibility = '';
-  const timeout = setTimeout(reveal, 5000);
-  document.body.style.visibility = 'hidden';
+  // Initialize mermaid for diagrams
   try {
     const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
-    mermaid.initialize({ startOnLoad: false, securityLevel: 'loose' });
-    const style = document.createElement('style');
-    style.textContent = 'section[id^="m-"], section[id^="d-"] { display: block !important; }';
-    document.head.appendChild(style);
-    await mermaid.run();
-    style.remove();
+    mermaid.initialize({ startOnLoad: true, securityLevel: 'loose' });
   } catch (e) {
     console.warn('Mermaid failed:', e);
   }
-  clearTimeout(timeout);
-  reveal();
 </script>
 <style>
 /* Firefox doesn't use fontconfig for file:// URLs due to security policy.
@@ -105,32 +94,12 @@ header h1 { margin: 0; flex-shrink: 0; }
 header nav { font-size: 0.9rem; flex: 1; }
 .year-row { margin-bottom: 0.3rem; }
 .year-label { font-weight: bold; margin-right: 0.5rem; }
-.month-link { margin-right: 0.3rem; text-decoration: none; }
+.month-link { margin-right: 0.2rem; text-decoration: none; font-weight: bold; }
 .month-link:hover { text-decoration: underline; }
+.day-links { font-size: 0.8em; margin-right: 0.5rem; }
+.day-links a { color: var(--muted); text-decoration: none; margin-left: 0.15rem; }
+.day-links a:hover { text-decoration: underline; color: var(--fg); }
 .gap { color: var(--muted); margin: 0 0.3rem; }
-.count { font-size: 0.8em; color: var(--muted); }
-section[id^="d-"] { display: none; }
-section:target { display: block; }
-.section-header {
-  position: sticky;
-  top: 4rem;
-  background: var(--bg);
-  padding: 0.5rem 0;
-  z-index: 10;
-  max-width: 70ch;
-  margin: 0 auto;
-}
-.month-header, .day-header {
-  font-size: 0.9rem;
-  color: var(--muted);
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 0.3rem;
-  margin-bottom: 0.5rem;
-}
-.day-header a { text-decoration: none; }
-.day-header a:hover { text-decoration: underline; }
-.day-nav { font-size: 0.9rem; }
-.day-nav a { margin-right: 0.5rem; }
 article.entry {
   display: block;
   max-width: 70ch;
@@ -147,10 +116,12 @@ article.entry:last-child { border-bottom: none; }
     gap: 1.5rem;
     max-width: calc(70ch + 12rem);
   }
+  .entry-sticky {
+    /* spans full height of entry, child is sticky inside */
+  }
   .entry-date {
     position: sticky;
     top: 4rem;
-    align-self: start;
     text-align: right;
     padding-top: 0.2rem;
   }
@@ -159,14 +130,33 @@ article.entry:last-child { border-bottom: none; }
     font-size: 0.95rem;
     color: var(--muted);
   }
+  .entry-date .month-link {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    text-decoration: none;
+    font-weight: normal;
+  }
+  .entry-date .month-link:hover {
+    text-decoration: underline;
+  }
   .entry-date .rowid {
     display: block;
     font-size: 0.8rem;
     color: var(--muted);
     font-family: "Go Mono", monospace;
+    text-decoration: none;
+  }
+  .entry-date .rowid:hover {
+    text-decoration: underline;
   }
   .entry-main { max-width: 70ch; }
-  .section-header { max-width: calc(70ch + 12rem); }
+  .entry-title {
+    position: sticky;
+    top: 4rem;
+    background: var(--bg);
+    z-index: 5;
+  }
   header .header-content { max-width: calc(70ch + 12rem); padding-left: 1rem; padding-right: 1rem; }
 }
 /* Mobile: date inline */
@@ -179,17 +169,20 @@ article.entry:last-child { border-bottom: none; }
     font-size: 0.9rem;
   }
   .entry-date time { color: var(--muted); }
-  .rowid { color: var(--muted); font-family: "Go Mono", monospace; font-size: 0.8rem; }
+  .entry-date .month-link { color: var(--muted); text-decoration: none; font-size: 0.85rem; }
+  .entry-date .month-link:hover { text-decoration: underline; }
+  .rowid { color: var(--muted); font-family: "Go Mono", monospace; font-size: 0.8rem; text-decoration: none; }
+  .rowid:hover { text-decoration: underline; }
 }
 .entry-content { }
-.entry-content > *:first-child {
+.entry-title > * {
   margin-top: 0;
   color: var(--bg);
   padding: 0.2em 0.5em;
   display: inline-block;
   position: relative;
 }
-.entry-content > *:first-child::before {
+.entry-title > *::before {
   content: '';
   position: absolute;
   inset: -3px -6px;
@@ -200,8 +193,8 @@ article.entry:last-child { border-bottom: none; }
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
 }
-.entry-content > *:first-child a { color: var(--bg); }
-.entry-content > *:first-child code { background: var(--bg); color: var(--fg); }
+.entry-title > * a { color: var(--bg); }
+.entry-title > * code { background: var(--bg); color: var(--fg); }
 .entry-content blockquote {
   margin: 1rem 0;
   padding: 0.5rem 1rem;
@@ -237,14 +230,15 @@ article.entry:last-child { border-bottom: none; }
 <nav>
 HTML_HEAD
 
-	# Generate navigation: group by year/month, show counts, with gap indicators
+	# Generate navigation: group by year/month, show counts and day links
 	jq -r '
 		group_by(.year + "-" + .month) |
 		map({
 			year: .[0].year,
 			month: (.[0].month | tonumber),
 			month_str: .[0].month,
-			count: length
+			count: length,
+			days: (map(.day) | unique)
 		}) |
 		group_by(.year) |
 		reverse |
@@ -269,7 +263,12 @@ HTML_HEAD
 				 elif .month == 10 then "Oct"
 				 elif .month == 11 then "Nov"
 				 else "Dec" end) +
-				"<span class=\"count\">(" + (.count | tostring) + ")</span></a>"
+				"</a><span class=\"day-links\">" +
+				(.days | map(
+					(. | split("-") | .[2] | ltrimstr("0") | tonumber) as $d |
+					"<a href=\"#d-" + . + "\">" + ($d | tostring) + "</a>"
+				) | join(" ")) +
+				"</span>"
 			] | reverse | join(" ")) +
 			"</div>"
 		) | join("\n")
@@ -277,111 +276,7 @@ HTML_HEAD
 
 	echo '</nav></div></header>' >> "$output_file"
 
-	# Generate month sections - structure only (entries added per-item below)
-	jq -r '
-		group_by(.year + "-" + .month) |
-		map(. as $grp | {
-			month_id: ("m-" + $grp[0].year + "-" + $grp[0].month),
-			year: $grp[0].year,
-			month: $grp[0].month,
-			month_name: (if $grp[0].month == "01" then "January"
-				elif $grp[0].month == "02" then "February"
-				elif $grp[0].month == "03" then "March"
-				elif $grp[0].month == "04" then "April"
-				elif $grp[0].month == "05" then "May"
-				elif $grp[0].month == "06" then "June"
-				elif $grp[0].month == "07" then "July"
-				elif $grp[0].month == "08" then "August"
-				elif $grp[0].month == "09" then "September"
-				elif $grp[0].month == "10" then "October"
-				elif $grp[0].month == "11" then "November"
-				else "December" end),
-			days: ($grp | map(.day) | unique)
-		}) |
-		.[] |
-		"<section id=\"" + .month_id + "\">\n" +
-		"<div class=\"section-header\">\n" +
-		"<div class=\"month-header\">" + .month_name + " " + .year + "</div>\n" +
-		"<div class=\"day-nav\">" +
-		(.days | map(
-			(. | split("-") | .[2] | ltrimstr("0") | tonumber) as $d |
-			($d | tostring) as $ds |
-			(if ($d == 1 or $d == 21 or $d == 31) then "st"
-			 elif ($d == 2 or $d == 22) then "nd"
-			 elif ($d == 3 or $d == 23) then "rd"
-			 else "th" end) as $ord |
-			"<a href=\"#d-" + . + "\">" + $ds + $ord + "</a>"
-		) | join(" ")) +
-		"</div>\n" +
-		"</div>\n" +
-		"<!-- ENTRIES:" + .month_id + " -->\n" +
-		"</section>"
-	' "$tmp_entries" >> "$output_file"
-
-	# Generate day sections - include month context with all days in that month
-	jq -r '
-		# First, build a map of day -> month info
-		group_by(.year + "-" + .month) as $months |
-		($months | map({
-			key: (.[] | .day),
-			value: {
-				year: .[0].year,
-				month: .[0].month,
-				month_id: ("m-" + .[0].year + "-" + .[0].month),
-				month_name: (if .[0].month == "01" then "January"
-					elif .[0].month == "02" then "February"
-					elif .[0].month == "03" then "March"
-					elif .[0].month == "04" then "April"
-					elif .[0].month == "05" then "May"
-					elif .[0].month == "06" then "June"
-					elif .[0].month == "07" then "July"
-					elif .[0].month == "08" then "August"
-					elif .[0].month == "09" then "September"
-					elif .[0].month == "10" then "October"
-					elif .[0].month == "11" then "November"
-					else "December" end),
-				all_days: (map(.day) | unique)
-			}
-		}) | flatten | from_entries) as $day_to_month |
-		# Now generate day sections
-		group_by(.day) |
-		map(. as $grp |
-			($day_to_month[$grp[0].day]) as $month_info |
-			{
-				day_id: ("d-" + $grp[0].day),
-				day: $grp[0].day,
-				day_num: ($grp[0].day | split("-") | .[2] | ltrimstr("0")),
-				month_id: $month_info.month_id,
-				month_name: $month_info.month_name,
-				year: $month_info.year,
-				all_days: $month_info.all_days
-			}
-		) |
-		.[] |
-		((.day_num | tonumber) as $d |
-		 (if ($d == 1 or $d == 21 or $d == 31) then "st"
-		  elif ($d == 2 or $d == 22) then "nd"
-		  elif ($d == 3 or $d == 23) then "rd"
-		  else "th" end)) as $day_ord |
-		"<section id=\"" + .day_id + "\">\n" +
-		"<div class=\"section-header\">\n" +
-		"<div class=\"day-header\"><a href=\"#" + .month_id + "\">" + .month_name + " " + .year + "</a> → " + .day_num + $day_ord + "</div>\n" +
-		"<div class=\"day-nav\">" +
-		(.all_days | map(
-			(. | split("-") | .[2] | ltrimstr("0") | tonumber) as $d |
-			($d | tostring) as $ds |
-			(if ($d == 1 or $d == 21 or $d == 31) then "st"
-			 elif ($d == 2 or $d == 22) then "nd"
-			 elif ($d == 3 or $d == 23) then "rd"
-			 else "th" end) as $ord |
-			"<a href=\"#d-" + . + "\">" + $ds + $ord + "</a>"
-		) | join(" ")) +
-		"</div>\n" +
-		"</div>\n" +
-		"<!-- ENTRIES:" + .day_id + " -->\n" +
-		"</section>"
-	' "$tmp_entries" >> "$output_file"
-
+	echo '<!-- ENTRIES -->' >> "$output_file"
 	echo '</body></html>' >> "$output_file"
 
 	# Create mermaid filter for pandoc - strip YAML frontmatter from mermaid blocks
@@ -397,12 +292,29 @@ function CodeBlock(block)
 end
 FILTER
 
-	# Now process each entry with pandoc and insert into the right sections
+	# Now process each entry with pandoc and insert as direct body children
 	local entry_count
 	entry_count=$(jq 'length' "$tmp_entries")
 
+	# Build map of day -> first rowid (first in array = most recent, so first encounter of each day)
+	local first_of_day_json
+	first_of_day_json=$(jq -c '
+		reduce .[] as $e ({};
+			if .[$e.day] then . else . + {($e.day): ($e.rowid | tostring)} end
+		)
+	' "$tmp_entries")
+
+	# Build map of month -> first rowid
+	local first_of_month_json
+	first_of_month_json=$(jq -c '
+		reduce .[] as $e ({};
+			($e.year + "-" + $e.month) as $ym |
+			if .[$ym] then . else . + {($ym): ($e.rowid | tostring)} end
+		)
+	' "$tmp_entries")
+
 	for ((i=0; i<entry_count; i++)); do
-		local rowid at day year month entry_md entry_html month_id day_id
+		local rowid at day year month entry_md entry_html day_anchor month_anchor
 		rowid=$(jq -r ".[$i].rowid" "$tmp_entries")
 		at=$(jq -r ".[$i].at" "$tmp_entries")
 		day=$(jq -r ".[$i].day" "$tmp_entries")
@@ -412,14 +324,26 @@ FILTER
 
 		# Convert markdown to HTML with mermaid support
 		entry_html=$(echo "$entry_md" | pandoc -f markdown -t html --lua-filter "$mermaid_filter_file" 2>/dev/null || echo "$entry_md" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+		# Wrap first element in entry-title div for sticky positioning
+		entry_html=$(echo "$entry_html" | perl -0777 -pe 's|^(<[a-z][a-z0-9]*[^>]*>.*?</[a-z][a-z0-9]*>)|<div class="entry-title">$1</div>|s')
 
-		month_id="m-$year-$month"
-		day_id="d-$day"
+		# Check if this is the first entry of the month (for month anchor)
+		month_anchor=""
+		if [[ $(echo "$first_of_month_json" | jq -r --arg ym "$year-$month" '.[$ym] // ""') == "$rowid" ]]; then
+			month_anchor="<a id=\"m-$year-$month\"></a>"
+		fi
+
+		# Check if this is the first entry of the day (for day anchor)
+		day_anchor=""
+		if [[ $(echo "$first_of_day_json" | jq -r --arg d "$day" '.[$d] // ""') == "$rowid" ]]; then
+			day_anchor="<a id=\"d-$day\"></a>"
+		fi
 
 		# Format date as "Wednesday, 5th"
-		local weekday day_num ordinal formatted_date
+		local weekday day_num ordinal formatted_date month_name
 		weekday=$(LC_TIME=C date -d "$day" +%A)
 		day_num=$(date -d "$day" +%-d)
+		month_name=$(LC_TIME=C date -d "$day" +%B)
 		case $day_num in
 			1|21|31) ordinal="st" ;;
 			2|22) ordinal="nd" ;;
@@ -428,11 +352,13 @@ FILTER
 		esac
 		formatted_date="$weekday, ${day_num}${ordinal}"
 
-		# Create article HTML with date on left
+		# Create article HTML with id and optional day/month anchors
 		local article_html
 		article_html=$(cat <<ARTICLE
-<article class="entry">
-<div class="entry-date"><time datetime="$day">$formatted_date</time><span class="rowid">#$rowid</span></div>
+$month_anchor$day_anchor<article class="entry" id="e-$rowid">
+<div class="entry-sticky">
+<div class="entry-date"><time datetime="$day">$formatted_date</time><a class="month-link" href="#m-$year-$month">$year $month_name</a><a class="rowid" href="#e-$rowid">#$rowid</a></div>
+</div>
 <div class="entry-main">
 <div class="entry-content">
 $entry_html
@@ -441,24 +367,17 @@ $entry_html
 </article>
 ARTICLE
 )
-		# Insert into month section (using awk for safe multi-line insertion)
+		# Insert before <!-- ENTRIES --> marker
 		local tmp_out
 		tmp_out=$(mktemp)
-		CONTENT="$article_html" awk -v marker="<!-- ENTRIES:$month_id -->" '
-			$0 ~ marker { print ENVIRON["CONTENT"] }
-			{ print }
-		' "$output_file" > "$tmp_out" && mv "$tmp_out" "$output_file"
-
-		# Insert into day section
-		tmp_out=$(mktemp)
-		CONTENT="$article_html" awk -v marker="<!-- ENTRIES:$day_id -->" '
+		CONTENT="$article_html" awk -v marker="<!-- ENTRIES -->" '
 			$0 ~ marker { print ENVIRON["CONTENT"] }
 			{ print }
 		' "$output_file" > "$tmp_out" && mv "$tmp_out" "$output_file"
 	done
 
-	# Clean up markers
-	sed -i 's/<!-- ENTRIES:[^>]* -->//g' "$output_file"
+	# Clean up marker
+	sed -i 's/<!-- ENTRIES -->//g' "$output_file"
 	rm -f "$tmp_entries"
 }
 
