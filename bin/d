@@ -150,6 +150,16 @@ article.entry:last-child { border-bottom: none; }
   .entry-date .rowid:hover {
     text-decoration: underline;
   }
+  .entry-date .entry-nav {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .entry-date .entry-nav:hover {
+    text-decoration: underline;
+    color: var(--fg);
+  }
   .entry-main { max-width: 70ch; }
   .entry-title {
     position: sticky;
@@ -173,6 +183,8 @@ article.entry:last-child { border-bottom: none; }
   .entry-date .month-link:hover { text-decoration: underline; }
   .rowid { color: var(--muted); font-family: "Go Mono", monospace; font-size: 0.8rem; text-decoration: none; }
   .rowid:hover { text-decoration: underline; }
+  .entry-nav { color: var(--muted); font-size: 0.8rem; text-decoration: none; margin-left: 0.5rem; }
+  .entry-nav:hover { text-decoration: underline; }
 }
 .entry-content { }
 .entry-title > * {
@@ -226,7 +238,7 @@ article.entry:last-child { border-bottom: none; }
 <body>
 <header>
 <div class="header-content">
-<h1>d</h1>
+<h1><a href="#">d</a></h1>
 <nav>
 HTML_HEAD
 
@@ -314,8 +326,19 @@ FILTER
 	' "$tmp_entries")
 
 	for ((i=0; i<entry_count; i++)); do
-		local rowid at day year month entry_md entry_html day_anchor month_anchor
+		local rowid at day year month entry_md entry_html day_anchor month_anchor prev_rowid next_rowid
 		rowid=$(jq -r ".[$i].rowid" "$tmp_entries")
+		# prev = newer (earlier in array), next = older (later in array)
+		if ((i > 0)); then
+			prev_rowid=$(jq -r ".[$((i-1))].rowid" "$tmp_entries")
+		else
+			prev_rowid=""
+		fi
+		if ((i < entry_count - 1)); then
+			next_rowid=$(jq -r ".[$((i+1))].rowid" "$tmp_entries")
+		else
+			next_rowid=""
+		fi
 		at=$(jq -r ".[$i].at" "$tmp_entries")
 		day=$(jq -r ".[$i].day" "$tmp_entries")
 		year=$(jq -r ".[$i].year" "$tmp_entries")
@@ -352,12 +375,21 @@ FILTER
 		esac
 		formatted_date="$weekday, ${day_num}${ordinal}"
 
+		# Build nav links
+		local nav_links=""
+		if [[ -n "$prev_rowid" ]]; then
+			nav_links="<a class=\"entry-nav\" href=\"#e-$prev_rowid\">↑ newer</a>"
+		fi
+		if [[ -n "$next_rowid" ]]; then
+			nav_links="$nav_links<a class=\"entry-nav\" href=\"#e-$next_rowid\">↓ older</a>"
+		fi
+
 		# Create article HTML with id and optional day/month anchors
 		local article_html
 		article_html=$(cat <<ARTICLE
 $month_anchor$day_anchor<article class="entry" id="e-$rowid">
 <div class="entry-sticky">
-<div class="entry-date"><time datetime="$day">$formatted_date</time><a class="month-link" href="#m-$year-$month">$year $month_name</a><a class="rowid" href="#e-$rowid">#$rowid</a></div>
+<div class="entry-date"><time datetime="$day">$formatted_date</time><a class="month-link" href="#m-$year-$month">$year $month_name</a><a class="rowid" href="#e-$rowid">#$rowid</a>$nav_links</div>
 </div>
 <div class="entry-main">
 <div class="entry-content">
