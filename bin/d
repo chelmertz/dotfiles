@@ -85,17 +85,21 @@ body {
 a { color: var(--accent); }
 code, pre { font-family: "Go Mono", monospace; }
 header {
-  display: flex;
-  align-items: baseline;
-  gap: 1.5rem;
-  max-width: 70ch;
-  margin: 0 auto 1.5rem;
+  width: 100%;
   position: sticky;
   top: 0;
   background: var(--bg);
   z-index: 20;
   padding: 0.5rem 0;
   margin-top: -0.5rem;
+  margin-bottom: 1.5rem;
+}
+header .header-content {
+  display: flex;
+  align-items: baseline;
+  gap: 1.5rem;
+  max-width: 70ch;
+  margin: 0 auto;
 }
 header h1 { margin: 0; flex-shrink: 0; }
 header nav { font-size: 0.9rem; flex: 1; }
@@ -105,7 +109,7 @@ header nav { font-size: 0.9rem; flex: 1; }
 .month-link:hover { text-decoration: underline; }
 .gap { color: var(--muted); margin: 0 0.3rem; }
 .count { font-size: 0.8em; color: var(--muted); }
-section[id^="m-"], section[id^="d-"] { display: none; }
+section[id^="d-"] { display: none; }
 section:target { display: block; }
 .section-header {
   position: sticky;
@@ -163,7 +167,7 @@ article.entry:last-child { border-bottom: none; }
   }
   .entry-main { max-width: 70ch; }
   .section-header { max-width: calc(70ch + 12rem); }
-  header { max-width: calc(70ch + 12rem); padding-left: 1rem; padding-right: 1rem; }
+  header .header-content { max-width: calc(70ch + 12rem); padding-left: 1rem; padding-right: 1rem; }
 }
 /* Mobile: date inline */
 @media (max-width: 899px) {
@@ -228,6 +232,7 @@ article.entry:last-child { border-bottom: none; }
 </head>
 <body>
 <header>
+<div class="header-content">
 <h1>d</h1>
 <nav>
 HTML_HEAD
@@ -270,7 +275,7 @@ HTML_HEAD
 		) | join("\n")
 	' "$tmp_entries" >> "$output_file"
 
-	echo '</nav></header>' >> "$output_file"
+	echo '</nav></div></header>' >> "$output_file"
 
 	# Generate month sections - structure only (entries added per-item below)
 	jq -r '
