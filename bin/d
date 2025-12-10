@@ -14,11 +14,11 @@ export_html() {
 
 	# Get all entries as JSON
 	sqlite3 -json "$DBFILE" "
-		SELECT rowid, at, date(at) as day,
+		SELECT id, at, date(at) as day,
 		       strftime('%Y', at) as year,
 		       strftime('%m', at) as month,
 		       strftime('%W', at) as week,
-		       entry
+		       entry, title
 		FROM log WHERE deleted IS NULL
 		ORDER BY at DESC
 	" 2>/dev/null > "$tmp_entries" || echo "[]" > "$tmp_entries"
@@ -310,34 +310,34 @@ FILTER
 	local entry_count
 	entry_count=$(jq 'length' "$tmp_entries")
 
-	# Build map of day -> first rowid (first in array = most recent, so first encounter of each day)
+	# Build map of day -> first id (first in array = most recent, so first encounter of each day)
 	local first_of_day_json
 	first_of_day_json=$(jq -c '
 		reduce .[] as $e ({};
-			if .[$e.day] then . else . + {($e.day): ($e.rowid | tostring)} end
+			if .[$e.day] then . else . + {($e.day): ($e.id | tostring)} end
 		)
 	' "$tmp_entries")
 
-	# Build map of month -> first rowid
+	# Build map of month -> first id
 	local first_of_month_json
 	first_of_month_json=$(jq -c '
 		reduce .[] as $e ({};
 			($e.year + "-" + $e.month) as $ym |
-			if .[$ym] then . else . + {($ym): ($e.rowid | tostring)} end
+			if .[$ym] then . else . + {($ym): ($e.id | tostring)} end
 		)
 	' "$tmp_entries")
 
 	for ((i=0; i<entry_count; i++)); do
 		local rowid at day year month entry_md entry_html day_anchor month_anchor prev_rowid next_rowid
-		rowid=$(jq -r ".[$i].rowid" "$tmp_entries")
+		rowid=$(jq -r ".[$i].id" "$tmp_entries")
 		# prev = newer (earlier in array), next = older (later in array)
 		if ((i > 0)); then
-			prev_rowid=$(jq -r ".[$((i-1))].rowid" "$tmp_entries")
+			prev_rowid=$(jq -r ".[$((i-1))].id" "$tmp_entries")
 		else
 			prev_rowid=""
 		fi
 		if ((i < entry_count - 1)); then
-			next_rowid=$(jq -r ".[$((i+1))].rowid" "$tmp_entries")
+			next_rowid=$(jq -r ".[$((i+1))].id" "$tmp_entries")
 		else
 			next_rowid=""
 		fi
@@ -346,11 +346,12 @@ FILTER
 		year=$(jq -r ".[$i].year" "$tmp_entries")
 		month=$(jq -r ".[$i].month" "$tmp_entries")
 		entry_md=$(jq -r ".[$i].entry" "$tmp_entries")
+		title_md=$(jq -r ".[$i].title" "$tmp_entries")
 
 		# Convert markdown to HTML with mermaid support
 		entry_html=$(echo "$entry_md" | pandoc -f markdown -t html --lua-filter "$mermaid_filter_file" 2>/dev/null || echo "$entry_md" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
-		# Wrap first element in entry-title div for sticky positioning
-		entry_html=$(echo "$entry_html" | perl -0777 -pe 's|^(<[a-z][a-z0-9]*[^>]*>.*?</[a-z][a-z0-9]*>)|<div class="entry-title">$1</div>|s')
+		# Convert title to HTML
+		title_html=$(echo "$title_md" | pandoc -f markdown -t html 2>/dev/null || echo "$title_md")
 
 		# Check if this is the first entry of the month (for month anchor)
 		month_anchor=""
@@ -395,6 +396,7 @@ $month_anchor$day_anchor<article class="entry" id="e-$rowid">
 </div>
 <div class="entry-main">
 <div class="entry-content">
+<div class="entry-title">$title_html</div>
 $entry_html
 </div>
 </div>
@@ -434,26 +436,56 @@ while true; do
 			sqlite3 "$DBFILE" "create table if not exists log(user text, at text default (datetime('now')), entry text, deleted text default null)"
 			sqlite3 "$DBFILE" "create table if not exists meta(key text not null unique, value text not null)"
 			;;
+		1)
+			# add id primary key, not null to at and entry, check constraint on entry, generated title column
+			sqlite3 "$DBFILE" "
+				begin transaction;
+				create table log_new(
+					id integer primary key autoincrement,
+					user text,
+					at text not null default (datetime('now')),
+					entry text not null check(length(trim(entry)) >= 1),
+					deleted text default null,
+					title text generated always as (
+						trim(
+							case
+								when instr(trim(entry), char(10)) > 0
+								then substr(trim(entry), 1, instr(trim(entry), char(10)) - 1)
+								else trim(entry)
+							end
+						)
+					) stored
+				);
+				insert into log_new(id, user, at, entry, deleted) select rowid, user, at, entry, deleted from log;
+				drop table log;
+				alter table log_new rename to log;
+				commit;
+			"
+			;;
 		*)
 			break
 			;;
 	esac
+	if [ $? -ne 0 ]; then
+		echo "failed to migrate to step $((DB_VERSION + 1)), exiting" >&2
+		exit 1
+	fi
 	DB_VERSION=$((DB_VERSION + 1))
 	sqlite3 "$DBFILE" "insert into meta(key, value) values('db_version', '$DB_VERSION') on conflict(key) do update set value = '$DB_VERSION'"
 done
 
 read -r -d '' sql_entries <<EOF
 with da as (
-	select rowid, julianday('now')-julianday(at) as days from log
+	select id, julianday('now')-julianday(at) as days from log
 )
 select
 case when da.days <=3 then '🆕 ' else '' end as icon,
-l.rowid,
+l.id,
 l.at,
 l.entry
 from log l
 inner join da
-on da.rowid = l.rowid
+on da.id = l.id
 where l.deleted is null
 order by l.at desc;
 EOF
@@ -488,7 +520,7 @@ fi
 
 
 sqlite3 -json "$DBFILE" "$sql_entries" |
-	jq -r '.[] | "\(.rowid)\t\(.entry | gsub("\n"; " ") | gsub("\t"; " ") | gsub("\r"; " "))\t\(.at)\t\(.icon)"' |
+	jq -r '.[] | "\(.id)\t\(.entry | gsub("\n"; " ") | gsub("\t"; " ") | gsub("\r"; " "))\t\(.at)\t\(.icon)"' |
 	fzf --ansi \
 	--style=full \
 	--color=light \
@@ -498,13 +530,13 @@ sqlite3 -json "$DBFILE" "$sql_entries" |
 	--padding 1,2 \
 	--bind 'focus:transform-preview-label:[[ -n {} ]] && printf " %sfrom %s " {4} {3}' \
 	--bind "tab:execute@sqlite3 $DBFILE \"insert into log(user, entry) values ('$USER', trim(trim(edit(''), X'0A')))\"@+become(d)" \
-	--bind "ctrl-d:execute@sqlite3 $DBFILE \"update log set deleted=datetime('now') where rowid={1}\"@+become(d)" \
-	--bind "enter:execute@sqlite3 $DBFILE \"update log set entry = trim(trim(edit(entry), X'0A')) where rowid={1}\"@+become(d)" \
+	--bind "ctrl-d:execute@sqlite3 $DBFILE \"update log set deleted=datetime('now') where id={1}\"@+become(d)" \
+	--bind "enter:execute@sqlite3 $DBFILE \"update log set entry = trim(trim(edit(entry), X'0A')) where id={1}\"@+become(d)" \
 	--bind "shift-tab:execute@$0 --export >/dev/null && xdg-open $D_PREVIEW_DIR/index.html@+become(d)" \
-	--bind "ctrl-a:execute@treemd <(sqlite3 $DBFILE \"select entry from log where rowid={1}\")@+become(d)" \
+	--bind "ctrl-a:execute@treemd <(sqlite3 $DBFILE \"select entry from log where id={1}\")@+become(d)" \
 	--with-nth=2 \
 	--accept-nth=1 \
-	--preview "sqlite3 $DBFILE \"select entry from log where rowid={1}\" | head -n10 | glow"
+	--preview "sqlite3 $DBFILE \"select entry from log where id={1}\" | head -n10 | glow"
 
 # X'0A' is \n, i.e. trim newlines, while trim() removes leading & trailing spaces
 
