@@ -12,20 +12,19 @@ DBFILE=~/Dropbox/d.sqlite3
 D_PREVIEW_DIR=~/Downloads/d-preview
 mkdir -p "$D_PREVIEW_DIR"
 
-# Export function: generates static HTML calendar
 export_html() {
 	local output_file="$D_PREVIEW_DIR/index.html"
 	local tmp_entries="$D_PREVIEW_DIR/entries.json"
 
 	# Get all entries as JSON
 	sqlite3 -json "$DBFILE" "
-		SELECT id, at, date(at) as day,
+		select id, at, date(at) as day,
 		       strftime('%Y', at) as year,
 		       strftime('%m', at) as month,
 		       strftime('%W', at) as week,
-		       entry, title
-		FROM log WHERE deleted IS NULL
-		ORDER BY at DESC
+		       body, title
+		from log where deleted is null
+		order by at desc
 	" 2>/dev/null > "$tmp_entries" || echo "[]" > "$tmp_entries"
 
 	# Start HTML
@@ -373,7 +372,7 @@ FILTER
 		day=$(jq -r ".[$i].day" "$tmp_entries")
 		year=$(jq -r ".[$i].year" "$tmp_entries")
 		month=$(jq -r ".[$i].month" "$tmp_entries")
-		entry_md=$(jq -r ".[$i].entry" "$tmp_entries")
+		entry_md=$(jq -r ".[$i].body" "$tmp_entries")
 		title_md=$(jq -r ".[$i].title" "$tmp_entries")
 
 		# Convert markdown to HTML with mermaid support
@@ -504,6 +503,39 @@ while true; do
 					) stored
 				);
 				insert into log_new(id, user, at, entry, deleted) select rowid, user, at, entry, deleted from log;
+				drop table log;
+				alter table log_new rename to log;
+				commit;
+			"
+			;;
+		2)
+			# add body generated column (entry without first line)
+			sqlite3 "$DBFILE" "
+				begin transaction;
+				create table log_new(
+					id integer primary key autoincrement,
+					user text,
+					at text not null default (datetime('now')),
+					entry text not null check(length(trim(entry)) >= 1),
+					deleted text default null,
+					title text generated always as (
+						trim(
+							case
+								when instr(trim(entry), char(10)) > 0
+								then substr(trim(entry), 1, instr(trim(entry), char(10)) - 1)
+								else trim(entry)
+							end
+						)
+					) stored,
+					body text generated always as (
+						case
+							when instr(trim(entry), char(10)) > 0
+							then trim(substr(trim(entry), instr(trim(entry), char(10)) + 1))
+							else ''
+						end
+					) stored
+				);
+				insert into log_new(id, user, at, entry, deleted) select id, user, at, entry, deleted from log;
 				drop table log;
 				alter table log_new rename to log;
 				commit;
