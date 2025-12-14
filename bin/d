@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 
 # "d" for done or diary, a plan-like store
-# requires sqlite3, fzf (and pandoc, treemd for some output formats)
+# requires sqlite3, fzf (and pandoc, treemd for some output formats, entr for the watch subcommand)
+#
+# Usage:
+#   d           - interactive fzf interface (default)
+#   d html      - export all entries to HTML
+#   d watch     - watch for changes to this script and auto-refresh browser
 
 DBFILE=~/Dropbox/d.sqlite3
 D_PREVIEW_DIR=~/Downloads/d-preview
@@ -417,11 +422,30 @@ ARTICLE
 	rm -f "$tmp_entries"
 }
 
-if [ "$1" = "--export" ]; then
-	export_html
-	echo "file://$D_PREVIEW_DIR/index.html"
-	exit 0
-fi
+case "$1" in
+	backup)
+		if [ -z "$2" ]; then
+			echo "usage: d backup <filename>" >&2
+			exit 1
+		fi
+		if ! sqlite3 "$DBFILE" ".backup '$2'"; then
+			echo "backup failed" >&2
+			exit 1
+		fi
+		echo "backed up to $2"
+		exit 0
+		;;
+	html)
+		export_html
+		echo "file://$D_PREVIEW_DIR/index.html"
+		exit 0
+		;;
+	watch)
+		# -p postpones, allowing for a debounce-like feature
+		echo $0 | entr -p sh -c 'sleep 3; xdg-open $(d html)'
+		exit 0
+		;;
+esac
 
 if [ ! -f "$DBFILE" ]; then
 	DB_VERSION=0
@@ -532,7 +556,7 @@ sqlite3 -json "$DBFILE" "$sql_entries" |
 	--bind "tab:execute@sqlite3 $DBFILE \"insert into log(user, entry) values ('$USER', trim(trim(edit(''), X'0A')))\"@+become(d)" \
 	--bind "ctrl-d:execute@sqlite3 $DBFILE \"update log set deleted=datetime('now') where id={1}\"@+become(d)" \
 	--bind "enter:execute@sqlite3 $DBFILE \"update log set entry = trim(trim(edit(entry), X'0A')) where id={1}\"@+become(d)" \
-	--bind "shift-tab:execute@$0 --export >/dev/null && xdg-open $D_PREVIEW_DIR/index.html@+become(d)" \
+	--bind "shift-tab:execute@$0 html >/dev/null && xdg-open $D_PREVIEW_DIR/index.html@+become(d)" \
 	--bind "ctrl-a:execute@treemd <(sqlite3 $DBFILE \"select entry from log where id={1}\")@+become(d)" \
 	--with-nth=2 \
 	--accept-nth=1 \
