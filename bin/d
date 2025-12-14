@@ -213,7 +213,6 @@ article.entry:last-child { border-bottom: none; }
   mask-size: 100% 100%;
 }
 .entry-title > * a { color: var(--bg); }
-.entry-title > * code { background: var(--bg); color: var(--fg); }
 .entry-content blockquote {
   margin: 1rem 0;
   padding: 0.5rem 1rem;
@@ -223,7 +222,7 @@ article.entry:last-child { border-bottom: none; }
 }
 .entry-content blockquote > *:first-child { margin-top: 0; }
 .entry-content blockquote > *:last-child { margin-bottom: 0; }
-.entry-content pre { overflow-x: auto; background: var(--border); padding: 0.5rem; }
+.entry-content pre { overflow-x: auto; padding: 0.5rem; }
 .entry-content code { font-size: 0.9em; }
 .entry-content img { max-width: 100%; }
 .entry-content pre.mermaid {
@@ -240,6 +239,28 @@ article.entry:last-child { border-bottom: none; }
     overflow-x: auto;
   }
 }
+/* Pandoc syntax highlighting (monochrome theme)
+   Generated with: pandoc --standalone --highlight-style=monochrome
+   then extracted the "code span" rules from the <style> block */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen { div.sourceCode { overflow: auto; } }
+code span.al { font-weight: bold; } /* Alert */
+code span.an { font-style: italic; } /* Annotation */
+code span.cf { font-weight: bold; } /* ControlFlow */
+code span.co { font-style: italic; } /* Comment */
+code span.cv { font-style: italic; } /* CommentVar */
+code span.do { font-style: italic; } /* Documentation */
+code span.dt { text-decoration: underline; } /* DataType */
+code span.er { font-weight: bold; } /* Error */
+code span.in { font-style: italic; } /* Information */
+code span.kw { font-weight: bold; } /* Keyword */
+code span.pp { font-weight: bold; } /* Preprocessor */
+code span.wa { font-style: italic; } /* Warning */
 </style>
 </head>
 <body>
@@ -298,7 +319,9 @@ HTML_HEAD
 	echo '<!-- ENTRIES -->' >> "$output_file"
 	echo '</body></html>' >> "$output_file"
 
-	# Create mermaid filter for pandoc - strip YAML frontmatter from mermaid blocks
+	# Create mermaid filter for pandoc - strip YAML frontmatter from
+	# mermaid blocks, otherwise the mermaid parser fails and the diagrams
+	# are not rendered
 	local mermaid_filter_file="$D_PREVIEW_DIR/d-mermaid-filter.lua"
 	cat > "$mermaid_filter_file" <<'FILTER'
 function CodeBlock(block)
@@ -354,7 +377,7 @@ FILTER
 		title_md=$(jq -r ".[$i].title" "$tmp_entries")
 
 		# Convert markdown to HTML with mermaid support
-		entry_html=$(echo "$entry_md" | pandoc -f markdown -t html --lua-filter "$mermaid_filter_file" 2>/dev/null || echo "$entry_md" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+		entry_html=$(echo "$entry_md" | pandoc -f markdown+fenced_code_attributes -t html --highlight-style=kate --lua-filter "$mermaid_filter_file" 2>/dev/null || echo "$entry_md" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
 		# Convert title to HTML
 		title_html=$(echo "$title_md" | pandoc -f markdown -t html 2>/dev/null || echo "$title_md")
 
