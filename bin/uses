@@ -2,9 +2,12 @@
 
 set -euo pipefail
 
-# Get the script directory's parent to find the tables folder
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TABLES_DIR="${HOME}/code/github/chelmertz/chelmertz.github.io/tables"
+REPO_DIR="${HOME}/code/github/chelmertz/chelmertz.github.io"
+TABLES_DIR="${REPO_DIR}/tables"
+
+repo_git() {
+    git -C "$REPO_DIR" "$@"
+}
 
 if [ ! -d "$TABLES_DIR" ]; then
     zenity --error --text="Tables directory not found: $TABLES_DIR"
@@ -74,9 +77,34 @@ name=$(escape_csv "$name")
 purpose=$(escape_csv "$purpose")
 url=$(escape_csv "$url")
 
+# Check for pre-existing changes before modifying anything
+pre_existing_changes=$(repo_git status --porcelain 2>/dev/null)
+
 # Append to CSV file
 echo "$name,$purpose,$url" >> "$selected_file"
 
-notify-send --expire-time=3000 "Entry added successfully to $(basename "$selected_file")"
+# Auto-commit and push
+repo_git fetch origin main --quiet 2>/dev/null || true
+ahead_count=$(repo_git rev-list --count origin/main..main 2>/dev/null || echo "0")
+
+if [ -n "$pre_existing_changes" ]; then
+    # Repo was dirty, only commit the CSV changes
+    repo_git add tables/*.csv
+    repo_git commit -m "Update uses-this CSV" --quiet
+    notify-send --expire-time=5000 "uses: CSV committed but not pushed (repo had uncommitted changes)"
+else
+    # Repo was clean, do the full build and commit everything
+    make -C "$REPO_DIR" docs --quiet
+    repo_git add -A
+    repo_git commit -m "Update uses-this CSV" --quiet
+
+    if [ "$ahead_count" -gt 0 ]; then
+        notify-send --expire-time=5000 "uses: CSV committed but not pushed (local main was already ahead of origin)"
+    else
+        if ! repo_git push --quiet 2>&1; then
+            notify-send --expire-time=5000 "uses: Failed to push CSV changes"
+        fi
+    fi
+fi
 
 exit 0
