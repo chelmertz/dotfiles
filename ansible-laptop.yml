@@ -615,6 +615,12 @@
     - name: jless (json viewer, json less)
       shell: cargo install jless
 
+    - name: ripdrag (drag and drop helper)
+      shell: cargo install ripdrag
+
+    - name: treemd (markdown viewer)
+      shell: cargo install treemd
+
     - name: check dust version
       command: dust --version
       register: dust_version
