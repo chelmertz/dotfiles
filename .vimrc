@@ -5,6 +5,8 @@ set incsearch
 set ignorecase "needed before smartcase, it seems like
 set smartcase
 set number
+set cursorline
+highlight CursorLine cterm=underline ctermbg=NONE guibg=NONE gui=underline
 
 " https://www.reddit.com/r/vim/comments/2k4cbr/problem_with_gj_and_gk/
 nnoremap <expr> k (v:count == 0 ? 'gk' : 'k')
