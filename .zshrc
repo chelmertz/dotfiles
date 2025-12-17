@@ -30,8 +30,12 @@ alias cp='cp -i'
 alias mv='mv -i'
 
 
-# fd's colors do not match any light wezterm theme (tried 5+)
-alias fd="fd --color never"
+# "--color never": fd's colors do not match any light wezterm theme (tried 5+)
+# "--hidden --exclude": I really want to see hidden files, but I rarely want to see .git refs
+# https://linux-audit.com/linux-history-how-dot-files-became-hidden-files/
+# and "-uu" or "--ignore" does the reverse of what I want:
+# it starts by ignoring .gitignore but still ignoring hidden files
+alias fd="fd --color never --hidden --exclude '.git/'"
 alias g=lazygit
 alias ga="git add -A "
 alias gba="git branch -vv --sort=-committerdate --all"
