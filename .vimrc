@@ -53,13 +53,11 @@ set listchars=tab:⇤–⇥,space:·,trail:·,precedes:⇠,extends:⇢,nbsp:×
 " ============================================================================
 
 " ======================= MENU DEFINITION (edit here) ========================
-" Structure: list of groups, each group is a dict of {key: {label, ...options}}
-" Options:
+" Structure: list of columns, each column is a dict with '_header' and {key: item}
+" Item options:
 "   - 'toggle':   vim option name - shows [ON]/[OFF] and auto-toggles on select
-"   - 'items':    nested menu groups (submenu, arbitrarily deep)
 "   - 'on':       custom callback (or s:Defer('cmd') for post-close execution)
 "   - 'mnemonic': override highlight position (default: finds key in label)
-" Auto-added: rulers between groups, quit, back (in submenus)
 
 function! s:Toggle(option)
     execute 'set ' . a:option . '!'
@@ -70,35 +68,29 @@ function! s:Defer(cmd)
 endfunction
 
 let s:menu = [
-    \ {
+    \ {'_header': 'Toggles',
     \   'n': {'label': 'numbers',    'toggle': 'number'},
     \   'l': {'label': 'list chars', 'toggle': 'list'},
     \   'w': {'label': 'wrap',       'toggle': 'wrap'},
     \   's': {'label': 'spell',      'toggle': 'spell'},
     \ },
-    \ {
-    \   'v': {'label': 'vim', 'items': [
-    \       {
-    \         'v': {'label': 'reload vimrc', 'mnemonic': 8,
-    \               'on': s:Defer('source $MYVIMRC | echo "Reloaded vimrc"')},
-    \       },
-    \   ]},
+    \ {'_header': 'Vim',
+    \   'v': {'label': 'reload vimrc', 'mnemonic': 8,
+    \         'on': s:Defer('source $MYVIMRC | echo "Reloaded vimrc"')},
     \ },
 \ ]
 " ============================================================================
 
 " State
 let s:transient_winid = 0
-let s:shadow_winid = 0
-let s:menu_path = []  " Stack of keys to reach current menu (empty = root)
 
 " Colors
 highlight TransientMenu ctermbg=236 ctermfg=252 guibg=#303030 guifg=#d0d0d0
 highlight TransientMenuBorder ctermbg=236 ctermfg=245 guibg=#303030 guifg=#8a8a8a
-highlight TransientShadow ctermbg=NONE ctermfg=240 guibg=NONE guifg=#585858
 highlight TransientOn ctermbg=236 ctermfg=108 guibg=#303030 guifg=#87af87
 highlight TransientOff ctermbg=236 ctermfg=131 guibg=#303030 guifg=#af5f5f
 highlight TransientMnemonic ctermbg=236 ctermfg=216 guibg=#303030 guifg=#ffaf87
+highlight TransientHeader ctermbg=236 ctermfg=252 cterm=bold guibg=#303030 guifg=#d0d0d0 gui=bold
 
 " Text properties
 if empty(prop_type_get('transient_on'))
@@ -110,21 +102,9 @@ endif
 if empty(prop_type_get('transient_mnemonic'))
     call prop_type_add('transient_mnemonic', {'highlight': 'TransientMnemonic'})
 endif
-
-" Get current menu based on path
-function! s:GetCurrentMenu()
-    let l:menu = s:menu
-    for key in s:menu_path
-        " Find the item with this key and get its 'items'
-        for group in l:menu
-            if has_key(group, key)
-                let l:menu = group[key].items
-                break
-            endif
-        endfor
-    endfor
-    return l:menu
-endfunction
+if empty(prop_type_get('transient_header'))
+    call prop_type_add('transient_header', {'highlight': 'TransientHeader'})
+endif
 
 " Find mnemonic position (1-indexed) in label
 function! s:FindMnemonic(label, key)
@@ -132,172 +112,180 @@ function! s:FindMnemonic(label, key)
     return l:pos >= 0 ? l:pos + 1 : 1
 endfunction
 
-" Build a single menu line from key and item definition
-function! s:BuildLine(key, item, width)
-    " Special cases
-    if a:key == '_ruler'
-        return {'text': repeat('─', a:width)}
-    endif
-    if a:key == '_back'
-        return {'text': ' ← back'}
-    endif
-    if a:key == '_quit'
-        return {'text': ' quit', 'props': [
-            \ {'col': 2, 'length': 1, 'type': 'transient_mnemonic'}
-            \ ]}
-    endif
-
-    let l:label = a:item.label
-    let l:mnemonic_pos = get(a:item, 'mnemonic', s:FindMnemonic(l:label, a:key))
-
-    " Submenu (has 'items')
-    if has_key(a:item, 'items')
-        let l:text = ' ' . l:label . ' →'
-        return {'text': l:text, 'props': [
-            \ {'col': l:mnemonic_pos + 1, 'length': 1, 'type': 'transient_mnemonic'}
-            \ ]}
-    endif
-
-    " Toggle (has 'toggle' key with vim option name)
-    if has_key(a:item, 'toggle')
-        let l:is_on = eval('&' . a:item.toggle)
-        let l:state = l:is_on ? 'ON ' : 'OFF'
-        let l:prop_type = l:is_on ? 'transient_on' : 'transient_off'
-        let l:text = ' ' . l:label . ' [' . l:state . ']'
-        let l:state_col = len(l:text) - 3
-        return {'text': l:text, 'props': [
-            \ {'col': l:mnemonic_pos + 1, 'length': 1, 'type': 'transient_mnemonic'},
-            \ {'col': l:state_col, 'length': 3, 'type': l:prop_type}
-            \ ]}
-    endif
-
-    " Regular action
-    let l:text = ' ' . l:label
-    return {'text': l:text, 'props': [
-        \ {'col': l:mnemonic_pos + 1, 'length': 1, 'type': 'transient_mnemonic'}
-        \ ]}
-endfunction
-
-" Build menu content from definition
-function! s:GetMenuContent()
-    let l:groups = s:GetCurrentMenu()
-    let l:in_submenu = !empty(s:menu_path)
-
-    " Collect all items for width calculation
-    let l:all_items = []
-    for group in l:groups
-        for [key, item] in items(group)
-            call add(l:all_items, [key, item])
-        endfor
-    endfor
-
-    " Calculate max width
-    let l:max_width = 0
-    for [key, item] in l:all_items
-        let l:line = s:BuildLine(key, item, 0)
-        let l:max_width = max([l:max_width, strwidth(l:line.text)])
-    endfor
-    " Account for back and quit
-    let l:max_width = max([l:max_width, 8])
-
-    " Build lines
+" Build column content from a column definition
+function! s:BuildColumn(col_def)
     let l:lines = []
-    let l:ruler = s:BuildLine('_ruler', {}, l:max_width)
-    call add(l:lines, l:ruler)
+    let l:header = get(a:col_def, '_header', '')
 
-    for group in l:groups
-        " Sort keys for consistent ordering
-        let l:keys = sort(keys(group))
-        for key in l:keys
-            call add(l:lines, s:BuildLine(key, group[key], l:max_width))
-        endfor
-        call add(l:lines, l:ruler)
-    endfor
-
-    " Add back if in submenu
-    if l:in_submenu
-        call add(l:lines, s:BuildLine('_back', {}, l:max_width))
+    " Header line (bold)
+    if l:header != ''
+        call add(l:lines, {'text': l:header, 'props': [
+            \ {'col': 1, 'length': len(l:header), 'type': 'transient_header'}
+            \ ]})
     endif
 
-    " Add quit
-    call add(l:lines, s:BuildLine('_quit', {}, l:max_width))
+    " Calculate max label width for alignment
+    let l:keys = sort(filter(keys(a:col_def), 'v:val[0] != "_"'))
+    let l:max_label_width = 0
+    for key in l:keys
+        let l:max_label_width = max([l:max_label_width, strwidth(a:col_def[key].label)])
+    endfor
+
+    " Items (sorted by key)
+    for key in l:keys
+        let l:item = a:col_def[key]
+        let l:label = l:item.label
+
+        if has_key(l:item, 'toggle')
+            let l:is_on = eval('&' . l:item.toggle)
+            let l:state = l:is_on ? 'ON' : 'OFF'
+            let l:prefix = l:is_on ? '   ' : '  '
+            let l:prop_type = l:is_on ? 'transient_on' : 'transient_off'
+            let l:padded_label = l:label . repeat(' ', l:max_label_width - strwidth(l:label))
+            let l:text = key . ' ' . l:padded_label . l:prefix . '[' . l:state . ']'
+            let l:state_col = len(l:text) - len(l:state)
+            call add(l:lines, {'text': l:text, 'props': [
+                \ {'col': 1, 'length': 1, 'type': 'transient_mnemonic'},
+                \ {'col': l:state_col, 'length': len(l:state), 'type': l:prop_type}
+                \ ]})
+        else
+            let l:text = key . ' ' . l:label
+            call add(l:lines, {'text': l:text, 'props': [
+                \ {'col': 1, 'length': 1, 'type': 'transient_mnemonic'}
+                \ ]})
+        endif
+    endfor
+
     return l:lines
 endfunction
 
-function! s:GetShadowContent(width, height)
-    let l:shadow = []
-    let l:dot_line = repeat('⣿', a:width)
-    for i in range(a:height)
-        call add(l:shadow, l:dot_line)
+" Get max height across all columns
+function! s:GetMaxColumnHeight()
+    let l:max = 0
+    for col in s:menu
+        let l:height = len(filter(keys(col), 'v:val[0] != "_"'))
+        if has_key(col, '_header')
+            let l:height += 1
+        endif
+        let l:max = max([l:max, l:height])
     endfor
-    return l:shadow
+    return l:max
+endfunction
+
+" Get column width
+function! s:GetColumnWidth(col_def)
+    let l:max = 0
+    if has_key(a:col_def, '_header')
+        let l:max = len(a:col_def._header)
+    endif
+    for [key, item] in items(a:col_def)
+        if key[0] != '_'
+            let l:text = key . ' ' . item.label
+            if has_key(item, 'toggle')
+                let l:text .= ' [OFF]'
+            endif
+            let l:max = max([l:max, len(l:text)])
+        endif
+    endfor
+    return l:max
+endfunction
+
+" Build menu content with columns side by side
+function! s:GetMenuContent()
+    let l:num_cols = len(s:menu)
+    let l:col_gap = 3
+    let l:total_width = &columns - 4  " Account for border/padding
+
+    " Calculate column widths
+    let l:col_widths = []
+    for col in s:menu
+        call add(l:col_widths, s:GetColumnWidth(col))
+    endfor
+
+    " Build each column's content
+    let l:columns = []
+    for col in s:menu
+        call add(l:columns, s:BuildColumn(col))
+    endfor
+
+    " Get max height
+    let l:max_height = s:GetMaxColumnHeight()
+
+    " Merge columns into rows
+    let l:lines = []
+    for row in range(l:max_height)
+        let l:row_text = ''
+        let l:row_props = []
+        let l:col_offset = 0
+
+        for col_idx in range(l:num_cols)
+            let l:col_content = l:columns[col_idx]
+            let l:col_width = l:col_widths[col_idx]
+
+            if row < len(l:col_content)
+                let l:cell = l:col_content[row]
+                let l:cell_text = l:cell.text
+
+                " Pad to column width
+                let l:padded = l:cell_text . repeat(' ', l:col_width - strwidth(l:cell_text))
+                let l:row_text .= l:padded
+
+                " Adjust prop positions for column offset
+                for prop in get(l:cell, 'props', [])
+                    call add(l:row_props, {
+                        \ 'col': prop.col + l:col_offset,
+                        \ 'length': prop.length,
+                        \ 'type': prop.type
+                        \ })
+                endfor
+            else
+                " Empty cell
+                let l:row_text .= repeat(' ', l:col_width)
+            endif
+
+            " Add gap between columns
+            if col_idx < l:num_cols - 1
+                let l:row_text .= repeat(' ', l:col_gap)
+                let l:col_offset += l:col_width + l:col_gap
+            endif
+        endfor
+
+        call add(l:lines, {'text': l:row_text, 'props': l:row_props})
+    endfor
+
+    " Add quit line
+    call add(l:lines, {'text': ''})
+    call add(l:lines, {'text': 'q quit', 'props': [
+        \ {'col': 1, 'length': 1, 'type': 'transient_mnemonic'}
+        \ ]})
+
+    return l:lines
 endfunction
 
 function! s:CloseMenu(winid)
     call popup_close(a:winid)
-    if s:shadow_winid > 0
-        call popup_close(s:shadow_winid)
-        let s:shadow_winid = 0
-    endif
     let s:transient_winid = 0
-    let s:menu_path = []
 endfunction
 
-function! s:RedrawShadow(content)
-    if s:shadow_winid > 0
-        call popup_close(s:shadow_winid)
-    endif
-    let l:width = max(map(copy(a:content), 'strwidth(v:val.text)')) + 4
-    let l:height = len(a:content) + 2
-    let l:shadow_offset = 2
-    let s:shadow_winid = popup_create(s:GetShadowContent(l:width + 1, l:height), #{
-        \ line: (&lines / 2) - (l:height / 2) + l:shadow_offset,
-        \ col: (&columns / 2) - (l:width / 2) + l:shadow_offset,
-        \ zindex: 49,
-        \ highlight: 'TransientShadow',
-        \ })
-endfunction
-
-function! s:RefreshMenu(winid)
-    let l:content = s:GetMenuContent()
-    call popup_settext(a:winid, l:content)
-    call s:RedrawShadow(l:content)
-endfunction
-
-" Find item by key in current menu
+" Find item by key across all columns
 function! s:FindItem(key)
-    let l:groups = s:GetCurrentMenu()
-    for group in l:groups
-        if has_key(group, a:key)
-            return group[a:key]
+    for col in s:menu
+        if has_key(col, a:key)
+            return col[a:key]
         endif
     endfor
     return {}
 endfunction
 
 function! s:TransientFilter(winid, key)
-    " Handle back navigation
-    if (a:key == "\<BS>" || a:key == "\<Left>") && !empty(s:menu_path)
-        call remove(s:menu_path, -1)
-        call s:RefreshMenu(a:winid)
-        return 1
-    endif
-
-    " Handle quit
-    if a:key == 'q'
+    " Handle quit/escape
+    if a:key == 'q' || a:key == "\<Esc>"
         call s:CloseMenu(a:winid)
         return 1
     endif
 
     let l:item = s:FindItem(a:key)
     if !empty(l:item)
-        " Submenu navigation
-        if has_key(l:item, 'items')
-            call add(s:menu_path, a:key)
-            call s:RefreshMenu(a:winid)
-            return 1
-        endif
-
         " Toggle (derived action)
         if has_key(l:item, 'toggle')
             call s:Toggle(l:item.toggle)
@@ -329,28 +317,19 @@ function! s:OpenTransientMenu()
     endif
 
     let l:content = s:GetMenuContent()
-    let l:width = max(map(copy(l:content), 'strwidth(v:val.text)')) + 4
-    let l:height = len(l:content) + 2
-
-    let l:shadow_offset = 2
-    let s:shadow_winid = popup_create(s:GetShadowContent(l:width + 1, l:height), #{
-        \ line: (&lines / 2) - (l:height / 2) + l:shadow_offset,
-        \ col: (&columns / 2) - (l:width / 2) + l:shadow_offset,
-        \ zindex: 49,
-        \ highlight: 'TransientShadow',
-        \ })
+    let l:height = len(l:content)
 
     let s:transient_winid = popup_create(l:content, #{
-        \ title: ' Menu ',
+        \ line: &lines - l:height + 8,
+        \ col: 1,
+        \ minwidth: &columns,
+        \ maxwidth: &columns,
         \ border: [],
-        \ borderchars: ['─', '│', '─', '│', '┌', '┐', '┘', '└'],
         \ padding: [0, 1, 0, 1],
-        \ pos: 'center',
         \ zindex: 50,
         \ filter: function('s:TransientFilter'),
         \ mapping: 0,
         \ highlight: 'TransientMenu',
-        \ borderhighlight: ['TransientMenuBorder'],
         \ })
 endfunction
 
