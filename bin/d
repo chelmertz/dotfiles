@@ -8,8 +8,8 @@
 #   d html      - export all entries to HTML
 #   d watch     - watch for changes to this script and auto-refresh browser
 
-DBFILE=~/Dropbox/d.sqlite3
-D_PREVIEW_DIR=~/Downloads/d-preview
+DBFILE="$HOME/Dropbox/d.sqlite3"
+D_PREVIEW_DIR="$HOME/Downloads/d-preview"
 mkdir -p "$D_PREVIEW_DIR"
 
 export_html() {
@@ -465,6 +465,18 @@ case "$1" in
 	watch)
 		# -p postpones, allowing for a debounce-like feature
 		echo $0 | entr -p sh -c 'sleep 3; xdg-open $(d html)'
+		exit 0
+		;;
+	perf)
+		# Generate flamegraph - requires sudo for perf
+		# Use a temp dir for HTML output to avoid creating root-owned files in D_PREVIEW_DIR
+		perf_tmp=$(mktemp -d)
+		flamegraph_filename="$D_PREVIEW_DIR/d-flame.svg"
+		sudo D_PREVIEW_DIR="$perf_tmp" perf record -g -o /tmp/d-perf.data -- bash "$0" html
+		sudo perf script -i /tmp/d-perf.data | stackcollapse-perf.pl | flamegraph.pl > "$flamegraph_filename"
+		sudo rm -rf /tmp/d-perf.data "$perf_tmp"
+		echo "flamegraph: $flamegraph_filename"
+		xdg-open "$flamegraph_filename"
 		exit 0
 		;;
 esac
