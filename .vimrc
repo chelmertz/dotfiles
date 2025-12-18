@@ -322,14 +322,16 @@ function! s:OpenTransientMenu()
     let s:transient_winid = popup_create(l:content, #{
         \ line: &lines - l:height + 8,
         \ col: 1,
-        \ minwidth: &columns,
-        \ maxwidth: &columns,
-        \ border: [],
+        \ minwidth: &columns - 2,
+        \ maxwidth: &columns - 2,
+        \ border: [1, 0, 1, 1],
+        \ borderchars: ['═', '║', '═', '║', '╔', '╗', '╝', '╚'],
         \ padding: [0, 1, 0, 1],
         \ zindex: 50,
         \ filter: function('s:TransientFilter'),
         \ mapping: 0,
         \ highlight: 'TransientMenu',
+        \ borderhighlight: ['TransientMenuBorder'],
         \ })
 endfunction
 
