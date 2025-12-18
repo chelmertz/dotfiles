@@ -333,114 +333,103 @@ function CodeBlock(block)
 end
 FILTER
 
-	# Now process each entry with pandoc and insert as direct body children
-	local entry_count
-	entry_count=$(jq 'length' "$tmp_entries")
-
-	# Build map of day -> first id (first in array = most recent, so first encounter of each day)
-	local first_of_day_json
-	first_of_day_json=$(jq -c '
-		reduce .[] as $e ({};
-			if .[$e.day] then . else . + {($e.day): ($e.id | tostring)} end
-		)
+	# Single jq call: pre-process all entries and output shell assignments directly
+	# - Computes prev/next IDs, first-of-day/month flags, weekday/month names
+	# - Body and title are base64-encoded to handle newlines/special chars
+	local processed_entries
+	processed_entries=$(LC_TIME=C jq -r '
+		# Build lookup maps first
+		(reduce .[] as $e ({}; if .[$e.day] then . else . + {($e.day): $e.id} end)) as $first_of_day |
+		(reduce .[] as $e ({}; ($e.year + "-" + $e.month) as $ym | if .[$ym] then . else . + {($ym): $e.id} end)) as $first_of_month |
+		# Store original array for prev/next lookups
+		. as $arr |
+		# Process each entry, output shell variable assignments
+		to_entries | map(
+			.key as $i |
+			.value as $e |
+			($e.day | strptime("%Y-%m-%d") | mktime) as $ts |
+			[
+				"rowid=\($e.id)",
+				"day=\($e.day | @sh)",
+				"year=\($e.year | @sh)",
+				"month=\($e.month | @sh)",
+				"body=\($e.body | @base64)",
+				"title=\($e.title | @base64)",
+				"prev_rowid=\(if $i > 0 then $arr[$i-1].id else "" end)",
+				"next_rowid=\(if $i < ($arr | length) - 1 then $arr[$i+1].id else "" end)",
+				"is_first_of_day=\($first_of_day[$e.day] == $e.id)",
+				"is_first_of_month=\($first_of_month[$e.year + "-" + $e.month] == $e.id)",
+				"weekday=\($ts | strftime("%A") | @sh)",
+				"day_num=\($e.day | split("-")[2] | ltrimstr("0"))",
+				"month_name=\($ts | strftime("%B") | @sh)"
+			] | join(" ")
+		) | .[]
 	' "$tmp_entries")
 
-	# Build map of month -> first id
-	local first_of_month_json
-	first_of_month_json=$(jq -c '
-		reduce .[] as $e ({};
-			($e.year + "-" + $e.month) as $ym |
-			if .[$ym] then . else . + {($ym): ($e.id | tostring)} end
-		)
-	' "$tmp_entries")
+	# Accumulate all article HTML in memory
+	local all_articles=""
 
-	for ((i=0; i<entry_count; i++)); do
-		local rowid at day year month entry_md entry_html day_anchor month_anchor prev_rowid next_rowid
-		rowid=$(jq -r ".[$i].id" "$tmp_entries")
-		# prev = newer (earlier in array), next = older (later in array)
-		if ((i > 0)); then
-			prev_rowid=$(jq -r ".[$((i-1))].id" "$tmp_entries")
-		else
-			prev_rowid=""
-		fi
-		if ((i < entry_count - 1)); then
-			next_rowid=$(jq -r ".[$((i+1))].id" "$tmp_entries")
-		else
-			next_rowid=""
-		fi
-		at=$(jq -r ".[$i].at" "$tmp_entries")
-		day=$(jq -r ".[$i].day" "$tmp_entries")
-		year=$(jq -r ".[$i].year" "$tmp_entries")
-		month=$(jq -r ".[$i].month" "$tmp_entries")
-		entry_md=$(jq -r ".[$i].body" "$tmp_entries")
-		title_md=$(jq -r ".[$i].title" "$tmp_entries")
+	# Process each entry (one line of shell assignments per entry)
+	while IFS= read -r shell_assignments; do
+		local rowid day year month body title prev_rowid next_rowid
+		local is_first_of_day is_first_of_month weekday day_num month_name
+
+		# Eval the pre-computed shell assignments (no jq call needed!)
+		eval "$shell_assignments"
+		# Decode base64 fields
+		body=$(echo "$body" | base64 -d)
+		title=$(echo "$title" | base64 -d)
 
 		# Convert markdown to HTML with mermaid support
-		entry_html=$(echo "$entry_md" | pandoc -f markdown+fenced_code_attributes -t html --highlight-style=kate --lua-filter "$mermaid_filter_file" 2>/dev/null || echo "$entry_md" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
-		# Convert title to HTML
-		title_html=$(echo "$title_md" | pandoc -f markdown -t html 2>/dev/null || echo "$title_md")
+		local entry_html title_html
+		entry_html=$(echo "$body" | pandoc -f markdown+fenced_code_attributes -t html --highlight-style=kate --lua-filter "$mermaid_filter_file" 2>/dev/null || echo "$body" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+		title_html=$(echo "$title" | pandoc -f markdown -t html 2>/dev/null || echo "$title")
 
-		# Check if this is the first entry of the month (for month anchor)
-		month_anchor=""
-		if [[ $(echo "$first_of_month_json" | jq -r --arg ym "$year-$month" '.[$ym] // ""') == "$rowid" ]]; then
-			month_anchor="<a id=\"m-$year-$month\"></a>"
-		fi
+		# Build anchors
+		local month_anchor="" day_anchor=""
+		[[ "$is_first_of_month" == "true" ]] && month_anchor="<a id=\"m-$year-$month\"></a>"
+		[[ "$is_first_of_day" == "true" ]] && day_anchor="<a id=\"d-$day\"></a>"
 
-		# Check if this is the first entry of the day (for day anchor)
-		day_anchor=""
-		if [[ $(echo "$first_of_day_json" | jq -r --arg d "$day" '.[$d] // ""') == "$rowid" ]]; then
-			day_anchor="<a id=\"d-$day\"></a>"
-		fi
-
-		# Format date as "Wednesday, 5th"
-		local weekday day_num ordinal formatted_date month_name
-		weekday=$(LC_TIME=C date -d "$day" +%A)
-		day_num=$(date -d "$day" +%-d)
-		month_name=$(LC_TIME=C date -d "$day" +%B)
+		# Compute ordinal suffix
+		local ordinal
 		case $day_num in
 			1|21|31) ordinal="st" ;;
 			2|22) ordinal="nd" ;;
 			3|23) ordinal="rd" ;;
 			*) ordinal="th" ;;
 		esac
-		formatted_date="$weekday, ${day_num}${ordinal}"
+		local formatted_date="$weekday, ${day_num}${ordinal}"
 
 		# Build nav links
 		local nav_links=""
-		if [[ -n "$prev_rowid" ]]; then
-			nav_links="<a class=\"entry-nav\" href=\"#e-$prev_rowid\">↑ newer</a>"
-		fi
-		if [[ -n "$next_rowid" ]]; then
-			nav_links="$nav_links<a class=\"entry-nav\" href=\"#e-$next_rowid\">↓ older</a>"
-		fi
+		[[ -n "$prev_rowid" ]] && nav_links="<a class=\"entry-nav\" href=\"#e-$prev_rowid\">↑ newer</a>"
+		[[ -n "$next_rowid" ]] && nav_links="$nav_links<a class=\"entry-nav\" href=\"#e-$next_rowid\">↓ older</a>"
 
-		# Create article HTML with id and optional day/month anchors
-		local article_html
-		article_html=$(cat <<ARTICLE
-$month_anchor$day_anchor<article class="entry" id="e-$rowid">
-<div class="entry-sticky">
-<div class="entry-date"><time datetime="$day">$formatted_date</time><a class="month-link" href="#m-$year-$month">$year $month_name</a><a class="rowid" href="#e-$rowid">#$rowid</a>$nav_links</div>
+		# Accumulate article HTML
+		all_articles+="$month_anchor$day_anchor<article class=\"entry\" id=\"e-$rowid\">
+<div class=\"entry-sticky\">
+<div class=\"entry-date\"><time datetime=\"$day\">$formatted_date</time><a class=\"month-link\" href=\"#m-$year-$month\">$year $month_name</a><a class=\"rowid\" href=\"#e-$rowid\">#$rowid</a>$nav_links</div>
 </div>
-<div class="entry-main">
-<div class="entry-content">
-<div class="entry-title">$title_html</div>
+<div class=\"entry-main\">
+<div class=\"entry-content\">
+<div class=\"entry-title\">$title_html</div>
 $entry_html
 </div>
 </div>
 </article>
-ARTICLE
-)
-		# Insert before <!-- ENTRIES --> marker
+"
+	done <<< "$processed_entries"
+
+	# Single write: replace marker with all articles
+	sed -i "s|<!-- ENTRIES -->|$all_articles|" "$output_file" 2>/dev/null || {
+		# Fallback if sed fails (e.g., special chars in content)
 		local tmp_out
 		tmp_out=$(mktemp)
-		CONTENT="$article_html" awk -v marker="<!-- ENTRIES -->" '
-			$0 ~ marker { print ENVIRON["CONTENT"] }
+		CONTENT="$all_articles" awk -v marker="<!-- ENTRIES -->" '
+			$0 ~ marker { printf "%s", ENVIRON["CONTENT"]; next }
 			{ print }
 		' "$output_file" > "$tmp_out" && mv "$tmp_out" "$output_file"
-	done
-
-	# Clean up marker
-	sed -i 's/<!-- ENTRIES -->//g' "$output_file"
+	}
 	rm -f "$tmp_entries"
 }
 
