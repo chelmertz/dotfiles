@@ -32,10 +32,6 @@ matches:
         params:
           format: "%Y-%m-%d"
 
-  # Do the weird capitalization of MATCHi
-  - trigger: ":matchi"
-    replace: "MATCHi"
-
   - trigger: ":shell"
     replace: "```shell\n$|$\n```"
 
