@@ -92,6 +92,12 @@ highlight TransientOff ctermbg=236 ctermfg=131 guibg=#303030 guifg=#af5f5f
 highlight TransientMnemonic ctermbg=236 ctermfg=216 guibg=#303030 guifg=#ffaf87
 highlight TransientHeader ctermbg=236 ctermfg=252 cterm=bold guibg=#303030 guifg=#d0d0d0 gui=bold
 
+" Completion popup (works in both dark and light terminals)
+highlight Pmenu ctermbg=237 ctermfg=252 guibg=#3a3a3a guifg=#d0d0d0
+highlight PmenuSel ctermbg=241 ctermfg=231 cterm=bold guibg=#626262 guifg=#ffffff gui=bold
+highlight PmenuSbar ctermbg=238 guibg=#444444
+highlight PmenuThumb ctermbg=248 guibg=#a8a8a8
+
 " Text properties
 if empty(prop_type_get('transient_on'))
     call prop_type_add('transient_on', {'highlight': 'TransientOn'})
