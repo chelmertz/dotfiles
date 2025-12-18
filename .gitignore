@@ -25,3 +25,4 @@ bin/image-sorter
 *.AppImage
 # wezterm is an AppImage, its docs mentioned just renaming it and.. it might not be the worst idea. most things (wezterm included) responds well to --version
 bin/wezterm
+bin/trurl
