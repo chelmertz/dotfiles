@@ -283,4 +283,5 @@ exec_always --no-startup-id feh --randomize --no-fehbg --bg-scale ~/Dropbox/wall
 exec --no-startup-id autorandr -l $(autorandr --detected)
 # turn on num look on boot
 exec --no-startup-id xdotool key --clearmodifiers Num_Lock
+exec --no-startup-id ~/bin/i3blocks_screenlayout.sh auto
 

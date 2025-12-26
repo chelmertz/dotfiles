@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 
-layout=$(zenity --question --text="Choose screenlayout" --switch --extra-button "LARGE EXTERNAL" --extra-button "SINGLE" --extra-button "SINGLE-BIG" --extra-button "Reconnect monitors")
+case $1 in
+	auto)
+		monitors=$(xrandr --listmonitors | grep Monitors: | cut -d' ' -f 2)
+		if [ "$monitors" -gt 1 ]; then
+			layout="LARGE EXTERNAL"
+		else
+			layout=SINGLE
+		fi
+		;;
+	*)
+		layout=$(zenity --question --text="Choose screenlayout" --switch --extra-button "LARGE EXTERNAL" --extra-button "SINGLE" --extra-button "SINGLE-BIG" --extra-button "Reconnect monitors")
+		;;
+esac
 
 case $layout in
 	LARGE*)
