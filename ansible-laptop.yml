@@ -684,6 +684,9 @@
         dest: ~/.ideavimrc
         state: link
 
+    - name: runme (treats markdown files as playbooks)
+      shell: go install github.com/runmedev/runme/v3@main
+
     - name: lazygit (terminal CLI alternative to magit)
       shell: go install github.com/jesseduffield/lazygit@latest
 
