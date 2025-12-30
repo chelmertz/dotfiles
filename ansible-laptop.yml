@@ -70,11 +70,6 @@
         name: shellcheck
         channel: edge
 
-    - name: ripgrep
-      snap:
-        name: ripgrep
-        classic: yes
-
     - name: slack
       snap:
         name: slack

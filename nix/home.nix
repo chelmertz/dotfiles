@@ -8,6 +8,7 @@
     fzf
     jq
     tree
+    ripgrep
   ];
 
   programs.home-manager.enable = true;
