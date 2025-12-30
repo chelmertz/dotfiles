@@ -50,7 +50,7 @@ home.packages = with pkgs; [
 
 Then apply:
 
-```bash
+```bash {"name": "update-home-manager"}
 home-manager switch
 ```
 
