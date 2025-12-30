@@ -150,10 +150,6 @@
       apt:
         name: playerctl
 
-    - name: jq (parse json, mostly a dep, I use gron more often)
-      apt:
-        name: jq
-
     - name: Deps for dunstify, see https://github.com/dunst-project/dunst/wiki/Dependencies
       apt:
         pkg:
@@ -345,10 +341,6 @@
     - name: inkscape (illustrator, vector)
       apt:
         name: inkscape
-
-    - name: tree
-      apt:
-        name: tree
 
     - name: libreoffice
       apt:
@@ -710,19 +702,6 @@
 
     - name: bash format
       shell: GO111MODULE=on go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.1
-
-    # start fzf (fuzzy picker/list thing, kind of like rofi in the terminal)
-    - name: "fzf: git"
-      git:
-        repo: https://github.com/junegunn/fzf.git
-        version: master
-        dest: ~/code/github/junegunn/fzf
-
-    - name: "fzf: build & install"
-      shell: make && make install && mv bin/fzf ~/bin/fzf
-      args:
-        chdir: ~/code/github/junegunn/fzf
-    # end fzf
 
     # start sysz (tui with fuzzy matching for systemd interfaces, systemctl and journalctl)
     - name: "sysz: git"

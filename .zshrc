@@ -334,3 +334,5 @@ export PATH=$PATH:$HOME/.maestro/bin
 
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 
+export PATH="$HOME/.nix-profile/bin:$PATH"
+
