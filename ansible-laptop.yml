@@ -9,10 +9,6 @@
   become: yes
   tasks:
 
-    - name: glances, htop-like
-      apt:
-        name: glances
-
     - name: meld, for merging conflicts
       apt:
         name: meld
@@ -60,10 +56,6 @@
     - name: gron (makes json greppable)
       snap:
         name: gron
-
-    - name: yq (parse yaml)
-      snap:
-        name: yq
 
     - name: spotify
       snap:
@@ -343,15 +335,6 @@
     - name: tidy (formats html/xml, used when exporting org mode to html)
       apt:
         name: tidy
-
-    - name: amqp-tools (amqp-publish etc that lets you publish to rabbitmq)
-      when: "'eta' in inventory_hostname"
-      apt:
-        name: amqp-tools
-
-    - name: ncdu (interactive & visual alternative to du)
-      apt:
-        name: ncdu
 
     - name: postgresql-devel (needed for pgcli)
       apt:
