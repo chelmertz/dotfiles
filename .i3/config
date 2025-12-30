@@ -285,3 +285,10 @@ exec --no-startup-id autorandr -l $(autorandr --detected)
 exec --no-startup-id xdotool key --clearmodifiers Num_Lock
 exec --no-startup-id ~/bin/i3blocks_screenlayout.sh auto
 
+# `xset q` for viewing keypress rates
+# lower the initial keypress delay:
+exec --no-startup-id xset r rate 200 25
+# disable power saving for external monitors (this is *so* the wrong place to do this)
+# see https://wiki.archlinux.org/title/Display_Power_Management_Signaling
+exec --no-startup-id xset s off -dpms
+
