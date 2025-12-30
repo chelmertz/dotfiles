@@ -26,16 +26,6 @@
         update_cache: yes
         name: git
 
-    - name: gdu ppa (du/ncdu alternative)
-      apt_repository:
-        repo: ppa:daniel-milde/gdu
-        codename: focal # groovy (20.10) is not yet supported
-
-    - name: gdu (du/ncdu alternative)
-      apt:
-        update_cache: yes
-        name: gdu
-
     - name: emacs repo
       apt_repository:
         repo: ppa:kelleyk/emacs
@@ -49,10 +39,6 @@
     - name: cloc, counts lines of code by language
       apt:
         name: cloc
-
-    - name: simplescreenrecorder
-      apt:
-        name: simplescreenrecorder
 
     - name: peek (also a screen recorder)
       apt:
@@ -101,14 +87,6 @@
       snap:
         name: slack
         classic: yes
-
-    - name: btop (htop alternative)
-      snap:
-        name: btop
-
-    - name: vale (writing helper for prose)
-      snap:
-        name: vale
 
     - name: cheese (record photo/video with webcam)
       apt:
@@ -417,14 +395,6 @@
       apt:
         name: asciinema
 
-    - name: Deps for jless, see https://github.com/PaulJuliusMartinez/jless
-      apt:
-        pkg:
-          - libxcb1-dev
-          - libxcb-render0-dev
-          - libxcb-shape0-dev
-          - libxcb-xfixes0-dev
-
 - hosts: localhost
   # requires $ ansible-galaxy install staticdev.signal
   roles:
@@ -603,9 +573,6 @@
         repo: https://github.com/nkoehring/rofiemoji
         version: master
         dest: ~/code/github/nkoehring/rofiemoji
-
-    - name: jless (json viewer, json less)
-      shell: cargo install jless
 
     - name: ripdrag (drag and drop helper)
       shell: cargo install ripdrag
