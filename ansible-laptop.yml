@@ -99,10 +99,6 @@
       apt:
         name: pavucontrol
 
-    - name: yad (dialogs in GTK launched through CLI, like zenity)
-      apt:
-        name: yad
-
     - name: font awesome
       apt:
         name: fonts-font-awesome
@@ -128,10 +124,6 @@
           - libgtk-3-dev
           - libxdg-basedir-dev
           - libnotify-dev
-
-    - name: surfraw (shortcut for searching a bunch of search engines)
-      apt:
-        name: surfraw
 
     - name: arandr (gui for xrandr, manage monitors & output)
       apt:
@@ -642,9 +634,6 @@
     - name: gopls (golang language server)
       shell: GO111MODULE=on go install golang.org/x/tools/gopls@latest
 
-    - name: custom search engines for surfraw
-      shell: mkdir -p ~/.config/surfraw/ && ln -sf ~/dotfiles/bookmarks ~/.config/surfraw/bookmarks
-
     - name: bash format
       shell: GO111MODULE=on go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.1
 
@@ -669,10 +658,3 @@
         dest: ~/code/github/chelmertz/fzf-docker
     # end fzf-docker
 
-    - name: fx version
-      command: fx --version
-      register: fx_version
-
-    - name: fx (interactive json explorer for cli)
-      when: fx_version.rc != 0
-      shell: go install github.com/antonmedv/fx@latest
