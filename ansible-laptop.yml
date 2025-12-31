@@ -215,10 +215,6 @@
           - openjdk-11-jre # java
           - openjdk-11-jdk-headless # for `jps`
 
-    - name: libreoffice
-      apt:
-        name: libreoffice
-
     - name: php-cli (for the datedate script in my dotfiles/bin)
       apt:
         name: php-cli

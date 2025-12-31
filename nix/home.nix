@@ -13,6 +13,7 @@
     git
     gron
     jq
+    libreoffice
     meld
     peek
     ripgrep
