@@ -69,16 +69,89 @@ endfunction
 
 let s:menu = [
     \ {'_header': 'Toggles',
-    \   'n': {'label': 'numbers',    'toggle': 'number'},
-    \   'l': {'label': 'list chars', 'toggle': 'list'},
-    \   'w': {'label': 'wrap',       'toggle': 'wrap'},
-    \   's': {'label': 'spell',      'toggle': 'spell'},
+    \   'n': {'label': 'numbers',       'toggle': 'number'},
+    \   'c': {'label': 'chars display', 'toggle': 'list'},
+    \   'w': {'label': 'wrap',          'toggle': 'wrap'},
+    \   's': {'label': 'spell',         'toggle': 'spell'},
     \ },
     \ {'_header': 'Vim',
     \   'v': {'label': 'reload vimrc', 'mnemonic': 8,
     \         'on': s:Defer('source $MYVIMRC | echo "Reloaded vimrc"')},
     \ },
 \ ]
+
+" Build mdlink column from D_MDLINK_DATA environment variable
+" Expected format: {"header":"Tags","items":[{"path":"work:matchi:uriel","name":"Uriel"}]}
+" Uses 't' as prefix key, assigns keys based on starting letter of name
+function! s:BuildMdlinkColumn()
+    if !exists('$D_MDLINK_DATA') || $D_MDLINK_DATA == ''
+        return {}
+    endif
+
+    try
+        let l:data = json_decode($D_MDLINK_DATA)
+    catch
+        return {}
+    endtry
+
+    let l:col = {'_header': get(l:data, 'header', 'Tags'), '_prefix': 't'}
+    let l:used_keys = {}
+    let l:fallback_keys = 'abcdefghijklmnopqrstuvwxyz0123456789'
+
+    for item in get(l:data, 'items', [])
+        let l:label = get(item, 'name', item.path)
+        let l:key = ''
+        let l:mnemonic_pos = 1
+
+        " Try to find a key from the label characters
+        for i in range(len(l:label))
+            let l:char = tolower(l:label[i])
+            if l:char =~ '[a-z0-9]' && !has_key(l:used_keys, l:char)
+                let l:key = l:char
+                let l:mnemonic_pos = i + 1  " 1-indexed
+                break
+            endif
+        endfor
+
+        " Fallback: find any unused key
+        if l:key == ''
+            for i in range(len(l:fallback_keys))
+                let l:char = l:fallback_keys[i]
+                if !has_key(l:used_keys, l:char)
+                    let l:key = l:char
+                    let l:mnemonic_pos = 0  " No position to highlight in label
+                    break
+                endif
+            endfor
+        endif
+
+        if l:key != ''
+            let l:used_keys[l:key] = 1
+            let l:col[l:key] = {
+                \ 'label': l:label,
+                \ 'mdlink': item.path,
+                \ 'mnemonic': l:mnemonic_pos
+            \ }
+        endif
+    endfor
+
+    return l:col
+endfunction
+
+" Store mdlink column separately for prefix key lookup
+let s:mdlink_col = {}
+
+" Get dynamic menu (base menu + mdlink column if available)
+function! s:GetDynamicMenu()
+    let l:menu = deepcopy(s:menu)
+
+    let s:mdlink_col = s:BuildMdlinkColumn()
+    if !empty(s:mdlink_col)
+        call add(l:menu, s:mdlink_col)
+    endif
+
+    return l:menu
+endfunction
 " ============================================================================
 
 " State
@@ -122,10 +195,15 @@ endfunction
 function! s:BuildColumn(col_def)
     let l:lines = []
     let l:header = get(a:col_def, '_header', '')
+    let l:prefix_key = get(a:col_def, '_prefix', '')
 
     " Header line (bold)
     if l:header != ''
-        call add(l:lines, {'text': l:header, 'props': [
+        let l:header_text = l:header
+        if l:prefix_key != ''
+            let l:header_text .= ' [' . l:prefix_key . ' ...]'
+        endif
+        call add(l:lines, {'text': l:header_text, 'props': [
             \ {'col': 1, 'length': len(l:header), 'type': 'transient_header'}
             \ ]})
     endif
@@ -141,6 +219,11 @@ function! s:BuildColumn(col_def)
     for key in l:keys
         let l:item = a:col_def[key]
         let l:label = l:item.label
+        let l:display_key = l:prefix_key != '' ? l:prefix_key . ' ' . key : key
+
+        " Calculate mnemonic position in label (1-indexed, 0 means none)
+        let l:mnemonic_pos = get(l:item, 'mnemonic', s:FindMnemonic(l:label, key))
+        let l:label_start = len(l:display_key) + 2  " +2 for ' ' after key
 
         if has_key(l:item, 'toggle')
             let l:is_on = eval('&' . l:item.toggle)
@@ -148,17 +231,27 @@ function! s:BuildColumn(col_def)
             let l:prefix = l:is_on ? '   ' : '  '
             let l:prop_type = l:is_on ? 'transient_on' : 'transient_off'
             let l:padded_label = l:label . repeat(' ', l:max_label_width - strwidth(l:label))
-            let l:text = key . ' ' . l:padded_label . l:prefix . '[' . l:state . ']'
+            let l:text = l:display_key . ' ' . l:padded_label . l:prefix . '[' . l:state . ']'
             let l:state_col = len(l:text) - len(l:state)
-            call add(l:lines, {'text': l:text, 'props': [
-                \ {'col': 1, 'length': 1, 'type': 'transient_mnemonic'},
+            let l:props = [
+                \ {'col': 1, 'length': len(l:display_key), 'type': 'transient_mnemonic'},
                 \ {'col': l:state_col, 'length': len(l:state), 'type': l:prop_type}
-                \ ]})
+                \ ]
+            " Also highlight mnemonic in label if found
+            if l:mnemonic_pos > 0
+                call add(l:props, {'col': l:label_start + l:mnemonic_pos - 1, 'length': 1, 'type': 'transient_mnemonic'})
+            endif
+            call add(l:lines, {'text': l:text, 'props': l:props})
         else
-            let l:text = key . ' ' . l:label
-            call add(l:lines, {'text': l:text, 'props': [
-                \ {'col': 1, 'length': 1, 'type': 'transient_mnemonic'}
-                \ ]})
+            let l:text = l:display_key . ' ' . l:label
+            let l:props = [
+                \ {'col': 1, 'length': len(l:display_key), 'type': 'transient_mnemonic'}
+                \ ]
+            " Also highlight mnemonic in label if found
+            if l:mnemonic_pos > 0
+                call add(l:props, {'col': l:label_start + l:mnemonic_pos - 1, 'length': 1, 'type': 'transient_mnemonic'})
+            endif
+            call add(l:lines, {'text': l:text, 'props': l:props})
         endif
     endfor
 
@@ -166,10 +259,10 @@ function! s:BuildColumn(col_def)
 endfunction
 
 " Get max height across all columns
-function! s:GetMaxColumnHeight()
+function! s:GetMaxColumnHeight(menu)
     let l:max = 0
-    for col in s:menu
-        let l:height = len(filter(keys(col), 'v:val[0] != "_"'))
+    for col in a:menu
+        let l:height = len(filter(keys(deepcopy(col)), 'v:val[0] != "_"'))
         if has_key(col, '_header')
             let l:height += 1
         endif
@@ -181,12 +274,18 @@ endfunction
 " Get column width
 function! s:GetColumnWidth(col_def)
     let l:max = 0
+    let l:prefix_key = get(a:col_def, '_prefix', '')
     if has_key(a:col_def, '_header')
-        let l:max = len(a:col_def._header)
+        let l:header_text = a:col_def._header
+        if l:prefix_key != ''
+            let l:header_text .= ' [' . l:prefix_key . ' ...]'
+        endif
+        let l:max = len(l:header_text)
     endif
     for [key, item] in items(a:col_def)
         if key[0] != '_'
-            let l:text = key . ' ' . item.label
+            let l:display_key = l:prefix_key != '' ? l:prefix_key . ' ' . key : key
+            let l:text = l:display_key . ' ' . item.label
             if has_key(item, 'toggle')
                 let l:text .= ' [OFF]'
             endif
@@ -198,24 +297,25 @@ endfunction
 
 " Build menu content with columns side by side
 function! s:GetMenuContent()
-    let l:num_cols = len(s:menu)
+    let l:menu = s:GetDynamicMenu()
+    let l:num_cols = len(l:menu)
     let l:col_gap = 3
     let l:total_width = &columns - 4  " Account for border/padding
 
     " Calculate column widths
     let l:col_widths = []
-    for col in s:menu
+    for col in l:menu
         call add(l:col_widths, s:GetColumnWidth(col))
     endfor
 
     " Build each column's content
     let l:columns = []
-    for col in s:menu
+    for col in l:menu
         call add(l:columns, s:BuildColumn(col))
     endfor
 
     " Get max height
-    let l:max_height = s:GetMaxColumnHeight()
+    let l:max_height = s:GetMaxColumnHeight(l:menu)
 
     " Merge columns into rows
     let l:lines = []
@@ -273,9 +373,14 @@ function! s:CloseMenu(winid)
     let s:transient_winid = 0
 endfunction
 
-" Find item by key across all columns
+" Find item by key across all columns (skip columns with prefix keys)
 function! s:FindItem(key)
-    for col in s:menu
+    let l:menu = s:GetDynamicMenu()
+    for col in l:menu
+        " Skip columns that require a prefix key
+        if has_key(col, '_prefix')
+            continue
+        endif
         if has_key(col, a:key)
             return col[a:key]
         endif
@@ -286,6 +391,34 @@ endfunction
 function! s:TransientFilter(winid, key)
     " Handle quit/escape
     if a:key == 'q' || a:key == "\<Esc>"
+        call s:CloseMenu(a:winid)
+        return 1
+    endif
+
+    " Handle 't' prefix for mdlink items
+    if a:key == 't' && !empty(s:mdlink_col)
+        " Wait for next key
+        redraw
+        echo 't-'
+        let l:char = getchar()
+        echo ''
+        " Escape cancels the prefix, keeps menu open
+        if l:char == 27 || l:char == "\<Esc>"
+            return 1
+        endif
+        let l:next_key = nr2char(l:char)
+        if has_key(s:mdlink_col, l:next_key)
+            let l:item = s:mdlink_col[l:next_key]
+            if has_key(l:item, 'mdlink')
+                let l:tag = l:item.mdlink
+                let l:label = l:item.label
+                let l:link = '[' . l:label . '](d:tag:' . l:tag . ')'
+                call s:CloseMenu(a:winid)
+                call timer_start(0, {-> s:InsertText(l:link)})
+                return 1
+            endif
+        endif
+        " Invalid second key, just close
         call s:CloseMenu(a:winid)
         return 1
     endif
@@ -314,6 +447,11 @@ function! s:TransientFilter(winid, key)
 
     call s:CloseMenu(a:winid)
     return 1
+endfunction
+
+" Insert text at cursor position (used by mdlink)
+function! s:InsertText(text)
+    execute "normal! a" . a:text . "\<Esc>"
 endfunction
 
 function! s:OpenTransientMenu()

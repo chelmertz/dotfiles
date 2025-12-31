@@ -12,19 +12,80 @@ DBFILE="$HOME/Dropbox/d.sqlite3"
 D_PREVIEW_DIR="$HOME/Downloads/d-preview"
 mkdir -p "$D_PREVIEW_DIR"
 
+# Tag helper functions
+get_or_create_tag() {
+	local tag_path="${1//\'/\'\'}"  # escape quotes
+	local tag_name="${2:-${tag_path##*:}}"  # default: last segment of path
+	# Capitalize first letter: uriel -> Uriel
+	tag_name="$(echo "${tag_name:0:1}" | tr '[:lower:]' '[:upper:]')${tag_name:1}"
+	tag_name="${tag_name//\'/\'\'}"
+	sqlite3 "$DBFILE" "
+		insert into tags(path, name) values('$tag_path', '$tag_name')
+		on conflict(path) do update set path=path
+		returning id"
+}
+
+sync_mentioned_tags() {
+	local entry_id="$1"
+	local body
+	body=$(sqlite3 "$DBFILE" "select body from log where id=$entry_id")
+
+	# Remove old mentioned tags for this entry
+	sqlite3 "$DBFILE" "delete from entry_tags where entry_id=$entry_id and relation='mentioned'"
+
+	# Parse d:tag:xxx URIs from body and add them
+	echo "$body" | grep -oE 'd:tag:[a-zA-Z0-9_:-]+' | sed 's/^d:tag://' | sort -u | while read -r tag_path; do
+		if [ -n "$tag_path" ]; then
+			local tag_id
+			tag_id=$(get_or_create_tag "$tag_path")
+			sqlite3 "$DBFILE" "insert or ignore into entry_tags(entry_id, tag_id, relation) values($entry_id, $tag_id, 'mentioned')"
+		fi
+	done
+}
+
+# Build D_MDLINK_DATA JSON for vim transient menu
+# Returns all tags for this entry as insertable links
+build_mdlink_data() {
+	local entry_id="$1"
+
+	# Get all tags for this entry
+	local tags
+	tags=$(sqlite3 -json "$DBFILE" "
+		select t.path, t.name
+		from entry_tags et
+		join tags t on t.id = et.tag_id
+		where et.entry_id = $entry_id
+		order by t.name
+		limit 36
+	" 2>/dev/null)
+
+	if [ -z "$tags" ] || [ "$tags" = "[]" ]; then
+		echo ""
+		return
+	fi
+
+	echo "{\"header\":\"Tags\",\"items\":$tags}"
+}
+
 export_html() {
 	local output_file="$D_PREVIEW_DIR/index.html"
 	local tmp_entries="$D_PREVIEW_DIR/entries.json"
 
-	# Get all entries as JSON
+	# Get all entries as JSON (including tags from entry_tags table)
 	sqlite3 -json "$DBFILE" "
-		select id, at, date(at) as day,
-		       strftime('%Y', at) as year,
-		       strftime('%m', at) as month,
-		       strftime('%W', at) as week,
-		       body, title
-		from log where deleted is null
-		order by at desc
+		select l.id, l.at, date(l.at) as day,
+		       strftime('%Y', l.at) as year,
+		       strftime('%m', l.at) as month,
+		       strftime('%W', l.at) as week,
+		       l.body, l.title,
+		       coalesce((
+		           select group_concat(t.path, ' ')
+		           from entry_tags et
+		           join tags t on t.id = et.tag_id
+		           where et.entry_id = l.id
+		       ), '') as tags
+		from log l where l.deleted is null
+		order by l.at desc
 	" 2>/dev/null > "$tmp_entries" || echo "[]" > "$tmp_entries"
 
 	# Start HTML
@@ -166,6 +227,21 @@ article.entry:last-child { border-bottom: none; }
     text-decoration: underline;
     color: var(--fg);
   }
+  .entry-date .entry-tags {
+    display: block;
+    font-size: 0.75rem;
+    margin-top: 0.3rem;
+  }
+  .entry-date .entry-tags a {
+    color: var(--muted);
+    text-decoration: none;
+    display: block;
+    text-align: right;
+  }
+  .entry-date .entry-tags a:hover {
+    text-decoration: underline;
+    color: var(--fg);
+  }
   .entry-main { max-width: 70ch; }
   .entry-title {
     position: sticky;
@@ -191,6 +267,9 @@ article.entry:last-child { border-bottom: none; }
   .rowid:hover { text-decoration: underline; }
   .entry-nav { color: var(--muted); font-size: 0.8rem; text-decoration: none; margin-left: 0.5rem; }
   .entry-nav:hover { text-decoration: underline; }
+  .entry-tags { margin-top: 0.3rem; font-size: 0.75rem; }
+  .entry-tags a { color: var(--muted); text-decoration: none; margin-right: 0.5rem; }
+  .entry-tags a:hover { text-decoration: underline; color: var(--fg); }
 }
 .entry-content { }
 .entry-title > * {
@@ -260,7 +339,86 @@ code span.in { font-style: italic; } /* Information */
 code span.kw { font-weight: bold; } /* Keyword */
 code span.pp { font-weight: bold; } /* Preprocessor */
 code span.wa { font-style: italic; } /* Warning */
+/* Tags in navigation */
+.tags-row { margin-bottom: 0.3rem; }
+.tags-label { font-weight: bold; margin-right: 0.5rem; cursor: pointer; }
+.tags-label:hover { text-decoration: underline; }
+.tag-link { margin-right: 0.4rem; text-decoration: none; font-weight: bold; }
+.tag-link:hover { text-decoration: underline; }
+.tag-link .count { font-weight: normal; color: var(--muted); font-size: 0.9em; }
+.tags-overflow { display: none; }
+.tags-row.expanded .tags-overflow { display: inline; }
+.tags-row.expanded .tags-expand { display: none; }
+.tags-expand { color: var(--muted); cursor: pointer; font-size: 0.9em; }
+.tags-expand:hover { text-decoration: underline; color: var(--fg); }
+/* Filter indication */
+body.tag-filtered .entry { display: none; }
+body.tag-filtered .entry.tag-match { display: block; }
+body.tag-filtered header { border-bottom: 2px solid var(--accent); }
 </style>
+<script>
+(function() {
+  function parseHash() {
+    const hash = decodeURIComponent(location.hash.slice(1));
+    if (!hash.startsWith('d:')) return { type: null, value: null };
+    const parts = hash.split(':');
+    if (parts[1] === 'tag') return { type: 'tag', value: parts.slice(2).join(':') };
+    if (parts[1] === 'date') return { type: 'date', value: parts.slice(2).join(':') };
+    if (parts[1] === 'entry') return { type: 'entry', value: parts[2] };
+    return { type: null, value: null };
+  }
+
+  function filterByTag(tag) {
+    const entries = document.querySelectorAll('article.entry');
+    document.body.classList.add('tag-filtered');
+    entries.forEach(entry => {
+      const tags = (entry.dataset.tags || '').split(' ').filter(Boolean);
+      const matches = tags.some(t => t === tag || t.startsWith(tag + ':'));
+      entry.classList.toggle('tag-match', matches);
+    });
+  }
+
+  function clearFilter() {
+    document.body.classList.remove('tag-filtered');
+    document.querySelectorAll('article.entry').forEach(e => e.classList.remove('tag-match'));
+  }
+
+  function handleHashChange() {
+    const { type, value } = parseHash();
+    if (type === 'tag' && value) {
+      filterByTag(value);
+    } else {
+      clearFilter();
+    }
+  }
+
+  // Clear filter when clicking header
+  document.querySelector('header h1 a')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    history.pushState(null, '', location.pathname);
+    clearFilter();
+  });
+
+  // Tags expand/collapse
+  function setupTagsExpand() {
+    const tagsLabel = document.querySelector('.tags-label');
+    const tagsExpand = document.querySelector('.tags-expand');
+    const tagsRow = document.querySelector('.tags-row');
+    if (tagsLabel && tagsRow) {
+      tagsLabel.addEventListener('click', () => tagsRow.classList.toggle('expanded'));
+    }
+    if (tagsExpand && tagsRow) {
+      tagsExpand.addEventListener('click', () => tagsRow.classList.add('expanded'));
+    }
+  }
+
+  window.addEventListener('hashchange', handleHashChange);
+  window.addEventListener('DOMContentLoaded', () => {
+    handleHashChange();
+    setupTagsExpand();
+  });
+})();
+</script>
 </head>
 <body>
 <header>
@@ -289,7 +447,7 @@ HTML_HEAD
 				(if $i > 0 and ($year_group[$i-1].month - .month) > 1
 				 then "<span class=\"gap\">···</span>"
 				 else "" end) +
-				"<a class=\"month-link\" href=\"#m-" + .year + "-" + .month_str + "\">" +
+				"<a class=\"month-link\" href=\"#d:date:" + .year + ":" + .month_str + "\">" +
 				(if .month == 1 then "Jan"
 				 elif .month == 2 then "Feb"
 				 elif .month == 3 then "Mar"
@@ -305,13 +463,49 @@ HTML_HEAD
 				"</a><span class=\"day-links\">" +
 				(.days | map(
 					(. | split("-") | .[2] | ltrimstr("0") | tonumber) as $d |
-					"<a href=\"#d-" + . + "\">" + ($d | tostring) + "</a>"
+					(. | gsub("-"; ":")) as $date_uri |
+					"<a href=\"#d:date:" + $date_uri + "\">" + ($d | tostring) + "</a>"
 				) | join(" ")) +
 				"</span>"
 			] | reverse | join(" ")) +
 			"</div>"
 		) | join("\n")
 	' "$tmp_entries" >> "$output_file"
+
+	# Generate tag links for navigation (inline, styled like dates)
+	local tag_data
+	tag_data=$(sqlite3 -json "$DBFILE" "
+		select t.path, t.name, count(distinct et.entry_id) as count
+		from tags t
+		join entry_tags et on et.tag_id = t.id
+		join log l on l.id = et.entry_id
+		where l.deleted is null
+		group by t.id
+		order by count desc, t.name asc
+	" 2>/dev/null || echo "[]")
+
+	if [ "$tag_data" != "[]" ] && [ -n "$tag_data" ]; then
+		echo "$tag_data" | jq -r '
+			# Show top 5 inline, rest in overflow span
+			. as $all |
+			if length == 0 then ""
+			else
+				"<div class=\"tags-row\"><span class=\"tags-label\">Tags</span>" +
+				($all[:5] | map(
+					"<a class=\"tag-link\" href=\"#d:tag:" + .path + "\" title=\"" + .path + "\">" + .name + "<span class=\"count\">(" + (.count | tostring) + ")</span></a>"
+				) | join("")) +
+				(if length > 5 then
+					"<span class=\"tags-expand\">+" + ((length - 5) | tostring) + " more</span>" +
+					"<span class=\"tags-overflow\">" +
+					($all[5:] | map(
+						"<a class=\"tag-link\" href=\"#d:tag:" + .path + "\" title=\"" + .path + "\">" + .name + "<span class=\"count\">(" + (.count | tostring) + ")</span></a>"
+					) | join("")) +
+					"</span>"
+				else "" end) +
+				"</div>"
+			end
+		' >> "$output_file"
+	fi
 
 	echo '</nav></div></header>' >> "$output_file"
 
@@ -336,8 +530,17 @@ FILTER
 	# Single jq call: pre-process all entries and output shell assignments directly
 	# - Computes prev/next IDs, first-of-day/month flags, weekday/month names
 	# - Body and title are base64-encoded to handle newlines/special chars
+	# - Tags are expanded to include parent paths for filtering
 	local processed_entries
 	processed_entries=$(LC_TIME=C jq -r '
+		# Helper: expand tags to include parent paths
+		# "work:matchi:uriel" -> "work work:matchi work:matchi:uriel"
+		def expand_tags:
+			if . == "" then ""
+			else
+				[split(" ")[] | split(":") | [range(1; length+1) as $i | .[0:$i] | join(":")]] | add | unique | join(" ")
+			end;
+
 		# Build lookup maps first
 		(reduce .[] as $e ({}; if .[$e.day] then . else . + {($e.day): $e.id} end)) as $first_of_day |
 		(reduce .[] as $e ({}; ($e.year + "-" + $e.month) as $ym | if .[$ym] then . else . + {($ym): $e.id} end)) as $first_of_month |
@@ -355,6 +558,8 @@ FILTER
 				"month=\($e.month | @sh)",
 				"body=\($e.body | @base64)",
 				"title=\($e.title | @base64)",
+				"tags=\($e.tags | expand_tags | @sh)",
+				"raw_tags=\($e.tags | @sh)",
 				"prev_rowid=\(if $i > 0 then $arr[$i-1].id else "" end)",
 				"next_rowid=\(if $i < ($arr | length) - 1 then $arr[$i+1].id else "" end)",
 				"is_first_of_day=\($first_of_day[$e.day] == $e.id)",
@@ -371,7 +576,7 @@ FILTER
 
 	# Process each entry (one line of shell assignments per entry)
 	while IFS= read -r shell_assignments; do
-		local rowid day year month body title prev_rowid next_rowid
+		local rowid day year month body title tags raw_tags prev_rowid next_rowid
 		local is_first_of_day is_first_of_month weekday day_num month_name
 
 		# Eval the pre-computed shell assignments (no jq call needed!)
@@ -385,10 +590,14 @@ FILTER
 		entry_html=$(echo "$body" | pandoc -f markdown+fenced_code_attributes -t html --highlight-style=kate --lua-filter "$mermaid_filter_file" 2>/dev/null || echo "$body" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
 		title_html=$(echo "$title" | pandoc -f markdown -t html 2>/dev/null || echo "$title")
 
-		# Build anchors
+		# Convert d: scheme links to internal anchors
+		entry_html=$(echo "$entry_html" | sed 's|href="d:|href="#d:|g')
+
+		# Build anchors with new URI scheme
 		local month_anchor="" day_anchor=""
-		[[ "$is_first_of_month" == "true" ]] && month_anchor="<a id=\"m-$year-$month\"></a>"
-		[[ "$is_first_of_day" == "true" ]] && day_anchor="<a id=\"d-$day\"></a>"
+		local day_uri="${day//-/:}"  # 2025-12-18 -> 2025:12:18
+		[[ "$is_first_of_month" == "true" ]] && month_anchor="<a id=\"d:date:$year:$month\"></a>"
+		[[ "$is_first_of_day" == "true" ]] && day_anchor="<a id=\"d:date:$day_uri\"></a>"
 
 		# Compute ordinal suffix
 		local ordinal
@@ -400,15 +609,28 @@ FILTER
 		esac
 		local formatted_date="$weekday, ${day_num}${ordinal}"
 
-		# Build nav links
+		# Build nav links with new URI scheme
 		local nav_links=""
-		[[ -n "$prev_rowid" ]] && nav_links="<a class=\"entry-nav\" href=\"#e-$prev_rowid\">↑ newer</a>"
-		[[ -n "$next_rowid" ]] && nav_links="$nav_links<a class=\"entry-nav\" href=\"#e-$next_rowid\">↓ older</a>"
+		[[ -n "$prev_rowid" ]] && nav_links="<a class=\"entry-nav\" href=\"#d:entry:$prev_rowid\">↑ newer</a>"
+		[[ -n "$next_rowid" ]] && nav_links="$nav_links<a class=\"entry-nav\" href=\"#d:entry:$next_rowid\">↓ older</a>"
 
-		# Accumulate article HTML
-		all_articles+="$month_anchor$day_anchor<article class=\"entry\" id=\"e-$rowid\">
+		# Build tag links from raw_tags
+		local tag_links=""
+		if [[ -n "$raw_tags" ]]; then
+			tag_links="<div class=\"entry-tags\">"
+			for tag_path in $raw_tags; do
+				# Get display name: last segment of path, capitalize first letter
+				local tag_name="${tag_path##*:}"
+				tag_name="$(echo "${tag_name:0:1}" | tr '[:lower:]' '[:upper:]')${tag_name:1}"
+				tag_links+="<a href=\"#d:tag:$tag_path\" title=\"$tag_path\">$tag_name</a>"
+			done
+			tag_links+="</div>"
+		fi
+
+		# Accumulate article HTML with new URI scheme and data-tags
+		all_articles+="$month_anchor$day_anchor<article class=\"entry\" id=\"d:entry:$rowid\" data-tags=\"$tags\">
 <div class=\"entry-sticky\">
-<div class=\"entry-date\"><time datetime=\"$day\">$formatted_date</time><a class=\"month-link\" href=\"#m-$year-$month\">$year $month_name</a><a class=\"rowid\" href=\"#e-$rowid\">#$rowid</a>$nav_links</div>
+<div class=\"entry-date\"><time datetime=\"$day\">$formatted_date</time><a class=\"month-link\" href=\"#d:date:$year:$month\">$year $month_name</a><a class=\"rowid\" href=\"#d:entry:$rowid\">#$rowid</a>$nav_links$tag_links</div>
 </div>
 <div class=\"entry-main\">
 <div class=\"entry-content\">
@@ -421,15 +643,16 @@ $entry_html
 	done <<< "$processed_entries"
 
 	# Single write: replace marker with all articles
-	sed -i "s|<!-- ENTRIES -->|$all_articles|" "$output_file" 2>/dev/null || {
-		# Fallback if sed fails (e.g., special chars in content)
-		local tmp_out
-		tmp_out=$(mktemp)
-		CONTENT="$all_articles" awk -v marker="<!-- ENTRIES -->" '
-			$0 ~ marker { printf "%s", ENVIRON["CONTENT"]; next }
-			{ print }
-		' "$output_file" > "$tmp_out" && mv "$tmp_out" "$output_file"
-	}
+	# Write content to temp file to avoid argument/env size limits
+	local tmp_content tmp_out
+	tmp_content=$(mktemp)
+	tmp_out=$(mktemp)
+	printf '%s' "$all_articles" > "$tmp_content"
+	awk -v marker="<!-- ENTRIES -->" -v content_file="$tmp_content" '
+		$0 ~ marker { while ((getline line < content_file) > 0) print line; close(content_file); next }
+		{ print }
+	' "$output_file" > "$tmp_out" && mv "$tmp_out" "$output_file"
+	rm -f "$tmp_content" "$tmp_out"
 	rm -f "$tmp_entries"
 }
 
@@ -466,6 +689,144 @@ case "$1" in
 		sudo rm -rf /tmp/d-perf.data "$perf_tmp"
 		echo "flamegraph: $flamegraph_filename"
 		xdg-open "$flamegraph_filename"
+		exit 0
+		;;
+	tag)
+		# Tag management for a specific entry
+		entry_id="$2"
+		if [ -z "$entry_id" ]; then
+			echo "usage: d tag <entry_id>" >&2
+			exit 1
+		fi
+
+		# Get current tags for display
+		current_tags=$(sqlite3 "$DBFILE" "
+			select t.path || ' [' || et.relation || ']'
+			from entry_tags et
+			join tags t on t.id = et.tag_id
+			where et.entry_id = $entry_id
+			order by et.relation, t.path
+		" | tr '\n' ', ' | sed 's/,$//')
+
+		# Get all existing tags for completion
+		all_tags=$(sqlite3 "$DBFILE" "select path from tags order by path")
+
+		# FZF for tag selection/creation
+		selected=$(echo "$all_tags" | fzf \
+			--header "Entry #$entry_id tags: $current_tags" \
+			--print-query \
+			--prompt "Add tag (or type new): " \
+			--preview "$0 preview-tag {}" \
+			--bind "ctrl-r:execute($0 untag $entry_id {})+abort")
+
+		if [ -n "$selected" ]; then
+			# Use query if no match selected, otherwise use selection
+			tag_path=$(echo "$selected" | tail -1)
+			[ -z "$tag_path" ] && tag_path=$(echo "$selected" | head -1)
+
+			if [ -n "$tag_path" ]; then
+				tag_id=$(get_or_create_tag "$tag_path")
+				sqlite3 "$DBFILE" "insert or ignore into entry_tags(entry_id, tag_id, relation) values($entry_id, $tag_id, 'tagged')"
+				echo "Tagged #$entry_id with '$tag_path'"
+			fi
+		fi
+		exit 0
+		;;
+	untag)
+		# Remove explicit tag from entry
+		entry_id="$2"
+		tag_path="$3"
+		if [ -z "$entry_id" ] || [ -z "$tag_path" ]; then
+			echo "usage: d untag <entry_id> <tag_path>" >&2
+			exit 1
+		fi
+		sqlite3 "$DBFILE" "
+			delete from entry_tags
+			where entry_id = $entry_id
+			and tag_id = (select id from tags where path = '$tag_path')
+			and relation = 'tagged'
+		"
+		echo "Removed tag '$tag_path' from #$entry_id"
+		exit 0
+		;;
+	tags)
+		# Browse all tags with entry counts
+		sqlite3 -separator $'\t' "$DBFILE" "
+			select t.path, t.name, count(distinct et.entry_id) as count
+			from tags t
+			join entry_tags et on et.tag_id = t.id
+			join log l on l.id = et.entry_id
+			where l.deleted is null
+			group by t.id
+			order by count desc, t.path
+		" | fzf \
+			--delimiter=$'\t' \
+			--with-nth=1,3 \
+			--preview "$0 preview-tag {1}" \
+			--bind "enter:become($0 bytag {1})"
+		exit 0
+		;;
+	preview-tag)
+		# Preview entries for a tag (used by fzf)
+		tag_path="$2"
+		sqlite3 "$DBFILE" "
+			select l.id, l.at, substr(l.title, 1, 60), et.relation
+			from log l
+			join entry_tags et on et.entry_id = l.id
+			join tags t on t.id = et.tag_id
+			where t.path = '$tag_path'
+			and l.deleted is null
+			order by l.at desc
+			limit 20
+		"
+		exit 0
+		;;
+	bytag)
+		# Show entries for a specific tag (including subtags)
+		tag_path="$2"
+		if [ -z "$tag_path" ]; then
+			echo "usage: d bytag <tag_path>" >&2
+			exit 1
+		fi
+
+		sqlite3 -separator $'\t' "$DBFILE" "
+			select distinct l.id, l.at, l.title, group_concat(distinct et.relation)
+			from log l
+			join entry_tags et on et.entry_id = l.id
+			join tags t on t.id = et.tag_id
+			where (t.path = '$tag_path' or t.path like '$tag_path:%')
+			and l.deleted is null
+			group by l.id
+			order by l.at desc
+		" | fzf \
+			--delimiter=$'\t' \
+			--header "Entries tagged with '$tag_path' (and subtags)" \
+			--with-nth=2,3,4 \
+			--preview "sqlite3 \"$DBFILE\" \"select entry from log where id={1}\" | head -n20 | glow" \
+			--bind "enter:execute(sqlite3 \"$DBFILE\" \"update log set entry = trim(trim(edit(entry), X'0A')) where id={1}\")+become($0 bytag $tag_path)" \
+			--bind "ctrl-t:execute($0 tag {1})+become($0 bytag $tag_path)"
+		exit 0
+		;;
+	sync-entry-tags)
+		# Sync mentioned tags for a single entry
+		entry_id="$2"
+		if [ -n "$entry_id" ]; then
+			sync_mentioned_tags "$entry_id"
+		fi
+		exit 0
+		;;
+	sync-all-tags)
+		# Sync mentioned tags from all entry bodies
+		echo "Syncing mentioned tags from all entries..."
+		sqlite3 "$DBFILE" "select id from log where deleted is null" | while read -r entry_id; do
+			sync_mentioned_tags "$entry_id"
+		done
+		echo "Done."
+		exit 0
+		;;
+	build-mdlink)
+		# Build D_MDLINK_DATA JSON for an entry (used by fzf binding)
+		build_mdlink_data "$2"
 		exit 0
 		;;
 esac
@@ -542,6 +903,36 @@ while true; do
 				commit;
 			"
 			;;
+		3)
+			# Add N:N tag support
+			sqlite3 "$DBFILE" "
+				begin transaction;
+
+				-- Tags table with hierarchical paths like 'work:matchi:uriel'
+				create table tags(
+					id integer primary key autoincrement,
+					path text not null unique collate nocase,
+					name text not null,
+					created_at text not null default (datetime('now'))
+				);
+
+				-- Junction table for N:N relationship
+				-- relation: 'tagged' = explicit, 'mentioned' = found in body as d:tag:xxx
+				create table entry_tags(
+					entry_id integer not null references log(id) on delete cascade,
+					tag_id integer not null references tags(id) on delete cascade,
+					relation text not null check(relation in ('tagged', 'mentioned')),
+					created_at text not null default (datetime('now')),
+					primary key (entry_id, tag_id, relation)
+				);
+
+				create index idx_entry_tags_entry on entry_tags(entry_id);
+				create index idx_entry_tags_tag on entry_tags(tag_id);
+				create index idx_tags_path on tags(path);
+
+				commit;
+			"
+			;;
 		*)
 			break
 			;;
@@ -606,14 +997,16 @@ sqlite3 -json "$DBFILE" "$sql_entries" |
 	--color=light \
 	--delimiter=$'\t' \
 	--border \
-	--border-label ' done [ tab -> create; enter -> edit; shift-tab -> browser; ctrl-a -> treemd; ctrl-d -> delete entry; esc -> close ]' \
+	--border-label ' done [ tab -> create; enter -> edit; shift-tab -> browser; ctrl-a -> treemd; ctrl-d -> delete; ctrl-t -> tag; ctrl-g -> tags; esc -> close ]' \
 	--padding 1,2 \
 	--bind 'focus:transform-preview-label:[[ -n {} ]] && printf " %sfrom %s " {4} {3}' \
-	--bind "tab:execute@sqlite3 $DBFILE \"insert into log(user, entry) values ('$USER', trim(trim(edit(''), X'0A')))\"@+become(d)" \
+	--bind "tab:execute@sqlite3 $DBFILE \"insert into log(user, entry) values ('\$USER', trim(trim(edit(''), X'0A')))\" && $0 sync-entry-tags \$(sqlite3 $DBFILE 'select last_insert_rowid()')@+become(d)" \
 	--bind "ctrl-d:execute@sqlite3 $DBFILE \"update log set deleted=datetime('now') where id={1}\"@+become(d)" \
-	--bind "enter:execute@sqlite3 $DBFILE \"update log set entry = trim(trim(edit(entry), X'0A')) where id={1}\"@+become(d)" \
+	--bind "enter:execute@export D_MDLINK_DATA=\"\$($0 build-mdlink {1})\"; sqlite3 $DBFILE \"update log set entry = trim(trim(edit(entry), X'0A')) where id={1}\"; $0 sync-entry-tags {1}@+become(d)" \
 	--bind "shift-tab:execute@$0 html >/dev/null && xdg-open $D_PREVIEW_DIR/index.html@+become(d)" \
 	--bind "ctrl-a:execute@treemd <(sqlite3 $DBFILE \"select entry from log where id={1}\")@+become(d)" \
+	--bind "ctrl-t:execute@$0 tag {1}@+become(d)" \
+	--bind "ctrl-g:become($0 tags)" \
 	--with-nth=2 \
 	--accept-nth=1 \
 	--preview "sqlite3 $DBFILE \"select entry from log where id={1}\" | head -n10 | glow"
