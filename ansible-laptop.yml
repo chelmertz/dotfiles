@@ -65,10 +65,6 @@
       apt:
         name: copyq
 
-    - name: jhead (exif extraction from photos)
-      apt:
-        name: jhead
-
     - name: pavucontrol (ubuntu sucks at choosing output device when headset/bluetooth devices are connected, this is the solution)
       apt:
         name: pavucontrol
@@ -120,10 +116,6 @@
     - name: sqlitebrowser
       apt:
         name: sqlitebrowser
-
-    - name: pv (progress bar for pipes)
-      apt:
-        name: pv
 
     - name: i3
       apt:
@@ -233,29 +225,11 @@
       apt:
         name: sqlite3
 
-    - name: node-gyp (enables bindings for nodejs)
-      when: "'eta' in inventory_hostname"
-      apt:
-        name: node-gyp
-
     - name: java
       apt:
         pkg:
           - openjdk-11-jre # java
           - openjdk-11-jdk-headless # for `jps`
-
-    - name: psql etc
-      when: "'eta' in inventory_hostname"
-      apt:
-        name: postgresql-client-12
-
-    - name: gimp (photoshopping)
-      apt:
-        name: gimp
-
-    - name: inkscape (illustrator, vector)
-      apt:
-        name: inkscape
 
     - name: libreoffice
       apt:
@@ -315,10 +289,6 @@
       apt:
         name: visidata
 
-    - name: keyutils (for keyctl, needed in bwmenu (bitwarden cli for rofi))
-      apt:
-        name: keyutils
-
     - name: asciinema for recording terminal interactions
       apt:
         name: asciinema
@@ -353,11 +323,6 @@
     - name: pgcli (more autocompleting (suggestions & joins) & colors than psql)
       pip:
         name: pgcli
-        extra_args: --user
-
-    - name: i3pystatus
-      pip:
-        name: git+https://github.com/enkore/i3pystatus.git
         extra_args: --user
 
     - name: git-filter-repo (rewriting git repo history, useful when extracting parts of repo to new repo)
@@ -508,14 +473,6 @@
     - name: treemd (markdown viewer)
       shell: cargo install treemd
 
-    - name: check dust version
-      command: dust --version
-      register: dust_version
-
-    - name: dust (rust version of du -sh, easier to parse)
-      when: dust_version.rc != 0
-      shell: cargo install du-dust
-
     - name: check bat version
       command: bat --version
       register: bat_version
@@ -531,14 +488,6 @@
     - name: fd (find with good performance and smarter syntax)
       when: fd_version.rc != 0
       shell: cargo install fd-find
-
-    - name: xsv version
-      command: xsv --version
-      register: xsv_version
-
-    - name: xsv (cli util for dealing with csv)
-      when: xsv_version.rc != 0
-      shell: cargo install xsv
 
     - name: Rofi config
       file:
