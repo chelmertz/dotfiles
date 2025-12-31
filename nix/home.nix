@@ -6,15 +6,15 @@
 
   home.packages = with pkgs; [
     fzf
-    jq
-    tree
-    ripgrep
-    meld
-    git
     gh
-    shellcheck
-    vlc
+    git
     gron
+    jq
+    meld
+    ripgrep
+    shellcheck
+    tree
+    vlc
   ];
 
   programs.home-manager.enable = true;
