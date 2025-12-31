@@ -48,15 +48,6 @@
       snap:
         name: spotify
 
-    - name: vlc (video player)
-      snap:
-        name: vlc
-
-    - name: shellcheck
-      snap:
-        name: shellcheck
-        channel: edge
-
     - name: slack
       snap:
         name: slack

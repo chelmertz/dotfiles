@@ -12,6 +12,8 @@
     meld
     git
     gh
+    shellcheck
+    vlc
   ];
 
   programs.home-manager.enable = true;
