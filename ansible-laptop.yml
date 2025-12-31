@@ -481,14 +481,6 @@
       when: bat_version.rc != 0
       shell: cargo install bat
 
-    - name: fd version
-      command: fd --version
-      register: fd_version
-
-    - name: fd (find with good performance and smarter syntax)
-      when: fd_version.rc != 0
-      shell: cargo install fd-find
-
     - name: Rofi config
       file:
         src: ~/code/github/chelmertz/dotfiles/rofi
