@@ -6,6 +6,7 @@
 
   home.packages = with pkgs; [
     bat
+    cloc
     fd
     fzf
     gh
@@ -13,10 +14,13 @@
     gron
     jq
     meld
+    peek
     ripgrep
+    screenkey
     shellcheck
     tree
     vlc
+    w3m
   ];
 
   programs.home-manager.enable = true;

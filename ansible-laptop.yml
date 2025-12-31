@@ -19,18 +19,6 @@
         update_cache: yes
         name: emacs27
 
-    - name: cloc, counts lines of code by language
-      apt:
-        name: cloc
-
-    - name: peek (also a screen recorder)
-      apt:
-        name: peek
-
-    - name: screenkey (displays pressed buttons on screen)
-      apt:
-        name: screenkey
-
     - name: kubectl (k8s cli)
       snap:
         name: kubectl
@@ -52,10 +40,6 @@
     - name: cheese (record photo/video with webcam)
       apt:
         name: cheese
-
-    - name: w3m (terminal web browser & pager)
-      apt:
-        name: w3m
 
     - name: w3m-img (image viewer for w3m, including w3mimgdisplay)
       apt:
