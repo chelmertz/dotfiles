@@ -14,6 +14,7 @@
     gh
     shellcheck
     vlc
+    gron
   ];
 
   programs.home-manager.enable = true;

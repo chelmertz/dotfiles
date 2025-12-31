@@ -40,10 +40,6 @@
       snap:
         name: bruno
 
-    - name: gron (makes json greppable)
-      snap:
-        name: gron
-
     - name: spotify
       snap:
         name: spotify
