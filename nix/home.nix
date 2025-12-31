@@ -9,6 +9,9 @@
     jq
     tree
     ripgrep
+    meld
+    git
+    gh
   ];
 
   programs.home-manager.enable = true;

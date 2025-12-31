@@ -9,19 +9,6 @@
   become: yes
   tasks:
 
-    - name: meld, for merging conflicts
-      apt:
-        name: meld
-
-    - name: git (latest version)
-      apt_repository:
-        repo: ppa:git-core/ppa
-
-    - name: git
-      apt:
-        update_cache: yes
-        name: git
-
     - name: emacs repo
       apt_repository:
         repo: ppa:kelleyk/emacs
@@ -221,22 +208,6 @@
         append: yes
 
     # end docker
-
-    # begin gh (github cli)
-    - name: github gpg key
-      apt_key:
-        url: https://cli.github.com/packages/githubcli-archive-keyring.gpg
-
-    - name: github apt repo
-      apt_repository:
-        repo: deb [arch=amd64] https://cli.github.com/packages stable main
-
-    - name: gh (github cli)
-      apt:
-        update_cache: yes
-        pkg:
-          - gh
-    # end gh
 
     # begin element (matrix chat client)
     - name: element gpg key
