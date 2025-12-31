@@ -473,14 +473,6 @@
     - name: treemd (markdown viewer)
       shell: cargo install treemd
 
-    - name: check bat version
-      command: bat --version
-      register: bat_version
-
-    - name: bat (cat with colors)
-      when: bat_version.rc != 0
-      shell: cargo install bat
-
     - name: Rofi config
       file:
         src: ~/code/github/chelmertz/dotfiles/rofi
