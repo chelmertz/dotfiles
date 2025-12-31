@@ -540,19 +540,6 @@
       when: xsv_version.rc != 0
       shell: cargo install xsv
 
-    # this depends on the native bitwarden client (install it manually first, instead of the (broken) one in snap), then "bw login"
-    - name: bitwarden-rofi
-      git:
-        repo: https://github.com/chelmertz/bitwarden-rofi.git
-        version: master
-        dest: ~/code/github/chelmertz/bitwarden-rofi
-
-    - name: Symlink bwmenu (bitwarden cli) into something on $PATH
-      file:
-        src: ~/code/github/chelmertz/bitwarden-rofi/bwmenu
-        dest: ~/bin/bwmenu
-        state: link
-
     - name: Rofi config
       file:
         src: ~/code/github/chelmertz/dotfiles/rofi

@@ -99,9 +99,6 @@ for_window [title="Event Tester"] floating enable
 # cannot use assign, see https://github.com/i3/i3/issues/2060 (prob the same above, for Teams)
 for_window [class="Spotify"] move to workspace $ws10
 
-# bitwarden through rofi
-bindsym Pause exec bwmenu --auto-lock -1 --clear 60
-
 for_window [instance="gvim"] floating enable;
 for_window [instance="gvim"] move scratchpad; [instance="gvim"] scratchpad show; move position center; move scratchpad
 
