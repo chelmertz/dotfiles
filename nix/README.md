@@ -48,7 +48,7 @@ home.packages = with pkgs; [
 ];
 ```
 
-Then apply:
+Apply the configuration:
 
 ```bash {"name": "update-home-manager"}
 home-manager switch
@@ -62,6 +62,20 @@ nix search nixpkgs <name>
 
 # Or browse: https://search.nixos.org/packages
 ```
+
+## Trying packages temporarily
+
+Test a package without adding to config:
+
+```bash
+# Enter a shell with the package available
+nix shell nixpkgs#htop
+
+# Run a command directly
+nix run nixpkgs#cowsay -- "hello"
+```
+
+If you like it, add to `home.nix` and run `home-manager switch`.
 
 ## Updating packages
 
