@@ -5,75 +5,62 @@
   home.stateVersion = "24.05";
 
   home.packages = with pkgs; [
-    # Already migrated
+    arandr
+    asciinema
+    autorandr
     bat
+    brightnessctl
     cloc
+    copyq
+    entr
     fd
+    figlet
+    flameshot
+    font-awesome
     fzf
     gh
     git
+    git-filter-repo
+    gopls
+    graphviz
     gron
-    jq
-    libreoffice
-    meld
-    peek
-    ripgrep
-    screenkey
-    shellcheck
-    tree
-    vlc
-    w3m
-
-    # CLI tools
+    html-tidy
     htop
-    entr
-    sqlite
+    i3blocks
+    jq
+    lazydocker
+    lazygit
+    libreoffice
+    litecli
+    meld
     nmap
     pandoc
-    graphviz
-    visidata
-    asciinema
-    figlet
-    html-tidy
-    redshift
-
-    # GUI tools
-    copyq
     pavucontrol
-    arandr
-    autorandr
-    sqlitebrowser
+    peek
+    pgcli
+    php
+    playerctl
+    redshift
+    ripdrag
+    ripgrep
     rofi
-    flameshot
-
-    # X11/i3 tools
-    i3blocks
+    runme
+    screenkey
+    shellcheck
+    shfmt
+    sqlite
+    sqlitebrowser
+    tree
+    uni
+    visidata
+    vlc
+    w3m
+    wmctrl
     xcape
     xclip
-    xsel
     xdotool
-    wmctrl
-    brightnessctl
-    playerctl
-
-    # pip replacements
-    litecli
-    pgcli
-    git-filter-repo
-
-    # go replacements
-    lazygit
+    xsel
     yq
-    lazydocker
-    gopls
-    shfmt
-    uni
-    runme
-
-    # cargo + misc
-    ripdrag
-    php
-    font-awesome
   ];
 
   programs.home-manager.enable = true;

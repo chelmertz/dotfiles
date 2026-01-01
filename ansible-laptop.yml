@@ -19,15 +19,6 @@
         update_cache: yes
         name: emacs27
 
-    - name: kubectl (k8s cli)
-      snap:
-        name: kubectl
-        classic: yes
-
-    - name: bruno (http client à la Postman)
-      snap:
-        name: bruno
-
     - name: spotify
       snap:
         name: spotify
@@ -45,26 +36,6 @@
       apt:
         name: w3m-img
 
-    - name: copyq (clipboard manager)
-      apt:
-        name: copyq
-
-    - name: pavucontrol (ubuntu sucks at choosing output device when headset/bluetooth devices are connected, this is the solution)
-      apt:
-        name: pavucontrol
-
-    - name: font awesome
-      apt:
-        name: fonts-font-awesome
-
-    - name: entr (execute command when files change)
-      apt:
-        name: entr
-
-    - name: playerctl (media player, lets i3blocks query spotify for current song)
-      apt:
-        name: playerctl
-
     - name: Deps for dunstify, see https://github.com/dunst-project/dunst/wiki/Dependencies
       apt:
         pkg:
@@ -79,59 +50,15 @@
           - libxdg-basedir-dev
           - libnotify-dev
 
-    - name: arandr (gui for xrandr, manage monitors & output)
-      apt:
-        name: arandr
-
-    - name: autorandr (udev rules + small cli config for detecting monitors being attached/detached)
-      apt:
-        name: autorandr
-
-    - name: brightnessctl (brightness via cli)
-      apt:
-        name: brightnessctl
-
     - name: add myself to the video group (for brightnessctl without sudo)
       user:
         name: ch
         groups: video
         append: yes
 
-    - name: sqlitebrowser
-      apt:
-        name: sqlitebrowser
-
     - name: i3
       apt:
         name: i3
-
-    - name: i3blocks
-      apt:
-        name: i3blocks
-
-    - name: htop
-      apt:
-        name: htop
-
-    - name: xcape (bind keys, depending on time pressed)
-      apt:
-        name: xcape
-
-    - name: rofi (dmenu like autocompleting menu GUI thing)
-      apt:
-        name: rofi
-
-    - name: flameshot (screenshot)
-      apt:
-        name: flameshot
-
-    - name: xclip (clipboard)
-      apt:
-        name: xclip
-
-    - name: xsel (clipboard)
-      apt:
-        name: xsel
 
     - name: espanso (global text expansion)
       apt:
@@ -189,10 +116,6 @@
           - element-desktop
     # end element
 
-    - name: xdotool (api for X, kinda)
-      apt:
-        name: xdotool
-
     - name: nodejs
       apt:
         name: nodejs
@@ -205,73 +128,27 @@
       when: mmdc_version.rc != 0
       shell: npm install -g @mermaid-js/mermaid-cli
 
-    - name: sqlite3
-      apt:
-        name: sqlite3
-
     - name: java
       apt:
         pkg:
           - openjdk-11-jre # java
           - openjdk-11-jdk-headless # for `jps`
 
-    - name: php-cli (for the datedate script in my dotfiles/bin)
-      apt:
-        name: php-cli
-
-    - name: redshift (night screen)
-      apt:
-        name: redshift
-
-    - name: figlet (large text in terminals, good for WARNING TEXTS etc)
-      apt:
-        name: figlet
-
-    - name: wmctrl (manage x windows through cli)
-      apt:
-        name: wmctrl
-
-    - name: tidy (formats html/xml, used when exporting org mode to html)
-      apt:
-        name: tidy
-
     - name: postgresql-devel (needed for pgcli)
       apt:
         name: libpq-dev
 
-    - name: nmap
+    - name: texlive-latex-recommended (for pandoc pdf generation)
       apt:
-        name: nmap
-
-    - name: pandoc & markdown-to-pdf (yes, my cv is so original)
-      apt:
-        pkg:
-          - pandoc
-          - texlive-latex-recommended
-
-    - name: graphviz (dot et al.)
-      apt:
-        name: graphviz
+        name: texlive-latex-recommended
 
     - name: cargo (rust package manager)
       apt:
         name: cargo
 
-    - name: caffeine (keep the display/system alive and non-idle)
-      apt:
-        name: caffeine
-
     - name: zsh
       apt:
         name: zsh
-
-    - name: visidata (csv tui)
-      apt:
-        name: visidata
-
-    - name: asciinema for recording terminal interactions
-      apt:
-        name: asciinema
 
 - hosts: localhost
   # requires $ ansible-galaxy install staticdev.signal
@@ -281,11 +158,6 @@
 # as user
 - hosts: localhost
   tasks:
-
-    - name: litecli (sqlite alternative cli)
-      pip:
-        name: litecli
-        extra_args: --user
 
     - name: orgparse (parsing org mode in python, used in a i3blocks block for _currently working on_)
       pip:
@@ -299,16 +171,6 @@
     - name: gh-notify (github cli extension for notifications)
       when: gh_extension_list.stdout.find('meiji163/gh-notify') == -1
       shell: gh extension install meiji163/gh-notify
-
-    - name: pgcli (more autocompleting (suggestions & joins) & colors than psql)
-      pip:
-        name: pgcli
-        extra_args: --user
-
-    - name: git-filter-repo (rewriting git repo history, useful when extracting parts of repo to new repo)
-      pip:
-        name: git-filter-repo
-        extra_args: --user
 
     - name: Symlink dotfiles/bin to ~/bin
       file:
@@ -447,9 +309,6 @@
         version: master
         dest: ~/code/github/nkoehring/rofiemoji
 
-    - name: ripdrag (drag and drop helper)
-      shell: cargo install ripdrag
-
     - name: treemd (markdown viewer)
       shell: cargo install treemd
 
@@ -471,29 +330,8 @@
         dest: ~/.ideavimrc
         state: link
 
-    - name: runme (treats markdown files as playbooks)
-      shell: go install github.com/runmedev/runme/v3@main
-
-    - name: lazygit (terminal CLI alternative to magit)
-      shell: go install github.com/jesseduffield/lazygit@latest
-
     - name: serve (http server to quickly serve a directory)
       shell: go install github.com/chelmertz/serve@latest
-
-    - name: yq (jq but for yaml)
-      shell: go install github.com/mikefarah/yq/v4@latest
-
-    - name: uni (unicode tool for identifying/searching, used in rofi-binding)
-      shell: go install arp242.net/uni@v1.1.1
-
-    - name: lazydocker (tui for managing docker)
-      shell: go install github.com/jesseduffield/lazydocker@v0.18.1
-
-    - name: gopls (golang language server)
-      shell: GO111MODULE=on go install golang.org/x/tools/gopls@latest
-
-    - name: bash format
-      shell: GO111MODULE=on go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.1
 
     # start sysz (tui with fuzzy matching for systemd interfaces, systemctl and journalctl)
     - name: "sysz: git"
