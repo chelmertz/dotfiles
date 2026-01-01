@@ -21,6 +21,7 @@
     gh
     git
     git-filter-repo
+    gleam
     gopls
     graphviz
     gron
@@ -61,6 +62,8 @@
     xdotool
     xsel
     yq
+    yt-dlp
+    zizmor
   ];
 
   programs.home-manager.enable = true;
