@@ -6,7 +6,7 @@ set -eu
 curr=$(brightnessctl get)
 max=$(brightnessctl max)
 
-min="$((max / 10))"
+min="$((max / 100))"
 step="$((max / 5))"
 
 echo min: $min
