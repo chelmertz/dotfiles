@@ -41,6 +41,8 @@
     peek
     pgcli
     php
+    prometheus
+    prometheus-blackbox-exporter
     playerctl
     redshift
     ripdrag
@@ -74,5 +76,68 @@
     # it will be autosolved when home-manager manages zshrc
     enable = true;
     nix-direnv.enable = true;
+  };
+
+  xdg.configFile."prometheus/prometheus.yml".text = ''
+    global:
+      scrape_interval: 5m
+
+    scrape_configs:
+      - job_name: 'blackbox-http'
+        metrics_path: /probe
+        params:
+          module: [http_2xx]
+        static_configs:
+          - targets:
+            - https://iamnearlythere.com
+            - https://helmertz.com
+            - https://matchi.se
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: instance
+          - target_label: __address__
+            replacement: localhost:9115
+  '';
+
+  xdg.configFile."prometheus/blackbox.yml".text = ''
+    modules:
+      http_2xx:
+        prober: http
+        timeout: 5s
+        http:
+          valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+          valid_status_codes: [200, 201, 202, 203, 204, 301, 302]
+          method: GET
+          follow_redirects: true
+          preferred_ip_protocol: ip4
+  '';
+
+  systemd.user.services.blackbox-exporter = {
+    Unit = {
+      Description = "Blackbox Exporter";
+    };
+    Service = {
+      ExecStart = "${pkgs.prometheus-blackbox-exporter}/bin/blackbox_exporter --config.file=%h/.config/prometheus/blackbox.yml";
+      Restart = "on-failure";
+    };
+    Install = {
+      WantedBy = [ "default.target" ];
+    };
+  };
+
+  systemd.user.services.prometheus = {
+    Unit = {
+      Description = "Prometheus";
+      After = [ "blackbox-exporter.service" ];
+    };
+    Service = {
+      ExecStart = "${pkgs.prometheus}/bin/prometheus --config.file=%h/.config/prometheus/prometheus.yml --storage.tsdb.path=%h/.local/share/prometheus";
+      Restart = "on-failure";
+    };
+    Install = {
+      WantedBy = [ "default.target" ];
+    };
   };
 }
