@@ -3,16 +3,15 @@
 if [[ "$BLOCK_BUTTON" != "" ]]; then
 	url=http://localhost:9090/targets
 	xdg-open "$url" &>/dev/null && i3-msg workspace number 2 &>/dev/null && wmctrl -a firefox &>/dev/null
-else
-	out=$(curl --silent 'http://localhost:9090/api/v1/query?query=probe_success==0')
-	if [[ $? -ne 0 ]]; then
-		echo "Failed to query prometheus at localhost:9090"
-		exit 33
-	fi
+fi
+out=$(curl --silent 'http://localhost:9090/api/v1/query?query=probe_success==0')
+if [[ $? -ne 0 ]]; then
+	echo "Failed to query prometheus at localhost:9090"
+	exit 33
+fi
 
-	down_count=$(echo "$out" | jq '.data.result | length')
-	if [[ "$down_count" != "0" ]]; then
-		echo "prometheus errors: $down_count"
-		exit 33
-	fi
+down_count=$(echo "$out" | jq '.data.result | length')
+if [[ "$down_count" != "0" ]]; then
+	echo "prometheus errors: $down_count"
+	exit 33
 fi
