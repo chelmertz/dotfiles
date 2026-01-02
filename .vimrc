@@ -57,7 +57,6 @@ set listchars=tab:⇤–⇥,space:·,trail:·,precedes:⇠,extends:⇢,nbsp:×
 " Item options:
 "   - 'toggle':   vim option name - shows [ON]/[OFF] and auto-toggles on select
 "   - 'on':       custom callback (or s:Defer('cmd') for post-close execution)
-"   - 'mnemonic': override highlight position (default: finds key in label)
 
 function! s:Toggle(option)
     execute 'set ' . a:option . '!'
@@ -67,6 +66,35 @@ function! s:Defer(cmd)
     return {'cmd': a:cmd, 'defer': 1}
 endfunction
 
+" File finder using fd + fzf (no plugins)
+let s:find_file_temp = ''
+
+function! s:FindFile()
+    let s:find_file_temp = tempname()
+    let l:cmd = 'fd --type f 2>/dev/null | fzf > ' . shellescape(s:find_file_temp)
+
+    call term_start(['bash', '-c', l:cmd], #{
+        \ term_rows: 15,
+        \ term_finish: 'close',
+        \ exit_cb: function('s:FindFileCallback'),
+        \ })
+endfunction
+
+function! s:FindFileCallback(job, status)
+    " Small delay to let terminal close cleanly
+    call timer_start(10, function('s:FindFileOpen'))
+endfunction
+
+function! s:FindFileOpen(timer)
+    if filereadable(s:find_file_temp)
+        let l:lines = readfile(s:find_file_temp)
+        call delete(s:find_file_temp)
+        if len(l:lines) > 0 && l:lines[0] != ''
+            execute 'edit ' . fnameescape(l:lines[0])
+        endif
+    endif
+endfunction
+
 let s:menu = [
     \ {'_header': 'Toggles',
     \   'n': {'label': 'numbers',       'toggle': 'number'},
@@ -74,8 +102,11 @@ let s:menu = [
     \   'w': {'label': 'wrap',          'toggle': 'wrap'},
     \   's': {'label': 'spell',         'toggle': 'spell'},
     \ },
+    \ {'_header': 'Files',
+    \   'f': {'label': 'find file', 'on': s:Defer('call s:FindFile()')},
+    \ },
     \ {'_header': 'Vim',
-    \   'v': {'label': 'reload vimrc', 'mnemonic': 8,
+    \   'v': {'label': 'reload vimrc',
     \         'on': s:Defer('source $MYVIMRC | echo "Reloaded vimrc"')},
     \ },
 \ ]
@@ -101,14 +132,12 @@ function! s:BuildMdlinkColumn()
     for item in get(l:data, 'items', [])
         let l:label = get(item, 'name', item.path)
         let l:key = ''
-        let l:mnemonic_pos = 1
 
         " Try to find a key from the label characters
         for i in range(len(l:label))
             let l:char = tolower(l:label[i])
             if l:char =~ '[a-z0-9]' && !has_key(l:used_keys, l:char)
                 let l:key = l:char
-                let l:mnemonic_pos = i + 1  " 1-indexed
                 break
             endif
         endfor
@@ -119,7 +148,6 @@ function! s:BuildMdlinkColumn()
                 let l:char = l:fallback_keys[i]
                 if !has_key(l:used_keys, l:char)
                     let l:key = l:char
-                    let l:mnemonic_pos = 0  " No position to highlight in label
                     break
                 endif
             endfor
@@ -130,7 +158,6 @@ function! s:BuildMdlinkColumn()
             let l:col[l:key] = {
                 \ 'label': l:label,
                 \ 'mdlink': item.path,
-                \ 'mnemonic': l:mnemonic_pos
             \ }
         endif
     endfor
@@ -185,12 +212,6 @@ if empty(prop_type_get('transient_header'))
     call prop_type_add('transient_header', {'highlight': 'TransientHeader'})
 endif
 
-" Find mnemonic position (1-indexed) in label
-function! s:FindMnemonic(label, key)
-    let l:pos = stridx(tolower(a:label), tolower(a:key))
-    return l:pos >= 0 ? l:pos + 1 : 1
-endfunction
-
 " Build column content from a column definition
 function! s:BuildColumn(col_def)
     let l:lines = []
@@ -221,10 +242,6 @@ function! s:BuildColumn(col_def)
         let l:label = l:item.label
         let l:display_key = l:prefix_key != '' ? l:prefix_key . ' ' . key : key
 
-        " Calculate mnemonic position in label (1-indexed, 0 means none)
-        let l:mnemonic_pos = get(l:item, 'mnemonic', s:FindMnemonic(l:label, key))
-        let l:label_start = len(l:display_key) + 2  " +2 for ' ' after key
-
         if has_key(l:item, 'toggle')
             let l:is_on = eval('&' . l:item.toggle)
             let l:state = l:is_on ? 'ON' : 'OFF'
@@ -237,20 +254,12 @@ function! s:BuildColumn(col_def)
                 \ {'col': 1, 'length': len(l:display_key), 'type': 'transient_mnemonic'},
                 \ {'col': l:state_col, 'length': len(l:state), 'type': l:prop_type}
                 \ ]
-            " Also highlight mnemonic in label if found
-            if l:mnemonic_pos > 0
-                call add(l:props, {'col': l:label_start + l:mnemonic_pos - 1, 'length': 1, 'type': 'transient_mnemonic'})
-            endif
             call add(l:lines, {'text': l:text, 'props': l:props})
         else
             let l:text = l:display_key . ' ' . l:label
             let l:props = [
                 \ {'col': 1, 'length': len(l:display_key), 'type': 'transient_mnemonic'}
                 \ ]
-            " Also highlight mnemonic in label if found
-            if l:mnemonic_pos > 0
-                call add(l:props, {'col': l:label_start + l:mnemonic_pos - 1, 'length': 1, 'type': 'transient_mnemonic'})
-            endif
             call add(l:lines, {'text': l:text, 'props': l:props})
         endif
     endfor
@@ -349,10 +358,11 @@ function! s:GetMenuContent()
                 let l:row_text .= repeat(' ', l:col_width)
             endif
 
-            " Add gap between columns
+            " Update offset for next column (use strwidth of actual text added)
+            let l:col_offset = strwidth(l:row_text)
             if col_idx < l:num_cols - 1
                 let l:row_text .= repeat(' ', l:col_gap)
-                let l:col_offset += l:col_width + l:col_gap
+                let l:col_offset = strwidth(l:row_text)
             endif
         endfor
 
