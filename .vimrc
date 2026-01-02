@@ -17,6 +17,9 @@ nnoremap <expr> j (v:count == 0 ? 'gj' : 'j')
 vnoremap > >gv
 vnoremap < <gv
 
+" nix config
+autocmd FileType nix setlocal shiftwidth=2 softtabstop=2 expandtab
+
 " markdown folds on headers
 function! MarkdownLevel()
     if getline(v:lnum) =~ '^# .*$'
