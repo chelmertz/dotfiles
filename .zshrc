@@ -118,7 +118,7 @@ alias ll="ls --group-directories-first -alhXtr --hyperlink=auto"
 alias l1="ls -1"
 # -i smart case search (case insensitive unless uppercase is input)
 # -R color ascii
-alias less='less -iR'
+alias less='less -iR --use-color'
 
 lc() {
 	# pass a dir or just default to current dir
