@@ -98,6 +98,12 @@ home-manager generations
 home-manager switch --rollback
 ```
 
+## Remove unused packages
+
+```bash {"name": "nix-gc"}
+nix-collect-garbage
+```
+
 ## Files
 
 - `nix.conf` - Nix daemon config (enables flakes)
