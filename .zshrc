@@ -330,3 +330,5 @@ eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 # Nix should take precedence over brew
 export PATH="$HOME/.nix-profile/bin:$PATH"
 
+# direnv hook for project-specific nix environments
+eval "$(direnv hook zsh)"

@@ -4,6 +4,7 @@
   home.homeDirectory = "/home/ch";
   home.stateVersion = "24.05";
 
+  # for standard packages, without any custom configuration; otherwise, remove from this list and do "program.myprogram = { enable = true; .. other options}"
   home.packages = with pkgs; [
     arandr
     asciinema
@@ -67,4 +68,11 @@
   ];
 
   programs.home-manager.enable = true;
+
+  programs.direnv = {
+    # this requires eval direnv in ~/.zshrc as long as I manage it manually -
+    # it will be autosolved when home-manager manages zshrc
+    enable = true;
+    nix-direnv.enable = true;
+  };
 }

@@ -61,3 +61,6 @@ tags
 __debug_bin
 
 **/.claude/settings.local.json
+
+# nix-direnv (possibly direnv too, I've never used it on its own)
+.direnv
