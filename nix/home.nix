@@ -81,7 +81,7 @@
 
   xdg.configFile."prometheus/prometheus.yml".text = ''
     global:
-      scrape_interval: 5m
+      scrape_interval: 1m
 
     scrape_configs:
       - job_name: 'blackbox-http'
