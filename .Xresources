@@ -1,9 +1,12 @@
-# good for curved external monitor at home
+! good for curved external monitor at home
 Xft.dpi: 70
 rofi.dpi: 70
 *.dpi: 70
 
-# good for laptop only, no external monitors
-# Xft.dpi: 141
-# rofi.dpi: 141
-# *.dpi: 141
+! good for laptop only, no external monitors
+! Xft.dpi: 141
+! rofi.dpi: 141
+! *.dpi: 141
+
+!  sön  4 jan 2026 22:27:09 CET: this works in some windows, thought I would use it for presentations
+Xcursor.size: 24
