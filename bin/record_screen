@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# https://github.com/naelstrof/slop
+
+notify-send -t 2000 "Screen Recording" "Click a window or drag a rectangle to start video recording, no audio"
+
+slop=$(slop --noopengl --bordersize=4 --format "%x %y %w %h %g %i") || exit 1
+read -r X Y W H G ID <<< $slop
+tmpfile=$(mktemp ~/Downloads/screen_capture_XXXXXXXXXXX.webm)
+
+# -y overwrites without prompt (mktemp creates empty file)
+ffmpeg -y -f x11grab -s "$W"x"$H" -i :0.0+$X,$Y "$tmpfile" &
+FFMPEG_PID=$!
+
+stop_recording() {
+    # SIGINT for graceful stop of ffmpeg
+    kill -INT "$FFMPEG_PID" 2>/dev/null
+    wait "$FFMPEG_PID" 2>/dev/null
+}
+
+trap stop_recording EXIT
+
+if [ -t 0 ]; then
+    echo "Recording... Press Enter to stop."
+    read -r
+else
+    zenity --info --text="Recording..." --ok-label="⏹ Stop" --title="Screen Recording"
+fi
+
+stop_recording
+trap - EXIT  # rd below will block, but the recording is already finished - toss the trap
+
+rd "$tmpfile"
+

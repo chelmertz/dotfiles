@@ -52,6 +52,7 @@
     screenkey
     shellcheck
     shfmt
+    slop
     sqlite
     sqlitebrowser
     tree
