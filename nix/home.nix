@@ -141,4 +141,20 @@
       WantedBy = [ "default.target" ];
     };
   };
+
+  # flameshot as a daemon, otherwise ctrl+c doesn't work for me (using X11, in
+  # the source of this derivation I see USE_WAYLAND_CLIPBOARD=true .. maybe
+  # relevant)
+  systemd.user.services.flameshot = {
+    Unit = {
+      Description = "Flameshot";
+    };
+    Service = {
+      ExecStart = "${pkgs.flameshot}/bin/flameshot";
+      Restart = "on-failure";
+    };
+    Install = {
+      WantedBy = [ "default.target" ];
+    };
+  };
 }
