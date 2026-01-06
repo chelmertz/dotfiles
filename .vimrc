@@ -100,7 +100,7 @@ endfunction
 
 let s:menu = [
     \ {'_header': 'Toggles',
-    \   'n': {'label': 'numbers',       'toggle': 'number'},
+    \   'n': {'label': 'line numbers',  'toggle': 'number'},
     \   'c': {'label': 'chars display', 'toggle': 'list'},
     \   'w': {'label': 'wrap',          'toggle': 'wrap'},
     \   's': {'label': 'spell',         'toggle': 'spell'},
