@@ -28,6 +28,7 @@
     gron
     html-tidy
     htop
+    hyperfine
     i3blocks
     jq
     lazydocker
