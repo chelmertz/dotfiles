@@ -6,6 +6,7 @@ set ignorecase "needed before smartcase, it seems like
 set smartcase
 set nonumber
 set cursorline
+set autoindent "new line adopts to current indentation
 highlight CursorLine cterm=underline ctermbg=NONE guibg=NONE gui=underline
 
 let mapleader = ","
