@@ -165,6 +165,19 @@ batt() {
   fd "$*" | xargs bat
 }
 
+treewc() { python3 -c "
+import os,sys
+d=sys.argv[1] if len(sys.argv)>1 else '.'
+def t(d,p=''):
+ for i,e in enumerate(sorted(os.listdir(d))):
+  f,l=os.path.join(d,e),i==len(os.listdir(d))-1
+  c='└── 'if l else'├── '
+  if os.path.isdir(f):print(f'{p}{c}{e}/');t(f,p+('    'if l else'│   '))
+  else:print(f'{p}{c}{e} ({sum(1 for _ in open(f,errors=\"ignore\"))} lines)')
+print(d+'/');t(d)
+" "$1"
+}
+
 only_in_first() {
 	# show all lines present in first file, missing from second file
 	grep -Fxvf <(tr -d '\r' < "$1") <(tr -d '\r' < "$2")
