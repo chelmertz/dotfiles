@@ -37,12 +37,14 @@ def get_matching_class(wm_class):
 windows = []
 
 
-def walk_tree(tree):
+def walk_tree(tree, workspace=None):
+    if tree.get("type") == "workspace":
+        workspace = tree.get("name")
     if tree["window"]:
-        windows.append({"window": str(tree["window"]), "focused": tree["focused"]})
+        windows.append({"window": str(tree["window"]), "focused": tree["focused"], "workspace": workspace})
     if len(tree["nodes"]) > 0:
         for node in tree["nodes"]:
-            walk_tree(node)
+            walk_tree(node, workspace)
 
 
 def get_matches(wm_class):
@@ -61,10 +63,23 @@ def main():
     wm_class = sys.argv[1]
     log.debug("argv 1: " + wm_class)
     matches = get_matches(wm_class)
+
+    # Check for optional --workspace argument
+    preferred_workspace = None
+    program_arg_idx = 2
+    if len(sys.argv) > 3 and sys.argv[2] == "--workspace":
+        preferred_workspace = sys.argv[3]
+        program_arg_idx = 4
+
     # Sort the list by window IDs
     matches = [(match["window"], match) for match in matches]
     matches.sort()
     matches = [match for (key, match) in matches]
+
+    # If preferred workspace specified, sort to prioritize those matches first
+    if preferred_workspace and matches:
+        matches.sort(key=lambda m: (0 if m.get("workspace") == preferred_workspace else 1))
+
     # Iterate over the matches to find the first focused one, then focus the
     # next one.
     for ind, match in enumerate(matches):
@@ -81,7 +96,7 @@ def main():
         subprocess.check_output(["i3-msg", "[id=%s] focus" % matches[0]["window"]])
         return
     # No matches found, launch program
-    program = sys.argv[2]
+    program = sys.argv[program_arg_idx]
     log.debug("argv 2: " + program)
     subprocess.check_output(["i3-msg", "exec --no-startup-id", program])
 
