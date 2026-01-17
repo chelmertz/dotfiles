@@ -5,6 +5,7 @@
 # from https://faq.i3wm.org/question/2473/run-or-focus-in-i3.1.html
 # (with patches around --no-startup-id, s/\.call/check_output/ and focusing the workspace)
 
+import argparse
 import json
 import subprocess
 import sys
@@ -60,45 +61,70 @@ def get_matches(wm_class):
 
 
 def main():
-    wm_class = sys.argv[1]
-    log.debug("argv 1: " + wm_class)
-    matches = get_matches(wm_class)
+    parser = argparse.ArgumentParser(description="Raise or run: focus existing window or launch program")
+    parser.add_argument("wm_class", help="Window manager class to match")
+    parser.add_argument("program", help="Program to launch if no window found")
+    parser.add_argument("--workspace", "-w", help="Preferred workspace to prioritize")
+    args = parser.parse_args()
 
-    # Check for optional --workspace argument
-    preferred_workspace = None
-    program_arg_idx = 2
-    if len(sys.argv) > 3 and sys.argv[2] == "--workspace":
-        preferred_workspace = sys.argv[3]
-        program_arg_idx = 4
+    log.debug("wm_class: " + args.wm_class)
+    matches = get_matches(args.wm_class)
 
     # Sort the list by window IDs
     matches = [(match["window"], match) for match in matches]
     matches.sort()
     matches = [match for (key, match) in matches]
 
-    # If preferred workspace specified, sort to prioritize those matches first
-    if preferred_workspace and matches:
-        matches.sort(key=lambda m: (0 if m.get("workspace") == preferred_workspace else 1))
+    # Split matches by preferred workspace
+    ws_matches = []
+    other_matches = []
+    if args.workspace:
+        for m in matches:
+            if m.get("workspace") == args.workspace:
+                ws_matches.append(m)
+            else:
+                other_matches.append(m)
+    else:
+        other_matches = matches
 
-    # Iterate over the matches to find the first focused one, then focus the
-    # next one.
-    for ind, match in enumerate(matches):
-        if match["focused"] == True:
-            subprocess.check_output(
-                [
-                    "i3-msg",
-                    "[id=%s] focus" % matches[(ind + 1) % len(matches)]["window"],
-                ]
-            )
+    # Check if a window is currently focused
+    focused_match = None
+    for match in matches:
+        if match["focused"]:
+            focused_match = match
+            break
+
+    if focused_match:
+        # If focused window is on preferred workspace, cycle within that workspace only
+        if args.workspace and focused_match.get("workspace") == args.workspace:
+            if len(ws_matches) > 1:
+                ind = ws_matches.index(focused_match)
+                next_window = ws_matches[(ind + 1) % len(ws_matches)]
+                subprocess.check_output(["i3-msg", "[id=%s] focus" % next_window["window"]])
+            # If only one window on preferred workspace, do nothing (stay focused)
             return
-    # No focused match was found, so focus the first one
-    if len(matches) > 0:
-        subprocess.check_output(["i3-msg", "[id=%s] focus" % matches[0]["window"]])
+        else:
+            # Focused window is not on preferred workspace, switch to preferred workspace
+            if ws_matches:
+                subprocess.check_output(["i3-msg", "[id=%s] focus" % ws_matches[0]["window"]])
+                return
+            # No windows on preferred workspace, cycle through others
+            if len(other_matches) > 1:
+                ind = other_matches.index(focused_match)
+                next_window = other_matches[(ind + 1) % len(other_matches)]
+                subprocess.check_output(["i3-msg", "[id=%s] focus" % next_window["window"]])
+            return
+
+    # No focused match was found, focus the first one (prefer workspace matches)
+    if ws_matches:
+        subprocess.check_output(["i3-msg", "[id=%s] focus" % ws_matches[0]["window"]])
+        return
+    if other_matches:
+        subprocess.check_output(["i3-msg", "[id=%s] focus" % other_matches[0]["window"]])
         return
     # No matches found, launch program
-    program = sys.argv[program_arg_idx]
-    log.debug("argv 2: " + program)
-    subprocess.check_output(["i3-msg", "exec --no-startup-id", program])
+    log.debug("program: " + args.program)
+    subprocess.check_output(["i3-msg", "exec --no-startup-id", args.program])
 
 
 if __name__ == "__main__":
