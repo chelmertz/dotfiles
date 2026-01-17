@@ -99,7 +99,7 @@ function human_relative($unix) {
 			continue;
 		}
 		$units = floor($diff/$seconds);
-		$pluralized = $units == 1 ? $unit : "${unit}s";
+		$pluralized = $units == 1 ? $unit : $unit."s";
 		array_push($human, "$units $pluralized");
 		$diff %= $seconds;
 	}
