@@ -11,6 +11,7 @@
     autorandr
     bat
     brightnessctl
+    bruno
     cloc
     copyq
     entr
