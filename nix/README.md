@@ -56,9 +56,10 @@ home-manager switch
 
 ## Finding package names
 
-```bash
+```bash {"name": "search"}
 # Search from CLI
-nix search nixpkgs <name>
+read "name?Package name: "
+nix search nixpkgs "$name"
 
 # Or browse: https://search.nixos.org/packages
 ```
