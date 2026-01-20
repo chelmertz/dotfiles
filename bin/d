@@ -803,8 +803,8 @@ case "$1" in
 			--header "Entries tagged with '$tag_path' (and subtags)" \
 			--with-nth=2,3,4 \
 			--preview "sqlite3 \"$DBFILE\" \"select entry from log where id={1}\" | head -n20 | glow" \
-			--bind "enter:execute(sqlite3 \"$DBFILE\" \"update log set entry = trim(trim(edit(entry), X'0A')) where id={1}\")+become($0 bytag $tag_path)" \
-			--bind "ctrl-t:execute($0 tag {1})+become($0 bytag $tag_path)"
+			--bind "enter:execute@sqlite3 \"$DBFILE\" \"update log set entry = trim(trim(edit(entry), X'0A')) where id={1}\"@+become($0 bytag $tag_path)" \
+			--bind "ctrl-t:execute@$0 tag {1}@+become($0 bytag $tag_path)"
 		exit 0
 		;;
 	sync-entry-tags)
