@@ -1,0 +1,9 @@
+#!/bin/bash
+# Debug helper for pipelines - shows data flowing through while passing it along
+
+label="${1:-debug}"
+
+while IFS= read -r line; do
+    echo "[$label] $line" >&2
+    echo "$line"
+done
