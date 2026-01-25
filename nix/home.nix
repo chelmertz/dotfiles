@@ -85,6 +85,9 @@
     global:
       scrape_interval: 1m
 
+    rule_files:
+      - rules.yml
+
     scrape_configs:
       - job_name: 'blackbox-http'
         metrics_path: /probe
@@ -102,6 +105,19 @@
             target_label: instance
           - target_label: __address__
             replacement: localhost:9115
+
+      - job_name: 'domain'
+        metrics_path: /probe
+        static_configs:
+          - targets:
+            - iamnearlythere.com
+            - helmertz.com
+            - matchi.se
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - target_label: __address__
+            replacement: localhost:9222
   '';
 
   xdg.configFile."prometheus/blackbox.yml".text = ''
@@ -115,6 +131,35 @@
           method: GET
           follow_redirects: true
           preferred_ip_protocol: ip4
+  '';
+
+  xdg.configFile."prometheus/rules.yml".text = ''
+    groups:
+      - name: alerts
+        rules:
+          - alert: EndpointDown
+            expr: probe_success == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "{{ $labels.instance }} is down"
+
+          - alert: DomainExpirySoon
+            expr: domain_expiry_days < 50
+            for: 1h
+            labels:
+              severity: warning
+            annotations:
+              summary: "Domain {{ $labels.domain }} expires in {{ $value }} days"
+
+          - alert: DomainExpiryCritical
+            expr: domain_expiry_days < 30
+            for: 1h
+            labels:
+              severity: critical
+            annotations:
+              summary: "Domain {{ $labels.domain }} expires in {{ $value }} days"
   '';
 
   systemd.user.services.blackbox-exporter = {
@@ -137,6 +182,20 @@
     };
     Service = {
       ExecStart = "${pkgs.prometheus}/bin/prometheus --config.file=%h/.config/prometheus/prometheus.yml --storage.tsdb.path=%h/.local/share/prometheus";
+      Restart = "on-failure";
+    };
+    Install = {
+      WantedBy = [ "default.target" ];
+    };
+  };
+
+  systemd.user.services.domain-exporter = {
+    Unit = {
+      Description = "Domain Expiry Exporter";
+    };
+    Service = {
+      ExecStart = "/usr/bin/docker run --rm --name domain-exporter -p 9222:9222 docker.io/caarlos0/domain_exporter";
+      ExecStop = "/usr/bin/docker stop domain-exporter";
       Restart = "on-failure";
     };
     Install = {

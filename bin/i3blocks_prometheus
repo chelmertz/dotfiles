@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 
 if [[ "$BLOCK_BUTTON" != "" ]]; then
-	url=http://localhost:9090/targets
+	url=http://localhost:9090/alerts
 	xdg-open "$url" &>/dev/null && i3-msg workspace number 2 &>/dev/null && wmctrl -a firefox &>/dev/null
 fi
-out=$(curl --silent 'http://localhost:9090/api/v1/query?query=probe_success==0')
+out=$(curl --silent 'http://localhost:9090/api/v1/alerts')
 if [[ $? -ne 0 ]]; then
 	echo "Failed to query prometheus at localhost:9090"
 	exit 33
 fi
 
-down_count=$(echo "$out" | jq '.data.result | length')
-if [[ "$down_count" != "0" ]]; then
-	echo "prometheus errors: $down_count"
+alert_count=$(echo "$out" | jq '[.data.alerts[] | select(.state=="firing")] | length')
+if [[ "$alert_count" != "0" ]]; then
+	echo "prometheus alerts: $alert_count"
 	exit 33
 fi
