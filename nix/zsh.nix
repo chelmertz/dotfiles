@@ -290,6 +290,7 @@ print(d+'/');t(d)
       }
 
       # Keybinds
+      bindkey -e  # emacs mode: enables Ctrl+A, Ctrl+E, etc.
       bindkey ";5C" forward-word
       bindkey ";5D" backward-word
       bindkey "^ " autosuggest-accept
