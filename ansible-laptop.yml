@@ -228,12 +228,6 @@
     - name: treemd (markdown viewer)
       shell: cargo install treemd
 
-    - name: Symlink .ideavimrc
-      file:
-        src: ~/code/github/chelmertz/dotfiles/.ideavimrc
-        dest: ~/.ideavimrc
-        state: link
-
     - name: serve (http server to quickly serve a directory)
       shell: go install github.com/chelmertz/serve@latest
 
