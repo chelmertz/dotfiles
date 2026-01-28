@@ -1,5 +1,9 @@
 { pkgs, ... }:
 {
+  imports = [
+    ./zsh.nix
+  ];
+
   home.username = "ch";
   home.homeDirectory = "/home/ch";
   home.stateVersion = "24.05";
@@ -75,8 +79,6 @@
   programs.home-manager.enable = true;
 
   programs.direnv = {
-    # this requires eval direnv in ~/.zshrc as long as I manage it manually -
-    # it will be autosolved when home-manager manages zshrc
     enable = true;
     nix-direnv.enable = true;
   };
