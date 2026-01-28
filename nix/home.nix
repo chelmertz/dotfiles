@@ -2,6 +2,7 @@
 {
   imports = [
     ./zsh.nix
+    ./git.nix
   ];
 
   home.username = "ch";
@@ -25,7 +26,6 @@
     font-awesome
     fzf
     gh
-    git
     git-filter-repo
     gleam
     gopls
