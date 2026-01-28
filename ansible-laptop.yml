@@ -178,40 +178,10 @@
         dest: ~/bin
         state: link
 
-    - name: Symlink .bashrc
-      file:
-        src: ~/code/github/chelmertz/dotfiles/.bashrc
-        dest: ~/.bashrc
-        state: link
-
-    - name: Symlink .zshrc
-      file:
-        src: ~/code/github/chelmertz/dotfiles/.zshrc
-        dest: ~/.zshrc
-        state: link
-
     - name: Symlink dunstrc (notification daemon settings)
       file:
         src: ~/code/github/chelmertz/dotfiles/dunst
         dest: ~/.config/dunst
-        state: link
-
-    - name: Global gitignore file
-      file:
-        src: ~/dotfiles/.gitignore_global
-        dest: ~/.gitignore_global
-        state: link
-
-    - name: Global gitconfig file (includeIf handles work stuff)
-      file:
-        src: ~/dotfiles/.gitconfig
-        dest: ~/.gitconfig
-        state: link
-
-    - name: Global gitconfig file (includeIf handles work stuff)
-      file:
-        src: ~/dotfiles/.gitconfig
-        dest: ~/.gitconfig
         state: link
 
     - name: i3blocks, status bar for i3
@@ -274,23 +244,6 @@
         repo: https://github.com/romkatv/powerlevel10k
         dest: ~/github/romkatv/powerlevel10k
         depth: 1
-
-    - name: Install powerlevel10k into zshrc
-      ansible.builtin.lineinfile:
-        path: ~/.zshrc
-        line: 'source ~/github/romkatv/powerlevel10k/powerlevel10k.zsh-theme'
-        create: yes
-
-    - name: zsh-autosuggestions
-      git:
-        repo: https://github.com/zsh-users/zsh-autosuggestions
-        dest: ~/code/github/zsh-users/zsh-autosuggestions
-
-    - name: Install zsh-autosuggestions into zshrc
-      ansible.builtin.lineinfile:
-        path: ~/.zshrc
-        line: 'source ~/code/github/zsh-users/zsh-autosuggestions/zsh-autosuggestions.zsh'
-        create: yes
 
     - name: Clone dunst (for dunstify)
       git:
