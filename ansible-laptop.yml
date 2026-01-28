@@ -219,12 +219,6 @@
         version: master
         dest: ~/code/github/karlicoss/grasp
 
-    - name: Clone powerlevel10k (zsh prompt)
-      git:
-        repo: https://github.com/romkatv/powerlevel10k
-        dest: ~/github/romkatv/powerlevel10k
-        depth: 1
-
     - name: Emoji mode for rofi
       git:
         repo: https://github.com/nkoehring/rofiemoji
