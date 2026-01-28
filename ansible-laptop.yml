@@ -36,20 +36,6 @@
       apt:
         name: w3m-img
 
-    - name: Deps for dunstify, see https://github.com/dunst-project/dunst/wiki/Dependencies
-      apt:
-        pkg:
-          - libdbus-1-dev
-          - libx11-dev
-          - libxinerama-dev
-          - libxrandr-dev
-          - libxss-dev
-          - libglib2.0-dev
-          - libpango1.0-dev
-          - libgtk-3-dev
-          - libxdg-basedir-dev
-          - libnotify-dev
-
     - name: add myself to the video group (for brightnessctl without sudo)
       user:
         name: ch
@@ -178,12 +164,6 @@
         dest: ~/bin
         state: link
 
-    - name: Symlink dunstrc (notification daemon settings)
-      file:
-        src: ~/code/github/chelmertz/dotfiles/dunst
-        dest: ~/.config/dunst
-        state: link
-
     - name: i3blocks, status bar for i3
       file:
         src: ~/dotfiles/.i3blocks.conf
@@ -244,17 +224,6 @@
         repo: https://github.com/romkatv/powerlevel10k
         dest: ~/github/romkatv/powerlevel10k
         depth: 1
-
-    - name: Clone dunst (for dunstify)
-      git:
-        repo: https://github.com/dunst-project/dunst
-        version: master
-        dest: ~/code/github/dunst-project/dunst
-
-    - name: Build and install dunstify
-      shell: which dunstify || (make dunstify && cp -f dunstify ~/bin/dunstify)
-      args:
-        chdir: ~/code/github/dunst-project/dunst
 
     - name: Emoji mode for rofi
       git:
