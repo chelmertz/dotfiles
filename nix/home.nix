@@ -50,7 +50,6 @@
     prometheus
     prometheus-blackbox-exporter
     playerctl
-    redshift
     ripdrag
     ripgrep
     rofi
@@ -157,6 +156,23 @@
 
       return config
     '';
+  };
+
+  services.redshift = {
+    enable = true;
+    temperature = {
+      day = 5700;
+      night = 3500;
+    };
+    settings = {
+      redshift = {
+        fade = 1;
+        gamma = 0.8;
+        adjustment-method = "randr";
+      };
+    };
+    latitude = 57.7363152;
+    longitude = 12.1292249;
   };
 
   xdg.configFile."prometheus/prometheus.yml".text = ''

@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 
 state="off"
-if [[ -n $(pidof redshift) ]]; then
+if systemctl --user is-active --quiet redshift.service; then
 	state="on"
 fi
 
 toggle() {
 	if [[ "$state" = "on" ]] ; then
-		killall redshift
+		systemctl --user stop redshift.service
 		state="off"
 	else
-		bgstart redshift 2>/dev/null
+		systemctl --user start redshift.service
 		state="on"
 	fi
 }
