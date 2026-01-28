@@ -23,13 +23,6 @@
 	attributesfile = ~/.gitattributes
 [pager]
 	log = less -p^commit.*$
-[delta]
-	features = side-by-side line-numbers decorations
-	whitespace-error-style = 22 reverse
-[delta "decorations"]
-	commit-decoration-style = bold yellow box ul
-	file-style = bold yellow ul
-	file-decoration-style = none
 [includeIf "gitdir:~/code/matchi/"]
 	path = ~/code/github/chelmertz/dotfiles/work.gitconfig
 [help]
@@ -44,7 +37,3 @@
 	insteadOf = https://github.com/
 [rerere]
 	enabled = true
-[merge "mergiraf"]
-	# see https://mergiraf.org/usage.html for usage & CLI flags
-	name = mergiraf
-	driver = mergiraf merge --git %O %A %B -s %S -x %X -y %Y -p %P
