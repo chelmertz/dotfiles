@@ -1,7 +1,18 @@
 { pkgs, lib, ... }:
 {
+  # Powerlevel10k config file
+  home.file.".p10k.zsh".source = ./p10k.zsh;
+
   programs.zsh = {
     enable = true;
+
+    plugins = [
+      {
+        name = "powerlevel10k";
+        src = pkgs.zsh-powerlevel10k;
+        file = "share/zsh-powerlevel10k/powerlevel10k.zsh-theme";
+      }
+    ];
 
     history = {
       append = true;
@@ -329,8 +340,7 @@ print(d+'/');t(d)
       # hishtory
       test -f /home/ch/.hishtory/config.zsh && source /home/ch/.hishtory/config.zsh
 
-      # Powerlevel10k theme
-      source ~/powerlevel10k/powerlevel10k.zsh-theme
+      # Powerlevel10k config (theme loaded via plugins)
       [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
       # Private/local config
