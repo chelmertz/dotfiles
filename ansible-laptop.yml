@@ -228,12 +228,6 @@
     - name: treemd (markdown viewer)
       shell: cargo install treemd
 
-    - name: Symlink Xresources
-      file:
-        src: ~/code/github/chelmertz/dotfiles/.Xresources
-        dest: ~/.Xresources
-        state: link
-
     - name: Symlink .ideavimrc
       file:
         src: ~/code/github/chelmertz/dotfiles/.ideavimrc
@@ -242,19 +236,6 @@
 
     - name: serve (http server to quickly serve a directory)
       shell: go install github.com/chelmertz/serve@latest
-
-    # start sysz (tui with fuzzy matching for systemd interfaces, systemctl and journalctl)
-    - name: "sysz: git"
-      git:
-        repo: https://github.com/joehillen/sysz.git
-        version: master
-        dest: ~/code/github/joehillen/sysz
-
-    - name: "sysz: build & install"
-      shell: make && install -m755 sysz ~/bin
-      args:
-        chdir: ~/code/github/joehillen/sysz
-    # end sysz
 
     # fzf-docker
     - name: "fzf-docker: git"
