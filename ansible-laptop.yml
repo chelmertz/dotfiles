@@ -265,12 +265,6 @@
     - name: treemd (markdown viewer)
       shell: cargo install treemd
 
-    - name: Rofi config
-      file:
-        src: ~/code/github/chelmertz/dotfiles/rofi
-        dest: ~/.config/rofi
-        state: link
-
     - name: Symlink Xresources
       file:
         src: ~/code/github/chelmertz/dotfiles/.Xresources
