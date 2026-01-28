@@ -175,6 +175,14 @@
     longitude = 12.1292249;
   };
 
+  xresources.properties = {
+    # good for curved external monitor at home
+    "Xft.dpi" = 70;
+    "rofi.dpi" = 70;
+    "*.dpi" = 70;
+    "Xcursor.size" = 24;
+  };
+
   xdg.configFile."prometheus/prometheus.yml".text = ''
     global:
       scrape_interval: 1m
