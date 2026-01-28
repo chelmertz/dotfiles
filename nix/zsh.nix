@@ -25,7 +25,10 @@
       save = 10000;
     };
 
-    autosuggestion.enable = true;
+    autosuggestion = {
+      enable = true;
+      highlight = "fg=#888888";  # grey that should be visible on both light/dark
+    };
     syntaxHighlighting.enable = true;
 
     shellAliases = {
