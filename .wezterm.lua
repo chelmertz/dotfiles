@@ -40,7 +40,14 @@ function scheme_for_appearance(appearance)
 		-- return 'Builtin Solarized Dark' -- has too many colors going on
 		-- return '3024 (base16)' -- ok
 		-- return 'Mono Amber (Gogh)' -- orange monochrome, doesn't work with lazygit
-		return 'Mono Theme (terminal.sexy)' -- black and white mono, ok
+		-- return 'Mono Theme (terminal.sexy)' -- black and white mono (very mono, not even colors for git log or lazygit)
+		-- return 'Night' -- OK, cyan and other colors, a bit noisy
+		-- return 'Afterglow' -- grey and too little contrast
+		-- return 'Atom' -- too purple
+		-- return 'Blazer' -- too blue
+		-- return 'BlulocoDark' -- gray + non contrast
+		-- return 'Borland' -- insanely blue
+		return 'Bright Lights' -- OK, many colors, monokai style, a little noisy
 	else
 		-- ...maybe the problem is with `fd`
 		return 'Modus-Operandi-Tinted' -- light and nice, almost completely white but good colors in lazygit and acceptable in fd
