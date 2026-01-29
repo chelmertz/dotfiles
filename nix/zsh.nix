@@ -337,9 +337,16 @@ print(d+'/');t(d)
       # sdkman
       [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
 
-      # nvm
-      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-      [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+      # nvm (lazy-loaded for faster shell startup)
+      _nvm_lazy_load() {
+        unset -f nvm node npm npx
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+      }
+      nvm() { _nvm_lazy_load && nvm "$@"; }
+      node() { _nvm_lazy_load && node "$@"; }
+      npm() { _nvm_lazy_load && npm "$@"; }
+      npx() { _nvm_lazy_load && npx "$@"; }
 
       # Linuxbrew
       eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
