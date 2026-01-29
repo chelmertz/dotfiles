@@ -61,6 +61,7 @@
     sqlite
     sqlitebrowser
     tree
+    treemd
     uni
     visidata
     vlc

@@ -225,9 +225,6 @@
         version: master
         dest: ~/code/github/nkoehring/rofiemoji
 
-    - name: treemd (markdown viewer)
-      shell: cargo install treemd
-
     - name: serve (http server to quickly serve a directory)
       shell: go install github.com/chelmertz/serve@latest
 
