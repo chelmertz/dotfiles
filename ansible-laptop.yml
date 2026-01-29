@@ -182,12 +182,6 @@
         version: master
         dest: ~/code/github/chelmertz/rofi-blah-blah/
 
-    - name: Clone z (autojump for bash)
-      git:
-        repo: https://github.com/rupa/z.git
-        version: master
-        dest: ~/code/github/rupa/z/
-
     - name: Clone vim-surround (wrap selection in some bracket/tag, and more)
       git:
         repo: https://github.com/tpope/vim-surround.git

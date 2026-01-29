@@ -12,6 +12,11 @@
         src = pkgs.zsh-powerlevel10k;
         file = "share/zsh-powerlevel10k/powerlevel10k.zsh-theme";
       }
+      {
+        name = "zsh-z";
+        src = pkgs.zsh-z;
+        file = "share/zsh-z/zsh-z.plugin.zsh";
+      }
     ];
 
     history = {
@@ -263,14 +268,11 @@ print(d+'/');t(d)
         grep -Fxvf <(tr -d '\r' < "$1") <(tr -d '\r' < "$2")
       }
 
-      # z (directory jumper) integration
-      [ -f ~/code/github/rupa/z/z.sh ] && source ~/code/github/rupa/z/z.sh
-
-      # z with fzf integration
+      # z with fzf integration (z plugin loaded via programs.zsh.plugins)
       unalias z 2> /dev/null
       z() {
-        [ $# -gt 0 ] && _z "$*" && return
-        cd "$(_z -l 2>&1 | fzf --height 40% --nth 2.. --reverse --inline-info +s --tac --query "''${*##-* }" | sed 's/^[0-9,.]* *//')"
+        [ $# -gt 0 ] && zshz "$*" && return
+        cd "$(zshz -l 2>&1 | fzf --height 40% --nth 2.. --reverse --inline-info +s --tac --query "''${*##-* }" | sed 's/^[0-9,.]* *//')"
       }
 
       # pkill via fzf
