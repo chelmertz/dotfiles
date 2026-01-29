@@ -219,12 +219,6 @@
         version: master
         dest: ~/code/github/karlicoss/grasp
 
-    - name: Emoji mode for rofi
-      git:
-        repo: https://github.com/nkoehring/rofiemoji
-        version: master
-        dest: ~/code/github/nkoehring/rofiemoji
-
     - name: serve (http server to quickly serve a directory)
       shell: go install github.com/chelmertz/serve@latest
 

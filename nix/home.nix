@@ -53,6 +53,7 @@
     ripdrag
     ripgrep
     rofi
+    rofimoji
     runme
     screenkey
     shellcheck
