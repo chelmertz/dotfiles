@@ -75,6 +75,7 @@
       docker-ps = ''docker ps --format "{{.Status}}\t{{.Names}}\t{{.Ports}}" -a'';
 
       ml = "matchi-cli links";
+      n = "navi";
     };
 
     sessionVariables = {
@@ -83,6 +84,9 @@
       TZ = "Europe/Stockholm";
       XDG_CONFIG_HOME = "$HOME/.config";
       GROFF_NO_SGR = "1";
+
+      # navi cheatsheets
+      NAVI_PATH = "$HOME/code/github/chelmertz/dotfiles/cheats";
 
       # sdkman
       SDKMAN_DIR = "$HOME/.sdkman";

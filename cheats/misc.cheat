@@ -1,0 +1,18 @@
+% process, ps
+
+# Find process by name
+ps -ef | grep -i <process>
+
+# Kill process by name
+kill <signal> <pid>
+
+$ process: ps -eo comm= | sort -u
+$ pid: ps -eo pid=,comm= | grep -i <process> --- --column 1
+$ signal: echo "-15 (SIGTERM)\n-9 (SIGKILL)\n-2 (SIGINT)" --- --column 1
+
+% docker, container
+
+# Enter shell in running docker container
+docker exec -it <container_id> sh
+
+$ container_id: docker ps --format '{{.ID}} {{.Names}} {{.Image}}' --- --column 1

@@ -41,6 +41,7 @@
     libreoffice
     litecli
     meld
+    navi
     nmap
     pandoc
     pavucontrol
