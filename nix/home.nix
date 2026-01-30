@@ -3,6 +3,7 @@
   imports = [
     ./zsh.nix
     ./git.nix
+    ./bin.nix
   ];
 
   home.username = "ch";
@@ -48,6 +49,7 @@
     peek
     pgcli
     php
+    pnpm
     prometheus
     prometheus-blackbox-exporter
     playerctl
@@ -64,6 +66,7 @@
     sqlitebrowser
     tree
     treemd
+    trurl
     uni
     visidata
     vlc

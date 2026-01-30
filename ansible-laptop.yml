@@ -158,12 +158,6 @@
       when: gh_extension_list.stdout.find('meiji163/gh-notify') == -1
       shell: gh extension install meiji163/gh-notify
 
-    - name: Symlink dotfiles/bin to ~/bin
-      file:
-        src: ~/code/github/chelmertz/dotfiles/bin
-        dest: ~/bin
-        state: link
-
     - name: i3blocks, status bar for i3
       file:
         src: ~/dotfiles/.i3blocks.conf

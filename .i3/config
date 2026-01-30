@@ -29,8 +29,8 @@ bindsym XF86AudioNext exec --no-startup-id playerctl --player spotify next
 bindsym XF86AudioPrev exec --no-startup-id playerctl --player spotify previous
 bindsym XF86AudioPlay exec --no-startup-id playerctl --player spotify play-pause && pkill -SIGRTMIN+10 i3blocks
 
-bindsym XF86MonBrightnessDown exec --no-startup-id ~/bin/bright down
-bindsym XF86MonBrightnessUp exec --no-startup-id ~/bin/bright up
+bindsym XF86MonBrightnessDown exec --no-startup-id ~/.local/bin/bright down
+bindsym XF86MonBrightnessUp exec --no-startup-id ~/.local/bin/bright up
 
 # Use Mouse+$mod to drag floating windows to their wanted position
 floating_modifier $mod
@@ -157,11 +157,11 @@ workspace $ws10 output $monitor_secondary
 bindsym Shift+section exec ~/bin/rofi_snippets.sh
 # make sure to export TERMINAL=xyz in .zshrc, otherwise /usr/bin/i3-sensible-terminal doesn't pick that up
 bindsym section exec i3-sensible-terminal
-bindsym Scroll_Lock exec ~/bin/rofi.sh
+bindsym Scroll_Lock exec ~/.local/bin/rofi.sh
 bindsym $mod+u exec ~/bin/rofi_uni.sh
-bindsym $mod+p exec ~/bin/rofi_power.sh
-bindsym $mod+t exec ~/bin/rofi_timer.sh
-bindsym $mod+space exec ~/bin/rofi.sh
+bindsym $mod+p exec ~/.local/bin/rofi_power.sh
+bindsym $mod+t exec ~/.local/bin/rofi_timer.sh
+bindsym $mod+space exec ~/.local/bin/rofi.sh
 
 #bindsym Shift+F4 exec /home/ch/code/gitlab/chelmertz/focus_trigger/focus-trigger.py
 
@@ -201,17 +201,17 @@ mode "fkey" {
 
 bindsym $mod+m mode "fkey"; exec notify-send "fkey mode on (mod + m)"
 
-#bindsym F1 exec /home/ch/bin/ror.py Code /usr/bin/code; workspace number $ws1
-bindsym F1 exec /home/ch/bin/ror.py Cursor /usr/bin/cursor; workspace number $ws1
-#bindsym F2 exec /home/ch/bin/ror.py Google-chrome /usr/bin/google-chrome; workspace number $ws2
-bindsym F2 exec /home/ch/bin/ror.py Firefox --workspace $ws2 firefox; workspace number $ws2
+#bindsym F1 exec /home/ch/.local/bin/ror.py Code /usr/bin/code; workspace number $ws1
+bindsym F1 exec /home/ch/.local/bin/ror.py Cursor /usr/bin/cursor; workspace number $ws1
+#bindsym F2 exec /home/ch/.local/bin/ror.py Google-chrome /usr/bin/google-chrome; workspace number $ws2
+bindsym F2 exec /home/ch/.local/bin/ror.py Firefox --workspace $ws2 firefox; workspace number $ws2
 bindsym F3 workspace number $ws3
-bindsym F4 exec /home/ch/bin/ror.py Emacs "/home/ch/.emacs.d/bin/doom run" && workspace number $ws4
+bindsym F4 exec /home/ch/.local/bin/ror.py Emacs "/home/ch/.emacs.d/bin/doom run" && workspace number $ws4
 bindsym F5 workspace number $ws5
 bindsym F6 workspace number $ws6
 bindsym F7 workspace number $ws7
 bindsym F8 workspace number $ws8
-bindsym F9 exec --no-startup-id /home/ch/bin/ror.py Slack /usr/bin/slack; workspace number $ws9
+bindsym F9 exec --no-startup-id /home/ch/.local/bin/ror.py Slack /usr/bin/slack; workspace number $ws9
 bindsym F10 workspace number $ws10
 
 # move focused container to workspace
@@ -280,7 +280,7 @@ exec_always --no-startup-id feh --randomize --no-fehbg --bg-scale ~/Dropbox/wall
 exec --no-startup-id autorandr -l $(autorandr --detected)
 # turn on num look on boot
 exec --no-startup-id xdotool key --clearmodifiers Num_Lock
-exec --no-startup-id ~/bin/i3blocks_screenlayout.sh auto
+exec --no-startup-id ~/.local/bin/i3blocks_screenlayout.sh auto
 
 # `xset q` for viewing keypress rates
 # lower the initial keypress delay:

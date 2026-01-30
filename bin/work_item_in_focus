@@ -70,7 +70,7 @@ if __name__ == "__main__":
 
             elif int(button) == 3:
                 proc = subprocess.Popen(
-                    ["/home/ch/bin/ror.py", "Emacs", "/home/ch/.emacs.d/bin/doom run"]
+                    ["/home/ch/.local/bin/ror.py", "Emacs", "/home/ch/.emacs.d/bin/doom run"]
                 )
                 proc.wait()
                 subprocess.check_call(
