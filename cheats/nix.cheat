@@ -1,0 +1,10 @@
+% nix
+
+# Search for package
+nix search nixpkgs <pkg>
+
+# Apply home-manager
+home-manager switch
+
+# Start shell with package installed
+nix-shell -p <pkg>
