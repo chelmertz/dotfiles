@@ -300,6 +300,7 @@ print(d+'/');t(d)
 
       # Keybinds
       bindkey -e  # emacs mode: enables Ctrl+A, Ctrl+E, etc.
+      bindkey -r "^J"  # unbind ctrl+j (default: accept-line) to allow other tools to use it
       bindkey ";5C" forward-word
       bindkey ";5D" backward-word
       bindkey "^ " autosuggest-accept
