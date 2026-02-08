@@ -349,9 +349,6 @@ print(d+'/');t(d)
       npm() { _nvm_lazy_load && npm "$@"; }
       npx() { _nvm_lazy_load && npx "$@"; }
 
-      # Linuxbrew
-      eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-
       # matchi
       test -f ~/.zsh-matchi && source ~/.zsh-matchi
 
