@@ -15,6 +15,7 @@
     arandr
     asciinema
     autorandr
+    awscli2
     bat
     brightnessctl
     bruno
@@ -29,6 +30,7 @@
     gh
     git-filter-repo
     gleam
+    go
     gopls
     graphviz
     gron
