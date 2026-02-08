@@ -19,6 +19,7 @@
     bat
     brightnessctl
     bruno
+    claude-code
     cloc
     copyq
     entr

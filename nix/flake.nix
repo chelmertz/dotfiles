@@ -7,11 +7,20 @@
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    claude-code.url = "github:sadjow/claude-code-nix";
   };
 
-  outputs = { nixpkgs, home-manager, ... }: {
+  outputs = { nixpkgs, home-manager, claude-code, ... }: {
     homeConfigurations."ch" = home-manager.lib.homeManagerConfiguration {
-      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      pkgs = import nixpkgs {
+        system = "x86_64-linux";
+        overlays = [ claude-code.overlays.default ];
+        config = {
+          allowUnfreePredicate = pkg: builtins.elem (pkg.pname or "") [
+            "claude-code"
+          ];
+        };
+      };
       modules = [ ./home.nix ];
     };
   };
