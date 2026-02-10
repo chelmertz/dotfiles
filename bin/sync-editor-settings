@@ -1,0 +1,31 @@
+#!/bin/sh
+# Copies VS Code and Cursor settings into the dotfiles repo so they're tracked.
+# Called by .githooks/pre-commit, can also be run manually.
+
+DOTFILES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+copied=0
+
+for pair in \
+    "$HOME/.config/Code/User/settings.json:vscode-settings.json" \
+    "$HOME/.config/Code/User/keybindings.json:vscode-keybindings.json" \
+    "$HOME/.config/Cursor/User/settings.json:cursor-settings.json" \
+    "$HOME/.config/Cursor/User/keybindings.json:cursor-keybindings.json"; do
+
+    src="${pair%%:*}"
+    dst="$DOTFILES_DIR/${pair##*:}"
+
+    if [ ! -f "$src" ]; then
+        continue
+    fi
+
+    if [ ! -f "$dst" ] || ! cmp -s "$src" "$dst"; then
+        cp "$src" "$dst"
+        echo "Synced $src -> $dst"
+        copied=$((copied + 1))
+    fi
+done
+
+if [ "$copied" -eq 0 ]; then
+    echo "Editor settings already up to date."
+fi

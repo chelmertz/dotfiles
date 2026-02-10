@@ -86,6 +86,13 @@
 
   programs.home-manager.enable = true;
 
+  # Set up git hooks for the dotfiles repo so editor settings are synced on commit
+  home.activation.dotfilesGitHooks = ''
+    if [ -d "$HOME/dotfiles/.git" ]; then
+      ${pkgs.git}/bin/git -C "$HOME/dotfiles" config core.hooksPath .githooks
+    fi
+  '';
+
   programs.direnv = {
     enable = true;
     nix-direnv.enable = true;

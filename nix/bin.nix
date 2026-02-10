@@ -41,6 +41,11 @@
       executable = true;
     };
 
+    ".local/bin/sync-editor-settings" = {
+      source = ../bin/sync-editor-settings;
+      executable = true;
+    };
+
     ".local/bin/d" = {
       source = ../bin/d;
       executable = true;

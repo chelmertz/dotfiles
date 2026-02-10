@@ -1,5 +1,5 @@
 {
-    "editor.fontFamily": "Iosevka,Inconsolata,'Droid Sans Mono','Fira Mono', 'monospace', monospace",
+    "editor.fontFamily": "'Go Mono', Inconsolata,'Droid Sans Mono','Fira Mono', 'monospace', monospace",
     "editor.fontSize": 16,
     "explorer.confirmDragAndDrop": false,
     "files.autoSave": "onWindowChange",
@@ -56,52 +56,101 @@
     "vim.useCtrlKeys": true,
     "vim.normalModeKeyBindingsNonRecursive": [
         {
-            "before": ["u"],
-            "commands": ["undo"]
+            "before": [
+                "u"
+            ],
+            "commands": [
+                "undo"
+            ]
         },
         {
-            "before": ["<C-r>"],
-            "commands": ["redo"]
+            "before": [
+                "<C-r>"
+            ],
+            "commands": [
+                "redo"
+            ]
         }
     ],
     "editor.inlineSuggest.enabled": true,
     "window.zoomLevel": 2,
+    "workbench.colorTheme": "No Happiness in Colors Theme",
+    "workbench.preferredDarkColorTheme": "No Happiness in Colors Theme",
+    "workbench.preferredLightColorTheme": "Subtle Monochrome (Light)",
+    "window.autoDetectColorScheme": true,
     "githubPullRequests.terminalLinksHandler": "github",
-    "editor.fontWeight": "600",
+    "editor.fontWeight": "normal",
     "yaml.maxItemsComputed": 10000,
     "githubPullRequests.pullBranch": "never",
     "git.openRepositoryInParentFolders": "never",
     "diffEditor.hideUnchangedRegions.enabled": true,
     "explorer.confirmDelete": false,
     "vim.visualModeKeyBindings": [
-        
         {
-            "before": ["<"],
-            "after": ["<", "g", "v"]
+            "before": [
+                "<"
+            ],
+            "after": [
+                "<",
+                "g",
+                "v"
+            ]
         },
         {
-            "before": [">"],
-            "after": [">", "g", "v"]
+            "before": [
+                ">"
+            ],
+            "after": [
+                ">",
+                "g",
+                "v"
+            ]
         }
     ],
     "rust-analyzer.procMacro.enabled": false,
+    "rust-analyzer.server.extraEnv": {
+        "DATABASE_URL": "postgres://pb:pb@localhost:5432/padelboard"
+    },
     "github.copilot.editor.enableAutoCompletions": true,
     "workbench.sideBar.location": "right",
     "go.lintTool": "golangci-lint",
     "go.lintFlags": [
         "--fast"
     ],
-    "workbench.colorTheme": "Subtle Monochrome (Light)",
-    "editor.bracketPairColorization.enabled": false,
+    "cursor.cpp.disabledLanguages": [
+        "markdown",
+        "plaintext",
+        "yaml"
+    ],
     "vale.doNotShowWarningForFileToBeSavedBeforeLinting": true,
+    "gitlens.advanced.messages": {
+        "suppressFileNotUnderSourceControlWarning": true
+    },
+    "editor.bracketPairColorization.enabled": false,
+    "markdown.preview.scrollEditorWithPreview": false,
+    "markdown.preview.scrollPreviewWithEditor": false,
+    "msg.editor.defaultDbConnection": "webapp db",
+    "[dockercompose]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.autoIndent": "advanced",
+        "editor.quickSuggestions": {
+            "other": true,
+            "comments": false,
+            "strings": true
+        },
+        "editor.defaultFormatter": "redhat.vscode-yaml"
+    },
+    "[github-actions-workflow]": {
+        "editor.defaultFormatter": "redhat.vscode-yaml"
+    },
     "workbench.tree.indent": 24,
-    "editor.guides.highlightActiveIndentation": "always",
-    "workbench.startupEditor": "none",
-    "workbench.preferredDarkColorTheme": "No Happiness in Colors Theme",
-    "workbench.preferredLightColorTheme": "Subtle Monochrome (Light)",
-    "window.autoDetectColorScheme": true,
-    "search.smartCase": true,
-    "vim.commandLineModeKeyBindingsNonRecursive": [
-        
-    ]
+    "go.inlayHints.assignVariableTypes": true,
+    "go.inlayHints.compositeLiteralFields": true,
+    "go.inlayHints.compositeLiteralTypes": true,
+    "go.inlayHints.constantValues": true,
+    "go.inlayHints.ignoredError": true,
+    "go.inlayHints.rangeVariableTypes": true,
+    "go.inlayHints.parameterNames": true,
+    "claudeCode.preferredLocation": "sidebar"
 }

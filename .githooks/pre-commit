@@ -1,0 +1,18 @@
+#!/bin/sh
+# Sync editor settings into the repo before committing.
+# Git uses this hook via core.hooksPath, configured by nix home-manager (see home.nix).
+
+DOTFILES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+"$DOTFILES_DIR/bin/sync-editor-settings"
+
+# Stage any files that were updated
+git -C "$DOTFILES_DIR" add \
+    vscode-settings.json \
+    vscode-keybindings.json \
+    cursor-settings.json \
+    cursor-keybindings.json \
+    2>/dev/null
+
+# Always allow the commit to proceed
+exit 0
