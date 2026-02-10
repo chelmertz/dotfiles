@@ -202,6 +202,14 @@ highlight PmenuSel ctermbg=241 ctermfg=231 cterm=bold guibg=#626262 guifg=#fffff
 highlight PmenuSbar ctermbg=238 guibg=#444444
 highlight PmenuThumb ctermbg=248 guibg=#a8a8a8
 
+" Highlight trailing spaces (white on red) only when :set list is on
+highlight TrailingSpace ctermbg=red ctermfg=white guibg=#ff0000 guifg=#ffffff
+augroup TrailingSpaceHighlight
+  autocmd!
+  autocmd OptionSet list if &list | match TrailingSpace /\s\+$/ | else | match none | endif
+augroup END
+if &list | match TrailingSpace /\s\+$/ | endif
+
 " Text properties
 if empty(prop_type_get('transient_on'))
     call prop_type_add('transient_on', {'highlight': 'TransientOn'})
