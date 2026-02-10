@@ -265,7 +265,7 @@ def t(d,p='''):
   if os.path.isdir(f):print(f'{p}{c}{e}/');t(f,p+('    'if l else'│   '))
   else:print(f'{p}{c}{e} ({sum(1 for _ in open(f,errors=\"ignore\"))} lines)')
 print(d+'/');t(d)
-" "$1"
+" ''${1:+$1}
       }
 
       only_in_first() {
