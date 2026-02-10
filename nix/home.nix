@@ -25,6 +25,7 @@
     entr
     fd
     figlet
+    vivid
     flameshot
     font-awesome
     fzf
@@ -149,7 +150,9 @@
           -- return 'ayu_light' -- has a very very light turquoise & green, hard to read against the white background
           -- return 'CLRS' -- has a very very light turquoise & green, hard to read against the white background
           -- return 'Google (light) (terminal.sexy)' -- has good base colors in vim, fd output is too light still
-          return 'Modus-Operandi-Tinted' -- light and nice, almost completely white but good colors in lazygit and acceptable in fd
+          -- return 'Catppuccin Latte' -- warm off-white, well-tuned ANSI but greens are too intense
+          -- return 'Rosé Pine Dawn' -- warm pinkish-white background, good contrast
+          return 'Modus-Operandi-Tinted' -- light and nice, creamy warm background, good colors in lazygit
         end
       end
 
@@ -300,6 +303,16 @@
       };
     };
   };
+
+  # lazygit: use reverse video for selection so it adapts to any terminal color scheme
+  xdg.configFile."lazygit/config.yml".text = ''
+gui:
+  theme:
+    selectedLineBgColor:
+      - reverse
+    selectedRangeBgColor:
+      - reverse
+  '';
 
   # Route portal interfaces to the GTK backend when running under i3.
   # After changing, restart with: systemctl --user restart xdg-desktop-portal

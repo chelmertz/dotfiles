@@ -41,8 +41,7 @@
       cp = "cp -i";
       mv = "mv -i";
 
-      # fd: no colors (don't match light themes), show hidden but exclude .git
-      fd = "fd --color never --hidden --exclude '.git/'";
+      fd = "fd --hidden --exclude '.git/'";
       g = "lazygit";
       ga = "git add -A ";
       gba = "git branch -vv --sort=-committerdate --all";
@@ -63,14 +62,14 @@
       gls = "git log -M -w --stat --pretty=fuller --show-notes";
       gl = "git log -p -M -w --stat --pretty=fuller --show-notes";
 
-      l = "ls --group-directories-first -alhX --hyperlink=auto";
-      ll = "ls --group-directories-first -alhXtr --hyperlink=auto";
-      l1 = "ls -1";
+      l = "ls --color=auto --group-directories-first -alhX --hyperlink=auto";
+      ll = "ls --color=auto --group-directories-first -alhXtr --hyperlink=auto";
+      l1 = "ls --color=auto -1";
       less = "less -iR --use-color";
 
       cdd = "cd ~/code/github/chelmertz/dotfiles";
       rg = "rg --hidden --smart-case --glob='!**/.git/**'";
-      bat = "bat --theme=base16";
+      # bat theme is set dynamically via bat() function in initContent
 
       docker-ps = ''docker ps --format "{{.Status}}\t{{.Names}}\t{{.Ports}}" -a'';
 
@@ -129,6 +128,26 @@
       export LESS_TERMCAP_so=$'\e[01;33m'
       export LESS_TERMCAP_ue=$'\e[0m'
       export LESS_TERMCAP_us=$'\e[1;4;31m'
+
+      # LS_COLORS: pick vivid theme based on current color scheme
+      # affects ls, fd, and other tools that respect LS_COLORS
+      _update_ls_colors() {
+        local vivid_theme="molokai"
+        local scheme
+        scheme=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null)
+        [[ "$scheme" != *dark* ]] && vivid_theme="modus-operandi"
+        export LS_COLORS="$(vivid generate "$vivid_theme")"
+      }
+      _update_ls_colors
+
+      # bat: pick theme based on current color scheme
+      bat() {
+        local theme="Monokai Extended"
+        local scheme
+        scheme=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null)
+        [[ "$scheme" != *dark* ]] && theme="Monokai Extended Light"
+        command bat --theme="$theme" "$@"
+      }
 
       # Git functions
       gcf() {
