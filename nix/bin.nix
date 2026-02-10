@@ -46,6 +46,11 @@
       executable = true;
     };
 
+    ".local/bin/i3blocks_colorscheme.sh" = {
+      source = ../bin/i3blocks_colorscheme.sh;
+      executable = true;
+    };
+
     ".local/bin/d" = {
       source = ../bin/d;
       executable = true;
