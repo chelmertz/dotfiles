@@ -187,6 +187,7 @@ endfunction
 
 " State
 let s:transient_winid = 0
+let s:saved_t_ve = &t_ve
 
 " Colors
 highlight TransientMenu ctermbg=236 ctermfg=252 guibg=#303030 guifg=#d0d0d0
@@ -393,6 +394,9 @@ endfunction
 function! s:CloseMenu(winid)
     call popup_close(a:winid)
     let s:transient_winid = 0
+    " Restore cursor visibility
+    let &t_ve = s:saved_t_ve
+    redraw
 endfunction
 
 " Find item by key across all columns (skip columns with prefix keys)
@@ -484,6 +488,12 @@ function! s:OpenTransientMenu()
 
     let l:content = s:GetMenuContent()
     let l:height = len(l:content)
+
+    " Hide cursor while menu is visible
+    let s:saved_t_ve = &t_ve
+    let &t_ve = &t_vi
+    redraw
+    let &t_ve = ''
 
     let s:transient_winid = popup_create(l:content, #{
         \ line: &lines - l:height + 8,
