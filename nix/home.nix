@@ -294,6 +294,18 @@
     };
   };
 
+  # Route portal interfaces to the GTK backend when running under i3.
+  # After changing, restart with: systemctl --user restart xdg-desktop-portal
+  xdg.configFile."xdg-desktop-portal/i3-portals.conf".text = ''
+# Without this file, xdg-desktop-portal doesn't expose org.freedesktop.portal.Settings
+# on i3 because the GTK/GNOME portal backends only declare UseIn=gnome.
+# This means Electron apps (Slack, etc.) can't detect or react to light/dark theme
+# changes set via "gsettings set org.gnome.desktop.interface color-scheme".
+# With this config, the portal relays color-scheme changes to apps in real time.
+[preferred]
+default=gtk
+  '';
+
   xdg.configFile."prometheus/prometheus.yml".text = ''
     global:
       scrape_interval: 1m
