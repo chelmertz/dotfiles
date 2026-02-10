@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+
+# md2html - convert a markdown file (with mermaid support) to a single HTML file
+# Requires: pandoc
+#
+# Usage:
+#   md2html file.md          - convert file, output HTML to stdout
+#   cat file.md | md2html    - read from stdin, output HTML to stdout
+
+set -euo pipefail
+
+# Create temporary mermaid lua filter
+mermaid_filter=$(mktemp --suffix=.lua)
+trap 'rm -f "$mermaid_filter"' EXIT
+
+cat > "$mermaid_filter" <<'FILTER'
+function CodeBlock(block)
+  if block.classes[1] == "mermaid" then
+    local text = block.text
+    -- Strip YAML frontmatter (everything between --- and ---) from start of block
+    text = text:gsub("^%-%-%-.-%-%-%-\n", "")
+    return pandoc.RawBlock("html", "<pre class=\"mermaid\">\n" .. text .. "\n</pre>")
+  end
+end
+FILTER
+
+# Read input: file argument or stdin
+if [ $# -ge 1 ] && [ -f "$1" ]; then
+	input_file="$1"
+	md_content=$(cat "$input_file")
+else
+	md_content=$(cat)
+fi
+
+# Convert markdown to HTML fragment
+body_html=$(echo "$md_content" | pandoc -f markdown+fenced_code_attributes -t html --highlight-style=kate --lua-filter "$mermaid_filter" 2>/dev/null)
+
+cat <<HTMLEOF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>md2html</title>
+<script type="module">
+  try {
+    const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
+    mermaid.initialize({ startOnLoad: true, securityLevel: 'loose' });
+  } catch (e) {
+    console.warn('Mermaid failed:', e);
+  }
+</script>
+<style>
+@font-face {
+  font-family: "Go Mono";
+  src: url("file:///home/ch/.local/share/fonts/Go/Go-Mono.ttf");
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Go Mono";
+  src: url("file:///home/ch/.local/share/fonts/Go/Go-Mono-Bold.ttf");
+  font-weight: bold;
+  font-style: normal;
+}
+:root {
+  --bg: #fff; --fg: #222; --muted: #666; --border: #ccc; --accent: #444;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1a1a1a; --fg: #e0e0e0; --muted: #888; --border: #444; --accent: #aaa; }
+}
+* { box-sizing: border-box; }
+body {
+  font-family: "Noto Serif", Georgia, "Times New Roman", serif;
+  font-size: 1.15rem;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  max-width: 70ch;
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.5;
+}
+a { color: var(--accent); }
+code, pre { font-family: "Go Mono", monospace; }
+blockquote {
+  margin: 1rem 0;
+  padding: 0.5rem 1rem;
+  border-left: 3px solid var(--muted);
+  color: var(--muted);
+  font-style: italic;
+}
+blockquote > *:first-child { margin-top: 0; }
+blockquote > *:last-child { margin-bottom: 0; }
+pre { overflow-x: auto; padding: 0.5rem; }
+code { font-size: 0.9em; }
+img { max-width: 100%; }
+pre.mermaid {
+  background: transparent;
+  width: min(1500px, calc(100vw - 4rem));
+  margin-left: calc(50% - min(750px, 50vw - 2rem));
+}
+pre.mermaid svg {
+  width: 100%;
+  height: auto;
+}
+@media (max-width: 1599px) {
+  pre.mermaid { overflow-x: auto; }
+}
+/* Pandoc syntax highlighting (monochrome) */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen { div.sourceCode { overflow: auto; } }
+code span.al { font-weight: bold; }
+code span.an { font-style: italic; }
+code span.cf { font-weight: bold; }
+code span.co { font-style: italic; }
+code span.cv { font-style: italic; }
+code span.do { font-style: italic; }
+code span.dt { text-decoration: underline; }
+code span.er { font-weight: bold; }
+code span.in { font-style: italic; }
+code span.kw { font-weight: bold; }
+code span.pp { font-weight: bold; }
+code span.wa { font-style: italic; }
+</style>
+</head>
+<body>
+$body_html
+</body>
+</html>
+HTMLEOF

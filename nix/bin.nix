@@ -56,6 +56,11 @@
       executable = true;
     };
 
+    ".local/bin/md2html" = {
+      source = ../bin/md2html;
+      executable = true;
+    };
+
     ".local/bin/datedate" = {
       source = ../bin/datedate;
       executable = true;
