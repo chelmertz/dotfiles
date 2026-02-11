@@ -16,3 +16,6 @@ $ signal: echo "-15 (SIGTERM)\n-9 (SIGKILL)\n-2 (SIGINT)" --- --column 1
 docker exec -it <container_id> sh
 
 $ container_id: docker ps --format '{{.ID}} {{.Names}} {{.Image}}' --- --column 1
+
+# Disable autostart of container (stop it beforehand)
+docker update --restart=no <container_id>
