@@ -26,6 +26,7 @@
     fd
     figlet
     vivid
+    elly
     flameshot
     font-awesome
     fzf
@@ -457,6 +458,19 @@ default=gtk
     };
     Service = {
       ExecStart = "${pkgs.flameshot}/bin/flameshot";
+      Restart = "on-failure";
+    };
+    Install = {
+      WantedBy = [ "default.target" ];
+    };
+  };
+
+  systemd.user.services.elly = {
+    Unit = {
+      Description = "Elly - Github PR dashbaord";
+    };
+    Service = {
+      ExecStart = "${pkgs.elly}/bin/elly -db %h/.local/share/elly/elly.db";
       Restart = "on-failure";
     };
     Install = {
