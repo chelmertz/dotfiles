@@ -8,3 +8,6 @@ home-manager switch
 
 # Start shell with package installed
 nix-shell -p <pkg>
+
+# Update all
+nix flake update --flake ~/code/github/chelmertz/dotfiles/nix && home-manager switch
