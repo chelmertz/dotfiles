@@ -352,6 +352,11 @@ default=gtk
           - target_label: __address__
             replacement: localhost:9115
 
+      - job_name: 'elly'
+        static_configs:
+          - targets:
+            - localhost:9876
+
       - job_name: 'domain'
         metrics_path: /probe
         static_configs:
