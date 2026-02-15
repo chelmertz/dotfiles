@@ -171,11 +171,6 @@
       executable = true;
     };
 
-    ".local/bin/lock" = {
-      source = ../bin/lock;
-      executable = true;
-    };
-
     ".local/bin/mute_mp4" = {
       source = ../bin/mute_mp4;
       executable = true;
