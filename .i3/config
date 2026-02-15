@@ -92,6 +92,7 @@ assign [class="Emacs"] $ws4
 # generic name for Visual Studio Code
 assign [class="Code"] $ws1
 assign [class="Cursor"] $ws1
+assign [class="steam"] $ws5
 for_window [class="Microsoft Teams - Preview"] move to workspace $ws10
 for_window [class="Yad"] floating enable
 # xev, getting keycodes etc
