@@ -53,6 +53,7 @@
     libreoffice
     litecli
     meld
+    mycli
     navi
     nmap
     nodejs_22
