@@ -49,6 +49,7 @@
     meld
     navi
     nmap
+    nodejs_22
     pandoc
     pavucontrol
     peek
