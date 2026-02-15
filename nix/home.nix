@@ -6,6 +6,12 @@
     ./bin.nix
   ];
 
+  xsession.windowManager.i3 = {
+    enable = true;
+    config = null;
+    extraConfig = builtins.readFile ../.i3/config;
+  };
+
   home.username = "ch";
   home.homeDirectory = "/home/ch";
   home.stateVersion = "24.05";
