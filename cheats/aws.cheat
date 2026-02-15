@@ -1,0 +1,6 @@
+% aws, auth
+
+# Authenticate with AWS SSO profile (skips if already logged in to this profile)
+export AWS_PROFILE=<profile> && (aws sts get-caller-identity --profile <profile> > /dev/null 2>&1 && echo "Already authenticated as <profile>" || aws sso login)
+
+$ profile: grep '^\[profile ' ~/.aws/config | sed 's/\[profile \(.*\)\]/\1/'
