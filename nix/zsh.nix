@@ -75,6 +75,8 @@
 
       ml = "matchi-cli links";
       n = "navi";
+
+      claude = "command claude --add-dir ~/code/matchi";
     };
 
     sessionVariables = {
