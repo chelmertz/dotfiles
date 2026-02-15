@@ -74,7 +74,6 @@
       docker-ps = ''docker ps --format "{{.Status}}\t{{.Names}}\t{{.Ports}}" -a'';
 
       ml = "matchi-cli links";
-      n = "navi";
 
       claude = "command claude --add-dir ~/code/matchi";
     };
@@ -290,6 +289,8 @@ print(d+'/');t(d)
         grep -Fxvf <(tr -d '\r' < "$1") <(tr -d '\r' < "$2")
       }
 
+      eval "$(navi widget zsh)"
+
       # z with fzf integration (z plugin loaded via programs.zsh.plugins)
       unalias z 2> /dev/null
       z() {
@@ -318,10 +319,11 @@ print(d+'/');t(d)
 
       # Keybinds
       bindkey -e  # emacs mode: enables Ctrl+A, Ctrl+E, etc.
-      bindkey -r "^J"  # unbind ctrl+j (default: accept-line) to allow other tools to use it
+      bindkey -r "^J"  # unbind ctrl+j (default: accept-line) to allow vscode to toggle terminal
       bindkey ";5C" forward-word
       bindkey ";5D" backward-word
       bindkey "^ " autosuggest-accept
+      bindkey '^n' _navi_widget
 
       # Ctrl+Z to toggle fg
       function Resume {
