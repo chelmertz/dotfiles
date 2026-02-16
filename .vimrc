@@ -53,6 +53,7 @@ function! MarkdownLevel()
 endfunction
 au BufEnter *.md setlocal foldexpr=MarkdownLevel()
 au BufEnter *.md setlocal foldmethod=expr
+set foldmethod=indent
 set foldlevel=20 "default to open (hopefully) all folds
 
 
