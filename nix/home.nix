@@ -203,6 +203,23 @@
     longitude = 12.1292249;
   };
 
+  # Safety net: if redshift was toggled off via i3blocks during the day,
+  # re-start it at 21:00. Timers can't target another service directly,
+  # so we need this oneshot wrapper to start redshift.service.
+  systemd.user.services.redshift-ensure = {
+    Unit.Description = "Ensure redshift is running";
+    Service = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.systemd}/bin/systemctl --user start redshift.service";
+    };
+  };
+
+  systemd.user.timers.redshift-ensure = {
+    Unit.Description = "Start redshift by 21:00";
+    Timer.OnCalendar = "*-*-* 21:00:00";
+    Install.WantedBy = [ "timers.target" ];
+  };
+
   xresources.properties = {
     # good for curved external monitor at home
     "Xft.dpi" = 70;
