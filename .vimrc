@@ -11,6 +11,14 @@ highlight CursorLine cterm=underline ctermbg=NONE guibg=NONE gui=underline
 
 let mapleader = ","
 
+" yank/delete/paste via register z, so paste-over doesn't clobber the buffer
+nnoremap <leader>y "zy
+vnoremap <leader>y "zy
+nnoremap <leader>d "zd
+vnoremap <leader>d "zd
+nnoremap <leader>p "zp
+vnoremap <leader>p "zp
+
 " https://www.reddit.com/r/vim/comments/2k4cbr/problem_with_gj_and_gk/
 nnoremap <expr> k (v:count == 0 ? 'gk' : 'k')
 nnoremap <expr> j (v:count == 0 ? 'gj' : 'j')
