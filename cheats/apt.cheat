@@ -1,0 +1,15 @@
+% apt
+
+# Check if a package is installed
+dpkg -l | grep <package>
+
+$ package: dpkg -l | awk 'NR>5 {print $2}' --- --preview 'dpkg -l {1}'
+
+# List manually installed packages (not dependencies)
+apt-mark showmanual
+
+# Remove package and clean up unused dependencies
+sudo apt remove <package> && sudo apt autoremove
+
+# Search for available packages
+apt search <query>
