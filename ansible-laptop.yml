@@ -76,10 +76,6 @@
 
     # end docker
 
-    - name: nodejs
-      apt:
-        name: nodejs
-
     - name: check mmdc version
       command: mmdc --version
       register: mmdc_version
