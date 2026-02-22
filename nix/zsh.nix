@@ -314,7 +314,7 @@ print(d+'/');t(d)
       }
 
       vf() {
-        vim $(fzf)
+        vim $(fzf --query "$*")
       }
 
       # Keybinds
