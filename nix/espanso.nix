@@ -5,6 +5,7 @@
 
     configs.default = {
       search_shortcut = "CTRL+CMD+ALT+SPACE";
+      paste_shortcut = "CTRL+SHIFT+V";
     };
 
     matches.default.matches = [
