@@ -9,14 +9,14 @@
 # it gets replaced by the "replace" string.
 matches:
   # Simple text replacement
-  - trigger: ":espanso"
+  - trigger: "::espanso"
     replace: "Hi there!"
 
   # NOTE: espanso uses YAML to define matches, so pay attention to the indentation!
 
   # But matches can also be dynamic:
 
-  - trigger: ":date"
+  - trigger: "::date"
     replace: "{{mydate}}"
     vars:
       - name: mydate
@@ -24,7 +24,7 @@ matches:
         params:
           format: "%Y-%m-%d"
 
-  - trigger: ":today"
+  - trigger: "::today"
     replace: "{{today}}"
     vars:
       - name: today
@@ -32,136 +32,157 @@ matches:
         params:
           format: "%Y-%m-%d"
 
-  - trigger: ":shell"
+  - trigger: "::shell"
     replace: "```shell\n$|$\n```"
 
-  - trigger: ":pov"
+  - trigger: "::pov"
     replace: "point of view"
 
-  - trigger: ":ttm"
+  - trigger: "::ttm"
     replace: "time to market (TTM)"
 
-  - trigger: ":bc"
+  - trigger: "::bc"
     replace: "backwards-compatible"
 
-  - trigger: ":Bc"
+  - trigger: "::Bc"
     replace: "Backwards-compatible"
 
-  - trigger: ":lgtm"
+  - trigger: "::lgtm"
     replace: "looks good to me"
 
-  - trigger: ":Lgtm"
+  - trigger: "::Lgtm"
     replace: "Looks good to me"
 
-  - trigger: ":wdyt"
+  - trigger: "::wdyt"
     replace: "what do you think?"
 
-  - trigger: ":Wdyt"
+  - trigger: "::Wdyt"
     replace: "What do you think?"
 
-  - trigger: ":wrt"
+  - trigger: "::wrt"
     replace: "with regard to"
 
-  - trigger: ":Wrt"
+  - trigger: "::Wrt"
     replace: "With regard to"
 
-  - trigger: ":iirc"
+  - trigger: "::iirc"
     replace: "if I recall correctly"
 
-  - trigger: ":Iirc"
+  - trigger: "::Iirc"
     replace: "If I recall correctly"
 
-  - trigger: ":lmk"
+  - trigger: "::lmk"
     replace: "let me know"
 
-  - trigger: ":Lmk"
+  - trigger: "::Lmk"
     replace: "Let me know"
 
-  - trigger: ":afaik"
+  - trigger: "::afaik"
     replace: "as far as I know"
 
-  - trigger: ":Afaik"
+  - trigger: "::Afaik"
     replace: "As far as I know"
 
-  - trigger: ":RO"
+  - trigger: "::RO"
     replace: "read-only"
 
-  - trigger: ":RW"
+  - trigger: "::RW"
     replace: "read-write"
 
-  - trigger: ":AC"
+  - trigger: "::AC"
     replace: "acceptance criteria"
 
-  - trigger: ":Ac"
+  - trigger: "::Ac"
     replace: "Acceptance criteria"
 
-  - trigger: ":afaict"
+  - trigger: "::afaict"
     replace: "as far as I can tell"
 
-  - trigger: ":Afaict"
+  - trigger: "::Afaict"
     replace: "As far as I can tell"
 
-  - trigger: ":imo"
+  - trigger: "::imo"
     replace: "in my opinion"
 
-  - trigger: ":Imo"
+  - trigger: "::Imo"
     replace: "In my opinion"
 
-  - trigger: ":otoh"
+  - trigger: "::otoh"
     replace: "on the other hand"
 
-  - trigger: ":Otoh"
+  - trigger: "::Otoh"
     replace: "On the other hand"
 
 # for icons: https://www.compart.com/en/unicode
 
-  - trigger: ":plus"
+  - trigger: "::plus"
     replace: "➕"
 
-  - trigger: ":thumb"
+  - trigger: "::thumb"
     replace: "👍"
 
-  - trigger: ":raised"
+  - trigger: "::raised"
     replace: "🙌"
 
-  - trigger: ":pray"
+  - trigger: "::pray"
     replace: "🙏"
 
-  - trigger: ":joy"
+  - trigger: "::joy"
     replace: "😂"
 
-  - trigger: ":sweat"
+  - trigger: "::sweat"
     replace: "😅"
 
-  - trigger: ":eye"
+  - trigger: "::eye"
     replace: "👀"
 
-  - trigger: ":see"
+  - trigger: "::see"
     replace: "🙈"
 
-  - trigger: ":woozy"
+  - trigger: "::woozy"
     replace: "🥴"
 
-  - trigger: ":tada"
+  - trigger: "::tada"
     replace: "🎉"
 
   - trigger: "<->"
     replace: "↔"
 
-  - trigger: ":PR"
+  - trigger: "::PR"
     replace: "pull request"
 
-  - trigger: ":x"
+  - trigger: "::x"
     replace: "×"
 
-  - trigger: ":check"
+  - trigger: "::check"
     replace: "✅"
+
+  - trigger: "::sad"
+    replace: "☹"
+
+  - trigger: "::sml"
+    replace: "😊"
+
+  - trigger: "::strong"
+    replace: "💪"
+
+  - trigger: "::ba"
+    replace: "😎"
+
+  - trigger: "::happy"
+    replace: "😄"
+
+  - trigger: "::cry"
+    replace: "😭"
+
+  - trigger: "::wow"
+    replace: "😮"
 
 # for https://github.com/akavel/up
   - trigger: "::up"
     replace: "|& up"
 
-  - trigger: ":mermseq"
+  - trigger: "::mermseq"
     replace: >
       sequenceDiagram
 
