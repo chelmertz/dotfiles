@@ -127,11 +127,6 @@
       apt:
         name: zsh
 
-- hosts: localhost
-  # requires $ ansible-galaxy install staticdev.signal
-  roles:
-    - role: staticdev.signal
-
 # as user
 - hosts: localhost
   tasks:
