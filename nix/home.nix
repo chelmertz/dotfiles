@@ -29,6 +29,7 @@
     bat
     brightnessctl
     bruno
+    cargo
     claude-code
     cloc
     copyq

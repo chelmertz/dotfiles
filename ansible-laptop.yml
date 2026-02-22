@@ -86,10 +86,6 @@
       apt:
         name: libpq-dev
 
-    - name: cargo (rust package manager)
-      apt:
-        name: cargo
-
     - name: zsh
       apt:
         name: zsh
