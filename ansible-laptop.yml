@@ -76,23 +76,6 @@
 
     # end docker
 
-    # begin element (matrix chat client)
-    - name: element gpg key
-      apt_key:
-        keyring: /usr/share/keyrings/element-io-archive-keyring.gpg
-        url: https://packages.element.io/debian/element-io-archive-keyring.gpg
-
-    - name: element apt repo
-      apt_repository:
-        repo: deb [signed-by=/usr/share/keyrings/element-io-archive-keyring.gpg] https://packages.element.io/debian/ default main
-
-    - name: element (matrix chat client)
-      apt:
-        update_cache: yes
-        pkg:
-          - element-desktop
-    # end element
-
     - name: nodejs
       apt:
         name: nodejs

@@ -32,6 +32,14 @@
     claude-code
     cloc
     copyq
+    (symlinkJoin {
+      name = "element-desktop";
+      paths = [ element-desktop ];
+      buildInputs = [ makeWrapper ];
+      postBuild = ''
+        wrapProgram $out/bin/element-desktop --add-flags "--no-sandbox"
+      '';
+    })
     entr
     fd
     figlet
