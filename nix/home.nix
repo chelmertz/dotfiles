@@ -5,6 +5,7 @@
     ./git.nix
     ./bin.nix
     ./neovim.nix
+    ./espanso.nix
   ];
 
   xsession.windowManager.i3 = {

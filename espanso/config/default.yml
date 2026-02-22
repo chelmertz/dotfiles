@@ -1,4 +1,0 @@
-# espanso configuration file
-# TODO: migrate espanso installation to nix/home-manager (currently installed outside nix)
-# Config is symlinked from dotfiles: ~/.config/espanso -> dotfiles/espanso
-search_shortcut: CTRL+CMD+ALT+SPACE
