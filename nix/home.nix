@@ -78,6 +78,7 @@
     shellcheck
     shfmt
     slop
+    spotify
     sqlite
     sqlitebrowser
     tree

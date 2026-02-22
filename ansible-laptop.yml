@@ -19,10 +19,6 @@
         update_cache: yes
         name: emacs27
 
-    - name: spotify
-      snap:
-        name: spotify
-
     - name: slack
       snap:
         name: slack

@@ -19,6 +19,7 @@
         config = {
           allowUnfreePredicate = pkg: builtins.elem (pkg.pname or "") [
             "claude-code"
+            "spotify"
           ];
         };
       };
