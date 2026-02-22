@@ -4,6 +4,7 @@
     ./zsh.nix
     ./git.nix
     ./bin.nix
+    ./neovim.nix
   ];
 
   xsession.windowManager.i3 = {
@@ -55,6 +56,7 @@
     meld
     mycli
     navi
+    nixfmt
     nmap
     nodejs_22
     pandoc
@@ -167,8 +169,7 @@
 
       wezterm.on('update-status', function(window, pane)
         local overrides = window:get_config_overrides() or {}
-        local current = get_appearance()
-        local wanted = scheme_for_appearance(current)
+        local wanted = scheme_for_appearance(get_appearance())
         if overrides.color_scheme ~= wanted then
           overrides.color_scheme = wanted
           window:set_config_overrides(overrides)
