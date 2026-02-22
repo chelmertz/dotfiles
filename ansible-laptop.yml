@@ -76,14 +76,6 @@
 
     # end docker
 
-    - name: check mmdc version
-      command: mmdc --version
-      register: mmdc_version
-
-    - name: mmdc (mermaid cli (drawing diagrams))
-      when: mmdc_version.rc != 0
-      shell: npm install -g @mermaid-js/mermaid-cli
-
     - name: java
       apt:
         pkg:

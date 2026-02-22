@@ -66,6 +66,7 @@
     litecli
     meld
     mycli
+    mermaid-cli
     navi
     nixfmt
     nmap
