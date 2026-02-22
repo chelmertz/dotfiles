@@ -11,3 +11,6 @@ nix-shell -p <pkg>
 
 # Update all
 nix flake update --flake ~/code/github/chelmertz/dotfiles/nix && home-manager switch
+
+# Remove unused packages (garbage collect, gc)
+nix-collect-garbage
