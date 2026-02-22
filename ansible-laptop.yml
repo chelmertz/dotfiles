@@ -37,10 +37,6 @@
       apt:
         name: i3
 
-    - name: espanso (global text expansion)
-      apt:
-        deb: https://github.com/federico-terzi/espanso/releases/download/v2.2.1/espanso-debian-x11-amd64.deb
-
     # begin docker
     - name: docker pre-reqs
       apt:
@@ -82,14 +78,6 @@
           - openjdk-11-jre # java
           - openjdk-11-jdk-headless # for `jps`
 
-    - name: postgresql-devel (needed for pgcli)
-      apt:
-        name: libpq-dev
-
-    - name: zsh
-      apt:
-        name: zsh
-
 # as user
 - hosts: localhost
   tasks:
@@ -107,29 +95,11 @@
       when: gh_extension_list.stdout.find('meiji163/gh-notify') == -1
       shell: gh extension install meiji163/gh-notify
 
-    - name: i3blocks, status bar for i3
-      file:
-        src: ~/dotfiles/.i3blocks.conf
-        dest: ~/.i3blocks.conf
-        state: link
-
-    - name: Symlink i3 settings
-      file:
-        src: ~/dotfiles/.i3/config
-        dest: ~/.config/i3/config
-        state: link
-
     - name: rofi-blah-blah (snippet manager)
       git:
         repo: https://github.com/chelmertz/rofi-blah-blah
         version: master
         dest: ~/code/github/chelmertz/rofi-blah-blah/
-
-    - name: Clone vim-surround (wrap selection in some bracket/tag, and more)
-      git:
-        repo: https://github.com/tpope/vim-surround.git
-        version: master
-        dest: ~/.vim/pack/modules/start/vim-surround
 
     # doom emacs begin
     - name: Clone doom emacs (a nice emacs "distribution"(?))
