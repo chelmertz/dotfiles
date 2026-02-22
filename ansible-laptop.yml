@@ -19,11 +19,6 @@
         update_cache: yes
         name: emacs27
 
-    - name: slack
-      snap:
-        name: slack
-        classic: yes
-
     - name: cheese (record photo/video with webcam)
       apt:
         name: cheese

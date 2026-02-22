@@ -79,6 +79,14 @@
     screenkey
     shellcheck
     shfmt
+    (symlinkJoin {
+      name = "slack";
+      paths = [ slack ];
+      buildInputs = [ makeWrapper ];
+      postBuild = ''
+        wrapProgram $out/bin/slack --add-flags "--no-sandbox"
+      '';
+    })
     slop
     spotify
     sqlite
