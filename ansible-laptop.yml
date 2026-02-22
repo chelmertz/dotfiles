@@ -98,10 +98,6 @@
       apt:
         name: libpq-dev
 
-    - name: texlive-latex-recommended (for pandoc pdf generation)
-      apt:
-        name: texlive-latex-recommended
-
     - name: cargo (rust package manager)
       apt:
         name: cargo

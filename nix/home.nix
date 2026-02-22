@@ -108,6 +108,7 @@
     sqlite
     sqlitebrowser
     tree
+    texliveSmall
     treemd
     trurl
     uni
