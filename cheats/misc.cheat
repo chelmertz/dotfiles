@@ -8,7 +8,7 @@ kill <signal> <pid>
 
 $ process: ps -eo comm= | sort -u
 $ pid: ps -eo pid=,comm= | grep -i <process> --- --column 1
-$ signal: echo "-15 (SIGTERM)\n-9 (SIGKILL)\n-2 (SIGINT)" --- --column 1
+$ signal: printf '%s\n' "-15 (SIGTERM)" "-9 (SIGKILL)" "-2 (SIGINT)" --- --column 1
 
 % docker, container
 
