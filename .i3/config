@@ -88,11 +88,7 @@ assign [class="jetbrains-idea"] $ws3
 assign [class="obsidian"] $ws3
 assign [class="jetbrains-toolbox"] $ws10
 assign [class="Slack"] $ws9
-assign [class="Emacs"] $ws4
-# generic name for Visual Studio Code
-assign [class="Code"] $ws1
-assign [class="Cursor"] $ws1
-assign [class="steam"] $ws5
+assign [class="steam"] $ws7
 for_window [class="Microsoft Teams - Preview"] move to workspace $ws10
 for_window [class="Yad"] floating enable
 # xev, getting keycodes etc
@@ -130,15 +126,15 @@ client.focused #000000 #285577 #ffffff #44eda7 #44eda7
 # Define names for default workspaces for which we configure key bindings later on.
 # We use variables to avoid repeating the names in multiple places.
 set $ws1 "1"
-set $ws2 "2"
+set $ws2 "2 - browser"
 set $ws3 "3"
 set $ws4 "4"
 set $ws5 "5"
 set $ws6 "6"
-set $ws7 "7"
+set $ws7 "7 - steam"
 set $ws8 "8"
-set $ws9 "9"
-set $ws10 "10"
+set $ws9 "9 - slack"
+set $ws10 "10 - spotify"
 
 set_from_resource $monitor_primary monitor.primary "eDP1"
 set_from_resource $monitor_secondary monitor.secondary "eDP1"
@@ -162,6 +158,7 @@ bindsym Scroll_Lock exec ~/.local/bin/rofi.sh
 bindsym $mod+u exec ~/bin/rofi_uni.sh
 bindsym $mod+p exec ~/.local/bin/rofi_power.sh
 bindsym $mod+t exec ~/.local/bin/rofi_timer.sh
+bindsym $mod+n exec ~/.local/bin/i3-project menu
 bindsym $mod+space exec ~/.local/bin/rofi.sh
 
 #bindsym Shift+F4 exec /home/ch/code/gitlab/chelmertz/focus_trigger/focus-trigger.py
@@ -202,15 +199,13 @@ mode "fkey" {
 
 bindsym $mod+m mode "fkey"; exec notify-send "fkey mode on (mod + m)"
 
-#bindsym F1 exec /home/ch/.local/bin/ror.py Code /usr/bin/code; workspace number $ws1
-bindsym F1 exec /home/ch/.local/bin/ror.py Cursor /usr/bin/cursor; workspace number $ws1
-#bindsym F2 exec /home/ch/.local/bin/ror.py Google-chrome /usr/bin/google-chrome; workspace number $ws2
+bindsym F1 workspace number $ws1
 bindsym F2 exec /home/ch/.local/bin/ror.py Firefox --workspace $ws2 firefox; workspace number $ws2
 bindsym F3 workspace number $ws3
-bindsym F4 exec /home/ch/.local/bin/ror.py Emacs "/home/ch/.emacs.d/bin/doom run" && workspace number $ws4
+bindsym F4 workspace number $ws4
 bindsym F5 workspace number $ws5
 bindsym F6 workspace number $ws6
-bindsym F7 workspace number $ws7
+bindsym F7 exec /home/ch/.local/bin/ror.py steam /usr/bin/steam; workspace number $ws7
 bindsym F8 workspace number $ws8
 bindsym F9 exec --no-startup-id /home/ch/.local/bin/ror.py Slack /usr/bin/slack; workspace number $ws9
 bindsym F10 workspace number $ws10
@@ -290,3 +285,4 @@ exec --no-startup-id xset r rate 200 25
 # see https://wiki.archlinux.org/title/Display_Power_Management_Signaling
 exec --no-startup-id xset s off -dpms
 
+exec --no-startup-id ~/.local/bin/i3-project restore

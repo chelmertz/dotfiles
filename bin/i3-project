@@ -1,0 +1,222 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECTS_FILE="$HOME/.config/i3/projects"
+PREFERRED_SLOTS=(1 4 5 8 3 6)
+SEP=" - "
+
+# Ensure projects file exists
+mkdir -p "$(dirname "$PROJECTS_FILE")"
+touch "$PROJECTS_FILE"
+
+# Read active projects into associative array: slot -> name
+declare -A active_projects
+while IFS=: read -r slot name; do
+    [[ -n "$slot" && -n "$name" ]] && active_projects[$slot]="$name"
+done < "$PROJECTS_FILE"
+
+save_projects() {
+    > "$PROJECTS_FILE"
+    for slot in "${!active_projects[@]}"; do
+        echo "${slot}:${active_projects[$slot]}" >> "$PROJECTS_FILE"
+    done
+    # Sort for consistency
+    sort -t: -k1 -n -o "$PROJECTS_FILE" "$PROJECTS_FILE"
+}
+
+next_available_slot() {
+    for slot in "${PREFERRED_SLOTS[@]}"; do
+        if [[ -z "${active_projects[$slot]:-}" ]]; then
+            echo "$slot"
+            return
+        fi
+    done
+    return 1
+}
+
+ws_name() {
+    local slot="$1" name="$2"
+    echo "${slot}${SEP}${name}"
+}
+
+current_workspace_num() {
+    i3-msg -t get_workspaces | jq -r '.[] | select(.focused).name' | grep -oP '^\d+'
+}
+
+current_workspace_has_windows() {
+    local count
+    count=$(i3-msg -t get_tree | jq '[recurse(.nodes[]?) | select(.type == "workspace" and (.name | test("^'"$(current_workspace_num)"'"))) | recurse(.nodes[]?, .floating_nodes[]?) | select(.window != null)] | length')
+    [[ "$count" -gt 0 ]]
+}
+
+is_project_slot() {
+    local num="$1"
+    for slot in "${PREFERRED_SLOTS[@]}"; do
+        [[ "$slot" == "$num" ]] && return 0
+    done
+    return 1
+}
+
+create_project() {
+    local name="$1" slot="$2"
+    local current_ws_name
+    current_ws_name=$(i3-msg -t get_workspaces | jq -r '.[] | select(.focused).name')
+
+    if [[ "$slot" == "$current_ws_name" ]] || [[ "$current_ws_name" =~ ^${slot}(${SEP}|$) ]]; then
+        # We're already on this workspace, just rename
+        i3-msg "rename workspace \"${current_ws_name}\" to \"$(ws_name "$slot" "$name")\"" 2>/dev/null || true
+    else
+        # Navigate first (creates the workspace if it doesn't exist), then rename
+        i3-msg workspace number "$slot"
+        i3-msg "rename workspace \"$slot\" to \"$(ws_name "$slot" "$name")\"" 2>/dev/null || true
+    fi
+    active_projects[$slot]="$name"
+    save_projects
+}
+
+cmd_menu() {
+    local entries=""
+
+    # Active projects
+    for slot in "${PREFERRED_SLOTS[@]}"; do
+        local name="${active_projects[$slot]:-}"
+        if [[ -n "$name" ]]; then
+            entries+="$(ws_name "$slot" "$name")"$'\n'
+        fi
+    done
+
+    # New project entry
+    entries+="[new project]"$'\n'
+    entries+="[restore]"$'\n'
+
+    # Close entries for active projects
+    for slot in "${PREFERRED_SLOTS[@]}"; do
+        local name="${active_projects[$slot]:-}"
+        if [[ -n "$name" ]]; then
+            entries+="[close: ${name}]"$'\n'
+        fi
+    done
+
+    local choice
+    choice=$(echo -n "$entries" | rofi -dmenu -p "project" -i) || exit 0
+
+    handle_choice "$choice"
+}
+
+cmd_rofi_modi() {
+    if [[ $# -eq 0 ]]; then
+        # List mode: output options
+        for slot in "${PREFERRED_SLOTS[@]}"; do
+            local name="${active_projects[$slot]:-}"
+            if [[ -n "$name" ]]; then
+                echo "$(ws_name "$slot" "$name")"
+            fi
+        done
+        echo "[new project]"
+        echo "[restore]"
+        for slot in "${PREFERRED_SLOTS[@]}"; do
+            local name="${active_projects[$slot]:-}"
+            if [[ -n "$name" ]]; then
+                echo "[close: ${name}]"
+            fi
+        done
+        exit 0
+    fi
+
+    handle_choice "$1"
+}
+
+new_project() {
+    local name="$1"
+    local current_num
+    current_num=$(current_workspace_num)
+
+    # If we're on a free project slot, just label it
+    if is_project_slot "$current_num" \
+        && [[ -z "${active_projects[$current_num]:-}" ]]; then
+        create_project "$name" "$current_num"
+    else
+        # On a fixed workspace or an already-labeled project slot — auto-pick
+        local slot
+        slot=$(next_available_slot) || { notify-send "No free project slots"; exit 1; }
+        create_project "$name" "$slot"
+    fi
+}
+
+handle_choice() {
+    local choice="$1"
+
+    if [[ "$choice" == "[restore]" ]]; then
+        cmd_restore
+    elif [[ "$choice" == "[new project]" ]]; then
+        local name
+        name=$(rofi -dmenu -p "project name" -lines 0) || exit 0
+        [[ -z "$name" ]] && exit 0
+        new_project "$name"
+    elif [[ "$choice" == \[close:\ *\] ]]; then
+        local name="${choice#\[close: }"
+        name="${name%\]}"
+
+        for slot in "${!active_projects[@]}"; do
+            if [[ "${active_projects[$slot]}" == "$name" ]]; then
+                i3-msg "rename workspace \"$(ws_name "$slot" "$name")\" to \"${slot}\"" 2>/dev/null || true
+                unset "active_projects[$slot]"
+                save_projects
+                break
+            fi
+        done
+    elif [[ "$choice" =~ ^[0-9]+\ -\  ]]; then
+        # Switching to an existing project — choice is "N - name"
+        local slot="${choice%%${SEP}*}"
+        i3-msg workspace number "$slot"
+    else
+        # Typed a name directly into rofi — treat as new project
+        new_project "$choice"
+    fi
+}
+
+cmd_restore() {
+    # Fixed workspace labels
+    declare -A fixed_labels=(
+        [2]="browser"
+        [7]="steam"
+        [9]="slack"
+        [10]="spotify"
+    )
+    for slot in "${!fixed_labels[@]}"; do
+        local label="${fixed_labels[$slot]}"
+        i3-msg "rename workspace \"$slot\" to \"$(ws_name "$slot" "$label")\"" 2>/dev/null || true
+    done
+
+    # Project workspace labels
+    for slot in "${!active_projects[@]}"; do
+        local name="${active_projects[$slot]}"
+        i3-msg "rename workspace \"$slot\" to \"$(ws_name "$slot" "$name")\"" 2>/dev/null || true
+    done
+
+    # Move workspaces to correct outputs
+    local laptop="eDP-1"
+    local external
+    external=$(i3-msg -t get_outputs | jq -r '.[] | select(.active) | .name' | grep -v "^eDP" | head -1)
+
+    if [[ -n "$external" ]]; then
+        # Slack on laptop, everything else on external
+        i3-msg '[workspace="^9"] move workspace to output '"$laptop" 2>/dev/null || true
+        for ws_name in $(i3-msg -t get_workspaces | jq -r '.[].name'); do
+            local num="${ws_name%%[^0-9]*}"
+            if [[ "$num" != "9" ]]; then
+                i3-msg '[workspace="^'"$num"'"] move workspace to output '"$external" 2>/dev/null || true
+            fi
+        done
+    fi
+}
+
+case "${1:-}" in
+    menu) cmd_menu ;;
+    rofi-modi) shift; cmd_rofi_modi "$@" ;;
+    restore) cmd_restore ;;
+    *)
+        echo "Usage: i3-project {menu|rofi-modi|restore}" >&2
+        exit 1
+        ;;
+esac
