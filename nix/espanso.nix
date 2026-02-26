@@ -237,6 +237,86 @@
         trigger = "::down";
         replace = "↓";
       }
+      {
+        trigger = "::fire";
+        replace = "🔥";
+      }
+      {
+        trigger = "::rocket";
+        replace = "🚀";
+      }
+      {
+        trigger = "::heart";
+        replace = "❤️";
+      }
+      {
+        trigger = "::wave";
+        replace = "👋";
+      }
+      {
+        trigger = "::100";
+        replace = "💯";
+      }
+      {
+        trigger = "::clap";
+        replace = "👏";
+      }
+      {
+        trigger = "::bulb";
+        replace = "💡";
+      }
+      {
+        trigger = "::warn";
+        replace = "⚠️";
+      }
+      {
+        trigger = "::point";
+        replace = "👉";
+      }
+      {
+        trigger = "::memo";
+        replace = "📝";
+      }
+      {
+        trigger = "::cross";
+        replace = "❌";
+      }
+      {
+        trigger = "::chart";
+        replace = "📈";
+      }
+      {
+        trigger = "::shrug";
+        replace = "🤷";
+      }
+      {
+        trigger = "::party";
+        replace = "🥳";
+      }
+      {
+        trigger = "::skull";
+        replace = "💀";
+      }
+      {
+        trigger = "::salute";
+        replace = "🫡";
+      }
+      {
+        trigger = "::nerd";
+        replace = "🤓";
+      }
+      {
+        trigger = "::money";
+        replace = "💰";
+      }
+      {
+        trigger = "::facepalm";
+        replace = "🤦";
+      }
+      {
+        trigger = "::thinking";
+        replace = "🤔";
+      }
 
       {
         trigger = "::mermseq";
