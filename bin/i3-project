@@ -43,12 +43,6 @@ current_workspace_num() {
     i3-msg -t get_workspaces | jq -r '.[] | select(.focused).name' | grep -oP '^\d+'
 }
 
-current_workspace_has_windows() {
-    local count
-    count=$(i3-msg -t get_tree | jq '[recurse(.nodes[]?) | select(.type == "workspace" and (.name | test("^'"$(current_workspace_num)"'"))) | recurse(.nodes[]?, .floating_nodes[]?) | select(.window != null)] | length')
-    [[ "$count" -gt 0 ]]
-}
-
 is_project_slot() {
     local num="$1"
     for slot in "${PREFERRED_SLOTS[@]}"; do
@@ -86,57 +80,62 @@ create_project() {
     save_projects
 }
 
-cmd_menu() {
-    local entries=""
-
+build_entries() {
     # Active projects
     for slot in "${PREFERRED_SLOTS[@]}"; do
         local name="${active_projects[$slot]:-}"
         if [[ -n "$name" ]]; then
-            entries+="$(ws_name "$slot" "$name")"$'\n'
+            echo "$(ws_name "$slot" "$name")"
         fi
     done
 
-    # New project entry
-    entries+="[new project]"$'\n'
-    entries+="[restore]"$'\n'
+    echo "+ new project"
+    echo "~ restore"
 
     # Rename/close entries only for the current workspace if it's a project
     local current_num
     current_num=$(current_workspace_num)
     local current_project="${active_projects[$current_num]:-}"
     if [[ -n "$current_project" ]]; then
-        entries+="[rename: ${current_project}]"$'\n'
-        entries+="[close: ${current_project}]"$'\n'
+        echo "~ rename: ${current_project}"
+        echo "x close: ${current_project}"
     fi
+}
 
+cmd_menu() {
     local choice
-    choice=$(echo -n "$entries" | rofi -dmenu -p "project" -i) || exit 0
-
+    choice=$(build_entries | rofi -dmenu -p "project" -i) || exit 0
     handle_choice "$choice"
+}
+
+build_entries_modi() {
+    # Active projects
+    for slot in "${PREFERRED_SLOTS[@]}"; do
+        local name="${active_projects[$slot]:-}"
+        if [[ -n "$name" ]]; then
+            echo "$(ws_name "$slot" "$name")"
+        fi
+    done
+
+    echo "~ restore"
+
+    # Close entry only for the current workspace if it's a project
+    local current_num
+    current_num=$(current_workspace_num)
+    local current_project="${active_projects[$current_num]:-}"
+    if [[ -n "$current_project" ]]; then
+        echo "x close: ${current_project}"
+    fi
 }
 
 cmd_rofi_modi() {
     if [[ $# -eq 0 ]]; then
-        # List mode: output options
-        for slot in "${PREFERRED_SLOTS[@]}"; do
-            local name="${active_projects[$slot]:-}"
-            if [[ -n "$name" ]]; then
-                echo "$(ws_name "$slot" "$name")"
-            fi
-        done
-        echo "[new project]"
-        echo "[restore]"
-        local current_num
-        current_num=$(current_workspace_num)
-        local current_project="${active_projects[$current_num]:-}"
-        if [[ -n "$current_project" ]]; then
-            echo "[rename: ${current_project}]"
-            echo "[close: ${current_project}]"
-        fi
+        build_entries_modi
         exit 0
     fi
 
+    # No actions that need a second prompt — those are only in cmd_menu.
+    # Typing a name directly creates a new project.
     handle_choice "$1" >/dev/null 2>&1
 }
 
@@ -166,18 +165,17 @@ new_project() {
 handle_choice() {
     local choice="$1"
 
-    if [[ "$choice" == "[restore]" ]]; then
+    if [[ "$choice" == "~ restore" ]]; then
         cmd_restore
-    elif [[ "$choice" == "[new project]" ]]; then
+    elif [[ "$choice" == "+ new project" ]]; then
         local name
-        name=$(rofi -dmenu -p "project name" -lines 0) || exit 0
+        name=$(rofi -dmenu -p "project name") || exit 0
         [[ -z "$name" ]] && exit 0
         new_project "$name"
-    elif [[ "$choice" == \[rename:\ *\] ]]; then
-        local old_name="${choice#\[rename: }"
-        old_name="${old_name%\]}"
+    elif [[ "$choice" == "~ rename: "* ]]; then
+        local old_name="${choice#"~ rename: "}"
         local new_name
-        new_name=$(rofi -dmenu -p "rename to" -lines 0) || exit 0
+        new_name=$(rofi -dmenu -p "rename to") || exit 0
         [[ -z "$new_name" ]] && exit 0
         local current_num
         current_num=$(current_workspace_num)
@@ -190,9 +188,7 @@ handle_choice() {
         i3-msg "rename workspace \"${actual_ws_name}\" to \"$(ws_name "$current_num" "$new_name")\"" >/dev/null 2>&1 || true
         active_projects[$current_num]="$new_name"
         save_projects
-    elif [[ "$choice" == \[close:\ *\] ]]; then
-        local name="${choice#\[close: }"
-        name="${name%\]}"
+    elif [[ "$choice" == "x close: "* ]]; then
         local current_num
         current_num=$(current_workspace_num)
         local actual_ws_name
@@ -203,7 +199,16 @@ handle_choice() {
     elif [[ "$choice" =~ ^[0-9]+\ -\  ]]; then
         # Switching to an existing project — choice is "N - name"
         local slot="${choice%%${SEP}*}"
+        local project_name="${active_projects[$slot]:-}"
         i3-msg workspace number "$slot" >/dev/null
+        # Ensure the workspace has the correct label
+        if [[ -n "$project_name" ]]; then
+            local actual_ws_name
+            actual_ws_name=$(i3-msg -t get_workspaces | jq -r '.[] | select(.focused).name')
+            if [[ "$actual_ws_name" != "$(ws_name "$slot" "$project_name")" ]]; then
+                i3-msg "rename workspace \"${actual_ws_name}\" to \"$(ws_name "$slot" "$project_name")\"" >/dev/null 2>&1 || true
+            fi
+        fi
     else
         # Typed a name directly into rofi — treat as new project
         new_project "$choice"
