@@ -57,6 +57,18 @@ is_project_slot() {
     return 1
 }
 
+name_is_taken() {
+    local name="$1"
+    local exclude_slot="${2:-}"
+    for slot in "${!active_projects[@]}"; do
+        [[ "$slot" == "$exclude_slot" ]] && continue
+        if [[ "${active_projects[$slot]}" == "$name" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 create_project() {
     local name="$1" slot="$2"
     local current_ws_name
@@ -64,11 +76,11 @@ create_project() {
 
     if [[ "$slot" == "$current_ws_name" ]] || [[ "$current_ws_name" =~ ^${slot}(${SEP}|$) ]]; then
         # We're already on this workspace, just rename
-        i3-msg "rename workspace \"${current_ws_name}\" to \"$(ws_name "$slot" "$name")\"" 2>/dev/null || true
+        i3-msg "rename workspace \"${current_ws_name}\" to \"$(ws_name "$slot" "$name")\"" >/dev/null 2>&1 || true
     else
         # Navigate first (creates the workspace if it doesn't exist), then rename
-        i3-msg workspace number "$slot"
-        i3-msg "rename workspace \"$slot\" to \"$(ws_name "$slot" "$name")\"" 2>/dev/null || true
+        i3-msg workspace number "$slot" >/dev/null
+        i3-msg "rename workspace \"$slot\" to \"$(ws_name "$slot" "$name")\"" >/dev/null 2>&1 || true
     fi
     active_projects[$slot]="$name"
     save_projects
@@ -89,11 +101,12 @@ cmd_menu() {
     entries+="[new project]"$'\n'
     entries+="[restore]"$'\n'
 
-    # Close entry only for the current workspace if it's a project
+    # Rename/close entries only for the current workspace if it's a project
     local current_num
     current_num=$(current_workspace_num)
     local current_project="${active_projects[$current_num]:-}"
     if [[ -n "$current_project" ]]; then
+        entries+="[rename: ${current_project}]"$'\n'
         entries+="[close: ${current_project}]"$'\n'
     fi
 
@@ -118,16 +131,23 @@ cmd_rofi_modi() {
         current_num=$(current_workspace_num)
         local current_project="${active_projects[$current_num]:-}"
         if [[ -n "$current_project" ]]; then
+            echo "[rename: ${current_project}]"
             echo "[close: ${current_project}]"
         fi
         exit 0
     fi
 
-    handle_choice "$1"
+    handle_choice "$1" >/dev/null 2>&1
 }
 
 new_project() {
     local name="$1"
+
+    if name_is_taken "$name"; then
+        notify-send "Project name \"$name\" already in use"
+        exit 1
+    fi
+
     local current_num
     current_num=$(current_workspace_num)
 
@@ -153,22 +173,37 @@ handle_choice() {
         name=$(rofi -dmenu -p "project name" -lines 0) || exit 0
         [[ -z "$name" ]] && exit 0
         new_project "$name"
+    elif [[ "$choice" == \[rename:\ *\] ]]; then
+        local old_name="${choice#\[rename: }"
+        old_name="${old_name%\]}"
+        local new_name
+        new_name=$(rofi -dmenu -p "rename to" -lines 0) || exit 0
+        [[ -z "$new_name" ]] && exit 0
+        local current_num
+        current_num=$(current_workspace_num)
+        if name_is_taken "$new_name" "$current_num"; then
+            notify-send "Project name \"$new_name\" already in use"
+            exit 1
+        fi
+        local actual_ws_name
+        actual_ws_name=$(i3-msg -t get_workspaces | jq -r '.[] | select(.focused).name')
+        i3-msg "rename workspace \"${actual_ws_name}\" to \"$(ws_name "$current_num" "$new_name")\"" >/dev/null 2>&1 || true
+        active_projects[$current_num]="$new_name"
+        save_projects
     elif [[ "$choice" == \[close:\ *\] ]]; then
         local name="${choice#\[close: }"
         name="${name%\]}"
-
-        for slot in "${!active_projects[@]}"; do
-            if [[ "${active_projects[$slot]}" == "$name" ]]; then
-                i3-msg "rename workspace \"$(ws_name "$slot" "$name")\" to \"${slot}\"" 2>/dev/null || true
-                unset "active_projects[$slot]"
-                save_projects
-                break
-            fi
-        done
+        local current_num
+        current_num=$(current_workspace_num)
+        local actual_ws_name
+        actual_ws_name=$(i3-msg -t get_workspaces | jq -r '.[] | select(.focused).name')
+        i3-msg "rename workspace \"${actual_ws_name}\" to \"${current_num}\"" >/dev/null 2>&1 || true
+        unset "active_projects[$current_num]"
+        save_projects
     elif [[ "$choice" =~ ^[0-9]+\ -\  ]]; then
         # Switching to an existing project — choice is "N - name"
         local slot="${choice%%${SEP}*}"
-        i3-msg workspace number "$slot"
+        i3-msg workspace number "$slot" >/dev/null
     else
         # Typed a name directly into rofi — treat as new project
         new_project "$choice"
@@ -185,13 +220,13 @@ cmd_restore() {
     )
     for slot in "${!fixed_labels[@]}"; do
         local label="${fixed_labels[$slot]}"
-        i3-msg "rename workspace \"$slot\" to \"$(ws_name "$slot" "$label")\"" 2>/dev/null || true
+        i3-msg "rename workspace \"$slot\" to \"$(ws_name "$slot" "$label")\"" >/dev/null 2>&1 || true
     done
 
     # Project workspace labels
     for slot in "${!active_projects[@]}"; do
         local name="${active_projects[$slot]}"
-        i3-msg "rename workspace \"$slot\" to \"$(ws_name "$slot" "$name")\"" 2>/dev/null || true
+        i3-msg "rename workspace \"$slot\" to \"$(ws_name "$slot" "$name")\"" >/dev/null 2>&1 || true
     done
 
     # Move workspaces to correct outputs
@@ -201,11 +236,11 @@ cmd_restore() {
 
     if [[ -n "$external" ]]; then
         # Slack on laptop, everything else on external
-        i3-msg '[workspace="^9"] move workspace to output '"$laptop" 2>/dev/null || true
-        for ws_name in $(i3-msg -t get_workspaces | jq -r '.[].name'); do
-            local num="${ws_name%%[^0-9]*}"
+        i3-msg '[workspace="^9"] move workspace to output '"$laptop" >/dev/null 2>&1 || true
+        for ws in $(i3-msg -t get_workspaces | jq -r '.[].name'); do
+            local num="${ws%%[^0-9]*}"
             if [[ "$num" != "9" ]]; then
-                i3-msg '[workspace="^'"$num"'"] move workspace to output '"$external" 2>/dev/null || true
+                i3-msg '[workspace="^'"$num"'"] move workspace to output '"$external" >/dev/null 2>&1 || true
             fi
         done
     fi
