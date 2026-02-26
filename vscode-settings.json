@@ -1,107 +1,146 @@
 {
-    "editor.fontFamily": "Iosevka,Inconsolata,'Droid Sans Mono','Fira Mono', 'monospace', monospace",
-    "editor.fontSize": 16,
-    "explorer.confirmDragAndDrop": false,
-    "files.autoSave": "onWindowChange",
-    "github.copilot.enable": {
-        "*": true,
-        "markdown": false,
-        "plaintext": false,
-        "yaml": false
+  "[dockercompose]": {
+    "editor.autoIndent": "advanced",
+    "editor.defaultFormatter": "redhat.vscode-yaml",
+    "editor.insertSpaces": true,
+    "editor.quickSuggestions": {
+      "comments": false,
+      "other": true,
+      "strings": true
     },
-    "gitlens.defaultDateFormat": null,
-    "gitlens.defaultDateLocale": "sv-SE",
-    "gitlens.defaultDateShortFormat": null,
-    "gitlens.defaultTimeFormat": null,
-    "go.autocompleteUnimportedPackages": true,
-    "go.toolsManagement.autoUpdate": true,
-    "json.schemas": [],
-    "redhat.telemetry.enabled": true,
-    "sqltools.useNodeRuntime": true,
-    "workbench.iconTheme": "material-icon-theme",
-    "yaml.customTags": [
-        "!And",
-        "!And sequence",
-        "!If",
-        "!If sequence",
-        "!Not",
-        "!Not sequence",
-        "!Equals",
-        "!Equals sequence",
-        "!Or",
-        "!Or sequence",
-        "!FindInMap",
-        "!FindInMap sequence",
-        "!Base64",
-        "!Join",
-        "!Join sequence",
-        "!Cidr",
-        "!Ref",
-        "!Sub",
-        "!Sub sequence",
-        "!GetAtt",
-        "!GetAZs",
-        "!ImportValue",
-        "!ImportValue sequence",
-        "!Select",
-        "!Select sequence",
-        "!Split",
-        "!Split sequence"
-    ],
-    "workbench.editor.revealIfOpen": true,
-    "terminal.integrated.scrollback": 100000,
-    "[python]": {
-        "editor.formatOnType": true
+    "editor.tabSize": 2
+  },
+  "[github-actions-workflow]": {
+    "editor.defaultFormatter": "redhat.vscode-yaml"
+  },
+  "[python]": {
+    "editor.formatOnType": true
+  },
+  "diffEditor.hideUnchangedRegions.enabled": true,
+  "editor.bracketPairColorization.enabled": false,
+  "editor.fontFamily": "'Go Mono', Inconsolata,'Droid Sans Mono','Fira Mono', 'monospace', monospace",
+  "editor.fontSize": 16,
+  "editor.fontWeight": "normal",
+  "editor.inlineSuggest.enabled": true,
+  "explorer.confirmDelete": false,
+  "explorer.confirmDragAndDrop": false,
+  "files.autoSave": "onWindowChange",
+  "git.openRepositoryInParentFolders": "never",
+  "github.copilot.editor.enableAutoCompletions": true,
+  "github.copilot.enable": {
+    "*": true,
+    "markdown": false,
+    "plaintext": false,
+    "yaml": false
+  },
+  "githubPullRequests.pullBranch": "never",
+  "githubPullRequests.terminalLinksHandler": "github",
+  "gitlens.advanced.messages": {
+    "suppressFileNotUnderSourceControlWarning": true
+  },
+  "gitlens.defaultDateFormat": null,
+  "gitlens.defaultDateLocale": "sv-SE",
+  "gitlens.defaultDateShortFormat": null,
+  "gitlens.defaultTimeFormat": null,
+  "go.autocompleteUnimportedPackages": true,
+  "go.inlayHints.assignVariableTypes": true,
+  "go.inlayHints.compositeLiteralFields": true,
+  "go.inlayHints.compositeLiteralTypes": true,
+  "go.inlayHints.constantValues": true,
+  "go.inlayHints.ignoredError": true,
+  "go.inlayHints.parameterNames": true,
+  "go.inlayHints.rangeVariableTypes": true,
+  "go.lintFlags": [
+    "--fast"
+  ],
+  "go.lintTool": "golangci-lint",
+  "go.toolsManagement.autoUpdate": true,
+  "json.schemas": [],
+  "markdown.preview.scrollEditorWithPreview": false,
+  "markdown.preview.scrollPreviewWithEditor": false,
+  "redhat.telemetry.enabled": true,
+  "rust-analyzer.procMacro.enabled": false,
+  "sqltools.useNodeRuntime": true,
+  "terminal.integrated.scrollback": 100000,
+  "vale.doNotShowWarningForFileToBeSavedBeforeLinting": true,
+  "vim.normalModeKeyBindingsNonRecursive": [
+    {
+      "before": [
+        "u"
+      ],
+      "commands": [
+        "undo"
+      ]
     },
-    "vim.useCtrlKeys": true,
-    "vim.normalModeKeyBindingsNonRecursive": [
-        {
-            "before": ["u"],
-            "commands": ["undo"]
-        },
-        {
-            "before": ["<C-r>"],
-            "commands": ["redo"]
-        }
-    ],
-    "editor.inlineSuggest.enabled": true,
-    "window.zoomLevel": 2,
-    "githubPullRequests.terminalLinksHandler": "github",
-    "editor.fontWeight": "600",
-    "yaml.maxItemsComputed": 10000,
-    "githubPullRequests.pullBranch": "never",
-    "git.openRepositoryInParentFolders": "never",
-    "diffEditor.hideUnchangedRegions.enabled": true,
-    "explorer.confirmDelete": false,
-    "vim.visualModeKeyBindings": [
-        
-        {
-            "before": ["<"],
-            "after": ["<", "g", "v"]
-        },
-        {
-            "before": [">"],
-            "after": [">", "g", "v"]
-        }
-    ],
-    "rust-analyzer.procMacro.enabled": false,
-    "github.copilot.editor.enableAutoCompletions": true,
-    "workbench.sideBar.location": "right",
-    "go.lintTool": "golangci-lint",
-    "go.lintFlags": [
-        "--fast"
-    ],
-    "workbench.colorTheme": "Subtle Monochrome (Light)",
-    "editor.bracketPairColorization.enabled": false,
-    "vale.doNotShowWarningForFileToBeSavedBeforeLinting": true,
-    "workbench.tree.indent": 24,
-    "editor.guides.highlightActiveIndentation": "always",
-    "workbench.startupEditor": "none",
-    "workbench.preferredDarkColorTheme": "No Happiness in Colors Theme",
-    "workbench.preferredLightColorTheme": "Subtle Monochrome (Light)",
-    "window.autoDetectColorScheme": true,
-    "search.smartCase": true,
-    "vim.commandLineModeKeyBindingsNonRecursive": [
-        
-    ]
+    {
+      "before": [
+        "<C-r>"
+      ],
+      "commands": [
+        "redo"
+      ]
+    }
+  ],
+  "vim.useCtrlKeys": true,
+  "vim.visualModeKeyBindings": [
+    {
+      "after": [
+        "<",
+        "g",
+        "v"
+      ],
+      "before": [
+        "<"
+      ]
+    },
+    {
+      "after": [
+        ">",
+        "g",
+        "v"
+      ],
+      "before": [
+        ">"
+      ]
+    }
+  ],
+  "window.autoDetectColorScheme": true,
+  "window.zoomLevel": 2,
+  "workbench.colorTheme": "No Happiness in Colors Theme",
+  "workbench.editor.revealIfOpen": true,
+  "workbench.iconTheme": "material-icon-theme",
+  "workbench.preferredDarkColorTheme": "No Happiness in Colors Theme",
+  "workbench.preferredLightColorTheme": "Subtle Monochrome (Light)",
+  "workbench.sideBar.location": "right",
+  "workbench.tree.indent": 24,
+  "yaml.customTags": [
+    "!And",
+    "!And sequence",
+    "!If",
+    "!If sequence",
+    "!Not",
+    "!Not sequence",
+    "!Equals",
+    "!Equals sequence",
+    "!Or",
+    "!Or sequence",
+    "!FindInMap",
+    "!FindInMap sequence",
+    "!Base64",
+    "!Join",
+    "!Join sequence",
+    "!Cidr",
+    "!Ref",
+    "!Sub",
+    "!Sub sequence",
+    "!GetAtt",
+    "!GetAZs",
+    "!ImportValue",
+    "!ImportValue sequence",
+    "!Select",
+    "!Select sequence",
+    "!Split",
+    "!Split sequence"
+  ],
+  "yaml.maxItemsComputed": 10000
 }
