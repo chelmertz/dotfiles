@@ -152,8 +152,7 @@ workspace $ws10 output $monitor_secondary
 
 # section = §, left of 1 on my keyboard, search for "sect" in unicode rofi below to find that sign :)
 bindsym Shift+section exec ~/bin/rofi_snippets.sh
-# make sure to export TERMINAL=xyz in .zshrc, otherwise /usr/bin/i3-sensible-terminal doesn't pick that up
-bindsym section exec i3-sensible-terminal
+bindsym section exec wezterm
 bindsym Scroll_Lock exec ~/.local/bin/rofi.sh
 bindsym $mod+u exec ~/bin/rofi_uni.sh
 bindsym $mod+p exec ~/.local/bin/rofi_power.sh
