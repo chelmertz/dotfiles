@@ -251,12 +251,26 @@ cmd_restore() {
     fi
 }
 
+cmd_switch() {
+    local slot="$1"
+    i3-msg workspace number "$slot" >/dev/null
+    local project_name="${active_projects[$slot]:-}"
+    if [[ -n "$project_name" ]]; then
+        local actual_ws_name
+        actual_ws_name=$(i3-msg -t get_workspaces | jq -r '.[] | select(.focused).name')
+        if [[ "$actual_ws_name" != "$(ws_name "$slot" "$project_name")" ]]; then
+            i3-msg "rename workspace \"${actual_ws_name}\" to \"$(ws_name "$slot" "$project_name")\"" >/dev/null 2>&1 || true
+        fi
+    fi
+}
+
 case "${1:-}" in
     menu) cmd_menu ;;
+    switch) cmd_switch "$2" ;;
     rofi-modi) shift; cmd_rofi_modi "$@" ;;
     restore) cmd_restore ;;
     *)
-        echo "Usage: i3-project {menu|rofi-modi|restore}" >&2
+        echo "Usage: i3-project {menu|rofi-modi|restore|switch N}" >&2
         exit 1
         ;;
 esac
