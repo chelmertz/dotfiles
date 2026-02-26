@@ -6,6 +6,8 @@
     ./bin.nix
     ./neovim.nix
     ./espanso.nix
+    ./vscode.nix
+    ./firefox.nix
   ];
 
   xsession.windowManager.i3 = {
@@ -20,12 +22,18 @@
 
   news.display = "silent";
 
+  home.sessionVariables = {
+    TERMINAL = "wezterm";
+  };
+
   # for standard packages, without any custom configuration; otherwise, remove from this list and do "program.myprogram = { enable = true; .. other options}"
   home.packages = with pkgs; [
+    _1password-cli
     arandr
     asciinema
     autorandr
     awscli2
+    baobab
     bat
     brightnessctl
     bruno
@@ -33,6 +41,8 @@
     claude-code
     cloc
     copyq
+    delve
+    dos2unix
     (symlinkJoin {
       name = "element-desktop";
       paths = [ element-desktop ];
@@ -42,7 +52,9 @@
       '';
     })
     entr
+    evince
     fd
+    feh
     figlet
     vivid
     elly
@@ -53,26 +65,41 @@
     git-filter-repo
     gleam
     go
+    gojo
+    golangci-lint
+    google-chrome
+    goose
     gopls
+    gotests
+    gotestsum
     graphviz
     gron
     html-tidy
     htop
+    hurl
     hyperfine
     i3blocks
+    imagemagick
     jq
+    jujutsu
     lazydocker
     lazygit
     libreoffice
     litecli
+    lnav
     meld
-    mycli
+    moreutils
+    (mycli.overridePythonAttrs (old: {
+      pythonRelaxDeps = (old.pythonRelaxDeps or []) ++ [ "sqlglot" ];
+    }))
     mermaid-cli
     navi
+    nethogs
     nixfmt
     nmap
     nodejs_22
     pandoc
+    pastel
     pavucontrol
     peek
     pgcli
@@ -81,11 +108,13 @@
     prometheus
     prometheus-blackbox-exporter
     playerctl
+    qbittorrent
     ripdrag
     ripgrep
     rofi
     rofimoji
     runme
+    rxvt-unicode
     screenkey
     shellcheck
     shfmt
@@ -114,9 +143,13 @@
     treemd
     trurl
     uni
+    unzip
+    vim-full
     visidata
     vlc
     w3m
+    whois
+    wireshark
     wmctrl
     xcape
     xclip
@@ -124,6 +157,7 @@
     xsel
     yq
     yt-dlp
+    zip
     zizmor
   ];
 
@@ -143,6 +177,20 @@
 
   programs.wezterm = {
     enable = true;
+    # On non-NixOS, wezterm can't find system OpenGL/EGL libraries.
+    # This wrapper adds the system library path so libEGL.so.1 is found.
+    package = pkgs.symlinkJoin {
+      name = "wezterm-wrapped";
+      paths = [ pkgs.wezterm ];
+      buildInputs = [ pkgs.makeWrapper ];
+      postBuild = ''
+        for bin in wezterm wezterm-gui wezterm-mux-server; do
+          wrapProgram $out/bin/$bin \
+            --set __EGL_VENDOR_LIBRARY_DIRS "/usr/share/glvnd/egl_vendor.d" \
+            --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.libglvnd pkgs.mesa ]}"
+        done
+      '';
+    };
     extraConfig = ''
       local wezterm = require 'wezterm'
       local config = wezterm.config_builder()

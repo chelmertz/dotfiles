@@ -1,139 +1,18 @@
 ---
-# to apply (alias defined in .bashrc): $ apply-ansible
+# ARCHIVED: Most tasks have moved to nix/home-manager (see nix/home.nix).
+# This file documents remaining manual setup that can't be nix-ified on Ubuntu.
 #
-# help for snaps: https://docs.ansible.com/ansible/latest/modules/snap_module.html
-
-
-# as root
-- hosts: localhost
-  become: yes
-  tasks:
-
-    - name: emacs repo
-      apt_repository:
-        repo: ppa:kelleyk/emacs
-        codename: focal # groovy (20.10) is not yet supported
-
-    - name: emacs
-      apt:
-        update_cache: yes
-        name: emacs27
-
-    - name: cheese (record photo/video with webcam)
-      apt:
-        name: cheese
-
-    - name: w3m-img (image viewer for w3m, including w3mimgdisplay)
-      apt:
-        name: w3m-img
-
-    - name: add myself to the video group (for brightnessctl without sudo)
-      user:
-        name: ch
-        groups: video
-        append: yes
-
-    - name: i3
-      apt:
-        name: i3
-
-    # begin docker
-    - name: docker pre-reqs
-      apt:
-        pkg:
-          - apt-transport-https
-          - ca-certificates
-          - curl
-          - gnupg
-          - lsb-release
-
-    - name: docker gpg key
-      apt_key:
-        url: https://download.docker.com/linux/ubuntu/gpg
-
-    - name: docker repo
-      apt_repository:
-        repo: deb https://download.docker.com/linux/ubuntu groovy stable
-
-    - name: docker packages
-      apt:
-        update_cache: yes
-        pkg:
-          - docker-ce
-          - docker-ce-cli
-          - containerd.io
-          - docker-compose
-
-    - name: add myself to the docker group
-      user:
-        name: ch
-        groups: docker
-        append: yes
-
-    # end docker
-
-    - name: java
-      apt:
-        pkg:
-          - openjdk-11-jre # java
-          - openjdk-11-jdk-headless # for `jps`
-
-# as user
-- hosts: localhost
-  tasks:
-
-    - name: orgparse (parsing org mode in python, used in a i3blocks block for _currently working on_)
-      pip:
-        name: orgparse
-        extra_args: --user
-
-    - name: gh extension list
-      command: gh extension list
-      register: gh_extension_list
-
-    - name: gh-notify (github cli extension for notifications)
-      when: gh_extension_list.stdout.find('meiji163/gh-notify') == -1
-      shell: gh extension install meiji163/gh-notify
-
-    - name: rofi-blah-blah (snippet manager)
-      git:
-        repo: https://github.com/chelmertz/rofi-blah-blah
-        version: master
-        dest: ~/code/github/chelmertz/rofi-blah-blah/
-
-    # doom emacs begin
-    - name: Clone doom emacs (a nice emacs "distribution"(?))
-      git:
-        repo: https://github.com/hlissner/doom-emacs.git
-        #depth: 1
-        dest: ~/.emacs.d
-        # now, add ~/.emacs.d/bin to PATH and $ doom install
-
-    - name: Remove default config
-      shell: rm -rf ~/.doom.d
-
-    - name: Use my doom emacs config
-      file:
-        src: ~/dotfiles/.doom.d
-        dest: ~/.doom.d
-        state: link
-
-    # doom emacs end
-
-    - name: Clone grasp (org capture web pages)
-      git:
-        repo: https://github.com/karlicoss/grasp
-        version: master
-        dest: ~/code/github/karlicoss/grasp
-
-    - name: serve (http server to quickly serve a directory)
-      shell: go install github.com/chelmertz/serve@latest
-
-    # fzf-docker
-    - name: "fzf-docker: git"
-      git:
-        repo: https://github.com/chelmertz/fzf-docker.git
-        version: master
-        dest: ~/code/github/chelmertz/fzf-docker
-    # end fzf-docker
-
+# Docker setup (requires root/system-level integration):
+#   sudo apt install apt-transport-https ca-certificates curl gnupg lsb-release
+#   # Add Docker GPG key and repo (see https://docs.docker.com/engine/install/ubuntu/)
+#   sudo apt install docker-ce docker-ce-cli containerd.io docker-compose
+#   sudo usermod -aG docker ch
+#
+# Video group (for brightnessctl without sudo):
+#   sudo usermod -aG video ch
+#
+# Emacs/Doom (kept as apt PPA until next machine):
+#   sudo add-apt-repository ppa:kelleyk/emacs
+#   sudo apt install emacs27
+#   git clone https://github.com/hlissner/doom-emacs.git ~/.emacs.d
+#   ~/.emacs.d/bin/doom install

@@ -17,11 +17,16 @@
         system = "x86_64-linux";
         overlays = [ claude-code.overlays.default elly.overlays.default ];
         config = {
-          allowUnfreePredicate = pkg: builtins.elem (pkg.pname or "") [
-            "claude-code"
-            "slack"
-            "spotify"
-          ];
+          allowUnfreePredicate = pkg:
+            let name = pkg.pname or "";
+            in builtins.elem name [
+              "1password-cli"
+              "claude-code"
+              "google-chrome"
+              "slack"
+              "spotify"
+              "vscode"
+            ] || builtins.match "vscode-extension-.*" name != null;
         };
       };
       modules = [ ./home.nix ];
