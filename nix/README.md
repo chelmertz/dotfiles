@@ -112,26 +112,31 @@ nix-collect-garbage
 - `flake.lock` - Pinned versions (auto-generated, commit this)
 - `home.nix` - Your packages and config
 
-## Migration TODO
+## Packages staying outside nix
 
-Find what's installed outside nix:
+These are intentionally kept as apt/system/other and should not be migrated:
 
-```bash
-# Brew (top-level only, not deps)
-brew leaves
-
-# Apt (manually installed, not deps)
-apt-mark showmanual
-
-# Go
-ls ~/go/bin
-
-# Cargo
-ls ~/.cargo/bin
-```
-
-Then add to `home.nix` and uninstall the old versions, and remove them from ansible-laptop.yml.
+| Package | Source | Reason |
+|---------|--------|--------|
+| Docker (docker-ce, containerd, docker-compose) | apt | System daemon, needs root |
+| i3 | apt | GDM session file (`/usr/share/xsessions/i3.desktop`) |
+| Steam | apt | 32-bit libs; first-class on NixOS later |
+| Cursor | apt | Not in nixpkgs |
+| JetBrains Toolbox | standalone | Self-managing |
+| Sober/Roblox | flatpak | Only option |
+| Tailscale | apt | System service |
+| Dropbox | apt | Daemon complexity |
+| Emacs + Doom | apt (PPA) | Fragile, keeping until new computer |
+| Java 11 | apt | Keep as-is |
+| Rustup + cargo | ~/.cargo | Toolchain management; image-sorter not in nixpkgs |
+| Firefox | snap | OpenGL/Mesa issues on non-NixOS; revisit on NixOS |
+| gamemode | apt | Keep as-is |
+| cheese, dconf-editor, gnome-tweaks | apt | GNOME-coupled |
+| GNOME core (calculator, sysmon, disks, terminal) | apt | GNOME-coupled |
+| build-essential, curl, gparted | apt | System-level |
+| Work Go tools (serve, matchi-cli, etc.) | go install | Custom work tools |
+| orgparse | pip | Keep for i3blocks |
 
 ## Legacy
 
-`ansible-laptop.yml` contains the old Ansible-based setup. Gradually migrating packages to Nix.
+`ansible-laptop.yml` is archived (commented out). Docker setup is the only remaining manual step - see comments in that file.
