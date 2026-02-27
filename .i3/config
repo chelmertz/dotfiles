@@ -206,7 +206,7 @@ bindsym F5 exec --no-startup-id i3-project switch 5
 bindsym F6 exec --no-startup-id i3-project switch 6
 bindsym F7 exec /home/ch/.local/bin/ror.py steam /usr/bin/steam; workspace number $ws7
 bindsym F8 exec --no-startup-id i3-project switch 8
-bindsym F9 exec --no-startup-id /home/ch/.local/bin/ror.py Slack /usr/bin/slack; workspace number $ws9
+bindsym F9 exec --no-startup-id /home/ch/.local/bin/ror.py Slack slack; workspace number $ws9
 bindsym F10 workspace number $ws10
 
 # move focused container to workspace
