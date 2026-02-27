@@ -13,14 +13,26 @@
       graphql.vscode-graphql
       graphql.vscode-graphql-syntax
       hashicorp.terraform
+      jock.svg
       ms-azuretools.vscode-docker
+      ms-azuretools.vscode-containers
       ms-vscode-remote.remote-containers
       ms-vsliveshare.vsliveshare
       pkief.material-icon-theme
       redhat.vscode-yaml
       rust-lang.rust-analyzer
       vscodevim.vim
-    ];
+      waderyan.gitblame
+    ] ++ [
+      pkgs.vscode-extensions."42crunch".vscode-openapi
+    ] ++ (map (ext: pkgs.vscode-utils.extensionFromVscodeMarketplace ext) [
+      # Not in nixpkgs - fetched from marketplace
+      { name = "mermaid-markdown-syntax-highlighting"; publisher = "bpruitt-goddard"; version = "1.7.6"; sha256 = "sha256-vBqMclDOI0LYIsFyTBKW+cZ7Hjcnl6N5Z8Qlx0ez4SQ="; }
+      { name = "bruno"; publisher = "bruno-api-client"; version = "4.5.0"; sha256 = "sha256-YxxSTfa7VbHNniWBfquvtC79NyM0uko7hUIZMUmW2yc="; }
+      { name = "subtle-monochrome"; publisher = "covertcj"; version = "0.0.2"; sha256 = "sha256-4T0mNgzj+tjt3FO/R1dMlcyFgUBlpICMCEu6JCt13Gs="; }
+      { name = "theme-nohappinessincolors"; publisher = "notoroszbig"; version = "1.0.2"; sha256 = "sha256-31ERyMX90W1ZvJLmeqvhmTjCOKh3fpg25eGq8wETbsw="; }
+      { name = "rsl-vsc-focused-folder"; publisher = "rslfrkndmrky"; version = "0.2.1"; sha256 = "sha256-YOkf1OLSvSIvEKkHHZyFsVyF1At78LK6hSe4suHm9tU="; }
+    ]);
     profiles.default.userSettings = {
       "editor.fontFamily" = "'Go Mono', Inconsolata,'Droid Sans Mono','Fira Mono', 'monospace', monospace";
       "editor.fontSize" = 16;
