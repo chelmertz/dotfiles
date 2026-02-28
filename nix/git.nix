@@ -28,24 +28,26 @@
     ];
 
     settings = {
-      user = {
-        name = "Calle Helmertz";
-        email = "helmertz@gmail.com";
-      };
-      pull.rebase = true;
-      push = { default = "current"; autoSetupRemote = true; };
-      rebase.autoSquash = true;
+      branch = { autoSetupMerge = "simple"; sort = "-committerdate"; };
       color.ui = "auto";
-      log = { decorate = true; date = "human"; };
-      help.autocorrect = 1;
-      branch.autoSetupMerge = "simple";
-      init.defaultBranch = "main";
+      column.ui = "auto";
+      commit.verbose = true;
+      core = { fsmonitor = true; untrackedCache = true; };
+      diff = { algorithm = "histogram"; colorMoved = "plain"; mnemonicPrefix = true; renames = true; tool = "meld"; };
+      fetch = { all = true; prune = true; pruneTags = true; };
       github.user = "chelmertz";
-      rerere.enabled = true;
-      diff = { tool = "meld"; algorithm = "patience"; };
-      merge.tool = "meld";
+      help.autocorrect = "prompt";
+      init.defaultBranch = "main";
+      log = { date = "human"; decorate = true; };
+      merge = { conflictstyle = "zdiff3"; tool = "meld"; };
       pager.log = "less -p^commit.*$";
+      pull.rebase = true;
+      push = { autoSetupRemote = true; default = "current"; followTags = true; };
+      rebase = { autoSquash = true; autoStash = true; updateRefs = true; };
+      rerere = { autoupdate = true; enabled = true; };
+      tag.sort = "version:refname";
       url."ssh://git@github.com/".insteadOf = "https://github.com/";
+      user = { email = "helmertz@gmail.com"; name = "Calle Helmertz"; };
     };
   };
 }
