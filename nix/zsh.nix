@@ -32,7 +32,7 @@
 
     autosuggestion = {
       enable = true;
-      highlight = "fg=#888888";  # grey that should be visible on both light/dark
+      highlight = "fg=#888888"; # grey that should be visible on both light/dark
     };
     syntaxHighlighting.enable = true;
 
@@ -115,261 +115,298 @@
       '')
 
       ''
-      # PATH additions
-      export PATH="$HOME/.nix-profile/bin:$HOME/.hishtory:$HOME/.maestro/bin:$BUN_INSTALL/bin:$HOME/bin:/usr/local/go/bin:$HOME/.local/bin:$HOME/go/bin:$HOME/.emacs.d/bin:$HOME/.cargo/bin:$HOME/.yarn/bin:$PATH"
+              # PATH additions
+              export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:$HOME/.hishtory:$HOME/.maestro/bin:$BUN_INSTALL/bin:$HOME/bin:/usr/local/go/bin:$HOME/go/bin:$HOME/.emacs.d/bin:$HOME/.cargo/bin:$HOME/.yarn/bin:$PATH"
 
-      # render man pages in colors
-      export LESS_TERMCAP_mb=$'\e[1;32m'
-      export LESS_TERMCAP_md=$'\e[1;32m'
-      export LESS_TERMCAP_me=$'\e[0m'
-      export LESS_TERMCAP_se=$'\e[0m'
-      export LESS_TERMCAP_so=$'\e[01;33m'
-      export LESS_TERMCAP_ue=$'\e[0m'
-      export LESS_TERMCAP_us=$'\e[1;4;31m'
+              # render man pages in colors
+              export LESS_TERMCAP_mb=$'\e[1;32m'
+              export LESS_TERMCAP_md=$'\e[1;32m'
+              export LESS_TERMCAP_me=$'\e[0m'
+              export LESS_TERMCAP_se=$'\e[0m'
+              export LESS_TERMCAP_so=$'\e[01;33m'
+              export LESS_TERMCAP_ue=$'\e[0m'
+              export LESS_TERMCAP_us=$'\e[1;4;31m'
 
-      # LS_COLORS: pick vivid theme based on current color scheme
-      # affects ls, fd, and other tools that respect LS_COLORS
-      _update_ls_colors() {
-        local vivid_theme="molokai"
-        local scheme
-        scheme=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null)
-        [[ "$scheme" != *dark* ]] && vivid_theme="modus-operandi"
-        export LS_COLORS="$(vivid generate "$vivid_theme")"
-      }
-      _update_ls_colors
+              # LS_COLORS: pick vivid theme based on current color scheme
+              # affects ls, fd, and other tools that respect LS_COLORS
+              _update_ls_colors() {
+                local vivid_theme="molokai"
+                local scheme
+                scheme=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null)
+                [[ "$scheme" != *dark* ]] && vivid_theme="modus-operandi"
+                export LS_COLORS="$(vivid generate "$vivid_theme")"
+              }
+              _update_ls_colors
 
-      # bat: pick theme based on current color scheme
-      bat() {
-        local theme="Monokai Extended"
-        local scheme
-        scheme=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null)
-        [[ "$scheme" != *dark* ]] && theme="Monokai Extended Light"
-        command bat --theme="$theme" "$@"
-      }
+              # bat: pick theme based on current color scheme
+              bat() {
+                local theme="Monokai Extended"
+                local scheme
+                scheme=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null)
+                [[ "$scheme" != *dark* ]] && theme="Monokai Extended Light"
+                command bat --theme="$theme" "$@"
+              }
 
-      # Git functions
-      gcf() {
-        git commit -a --fixup "$*"
-      }
+              # mf - man flag: search man pages for specific flags
+              mf() {
+                local cmd flag flags
 
-      gt() {
-        git tag --format='%(objectname)^{}' | git cat-file --batch-check | awk '$2=="commit" { print $1 }' | git log --stdin --author-date-order --no-walk --oneline --pretty=format:'%C(auto)%h%d%Creset %C(cyan)(%cr)%Creset %C(green)%cn <%ce>%Creset %s'
-      }
+                if [ -z "$1" ]; then
+                  cmd=$( (sed -n 's/^: [0-9]*:[0-9]*;//p' "$HOME/.zsh_history" | awk '{print $1}' | tac | awk '!seen[$0]++'; whence -pm '*' | xargs -n1 basename | sort -u) |
+                    awk '!seen[$0]++' |
+                    fzf --prompt "command: " --preview 'man {} 2>/dev/null | col -bx | head -30')
+                  [ -z "$cmd" ] && return
+                else
+                  cmd="$1"
+                  shift
+                fi
 
-      gb() {
-        git branch --format='%(objectname)^{}' | git cat-file --batch-check | awk '$2=="commit" { print $1 }' | git -c pager.log=less log --stdin --author-date-order --no-walk --oneline --pretty=format:'%C(auto)%h%d%Creset %C(cyan)(%cr)%Creset %C(green)%cn <%ce>%Creset %s'
-      }
+                if ! man -w "$cmd" &>/dev/null; then
+                  echo "mf: no man page for '$cmd'" >&2
+                  return 1
+                fi
 
-      gf() {
-        local author
-        author=$1
-        git log --no-merges --author="$author" --name-only --pretty=format:"" | sort -u
-      }
+                if [ $# -eq 0 ]; then
+                  flags=("''${(@f)$(man "$cmd" 2>/dev/null | col -bx | grep -oE '^\s+--?[a-zA-Z0-9][-a-zA-Z0-9_]*' | sed 's/^[[:space:]]*//' | sort -u |
+                    fzf --multi --prompt "$cmd flags: " --preview "man $cmd 2>/dev/null | col -bx | grep -B2 -A5 -- {}")}")
+                  [ -z "$flags" ] && return
+                else
+                  flags=("$@")
+                fi
 
-      git-clone-github() {
-        clone_url="$1"
-        user=$(echo "$clone_url" | cut -d / -f4)
-        project=$(echo "$clone_url" | cut -d / -f5 | sed 's/\.git$//')
-        user_dir=~/code/github/"$user"
-        mkdir -p "$user_dir"
-        target_dir="$user_dir"/"$project"
-        git clone "$clone_url" "$target_dir"
-        cd "$target_dir"
-        git remote rename origin upstream
-      }
+                for flag in "''${flags[@]}"; do
+                  local expanded="man $cmd | col -bx | grep -B2 -A5 -- '$flag'"
+                  print -s "$expanded"
+                  echo "=== $flag ==="
+                  eval "$expanded"
+                  echo
+                done
+              }
 
-      # Git log format
-      HASH="%C(always,yellow)%h%C(always,reset)"
-      RELATIVE_TIME="%C(always,green)%ar%C(always,reset)"
-      AUTHOR="%C(always,bold blue)%an%C(always,reset)"
-      REFS="%C(always,red)%d%C(always,reset)"
-      SUBJECT="%s"
-      FORMAT="$HASH $RELATIVE_TIME{$AUTHOR{$REFS $SUBJECT"
+              # Git functions
+              gcf() {
+                git commit -a --fixup "$*"
+              }
 
-      glp() {
-        git log --graph --pretty="tformat:$FORMAT" $* | column -t -s '{' | less -XRS --quit-if-one-screen
-      }
+              gt() {
+                git tag --format='%(objectname)^{}' | git cat-file --batch-check | awk '$2=="commit" { print $1 }' | git log --stdin --author-date-order --no-walk --oneline --pretty=format:'%C(auto)%h%d%Creset %C(cyan)(%cr)%Creset %C(green)%cn <%ce>%Creset %s'
+              }
 
-      gll() {
-        git -c core.pager='less -p^commit.*$' log -p -M -w --stat --pretty=fuller --show-notes -- $(fd $*)
-      }
+              gb() {
+                git branch --format='%(objectname)^{}' | git cat-file --batch-check | awk '$2=="commit" { print $1 }' | git -c pager.log=less log --stdin --author-date-order --no-walk --oneline --pretty=format:'%C(auto)%h%d%Creset %C(cyan)(%cr)%Creset %C(green)%cn <%ce>%Creset %s'
+              }
 
-      glf() {
-        gl $(fd $*)
-      }
+              gf() {
+                local author
+                author=$1
+                git log --no-merges --author="$author" --name-only --pretty=format:"" | sort -u
+              }
 
-      gtodo() {
-        git grep -l TODO | xargs -n1 git blame -f -n -w | grep "$(git config user.name)" | grep TODO | sed "s/.\{9\}//" | sed "s/(.*)[[:space:]]*//" | sed "s/ \+/:/"
-      }
+              git-clone-github() {
+                clone_url="$1"
+                user=$(echo "$clone_url" | cut -d / -f4)
+                project=$(echo "$clone_url" | cut -d / -f5 | sed 's/\.git$//')
+                user_dir=~/code/github/"$user"
+                mkdir -p "$user_dir"
+                target_dir="$user_dir"/"$project"
+                git clone "$clone_url" "$target_dir"
+                cd "$target_dir"
+                git remote rename origin upstream
+              }
 
-      # File/directory utilities
-      lc() {
-        local dir="''${1:-.}"
-        find $(echo "$dir" | sed -e 's#[^/]$#&/#') -type f | xargs head -n99 2>/dev/null | less -p '==> .* <==' --use-color --color=Skm
-      }
+              # Git log format
+              HASH="%C(always,yellow)%h%C(always,reset)"
+              RELATIVE_TIME="%C(always,green)%ar%C(always,reset)"
+              AUTHOR="%C(always,bold blue)%an%C(always,reset)"
+              REFS="%C(always,red)%d%C(always,reset)"
+              SUBJECT="%s"
+              FORMAT="$HASH $RELATIVE_TIME{$AUTHOR{$REFS $SUBJECT"
 
-      grony() {
-        yq eval -o=p $*
-      }
+              glp() {
+                git log --graph --pretty="tformat:$FORMAT" $* | column -t -s '{' | less -XRS --quit-if-one-screen
+              }
 
-      e() {
-        $EDITOR $*
-      }
+              gll() {
+                git -c core.pager='less -p^commit.*$' log -p -M -w --stat --pretty=fuller --show-notes -- $(fd $*)
+              }
 
-      cdt() {
-        cd $(mktemp -d)
-      }
+              glf() {
+                gl $(fd $*)
+              }
 
-      mk() {
-        mkdir -p "$1" && cd "$1"
-      }
+              gtodo() {
+                git grep -l TODO | xargs -n1 git blame -f -n -w | grep "$(git config user.name)" | grep TODO | sed "s/.\{9\}//" | sed "s/(.*)[[:space:]]*//" | sed "s/ \+/:/"
+              }
 
-      key() {
-        xev -event keyboard | egrep -o 'keycode.*\)'
-      }
+              # File/directory utilities
+              lc() {
+                local dir="''${1:-.}"
+                find $(echo "$dir" | sed -e 's#[^/]$#&/#') -type f | xargs head -n99 2>/dev/null | less -p '==> .* <==' --use-color --color=Skm
+              }
 
-      unz() {
-        archive="$1"
-        case "$archive" in
-          http*)
-            curl -O "$archive"
-        esac
-        cwd=$(pwd)
-        if [ -f "$cwd/$archive" ]; then
-          tmpdir=$(mktemp -d)
-          cd "$tmpdir"
-          mv "$cwd/$archive" "$tmpdir"
-          case "$archive" in
-            *.tar.gz|*.tar|*.tgz)
-              tar -xf "$archive";;
-            *.zip)
-              unzip -q "$archive";;
-          esac
-          ls -alsh
-        else
-          echo "Invalid archive: $archive"
-          return 1
-        fi
-      }
+              grony() {
+                yq eval -o=p $*
+              }
 
-      x() {
-        case $1 in
-          http*|*html)
-            xdg-open $1 2>/dev/null
-            wmctrl -a "Firefox"
-            ;;
-          *md)
-            treemd $1
-            ;;
-          *)
-            xdg-open $1
-            ;;
-        esac
-      }
+              e() {
+                $EDITOR $*
+              }
 
-      batt() {
-        fd "$*" | xargs bat
-      }
+              cdt() {
+                cd $(mktemp -d)
+              }
 
-      treewc() {
-        python3 -c "
-import os,sys
-d=sys.argv[1] if len(sys.argv)>1 else '.'
-def t(d,p='''):
- for i,e in enumerate(sorted(os.listdir(d))):
-  f,l=os.path.join(d,e),i==len(os.listdir(d))-1
-  c='└── 'if l else'├── '
-  if os.path.isdir(f):print(f'{p}{c}{e}/');t(f,p+('    'if l else'│   '))
-  else:print(f'{p}{c}{e} ({sum(1 for _ in open(f,errors=\"ignore\"))} lines)')
-print(d+'/');t(d)
-" ''${1:+$1}
-      }
+              mk() {
+                mkdir -p "$1" && cd "$1"
+              }
 
-      only_in_first() {
-        grep -Fxvf <(tr -d '\r' < "$1") <(tr -d '\r' < "$2")
-      }
+              key() {
+                xev -event keyboard | egrep -o 'keycode.*\)'
+              }
 
-      eval "$(navi widget zsh)"
+              unz() {
+                archive="$1"
+                case "$archive" in
+                  http*)
+                    curl -O "$archive"
+                esac
+                cwd=$(pwd)
+                if [ -f "$cwd/$archive" ]; then
+                  tmpdir=$(mktemp -d)
+                  cd "$tmpdir"
+                  mv "$cwd/$archive" "$tmpdir"
+                  case "$archive" in
+                    *.tar.gz|*.tar|*.tgz)
+                      tar -xf "$archive";;
+                    *.zip)
+                      unzip -q "$archive";;
+                  esac
+                  ls -alsh
+                else
+                  echo "Invalid archive: $archive"
+                  return 1
+                fi
+              }
 
-      # z with fzf integration (z plugin loaded via programs.zsh.plugins)
-      unalias z 2> /dev/null
-      z() {
-        [ $# -gt 0 ] && zshz "$*" && return
-        cd "$(zshz -l 2>&1 | fzf --height 40% --nth 2.. --reverse --inline-info +s --tac --query "''${*##-* }" | sed 's/^[0-9,.]* *//')"
-      }
+              x() {
+                case $1 in
+                  http*|*html)
+                    xdg-open $1 2>/dev/null
+                    wmctrl -a "Firefox"
+                    ;;
+                  *md)
+                    treemd $1
+                    ;;
+                  *)
+                    xdg-open $1
+                    ;;
+                esac
+              }
 
-      # pkill via fzf
-      pk() {
-        local pid
-        if [[ "''${UID}" != "0" ]]; then
-          pid=$(ps -f -u ''${UID} | sed 1d | fzf -m | awk '{print $2}')
-        else
-          pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
-        fi
+              batt() {
+                fd "$*" | xargs bat
+              }
 
-        if [[ "x$pid" != "x" ]]; then
-          echo $pid | xargs kill "-''${1:-9}"
-        fi
-        zle reset-prompt
-      }
+              treewc() {
+                python3 -c "
+        import os,sys
+        d=sys.argv[1] if len(sys.argv)>1 else '.'
+        def t(d,p='''):
+         for i,e in enumerate(sorted(os.listdir(d))):
+          f,l=os.path.join(d,e),i==len(os.listdir(d))-1
+          c='└── 'if l else'├── '
+          if os.path.isdir(f):print(f'{p}{c}{e}/');t(f,p+('    'if l else'│   '))
+          else:print(f'{p}{c}{e} ({sum(1 for _ in open(f,errors=\"ignore\"))} lines)')
+        print(d+'/');t(d)
+        " ''${1:+$1}
+              }
 
-      vf() {
-        vim $(fzf --query "$*")
-      }
+              only_in_first() {
+                grep -Fxvf <(tr -d '\r' < "$1") <(tr -d '\r' < "$2")
+              }
 
-      # Keybinds
-      bindkey -e  # emacs mode: enables Ctrl+A, Ctrl+E, etc.
-      bindkey -r "^J"  # unbind ctrl+j (default: accept-line) to allow vscode to toggle terminal
-      bindkey ";5C" forward-word
-      bindkey ";5D" backward-word
-      bindkey "^ " autosuggest-accept
-      bindkey '^n' _navi_widget
+              eval "$(navi widget zsh)"
 
-      # Ctrl+Z to toggle fg
-      function Resume {
-        [[ "$(jobs | wc -l)" == "0" ]] && return
-        fg
-        zle push-input
-        BUFFER=""
-        zle accept-line
-      }
-      zle -N Resume
-      bindkey "^Z" Resume
+              # z with fzf integration (z plugin loaded via programs.zsh.plugins)
+              unalias z 2> /dev/null
+              z() {
+                [ $# -gt 0 ] && zshz "$*" && return
+                cd "$(zshz -l 2>&1 | fzf --height 40% --nth 2.. --reverse --inline-info +s --tac --query "''${*##-* }" | sed 's/^[0-9,.]* *//')"
+              }
 
-      # Edit current command in vim with Ctrl+X
-      autoload -U edit-command-line
-      zle -N edit-command-line
-      bindkey "^X" edit-command-line
+              # pkill via fzf
+              pk() {
+                local pid
+                if [[ "''${UID}" != "0" ]]; then
+                  pid=$(ps -f -u ''${UID} | sed 1d | fzf -m | awk '{print $2}')
+                else
+                  pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
+                fi
 
-      # Completions
-      compdef g='git'
-      compdef _files pbcopy
+                if [[ "x$pid" != "x" ]]; then
+                  echo $pid | xargs kill "-''${1:-9}"
+                fi
+                zle reset-prompt
+              }
 
-      # gh completions
-      source ~/code/github/chelmertz/dotfiles/zsh-scripts/_gh
-      compdef _gh gh
+              vf() {
+                vim $(fzf --query "$*")
+              }
 
-      # jj (jujutsu) completions
-      source <(jj util completion zsh)
+              # Keybinds
+              bindkey -e  # emacs mode: enables Ctrl+A, Ctrl+E, etc.
+              bindkey -r "^J"  # unbind ctrl+j (default: accept-line) to allow vscode to toggle terminal
+              bindkey ";5C" forward-word
+              bindkey ";5D" backward-word
+              bindkey "^ " autosuggest-accept
+              bindkey '^n' _navi_widget
 
-      # bun completions
-      [ -s "/home/ch/.bun/_bun" ] && source "/home/ch/.bun/_bun"
+              # Ctrl+Z to toggle fg
+              function Resume {
+                [[ "$(jobs | wc -l)" == "0" ]] && return
+                fg
+                zle push-input
+                BUFFER=""
+                zle accept-line
+              }
+              zle -N Resume
+              bindkey "^Z" Resume
 
-      # sdkman
-      [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
+              # Edit current command in vim with Ctrl+X
+              autoload -U edit-command-line
+              zle -N edit-command-line
+              bindkey "^X" edit-command-line
 
-      # matchi
-      test -f ~/.zsh-matchi && source ~/.zsh-matchi
+              # Completions
+              compdef '_arguments "1:command:_command_names" "*:flag:"' mf # complete commands for mf
+              compdef g='git'
+              compdef _files pbcopy
 
-      # hishtory
-      test -f /home/ch/.hishtory/config.zsh && source /home/ch/.hishtory/config.zsh
+              # gh completions
+              source ~/code/github/chelmertz/dotfiles/zsh-scripts/_gh
+              compdef _gh gh
 
-      # Powerlevel10k config (theme loaded via plugins)
-      [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+              # jj (jujutsu) completions
+              source <(jj util completion zsh)
 
-      # Private/local config
-      test -f ~/.shrc-local && source ~/.shrc-local
-    ''
+              # bun completions
+              [ -s "/home/ch/.bun/_bun" ] && source "/home/ch/.bun/_bun"
+
+              # sdkman
+              [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
+
+              # matchi
+              test -f ~/.zsh-matchi && source ~/.zsh-matchi
+
+              # hishtory
+              test -f /home/ch/.hishtory/config.zsh && source /home/ch/.hishtory/config.zsh
+
+              # Powerlevel10k config (theme loaded via plugins)
+              [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+
+              # Private/local config
+              test -f ~/.shrc-local && source ~/.shrc-local
+      ''
     ];
   };
 
