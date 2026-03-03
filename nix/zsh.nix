@@ -310,15 +310,17 @@
               treewc() {
                 python3 -c "
         import os,sys
-        d=sys.argv[1] if len(sys.argv)>1 else '.'
+        show_git=len(sys.argv)>1
+        d='.'
         def t(d,p='''):
-         for i,e in enumerate(sorted(os.listdir(d))):
-          f,l=os.path.join(d,e),i==len(os.listdir(d))-1
+         entries=sorted(e for e in os.listdir(d) if show_git or e!='.git')
+         for i,e in enumerate(entries):
+          f,l=os.path.join(d,e),i==len(entries)-1
           c='└── 'if l else'├── '
           if os.path.isdir(f):print(f'{p}{c}{e}/');t(f,p+('    'if l else'│   '))
           else:print(f'{p}{c}{e} ({sum(1 for _ in open(f,errors=\"ignore\"))} lines)')
         print(d+'/');t(d)
-        " ''${1:+$1}
+        " ''${@:+$@}
               }
 
               only_in_first() {
