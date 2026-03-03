@@ -24,6 +24,7 @@
 
   home.sessionVariables = {
     TERMINAL = "wezterm";
+    CDK_DISABLE_TELEMETRY = "1";
   };
 
   # for standard packages, without any custom configuration; otherwise, remove from this list and do "program.myprogram = { enable = true; .. other options}"
@@ -32,6 +33,7 @@
     arandr
     asciinema
     autorandr
+    aws-cdk-cli
     awscli2
     baobab
     bat
