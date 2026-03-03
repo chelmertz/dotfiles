@@ -4,7 +4,7 @@
 
 DOTFILES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-"$DOTFILES_DIR/bin/sync-editor-settings"
+"$DOTFILES_DIR/bin/sync-app-settings"
 
 # Stage any files that were updated
 git -C "$DOTFILES_DIR" add \
@@ -12,6 +12,7 @@ git -C "$DOTFILES_DIR" add \
     vscode-keybindings.json \
     cursor-settings.json \
     cursor-keybindings.json \
+    copyq.conf \
     2>/dev/null
 
 # Always allow the commit to proceed

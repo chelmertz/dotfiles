@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copies VS Code and Cursor settings into the dotfiles repo so they're tracked.
+# Copies app settings (VS Code, Cursor, CopyQ, etc.) into the dotfiles repo so they're tracked.
 # Called by .githooks/pre-commit, can also be run manually.
 
 DOTFILES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -10,7 +10,8 @@ for pair in \
     "$HOME/.config/Code/User/settings.json:vscode-settings.json" \
     "$HOME/.config/Code/User/keybindings.json:vscode-keybindings.json" \
     "$HOME/.config/Cursor/User/settings.json:cursor-settings.json" \
-    "$HOME/.config/Cursor/User/keybindings.json:cursor-keybindings.json"; do
+    "$HOME/.config/Cursor/User/keybindings.json:cursor-keybindings.json" \
+    "$HOME/.config/copyq/copyq.conf:copyq.conf"; do
 
     src="${pair%%:*}"
     dst="$DOTFILES_DIR/${pair##*:}"
