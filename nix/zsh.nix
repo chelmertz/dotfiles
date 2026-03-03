@@ -116,7 +116,7 @@
 
       ''
               # PATH additions
-              export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:$HOME/.hishtory:$HOME/.maestro/bin:$BUN_INSTALL/bin:$HOME/bin:/usr/local/go/bin:$HOME/go/bin:$HOME/.emacs.d/bin:$HOME/.cargo/bin:$HOME/.yarn/bin:$PATH"
+              export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:$HOME/.hishtory:$HOME/.maestro/bin:$BUN_INSTALL/bin:$HOME/bin:/usr/local/go/bin:$HOME/go/bin:$HOME/.emacs.d/bin:$HOME/.cargo/bin:$PATH"
 
               # render man pages in colors
               export LESS_TERMCAP_mb=$'\e[1;32m'
