@@ -88,6 +88,19 @@
         return vim.v.count == 0 and "gj" or "j"
       end, { expr = true })
 
+      -- visual * searches for the exact selection
+      local function visual_star()
+        local old = vim.fn.getreg('"')
+        vim.cmd('noau normal! y')
+        local pat = vim.fn.escape(vim.fn.getreg('"'), [[/\]])
+        pat = pat:gsub("\n", [[\n]])
+        vim.fn.setreg("/", [[\V]] .. pat)
+        vim.fn.setreg('"', old)
+        vim.cmd("set hlsearch")
+        vim.cmd("normal! n")
+      end
+      vim.keymap.set("v", "*", visual_star, { silent = true })
+
       -- visual indent keeps selection
       vim.keymap.set("v", ">", ">gv")
       vim.keymap.set("v", "<", "<gv")
