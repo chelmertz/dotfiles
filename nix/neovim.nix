@@ -26,6 +26,8 @@
       vim.opt.ignorecase = true
       vim.opt.smartcase = true
       vim.opt.number = false
+      -- Disable mouse so terminal handles selection (X PRIMARY / middle-click paste)
+      vim.opt.mouse = ""
       vim.opt.cursorline = true
       vim.opt.autoindent = true
       vim.opt.foldmethod = "indent"
