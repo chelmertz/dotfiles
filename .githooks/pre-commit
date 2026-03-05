@@ -15,5 +15,14 @@ git -C "$DOTFILES_DIR" add \
     copyq.conf \
     2>/dev/null
 
+# Format any staged .nix files
+NIX_FILES=$(git -C "$DOTFILES_DIR" diff --cached --name-only --diff-filter=ACM -- '*.nix')
+if [ -n "$NIX_FILES" ]; then
+    echo "$NIX_FILES" | while read -r f; do
+        nixfmt "$DOTFILES_DIR/$f"
+    done
+    echo "$NIX_FILES" | xargs -I{} git -C "$DOTFILES_DIR" add {}
+fi
+
 # Always allow the commit to proceed
 exit 0

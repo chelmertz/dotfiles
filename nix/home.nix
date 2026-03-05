@@ -92,7 +92,7 @@
     meld
     moreutils
     (mycli.overridePythonAttrs (old: {
-      pythonRelaxDeps = (old.pythonRelaxDeps or []) ++ [ "sqlglot" ];
+      pythonRelaxDeps = (old.pythonRelaxDeps or [ ]) ++ [ "sqlglot" ];
     }))
     mermaid-cli
     navi
@@ -189,7 +189,12 @@
         for bin in wezterm wezterm-gui wezterm-mux-server; do
           wrapProgram $out/bin/$bin \
             --set __EGL_VENDOR_LIBRARY_DIRS "/usr/share/glvnd/egl_vendor.d" \
-            --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.libglvnd pkgs.mesa ]}"
+            --prefix LD_LIBRARY_PATH : "${
+              pkgs.lib.makeLibraryPath [
+                pkgs.libglvnd
+                pkgs.mesa
+              ]
+            }"
         done
       '';
     };
@@ -414,24 +419,24 @@
 
   # lazygit: use reverse video for selection so it adapts to any terminal color scheme
   xdg.configFile."lazygit/config.yml".text = ''
-gui:
-  theme:
-    selectedLineBgColor:
-      - reverse
-    selectedRangeBgColor:
-      - reverse
+    gui:
+      theme:
+        selectedLineBgColor:
+          - reverse
+        selectedRangeBgColor:
+          - reverse
   '';
 
   # Route portal interfaces to the GTK backend when running under i3.
   # After changing, restart with: systemctl --user restart xdg-desktop-portal
   xdg.configFile."xdg-desktop-portal/i3-portals.conf".text = ''
-# Without this file, xdg-desktop-portal doesn't expose org.freedesktop.portal.Settings
-# on i3 because the GTK/GNOME portal backends only declare UseIn=gnome.
-# This means Electron apps (Slack, etc.) can't detect or react to light/dark theme
-# changes set via "gsettings set org.gnome.desktop.interface color-scheme".
-# With this config, the portal relays color-scheme changes to apps in real time.
-[preferred]
-default=gtk
+    # Without this file, xdg-desktop-portal doesn't expose org.freedesktop.portal.Settings
+    # on i3 because the GTK/GNOME portal backends only declare UseIn=gnome.
+    # This means Electron apps (Slack, etc.) can't detect or react to light/dark theme
+    # changes set via "gsettings set org.gnome.desktop.interface color-scheme".
+    # With this config, the portal relays color-scheme changes to apps in real time.
+    [preferred]
+    default=gtk
   '';
 
   xdg.configFile."prometheus/prometheus.yml".text = ''
