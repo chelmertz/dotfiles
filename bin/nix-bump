@@ -6,7 +6,6 @@ DOTFILES=~/code/github/chelmertz/dotfiles
 nix flake update --flake "$DOTFILES/nix" && home-manager switch
 
 if git -C "$DOTFILES" diff --quiet nix/flake.lock; then
-    echo "nix/flake.lock unchanged, nothing to commit"
     exit 0
 fi
 
