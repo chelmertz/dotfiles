@@ -314,7 +314,7 @@
         replace = "🤦";
       }
       {
-        trigger = "::thinking";
+        trigger = "::think";
         replace = "🤔";
       }
 
