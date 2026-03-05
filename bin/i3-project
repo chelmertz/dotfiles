@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 PROJECTS_FILE="$HOME/.config/i3/projects"
+URLS_DIR="$HOME/.config/i3/project-urls"
 PREFERRED_SLOTS=(1 4 5 8 3 6)
 SEP=" - "
+
+mkdir -p "$URLS_DIR"
 
 # Ensure projects file exists
 mkdir -p "$(dirname "$PROJECTS_FILE")"
@@ -186,6 +189,7 @@ handle_choice() {
         local actual_ws_name
         actual_ws_name=$(i3-msg -t get_workspaces | jq -r '.[] | select(.focused).name')
         i3-msg "rename workspace \"${actual_ws_name}\" to \"$(ws_name "$current_num" "$new_name")\"" >/dev/null 2>&1 || true
+        rename_urls_file "$old_name" "$new_name"
         active_projects[$current_num]="$new_name"
         save_projects
     elif [[ "$choice" == "x close: "* ]]; then
@@ -264,13 +268,140 @@ cmd_switch() {
     fi
 }
 
+# --- URL management ---
+
+urls_file() { echo "$URLS_DIR/$1.txt"; }
+
+rename_urls_file() {
+    local old="$1" new="$2"
+    local old_f new_f
+    old_f=$(urls_file "$old")
+    new_f=$(urls_file "$new")
+    [[ -f "$old_f" ]] && mv "$old_f" "$new_f"
+}
+
+current_project_name() {
+    local ws_name
+    ws_name=$(i3-msg -t get_workspaces | jq -r '.[] | select(.focused).name')
+    if [[ "$ws_name" == *"$SEP"* ]]; then
+        local num="${ws_name%%${SEP}*}"
+        local name="${ws_name#*${SEP}}"
+        if grep -q "^${num}:" "$PROJECTS_FILE" 2>/dev/null; then
+            echo "$name"
+        fi
+    fi
+}
+
+get_clipboard_url() {
+    local clip
+    clip=$(xclip -selection clipboard -o 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//') || true
+    if [[ "$clip" == http* ]]; then echo "$clip"; return; fi
+    clip=$(xclip -selection primary -o 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//') || true
+    if [[ "$clip" == http* ]]; then echo "$clip"; return; fi
+}
+
+cmd_urls_manage() {
+    local project
+    project=$(current_project_name)
+    [[ -z "$project" ]] && exit 0
+    local f
+    f=$(urls_file "$project")
+    touch "$f"
+
+    while true; do
+        local entries=()
+        while IFS= read -r url; do
+            [[ -n "$url" ]] && entries+=("−" "$url")
+        done < <(sort "$f")
+
+        local choice
+        choice=$(zenity --list \
+            --title="URLs: $project" \
+            --text="Middle-click the bar icon to add a URL from clipboard" \
+            --column="" --column="URL" \
+            --width=600 --height=400 \
+            --print-column=2 \
+            "${entries[@]}" 2>/dev/null) || break
+
+        if [[ -n "$choice" ]]; then
+            local tmp
+            tmp=$(mktemp)
+            grep -vxF "$choice" "$f" > "$tmp" || true
+            mv "$tmp" "$f"
+        fi
+    done
+}
+
+cmd_i3blocks() {
+    # Font Awesome link icon (f0c1)
+    local icon=$'\uf0c1' color="#8fabc7" dim="#555555"
+
+    local project
+    project=$(current_project_name)
+
+    if [[ -z "$project" ]]; then
+        echo -e "$icon"
+        echo "$icon"
+        echo "$dim"
+        exit 0
+    fi
+
+    local f count
+    f=$(urls_file "$project")
+    if [[ -f "$f" ]] && [[ -s "$f" ]]; then
+        count=$(wc -l < "$f" | tr -d ' ')
+    else
+        count=0
+    fi
+
+    # Left click: open all URLs and focus firefox
+    if [[ "${BLOCK_BUTTON:-}" == "1" ]] && [[ "$count" -gt 0 ]]; then
+        while IFS= read -r url; do
+            [[ -n "$url" ]] && xdg-open "$url" &
+        done < <(sort "$f")
+        sleep 0.3
+        wmctrl -a firefox || true
+    fi
+
+    # Middle click: add URL from clipboard
+    if [[ "${BLOCK_BUTTON:-}" == "2" ]]; then
+        touch "$f"
+        local clip_url
+        clip_url=$(get_clipboard_url)
+        if [[ -n "$clip_url" ]]; then
+            grep -qxF "$clip_url" "$f" || echo "$clip_url" >> "$f"
+            count=$((count + 1))
+        fi
+    fi
+
+    # Right click: manage URLs dialog
+    if [[ "${BLOCK_BUTTON:-}" == "3" ]]; then
+        cmd_urls_manage &
+    fi
+
+    if [[ "$count" -gt 0 ]]; then
+        echo "$icon $count"
+        echo "$icon $count"
+        echo "$color"
+    else
+        echo "$icon"
+        echo "$icon"
+        echo "$dim"
+    fi
+}
+
+refresh_i3blocks() {
+    pkill -SIGRTMIN+11 i3blocks 2>/dev/null || true
+}
+
 case "${1:-}" in
-    menu) cmd_menu ;;
-    switch) cmd_switch "$2" ;;
-    rofi-modi) shift; cmd_rofi_modi "$@" ;;
-    restore) cmd_restore ;;
+    menu) cmd_menu; refresh_i3blocks ;;
+    switch) cmd_switch "$2"; refresh_i3blocks ;;
+    rofi-modi) shift; cmd_rofi_modi "$@"; refresh_i3blocks ;;
+    restore) cmd_restore; refresh_i3blocks ;;
+    i3blocks) cmd_i3blocks ;;
     *)
-        echo "Usage: i3-project {menu|rofi-modi|restore|switch N}" >&2
+        echo "Usage: i3-project {menu|rofi-modi|restore|switch N|i3blocks}" >&2
         exit 1
         ;;
 esac
