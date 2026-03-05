@@ -14,6 +14,16 @@
       telescope-nvim
       nvim-surround
       which-key-nvim
+      (pkgs.vimUtils.buildVimPlugin {
+        pname = "vim-lumen";
+        version = "unstable";
+        src = pkgs.fetchFromGitHub {
+          owner = "vimpostor";
+          repo = "vim-lumen";
+          rev = "master";
+          hash = "sha256-SVco2qf7rr2Umgk7B6fEnyebt1zfsaDDCjR9WPTXYqg=";
+        };
+      })
     ];
 
     initLua = ''
