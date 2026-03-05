@@ -9,8 +9,8 @@ home-manager switch
 # Start shell with package installed
 nix-shell -p <pkg>
 
-# Update all
-nix flake update --flake ~/code/github/chelmertz/dotfiles/nix && home-manager switch
+# Update all (and commit flake.lock)
+nix-bump
 
 # Remove unused packages (garbage collect, gc)
 nix-collect-garbage

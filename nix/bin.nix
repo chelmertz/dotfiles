@@ -61,6 +61,11 @@
       executable = true;
     };
 
+    ".local/bin/nix-bump" = {
+      source = ../bin/nix-bump;
+      executable = true;
+    };
+
     ".local/bin/md2html" = {
       source = ../bin/md2html;
       executable = true;

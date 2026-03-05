@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+DOTFILES=~/code/github/chelmertz/dotfiles
+
+nix flake update --flake "$DOTFILES/nix" && home-manager switch
+
+if git -C "$DOTFILES" diff --quiet nix/flake.lock; then
+    echo "nix/flake.lock unchanged, nothing to commit"
+    exit 0
+fi
+
+# Commit only flake.lock, regardless of what else is staged.
+# "git commit [--] <pathspec>" commits the on-disk content of that file
+# in a new commit without touching the rest of the index.
+git -C "$DOTFILES" commit nix/flake.lock -m "nix: bump flakes"
