@@ -319,6 +319,19 @@
       }
 
       {
+        trigger = "::red";
+        replace = "🔴";
+      }
+      {
+        trigger = "::green";
+        replace = "🟢";
+      }
+      {
+        trigger = "::white";
+        replace = "⚪";
+      }
+
+      {
         trigger = "::mermseq";
         replace = "sequenceDiagram\n\nparticipant client\n\nparticipant api\n\nclient -->>+ api: hello\n\napi -->>- client: good bye\n";
       }
