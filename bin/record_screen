@@ -56,6 +56,7 @@ else
     MONITOR_NAME=""
 fi
 USE_SCREENKEY=false
+USE_MOUSE_HIGHLIGHT=true
 ACTION=""
 
 while true; do
@@ -69,6 +70,11 @@ while true; do
     else
         sk_label="Screenkey: OFF (click to toggle)"
     fi
+    if $USE_MOUSE_HIGHLIGHT; then
+        mh_label="Mouse highlight: ON (click to toggle)"
+    else
+        mh_label="Mouse highlight: OFF (click to toggle)"
+    fi
 
     options=()
     if [ -n "$MONITOR_NAME" ]; then
@@ -77,6 +83,7 @@ while true; do
     options+=("Record rectangle" "Click/drag to select area")
     options+=("Pick monitor" "Click on any monitor to select it")
     options+=("$sk_label" "")
+    options+=("$mh_label" "")
 
     choice=$(zenity --list \
         --title="Screen Recording" \
@@ -100,7 +107,10 @@ while true; do
         Screenkey:*)
             if $USE_SCREENKEY; then USE_SCREENKEY=false; else USE_SCREENKEY=true; fi
             ;;
-        "Record rectangle")
+        "Mouse highlight:"*)
+            if $USE_MOUSE_HIGHLIGHT; then USE_MOUSE_HIGHLIGHT=false; else USE_MOUSE_HIGHLIGHT=true; fi
+            ;;
+        *"Record rectangle")
             ACTION="rectangle"
             break
             ;;
@@ -137,6 +147,17 @@ if $USE_SCREENKEY; then
     SCREENKEY_PID=$!
 fi
 
+# Start mouse cursor highlight (kill any stale instance first)
+HIGHLIGHT_PID=""
+pkill -f highlight-pointer 2>/dev/null
+if $USE_MOUSE_HIGHLIGHT; then
+    highlight-pointer --radius 20 \
+        --released-color '#d62728' \
+        --pressed-color '#ffd700' \
+        --outline 4 &
+    HIGHLIGHT_PID=$!
+fi
+
 # -y overwrites without prompt (mktemp creates empty file)
 ffmpeg -y -f x11grab -s "${W}x${H}" -i ":0.0+${X},${Y}" "$tmpfile" &
 FFMPEG_PID=$!
@@ -150,6 +171,10 @@ cleanup() {
     if [ -n "$SCREENKEY_PID" ]; then
         kill "$SCREENKEY_PID" 2>/dev/null
         wait "$SCREENKEY_PID" 2>/dev/null
+    fi
+    if [ -n "$HIGHLIGHT_PID" ]; then
+        kill "$HIGHLIGHT_PID" 2>/dev/null
+        wait "$HIGHLIGHT_PID" 2>/dev/null
     fi
 }
 trap cleanup EXIT
