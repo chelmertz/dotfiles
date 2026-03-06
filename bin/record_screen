@@ -91,7 +91,7 @@ while true; do
         --column="Action" --column="" \
         --hide-column=2 \
         "${options[@]}" \
-        --width=350 --height=300 \
+        --width=350 --height=420 \
         2>/dev/null) || exit 1
 
     case "$choice" in
