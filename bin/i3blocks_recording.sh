@@ -28,5 +28,4 @@ if $recording; then
 else
     echo "⚪ REC"
     echo "⚪"
-    echo "#888888"
 fi
