@@ -150,10 +150,16 @@
               # mf - man flag: search man pages for specific flags
               mf() {
                 local cmd flag flags
+                # programs.man.generateCaches in home.nix ensures man -k covers nix-managed pages
+                _mf_manpages() { man -k . 2>/dev/null | awk '{gsub(/\([^)]*\)/,""); print $1}' | sort -u; }
 
                 if [ -z "$1" ]; then
-                  cmd=$( (sed -n 's/^: [0-9]*:[0-9]*;//p' "$HOME/.zsh_history" | awk '{print $1}' | tac | awk '!seen[$0]++'; whence -pm '*' | xargs -n1 basename | sort -u) |
-                    awk '!seen[$0]++' |
+                  cmd=$( (awk '
+                    NR==FNR { manpages[$0]=1; next }
+                    { cmd=$1 }
+                    cmd in manpages && !(cmd in seen) { print cmd; seen[cmd]=1 }
+                  ' <(_mf_manpages) <(tail -50 "$HOME/.zsh_history" | sed -n 's/^: [0-9]*:[0-9]*;//p' | tac)
+                  _mf_manpages) | awk '!seen[$0]++' |
                     fzf --prompt "command: " --preview 'man {} 2>/dev/null | col -bx | head -30')
                   [ -z "$cmd" ] && return
                 else

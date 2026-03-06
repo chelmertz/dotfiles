@@ -165,6 +165,9 @@
 
   programs.home-manager.enable = true;
 
+  # Build mandb cache at switch time so man -k covers nix-managed pages (e.g. git-diff)
+  programs.man.generateCaches = true;
+
   # Set up git hooks for the dotfiles repo so editor settings are synced on commit
   home.activation.dotfilesGitHooks = ''
     if [ -d "$HOME/dotfiles/.git" ]; then
