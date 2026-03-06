@@ -231,6 +231,11 @@
       executable = true;
     };
 
+    ".local/bin/i3blocks_recording.sh" = {
+      source = ../bin/i3blocks_recording.sh;
+      executable = true;
+    };
+
     ".local/bin/rofi_power.sh" = {
       source = ../bin/rofi_power.sh;
       executable = true;

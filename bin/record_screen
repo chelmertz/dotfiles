@@ -2,33 +2,186 @@
 
 # https://github.com/naelstrof/slop
 
-notify-send -t 2000 "Screen Recording" "Click a window or drag a rectangle to start video recording, no audio"
+PIDFILE=/tmp/record_screen.pid
 
-slop=$(slop --noopengl --bordersize=4 --format "%x %y %w %h %g %i") || exit 1
-read -r X Y W H G ID <<< $slop
-tmpfile=$(mktemp ~/Downloads/screen_capture_XXXXXXXXXXX.webm)
-
-# -y overwrites without prompt (mktemp creates empty file)
-ffmpeg -y -f x11grab -s "$W"x"$H" -i :0.0+$X,$Y "$tmpfile" &
-FFMPEG_PID=$!
-
-stop_recording() {
-    # SIGINT for graceful stop of ffmpeg
-    kill -INT "$FFMPEG_PID" 2>/dev/null
-    wait "$FFMPEG_PID" 2>/dev/null
-}
-
-trap stop_recording EXIT
-
-if [ -t 0 ]; then
-    echo "Recording... Press Enter to stop."
-    read -r
-else
-    zenity --info --text="Recording..." --ok-label="⏹ Stop" --title="Screen Recording"
+# If already recording, stop it
+if [ -f "$PIDFILE" ]; then
+    pid=$(cat "$PIDFILE")
+    if kill -0 "$pid" 2>/dev/null; then
+        kill -USR1 "$pid" 2>/dev/null
+    else
+        # Stale pidfile
+        rm -f "$PIDFILE"
+        pkill -SIGRTMIN+12 i3blocks
+    fi
+    exit 0
 fi
 
-stop_recording
-trap - EXIT  # rd below will block, but the recording is already finished - toss the trap
+# Resolve a point (x, y) to the monitor containing it
+point_to_monitor() {
+    local px=$1 py=$2
+    while IFS= read -r line; do
+        local name geom mw mh mx my
+        name=$(echo "$line" | awk '{print $1}')
+        geom=$(echo "$line" | grep -oP '\d+x\d+\+\d+\+\d+')
+        mw=$(echo "$geom" | cut -dx -f1)
+        mh=$(echo "$geom" | cut -dx -f2 | cut -d+ -f1)
+        mx=$(echo "$geom" | cut -d+ -f2)
+        my=$(echo "$geom" | cut -d+ -f3)
+        if (( px >= mx && px < mx + mw && py >= my && py < my + mh )); then
+            echo "$name"
+            return
+        fi
+    done < <(xrandr --query | grep ' connected')
+}
 
-rd "$tmpfile"
+# Get monitor geometry by name
+monitor_geometry() {
+    local geom
+    geom=$(xrandr --query | grep "^$1 " | grep -oP '\d+x\d+\+\d+\+\d+')
+    local mw mh mx my
+    mw=$(echo "$geom" | cut -dx -f1)
+    mh=$(echo "$geom" | cut -dx -f2 | cut -d+ -f1)
+    mx=$(echo "$geom" | cut -d+ -f2)
+    my=$(echo "$geom" | cut -d+ -f3)
+    echo "$mx $my $mw $mh"
+}
 
+# --- Launcher dialog loop ---
+# Default to monitor with the focused window
+focus_pos=$(xdotool getactivewindow getwindowgeometry 2>/dev/null | awk '/Position:/{print $2}')
+if [ -n "$focus_pos" ]; then
+    MONITOR_NAME=$(point_to_monitor "${focus_pos%%,*}" "${focus_pos##*,}")
+else
+    MONITOR_NAME=""
+fi
+USE_SCREENKEY=false
+ACTION=""
+
+while true; do
+    if [ -n "$MONITOR_NAME" ]; then
+        status="Monitor: $MONITOR_NAME"
+    else
+        status="No monitor selected"
+    fi
+    if $USE_SCREENKEY; then
+        sk_label="Screenkey: ON (click to toggle)"
+    else
+        sk_label="Screenkey: OFF (click to toggle)"
+    fi
+
+    options=()
+    if [ -n "$MONITOR_NAME" ]; then
+        options+=("Record $MONITOR_NAME" "Full monitor capture")
+    fi
+    options+=("Record rectangle" "Click/drag to select area")
+    options+=("Pick monitor" "Click on any monitor to select it")
+    options+=("$sk_label" "")
+
+    choice=$(zenity --list \
+        --title="Screen Recording" \
+        --text="$status" \
+        --column="Action" --column="" \
+        --hide-column=2 \
+        "${options[@]}" \
+        --width=350 --height=300 \
+        2>/dev/null) || exit 1
+
+    case "$choice" in
+        "Pick monitor")
+            notify-send -t 2000 "Screen Recording" "Click anywhere to select that monitor"
+            point=$(slop --tolerance=0 --noopengl --format="%x %y" 2>/dev/null) || continue
+            read -r px py <<< "$point"
+            MONITOR_NAME=$(point_to_monitor "$px" "$py")
+            if [ -z "$MONITOR_NAME" ]; then
+                notify-send -t 2000 "Screen Recording" "Could not determine monitor"
+            fi
+            ;;
+        Screenkey:*)
+            if $USE_SCREENKEY; then USE_SCREENKEY=false; else USE_SCREENKEY=true; fi
+            ;;
+        "Record rectangle")
+            ACTION="rectangle"
+            break
+            ;;
+        Record\ *)
+            ACTION="monitor"
+            break
+            ;;
+        ""|*)
+            # OK without selection defaults to recording the pre-selected monitor.
+            # Esc/Cancel is handled by || exit 1 above (zenity returns non-zero).
+            if [ -n "$MONITOR_NAME" ]; then
+                ACTION="monitor"
+                break
+            fi
+            ;;
+    esac
+done
+
+# Resolve capture geometry
+if [ "$ACTION" = "rectangle" ]; then
+    notify-send -t 2000 "Screen Recording" "Click a window or drag a rectangle"
+    slop_out=$(slop --noopengl --bordersize=4 --format "%x %y %w %h") || exit 1
+    read -r X Y W H <<< "$slop_out"
+else
+    read -r X Y W H <<< "$(monitor_geometry "$MONITOR_NAME")"
+fi
+
+tmpfile=$(mktemp ~/Downloads/screen_capture_XXXXXXXXXXX.webm)
+
+# Start screenkey confined to recorded area
+SCREENKEY_PID=""
+if $USE_SCREENKEY; then
+    screenkey --geometry "${W}x${H}+${X}+${Y}" &
+    SCREENKEY_PID=$!
+fi
+
+# -y overwrites without prompt (mktemp creates empty file)
+ffmpeg -y -f x11grab -s "${W}x${H}" -i ":0.0+${X},${Y}" "$tmpfile" &
+FFMPEG_PID=$!
+
+echo $$ > "$PIDFILE"
+pkill -SIGRTMIN+12 i3blocks
+
+cleanup() {
+    rm -f "$PIDFILE"
+    pkill -SIGRTMIN+12 i3blocks
+    if [ -n "$SCREENKEY_PID" ]; then
+        kill "$SCREENKEY_PID" 2>/dev/null
+        wait "$SCREENKEY_PID" 2>/dev/null
+    fi
+}
+trap cleanup EXIT
+
+STOP_REQUESTED=0
+trap 'STOP_REQUESTED=1' USR1
+
+# Wait for stop signal, also bail if ffmpeg dies
+while [ "$STOP_REQUESTED" -eq 0 ]; do
+    if ! kill -0 "$FFMPEG_PID" 2>/dev/null; then
+        break
+    fi
+    sleep 0.5
+done
+
+# Graceful stop of ffmpeg (no-op if already dead)
+kill -INT "$FFMPEG_PID" 2>/dev/null
+wait "$FFMPEG_PID" 2>/dev/null
+
+# Recording done — clear indicator before the blocking dialogs
+cleanup
+trap - EXIT
+
+# Keep or throwaway dialog
+if zenity --question \
+    --title="Screen Recording" \
+    --text="Recording saved to:\n$(basename "$tmpfile")" \
+    --ok-label="Keep (drag & drop)" \
+    --cancel-label="Discard" \
+    2>/dev/null; then
+    rd "$tmpfile"
+else
+    rm -f "$tmpfile"
+    notify-send -t 2000 "Screen Recording" "Recording discarded"
+fi
