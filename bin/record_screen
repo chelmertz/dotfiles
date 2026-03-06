@@ -55,7 +55,7 @@ if [ -n "$focus_pos" ]; then
 else
     MONITOR_NAME=""
 fi
-USE_SCREENKEY=false
+USE_SCREENKEY=true
 USE_MOUSE_HIGHLIGHT=true
 ACTION=""
 
