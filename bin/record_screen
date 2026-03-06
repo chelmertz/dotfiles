@@ -78,9 +78,9 @@ while true; do
 
     options=()
     if [ -n "$MONITOR_NAME" ]; then
-        options+=("Record $MONITOR_NAME" "Full monitor capture")
+        options+=("🔴 Record $MONITOR_NAME" "Full monitor capture")
     fi
-    options+=("Record rectangle" "Click/drag to select area")
+    options+=("🔴 Record rectangle" "Click/drag to select area")
     options+=("Pick monitor" "Click on any monitor to select it")
     options+=("$sk_label" "")
     options+=("$mh_label" "")
@@ -114,7 +114,7 @@ while true; do
             ACTION="rectangle"
             break
             ;;
-        Record\ *)
+        *Record\ *)
             ACTION="monitor"
             break
             ;;
