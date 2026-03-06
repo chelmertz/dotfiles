@@ -334,15 +334,12 @@ cmd_urls_manage() {
 
 cmd_i3blocks() {
     # Font Awesome link icon (f0c1)
-    local icon=$'\uf0c1' color="#8fabc7" dim="#555555"
+    local icon=$'\uf0c1' color="#8fabc7"
 
     local project
     project=$(current_project_name)
 
     if [[ -z "$project" ]]; then
-        echo -e "$icon"
-        echo "$icon"
-        echo "$dim"
         exit 0
     fi
 
@@ -386,7 +383,7 @@ cmd_i3blocks() {
     else
         echo "$icon"
         echo "$icon"
-        echo "$dim"
+        echo "$color"
     fi
 }
 
