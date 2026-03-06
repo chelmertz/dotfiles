@@ -157,6 +157,8 @@
     xclip
     xdotool
     xsel
+    yazi
+    ffmpegthumbnailer
     yq
     yt-dlp
     zip
