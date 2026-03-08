@@ -30,6 +30,7 @@
   # for standard packages, without any custom configuration; otherwise, remove from this list and do "program.myprogram = { enable = true; .. other options}"
   home.packages = with pkgs; [
     _1password-cli
+    acpi
     arandr
     asciinema
     autorandr
@@ -179,6 +180,8 @@
 
   programs.yazi = {
     enable = true;
+    # default changed from "yy" to "y" in 26.05; pin to new default early
+    shellWrapperName = "y";
     keymap = {
       manager.prepend_keymap = [
         {
