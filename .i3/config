@@ -88,6 +88,7 @@ assign [class="jetbrains-idea"] $ws3
 assign [class="obsidian"] $ws3
 assign [class="jetbrains-toolbox"] $ws10
 assign [class="Slack"] $ws9
+assign [class="Element"] $ws9
 assign [class="steam"] $ws7
 for_window [class="Microsoft Teams - Preview"] move to workspace $ws10
 for_window [class="Yad"] floating enable
