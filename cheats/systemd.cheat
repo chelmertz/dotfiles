@@ -1,0 +1,18 @@
+% systemd, service
+
+# Reload unit files after editing (user)
+systemctl --user daemon-reload
+
+# Reload unit files after editing (system)
+sudo systemctl daemon-reload
+
+# Debug why a service failed to start
+sudo journalctl -xn
+
+# Check status of user service
+systemctl --user status <service>
+
+# Check status of system service
+sudo systemctl status <service>
+
+$ service: systemctl --user list-units --no-legend --type=service | awk '{print $1}'

@@ -1,0 +1,27 @@
+% ripgrep, rg, regex
+
+# Extract regex capture group from files
+rg --no-line-number --only-matching '<pattern_with_group>' --replace '$1' <path>
+
+% bash, date, timestamp
+
+# Convert unix timestamp to human-readable date
+date -d @<timestamp>
+
+# Get current unix timestamp
+date +%s
+
+# Convert timestamp/date string (custom tool, supports natural language)
+datedate <input>
+
+% bash, diff
+
+# Diff output of two commands (process substitution)
+diff <(<command_1>) <(<command_2>)
+
+% bash, string, parameter expansion
+
+# Remove file extension from variable
+echo "${<var>%.*}"
+
+$ var: echo 'e.g. myfile.tar.gz'

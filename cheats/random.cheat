@@ -1,0 +1,13 @@
+% random, string, generate
+
+# Random hex string (lowercase)
+openssl rand -hex <bytes>
+
+# Random base64 string
+openssl rand -base64 <bytes>
+
+# Random alphanumeric string of specific length
+tr -dc A-Za-z0-9 </dev/urandom | head -c <length>; echo
+
+$ bytes: echo '16'
+$ length: echo '32'

@@ -6,6 +6,9 @@ ps -ef | grep -i <process>
 # Kill process by name
 kill <signal> <pid>
 
+# Show process tree with PIDs
+pstree -p <pid>
+
 $ process: ps -eo comm= | sort -u
 $ pid: ps -eo pid=,comm= | grep -i <process> --- --column 1
 $ signal: printf '%s\n' "-15 (SIGTERM)" "-9 (SIGKILL)" "-2 (SIGINT)" --- --column 1
@@ -19,3 +22,38 @@ $ container_id: docker ps --format '{{.ID}} {{.Names}} {{.Image}}' --- --column 
 
 # Disable autostart of container (stop it beforehand)
 docker update --restart=no <container_id>
+
+% xdg, mime, default
+
+# Set default application for a mime type
+xdg-mime default <desktop_file> <mime_type>
+
+$ desktop_file: ls /usr/share/applications ~/.local/share/applications 2>/dev/null
+$ mime_type: echo 'application/pdf'
+
+% xev, keyboard
+
+# Show keycodes for pressed keys
+xev -event keyboard | grep -o 'keycode.*\)'
+
+% patch
+
+# Apply a patch
+patch -p1 < <patch_file>
+
+# Revert an applied patch
+patch -p1 -R < <patch_file>
+
+% xcape, keyboard, caps
+
+# Caps as ctrl (held) + escape (tapped)
+setxkbmap -layout se -option caps:ctrl_modifier
+xcape -e "Caps_Lock=Escape" -t 50
+
+% salt, saltstack
+
+# Apply salt state on current minion
+sudo salt-call state.apply '<state>'
+
+# Run command on all minions
+sudo salt '*' cmd.run <command>

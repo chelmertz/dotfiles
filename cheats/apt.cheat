@@ -13,3 +13,27 @@ sudo apt remove <package> && sudo apt autoremove
 
 # Search for available packages
 apt search <query>
+
+# List files installed by package
+dpkg -L <package>
+
+# Which package provides a file
+dpkg -S <file>
+
+# Show package status/version
+dpkg --status <package>
+
+# Show dependencies of package
+apt depends <package>
+
+# Show reverse dependencies (what depends on this)
+apt rdepends <package>
+
+# Hold package at current version
+sudo apt-mark hold <package>
+
+# Unhold package
+sudo apt-mark unhold <package>
+
+# List held packages
+apt-mark showhold

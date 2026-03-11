@@ -1,0 +1,27 @@
+% git, bisect
+
+# Binary search for bad commit
+git bisect start && git bisect good <good_commit> && git bisect bad <bad_commit>
+
+$ good_commit: git log --oneline -20 --- --column 1
+$ bad_commit: git log --oneline -20 --- --column 1
+
+% git, branch, cleanup
+
+# Remove all local branches merged into current
+git branch --no-color --merged | grep -vE 'master|main|develop' | xargs git branch -d
+
+% git, branch, info
+
+# List branches with remote tracking info
+git branch -vv
+
+% git, patch
+
+# Export commit as email-style patch
+git format-patch -1 <commit>
+
+# Apply patch file
+git am < <patch_file>
+
+$ commit: git log --oneline -20 --- --column 1

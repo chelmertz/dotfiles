@@ -1,0 +1,58 @@
+% network, nmap
+
+# Scan LAN for active hosts
+nmap -sP <subnet>
+
+# Scan host for open ports
+nmap <host>
+
+$ subnet: echo '192.168.1.*'
+
+% network, lsof, ports
+
+# List all used ports (sudo for full view)
+sudo lsof -i
+
+# Ports/sockets used by program
+sudo lsof -c <program>
+
+# What process is using a specific port
+sudo lsof -i :<port>
+
+# Open files/connections by PID
+lsof -p <pid>
+
+# Open files by user
+lsof -u <user>
+
+$ program: ps -eo comm= | sort -u
+$ user: who | awk '{print $1}' | sort -u
+
+% curl, http
+
+# Get HTTP status code only
+curl -sw "%{http_code}" -o /dev/null <url>
+
+# Get body + status code
+curl -s -o - -w "\n%{http_code}" <url>
+
+% wget, mirror
+
+# Save website for offline reading
+wget --mirror --convert-links --adjust-extension --page-requisites --no-parent <url>
+
+% ssh
+
+# Kill a hung/frozen SSH session
+# Press: Enter ~ .
+
+# Generate new SSH key pair
+ssh-keygen -t ed25519 -C "<email>"
+
+% wireshark
+
+# Launch wireshark (HiDPI)
+sudo GDK_SCALE=2 QT_SCALE_FACTOR=2 wireshark
+
+# Display filter: HTTP traffic on port
+# tcp.port == 8080 && http
