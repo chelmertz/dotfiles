@@ -52,13 +52,12 @@
       }
     ];
 
-    aliases = {
-      # Force-overwrite local tags that diverge from remote (e.g. retagged releases).
-      # No config equivalent for --force on tags; pruneTags only handles deletions.
-      pull-force = "!git fetch --tags --force && git rebase --autostash @{u}";
-    };
-
     settings = {
+      alias = {
+        # Force-overwrite local tags that diverge from remote (e.g. retagged releases).
+        # No config equivalent for --force on tags; pruneTags only handles deletions.
+        pull-force = "!git fetch --tags --force && git rebase --autostash @{u}";
+      };
       branch = {
         autoSetupMerge = "simple";
         sort = "-committerdate";
