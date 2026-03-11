@@ -66,6 +66,7 @@
     font-awesome
     fzf
     gh
+    ghostty
     git-filter-repo
     gleam
     go
