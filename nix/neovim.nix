@@ -24,6 +24,7 @@
           hash = "sha256-SVco2qf7rr2Umgk7B6fEnyebt1zfsaDDCjR9WPTXYqg=";
         };
       })
+      firenvim
     ];
 
     initLua = ''
@@ -52,31 +53,6 @@
       }
 
       vim.g.mapleader = ","
-
-      vim.api.nvim_set_hl(0, "CursorLine", { underline = true })
-
-      -- Transparent background with appropriate foreground for light/dark.
-      -- Neovim's default colorscheme pairs its fg with its own bg, so when we
-      -- make bg transparent we also need to fix fg to match the terminal.
-      local transparent_groups = { "Normal", "NormalNC", "NormalFloat", "SignColumn", "EndOfBuffer", "LineNr", "FoldColumn" }
-      local function apply_transparent_theme()
-        local is_light = vim.o.background == "light"
-        for _, group in ipairs(transparent_groups) do
-          vim.cmd("highlight " .. group .. " guibg=NONE ctermbg=NONE")
-        end
-        -- Fix Normal fg to contrast with the terminal background
-        if is_light then
-          vim.cmd("highlight Normal guifg=#000000 ctermfg=0")
-        else
-          vim.cmd("highlight Normal guifg=#d0d0d0 ctermfg=252")
-        end
-      end
-      vim.api.nvim_create_autocmd("ColorScheme", { callback = apply_transparent_theme })
-      vim.api.nvim_create_autocmd("OptionSet", {
-        pattern = "background",
-        callback = apply_transparent_theme,
-      })
-      apply_transparent_theme()
 
       -- ========================================================================
       -- Keymaps
@@ -194,22 +170,6 @@
       })
 
       -- ========================================================================
-      -- Highlight groups
-      -- ========================================================================
-      vim.api.nvim_set_hl(0, "Pmenu", { ctermbg = 237, ctermfg = 252, bg = "#3a3a3a", fg = "#d0d0d0" })
-      vim.api.nvim_set_hl(0, "PmenuSel", { ctermbg = 241, ctermfg = 231, bold = true, bg = "#626262", fg = "#ffffff" })
-      vim.api.nvim_set_hl(0, "PmenuSbar", { ctermbg = 238, bg = "#444444" })
-      vim.api.nvim_set_hl(0, "PmenuThumb", { ctermbg = 248, bg = "#a8a8a8" })
-
-      -- Transient menu highlight groups (used by which-key overrides if needed)
-      vim.api.nvim_set_hl(0, "TransientMenu", { ctermbg = 236, ctermfg = 252, bg = "#303030", fg = "#d0d0d0" })
-      vim.api.nvim_set_hl(0, "TransientMenuBorder", { ctermbg = 236, ctermfg = 245, bg = "#303030", fg = "#8a8a8a" })
-      vim.api.nvim_set_hl(0, "TransientOn", { ctermfg = 108, fg = "#87af87" })
-      vim.api.nvim_set_hl(0, "TransientOff", { ctermfg = 131, fg = "#af5f5f" })
-      vim.api.nvim_set_hl(0, "TransientMnemonic", { ctermbg = 236, ctermfg = 216, bg = "#303030", fg = "#ffaf87" })
-      vim.api.nvim_set_hl(0, "TransientHeader", { ctermbg = 236, ctermfg = 252, bold = true, bg = "#303030", fg = "#d0d0d0" })
-
-      -- ========================================================================
       -- Transient menu via which-key
       -- ========================================================================
       local wk = require("which-key")
@@ -237,9 +197,7 @@
               register_toggle_mappings()
             end,
             desc = t.label,
-            icon = on
-              and { icon = "●", hl = "TransientOn" }
-              or  { icon = "○", hl = "TransientOff" },
+            icon = on and "●" or "○",
           })
         end
         wk.add(m)
@@ -320,6 +278,38 @@
         },
       })
       require("telescope").load_extension("fzf")
+
+      -- ========================================================================
+      -- Firenvim (browser textarea editing)
+      -- ========================================================================
+      -- Don't auto-takeover textareas; require Ctrl+E to opt in
+      vim.g.firenvim_config = {
+        globalSettings = {
+          alt = "all",
+        },
+        localSettings = {
+          [".*"] = {
+            takeover = "never",
+          },
+        },
+      }
+
+      if vim.g.started_by_firenvim then
+        -- Larger font for readability in browser
+        vim.o.guifont = "monospace:h14"
+
+        -- Don't show statusline/cmdline clutter in the small textarea
+        vim.o.laststatus = 0
+
+        -- Auto-sync buffer back to textarea on every change
+        vim.api.nvim_create_autocmd({"TextChanged", "InsertLeave"}, {
+          callback = function()
+            if vim.bo.buftype == "" then
+              vim.cmd("silent write")
+            end
+          end,
+        })
+      end
     '';
   };
 }
