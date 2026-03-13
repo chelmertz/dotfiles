@@ -117,7 +117,7 @@ bindsym Ctrl+Shift+Prior exec BLOCK_BUTTON=1 ~/bin/i3blocks_my_gh_issues 1 && wm
 for_window [window_type="notification"] floating enable
 
 # ripdrag: drag and drop helper, https://github.com/nik012003/ripdrag
-for_window [class="ripdrag"] floating enable
+for_window [class="ripdrag"] floating enable, sticky enable
 
 for_window [class=".*"] title_format " %title"
 for_window [class=".*"] border pixel 3
