@@ -1,0 +1,45 @@
+" dagbok — Obsidian vim config
+" Loaded by obsidian-vimrc-support plugin
+
+" ── Surround support (built into the plugin) ─────
+exmap surround_wiki surround [[ ]]
+exmap surround_double_quotes surround " "
+exmap surround_single_quotes surround ' '
+exmap surround_backticks surround ` `
+exmap surround_brackets surround ( )
+exmap surround_square_brackets surround [ ]
+exmap surround_curly_brackets surround { }
+exmap surround_bold surround ** **
+exmap surround_italic surround * *
+
+" vim-surround-style: ys{motion}{char}
+" Note: Obsidian vimrc surround uses visual mode maps
+nunmap S
+vunmap S
+nmap ys <Nop>
+
+map S" :surround_double_quotes
+map S' :surround_single_quotes
+map S` :surround_backticks
+map Sb :surround_brackets
+map S( :surround_brackets
+map S) :surround_brackets
+map S[ :surround_square_brackets
+map S{ :surround_curly_brackets
+map S* :surround_italic
+map SB :surround_bold
+map Sw :surround_wiki
+
+" ── Navigation ────────────────────────────────────
+" Use H/L to go to beginning/end of line
+nmap H ^
+nmap L $
+
+" ── Obsidian commands via Ex commands ─────────────
+exmap daily obcommand daily-notes
+exmap toggle_preview obcommand markdown:toggle-preview
+exmap search obcommand global-search:open
+
+nmap <Space>d :daily
+nmap <Space>p :toggle_preview
+nmap <Space>s :search

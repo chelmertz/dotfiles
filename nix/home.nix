@@ -8,6 +8,7 @@
     ./espanso.nix
     ./vscode.nix
     ./firefox.nix
+    ./obsidian.nix
   ];
 
   xsession.windowManager.i3 = {
@@ -103,6 +104,14 @@
     nethogs
     nixfmt
     nmap
+    (symlinkJoin {
+      name = "obsidian";
+      paths = [ obsidian ];
+      buildInputs = [ makeWrapper ];
+      postBuild = ''
+        wrapProgram $out/bin/obsidian --add-flags "--no-sandbox --force-device-scale-factor=1.3"
+      '';
+    })
     nodejs_22
     pandoc
     pastel

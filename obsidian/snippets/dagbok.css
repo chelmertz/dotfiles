@@ -1,0 +1,146 @@
+/* dagbok — monospace retro theme for Obsidian
+ * Applies the same aesthetic as the dagbok mockup:
+ * ch-unit spacing, monospace everything, muted accents.
+ *
+ * Toggle via: Settings > Appearance > CSS snippets > dagbok
+ */
+
+/* ── Font stack ───────────────────────────────────── */
+body {
+  --font-monospace: "Berkeley Mono", "JetBrains Mono", "Fira Code", "Go Mono", "Consolas", monospace;
+  --font-text: var(--font-monospace);
+  --font-interface: var(--font-monospace);
+}
+
+.markdown-source-view,
+.markdown-preview-view,
+.cm-editor {
+  font-family: var(--font-monospace) !important;
+}
+
+/* ── Light mode — warm cream (matches mockup "system light") ── */
+.theme-light {
+  --background-primary: #f8f5f0;
+  --background-secondary: #f0ece4;
+  --background-modifier-border: #d5d0c8;
+  --text-normal: #2e2e2e;
+  --text-muted: #6e6e6e;
+  --text-faint: #9e9e9e;
+  --text-accent: #b05030;
+  --text-accent-hover: #c06040;
+  --interactive-accent: #b05030;
+  --interactive-accent-hover: #c06040;
+  --background-modifier-form-field: #fff;
+  --tag-color: #b05030;
+  --tag-background: #f0ece4;
+  --checkbox-color: #4a8866;
+}
+
+/* ── Dark mode — near-black (matches mockup "system dark") ──── */
+.theme-dark {
+  --background-primary: #1a1a1a;
+  --background-secondary: #222;
+  --background-modifier-border: #333;
+  --text-normal: #d4d4d4;
+  --text-muted: #888;
+  --text-faint: #555;
+  --text-accent: #e07050;
+  --text-accent-hover: #f08060;
+  --interactive-accent: #e07050;
+  --interactive-accent-hover: #f08060;
+  --background-modifier-form-field: #2a2a2a;
+  --tag-color: #e07050;
+  --tag-background: #2a2a2a;
+  --checkbox-color: #5bb980;
+}
+
+/* ── Spacing: ch-unit grid ────────────────────────── */
+.markdown-source-view.mod-cm6 .cm-content,
+.markdown-preview-view {
+  max-width: 80ch;
+  padding: 2ch;
+}
+
+.markdown-preview-view p,
+.markdown-preview-view li,
+.markdown-preview-view blockquote {
+  line-height: 1.6;
+}
+
+/* ── Headings: understated, monospace ─────────────── */
+.markdown-preview-view h1,
+.markdown-preview-view h2,
+.markdown-preview-view h3,
+.markdown-preview-view h4,
+.cm-header {
+  font-family: var(--font-monospace) !important;
+  font-weight: bold;
+  letter-spacing: 0.02em;
+}
+
+.markdown-preview-view h1 { font-size: 1.3em; }
+.markdown-preview-view h2 { font-size: 1.15em; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+.markdown-preview-view h3 { font-size: 1.05em; }
+
+/* ── HR: simple dashed line ───────────────────────── */
+.markdown-preview-view hr {
+  border: none;
+  border-top: 1px dashed var(--background-modifier-border);
+  margin: 2ch 0;
+}
+
+/* ── Blockquotes: left accent bar ─────────────────── */
+.markdown-preview-view blockquote {
+  border-left: 2px solid var(--text-accent);
+  padding-left: 1ch;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Code blocks ──────────────────────────────────── */
+.markdown-preview-view code {
+  font-size: 0.9em;
+  background: var(--background-secondary);
+  padding: 0.1ch 0.5ch;
+  border-radius: 2px;
+}
+
+.markdown-preview-view pre {
+  background: var(--background-secondary);
+  padding: 1ch;
+  border-radius: 2px;
+  border: 1px solid var(--background-modifier-border);
+}
+
+/* ── Tags: pill style ─────────────────────────────── */
+.tag {
+  background: var(--tag-background);
+  color: var(--tag-color);
+  padding: 0.1ch 0.8ch;
+  border-radius: 2px;
+  font-size: 0.85em;
+}
+
+/* ── Checkboxes ───────────────────────────────────── */
+.markdown-preview-view .task-list-item-checkbox:checked {
+  background-color: var(--checkbox-color);
+  border-color: var(--checkbox-color);
+}
+
+/* ── Editor: larger textarea feel ─────────────────── */
+.cm-editor .cm-content {
+  min-height: 30ch;
+}
+
+/* ── Vim mode cursor: block cursor visibility ─────── */
+.cm-fat-cursor .cm-cursor {
+  background-color: var(--text-accent) !important;
+  opacity: 0.7;
+}
+
+/* ── Status bar: compact ──────────────────────────── */
+.status-bar {
+  font-family: var(--font-monospace);
+  font-size: 0.8em;
+  border-top: 1px solid var(--background-modifier-border);
+}
