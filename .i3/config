@@ -85,7 +85,6 @@ bindsym $mod+Shift+space floating toggle
 assign [class="firefox"] $ws2
 assign [class="Google-chrome"] $ws2
 assign [class="jetbrains-idea"] $ws3
-assign [class="obsidian"] $ws3
 assign [class="jetbrains-toolbox"] $ws10
 assign [class="Slack"] $ws9
 assign [class="Element"] $ws9
@@ -97,14 +96,13 @@ for_window [title="Event Tester"] floating enable
 # cannot use assign, see https://github.com/i3/i3/issues/2060 (prob the same above, for Teams)
 for_window [class="Spotify"] move to workspace $ws10
 
-for_window [instance="gvim"] floating enable;
-for_window [instance="gvim"] move scratchpad; [instance="gvim"] scratchpad show; move position center; move scratchpad
-
+for_window [class="obsidian"] floating enable
+for_window [class="obsidian"] move scratchpad; [class="obsidian"] scratchpad show; move position center; move scratchpad
 
 # for the Keychron keyboard
-bindsym Insert exec --no-startup-id ~/code/github/chelmertz/dotfiles/bin/toggle-gvim-scratchpad
+bindsym Insert exec --no-startup-id ~/.local/bin/toggle-obsidian-scratchpad
 # for the F96 keyboard
-bindsym KP_Add exec --no-startup-id ~/code/github/chelmertz/dotfiles/bin/toggle-gvim-scratchpad
+bindsym KP_Add exec --no-startup-id ~/.local/bin/toggle-obsidian-scratchpad
 
 # new keychron k8 pro keyboard, prior=page up, next=page down
 # elly
@@ -286,3 +284,4 @@ exec --no-startup-id xset r rate 200 25
 exec --no-startup-id xset s off -dpms
 
 exec --no-startup-id ~/.local/bin/i3-project restore
+exec --no-startup-id ~/.nix-profile/bin/obsidian --open-vault ~/Dropbox/notes

@@ -306,6 +306,11 @@
       executable = true;
     };
 
+    ".local/bin/toggle-obsidian-scratchpad" = {
+      source = ../bin/toggle-obsidian-scratchpad;
+      executable = true;
+    };
+
     ".local/bin/turn_off_caps" = {
       source = ../bin/turn_off_caps;
       executable = true;

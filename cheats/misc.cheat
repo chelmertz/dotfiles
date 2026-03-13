@@ -1,7 +1,7 @@
 % process, ps
 
 # Find process by name
-ps -ef | grep -i <process>
+pgrep -aif <process>
 
 # Kill process by name
 kill <signal> <pid>
