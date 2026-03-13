@@ -22,6 +22,7 @@ let
     {
       id = "periodic-notes";
       repo = "liamcain/obsidian-periodic-notes";
+      tag = "0.0.17";
     }
     {
       id = "obsidian-tasks-plugin";
@@ -79,7 +80,7 @@ let
     interfaceFontFamily = "";
     textFontFamily = "";
     monospaceFontFamily = "Berkeley Mono, JetBrains Mono, Fira Code, Go Mono, Consolas, monospace";
-    baseFontSize = 18;
+    baseFontSize = 12;
   };
 
   corePluginsJson = builtins.toJSON {
@@ -154,16 +155,21 @@ let
   # ── Plugin installer script ────────────────────────────────────
   installPlugins = pkgs.writeShellScript "install-obsidian-plugins" (
     let
-      downloadOne = p: ''
-        dir="$VAULT/.obsidian/plugins/${p.id}"
-        if [ ! -f "$dir/main.js" ]; then
-          echo "  installing ${p.id}..."
-          mkdir -p "$dir"
-          ${pkgs.curl}/bin/curl -sfL "https://github.com/${p.repo}/releases/latest/download/main.js" -o "$dir/main.js" || true
-          ${pkgs.curl}/bin/curl -sfL "https://github.com/${p.repo}/releases/latest/download/manifest.json" -o "$dir/manifest.json" || true
-          ${pkgs.curl}/bin/curl -sfL "https://github.com/${p.repo}/releases/latest/download/styles.css" -o "$dir/styles.css" 2>/dev/null || true
-        fi
-      '';
+      downloadOne =
+        p:
+        let
+          version = if p ? tag then "download/${p.tag}" else "latest/download";
+        in
+        ''
+          dir="$VAULT/.obsidian/plugins/${p.id}"
+          if [ ! -f "$dir/main.js" ]; then
+            echo "  installing ${p.id}..."
+            mkdir -p "$dir"
+            ${pkgs.curl}/bin/curl -sfL "https://github.com/${p.repo}/releases/${version}/main.js" -o "$dir/main.js" || true
+            ${pkgs.curl}/bin/curl -sfL "https://github.com/${p.repo}/releases/${version}/manifest.json" -o "$dir/manifest.json" || true
+            ${pkgs.curl}/bin/curl -sfL "https://github.com/${p.repo}/releases/${version}/styles.css" -o "$dir/styles.css" 2>/dev/null || true
+          fi
+        '';
     in
     ''
       VAULT="$HOME/${vaultPath}"
