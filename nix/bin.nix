@@ -306,6 +306,11 @@
       executable = true;
     };
 
+    ".local/bin/obsidian-poll" = {
+      source = ../bin/obsidian-poll;
+      executable = true;
+    };
+
     ".local/bin/toggle-obsidian-scratchpad" = {
       source = ../bin/toggle-obsidian-scratchpad;
       executable = true;

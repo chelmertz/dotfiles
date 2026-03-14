@@ -1,0 +1,283 @@
+#!/usr/bin/env python3
+"""Generate daily integration files for the Obsidian vault.
+
+Writes integrations/YYYY-MM-DD.md for the last 7 completed days.
+A "day" runs 04:00 local → 04:00 next day.
+Never touches the current (incomplete) day.
+
+Uses 2 GitHub API calls per run (batch fetch, then group by date).
+Skips days that already have files, except the most recent completed day.
+
+Intended to run on a timer (e.g. every 2h via systemd).
+"""
+
+import json
+import subprocess
+from collections import defaultdict
+from datetime import datetime, timedelta, time, date as Date
+from pathlib import Path
+
+VAULT = Path.home() / "Dropbox" / "notes"
+CODE_DIR = Path.home() / "code"
+DAY_BOUNDARY = time(4, 0)
+LOOKBACK_DAYS = 7
+WORK_ORG = "matchiapp"
+GIT_AUTHOR_EMAIL = "helmertz@gmail.com"
+
+
+def logical_today():
+    now = datetime.now()
+    if now.time() < DAY_BOUNDARY:
+        return (now - timedelta(days=1)).date()
+    return now.date()
+
+
+def gh_json(args):
+    result = subprocess.run(
+        ["gh"] + args,
+        capture_output=True, text=True, timeout=30
+    )
+    if result.returncode != 0:
+        return []
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return []
+
+
+def pr_date(pr):
+    """Extract the local date from closedAt, shifted by DAY_BOUNDARY."""
+    ts = pr.get("closedAt", "")
+    if not ts:
+        return None
+    dt = datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone()
+    if dt.time() < DAY_BOUNDARY:
+        return (dt - timedelta(days=1)).date()
+    return dt.date()
+
+
+def fetch_all_prs(start_date, end_date):
+    """Batch fetch authored + reviewed PRs for entire date range. 2 API calls."""
+    authored = gh_json([
+        "search", "prs",
+        "--author=@me", "--merged",
+        f"--merged-at={start_date}..{end_date}",
+        "--json", "title,repository,url,closedAt",
+        "--limit", "100",
+    ])
+    reviewed = gh_json([
+        "search", "prs",
+        "--review-requested=@me", "--state=closed",
+        f"--closed={start_date}..{end_date}",
+        "--json", "title,repository,url,closedAt,author",
+        "--limit", "100",
+    ])
+    return authored, reviewed
+
+
+def group_by_date(prs):
+    by_date = defaultdict(list)
+    for pr in prs:
+        d = pr_date(pr)
+        if d:
+            by_date[d].append(pr)
+    return by_date
+
+
+def is_work(pr):
+    return pr["repository"]["nameWithOwner"].startswith(WORK_ORG + "/")
+
+
+# ── Git repos ─────────────────────────────────────────────────────
+
+def find_git_repos():
+    """Find all git repos under CODE_DIR."""
+    result = subprocess.run(
+        ["find", str(CODE_DIR), "-maxdepth", "5",
+         "-name", "HEAD", "-path", "*/.git/HEAD"],
+        capture_output=True, text=True, timeout=10
+    )
+    repos = []
+    for line in result.stdout.strip().split("\n"):
+        if line:
+            repos.append(Path(line).parent.parent)
+    return repos
+
+
+def git_commit_count_for_day(repo, date):
+    """Count commits for a repo on a given logical day (04:00→04:00)."""
+    start = f"{date}T04:00"
+    end = f"{date + timedelta(days=1)}T04:00"
+    result = subprocess.run(
+        ["git", "-C", str(repo), "rev-list", "--count",
+         f"--after={start}", f"--before={end}",
+         f"--author={GIT_AUTHOR_EMAIL}",
+         "--no-merges", "HEAD"],
+        capture_output=True, text=True, timeout=5
+    )
+    if result.returncode != 0:
+        return 0
+    return int(result.stdout.strip() or 0)
+
+
+def repo_github_url(repo):
+    """Try to get GitHub URL from git remote."""
+    result = subprocess.run(
+        ["git", "-C", str(repo), "remote", "get-url", "origin"],
+        capture_output=True, text=True, timeout=5
+    )
+    url = result.stdout.strip()
+    if "github.com" in url:
+        # Normalize ssh/https to https
+        url = url.replace("git@github.com:", "https://github.com/")
+        url = url.removesuffix(".git")
+        return url
+    return None
+
+
+def fetch_git_activity(dates):
+    """Returns {date: [(repo_name, commit_count, github_url)]} for all dates."""
+    repos = find_git_repos()
+    by_date = defaultdict(list)
+    # Cache github URLs
+    url_cache = {}
+    for repo in repos:
+        for d in dates:
+            count = git_commit_count_for_day(repo, d)
+            if count > 0:
+                if repo not in url_cache:
+                    url_cache[repo] = repo_github_url(repo)
+                by_date[d].append((repo.name, count, url_cache[repo]))
+    for d in by_date:
+        by_date[d].sort(key=lambda x: x[0])
+    return by_date
+
+
+def fmt_urls(prs):
+    lines = []
+    for pr in prs:
+        lines.append(f"    - {pr['url']}")
+    return "\n".join(lines) if lines else "    []"
+
+
+def generate_day(authored, reviewed, git_repos):
+    if not authored and not reviewed and not git_repos:
+        return None
+
+    work_authored = [p for p in authored if is_work(p)]
+    work_reviewed = [p for p in reviewed if is_work(p)]
+    priv_authored = [p for p in authored if not is_work(p)]
+    priv_reviewed = [p for p in reviewed if not is_work(p)]
+
+    pr_repos = sorted(set(
+        pr["repository"]["nameWithOwner"].split("/")[-1]
+        for pr in authored + reviewed
+    ))
+    git_repo_names = sorted(set(name for name, _, _ in git_repos))
+    all_repos = sorted(set(pr_repos + git_repo_names))
+    total_commits = sum(count for _, count, _ in git_repos)
+
+    frontmatter = f"""---
+prs_authored: {len(authored)}
+prs_reviewed: {len(reviewed)}
+commits: {total_commits}
+repos: [{', '.join(all_repos)}]
+git_repos: [{', '.join(git_repo_names)}]
+work:
+  org: {WORK_ORG}
+  prs_authored: {len(work_authored)}
+  prs_reviewed: {len(work_reviewed)}
+  pr_urls:
+{fmt_urls(work_authored + work_reviewed)}
+private:
+  prs_authored: {len(priv_authored)}
+  prs_reviewed: {len(priv_reviewed)}
+  pr_urls:
+{fmt_urls(priv_authored + priv_reviewed)}
+---"""
+
+    sections = []
+
+    # ── Pull requests ──────────────────────────────────────────
+    if authored or reviewed:
+        total_prs = len(authored) + len(reviewed)
+        lines = [f"## Pull requests ({total_prs})"]
+        lines.append("")
+        for pr in authored:
+            repo = pr["repository"]["nameWithOwner"]
+            repo_short = repo.split("/")[-1]
+            repo_url = f"https://github.com/{repo}"
+            lines.append(
+                f"- \\* [{pr['title']}]({pr['url']}) · "
+                f"[{repo_short}]({repo_url})"
+            )
+        for pr in reviewed:
+            repo = pr["repository"]["nameWithOwner"]
+            repo_short = repo.split("/")[-1]
+            repo_url = f"https://github.com/{repo}"
+            author = pr.get("author", {}).get("login", "?")
+            lines.append(
+                f"- \\> [{pr['title']}]({pr['url']}) · "
+                f"[{repo_short}]({repo_url}) · {author}"
+            )
+        sections.append("\n".join(lines))
+
+    # ── Git repos touched ─────────────────────────────────────
+    if git_repos:
+        lines = [f"## Git repos touched ({len(git_repos)})"]
+        lines.append("")
+        repo_parts = []
+        for name, count, url in git_repos:
+            if url:
+                repo_parts.append(f"[{name}]({url}) ({count})")
+            else:
+                repo_parts.append(f"{name} ({count})")
+        lines.append(" · ".join(repo_parts))
+        sections.append("\n".join(lines))
+
+    return frontmatter + "\n\n" + "\n\n".join(sections) + "\n"
+
+
+def main():
+    today = logical_today()
+    outdir = VAULT / "integrations"
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    dates = [today - timedelta(days=i) for i in range(1, LOOKBACK_DAYS + 1)]
+    most_recent = dates[0]
+
+    # Which dates need updating?
+    needed = []
+    for d in dates:
+        path = outdir / f"{d}.md"
+        if d == most_recent or not path.exists():
+            needed.append(d)
+
+    if not needed:
+        print("all days populated, nothing to do")
+        return
+
+    start_date = min(needed)
+    end_date = max(needed)
+
+    authored_all, reviewed_all = fetch_all_prs(start_date, end_date)
+    authored_by_date = group_by_date(authored_all)
+    reviewed_by_date = group_by_date(reviewed_all)
+    git_by_date = fetch_git_activity(needed)
+
+    for d in needed:
+        path = outdir / f"{d}.md"
+        content = generate_day(
+            authored_by_date.get(d, []),
+            reviewed_by_date.get(d, []),
+            git_by_date.get(d, []),
+        )
+        if content:
+            path.write_text(content)
+            print(f"  {d}: updated")
+        else:
+            print(f"  {d}: no data")
+
+
+if __name__ == "__main__":
+    main()

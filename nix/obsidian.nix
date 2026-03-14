@@ -25,10 +25,6 @@ let
       tag = "0.0.17";
     }
     {
-      id = "obsidian-tasks-plugin";
-      repo = "obsidian-tasks-group/obsidian-tasks";
-    }
-    {
       id = "obsidian-style-settings";
       repo = "mgmeyers/obsidian-style-settings";
     }
@@ -125,6 +121,46 @@ let
 
   communityPluginsJson = builtins.toJSON pluginIds;
 
+  hotkeysJson = builtins.toJSON {
+    "daily-notes:open" = [
+      {
+        modifiers = [
+          "Mod"
+          "Shift"
+        ];
+        key = "D";
+      }
+    ];
+    "daily-notes" = [
+      {
+        modifiers = [ "Mod" ];
+        key = "D";
+      }
+    ];
+    "editor:delete-paragraph" = [ ]; # unbind Ctrl+D conflict
+    "daily-notes:goto-prev" = [
+      {
+        modifiers = [ "Alt" ];
+        key = "ArrowLeft";
+      }
+    ];
+    "daily-notes:goto-next" = [
+      {
+        modifiers = [ "Alt" ];
+        key = "ArrowRight";
+      }
+    ];
+    "global-search:open" = [
+      {
+        modifiers = [
+          "Mod"
+          "Shift"
+        ];
+        key = "F";
+      }
+    ];
+  };
+
   # ── Read-only files tracked in dotfiles (no personal data) ─────
   dagbokCss = builtins.readFile ../obsidian/snippets/dagbok.css;
   vimrc = builtins.readFile ../obsidian/vimrc;
@@ -150,6 +186,8 @@ let
 
 
     ## Notes
+
+    ![[integrations/<% tp.date.now("YYYY-MM-DD") %>]]
   '';
 
   # ── Plugin installer script ────────────────────────────────────
@@ -196,6 +234,7 @@ in
         echo '${corePluginsJson}' > "$VAULT/.obsidian/core-plugins.json"
         echo '${dailyNotesJson}' > "$VAULT/.obsidian/daily-notes.json"
         echo '${communityPluginsJson}' > "$VAULT/.obsidian/community-plugins.json"
+        echo '${hotkeysJson}' > "$VAULT/.obsidian/hotkeys.json"
 
         # Write files tracked in dotfiles (no personal data)
         cat > "$VAULT/.obsidian/snippets/dagbok.css" << 'CSSEOF'
@@ -217,4 +256,22 @@ in
         # Install plugins (downloads from GitHub if not present)
         ${installPlugins}
   '';
+
+  systemd.user.services.obsidian-poll = {
+    Unit.Description = "Poll GitHub PRs and update Obsidian integrations";
+    Service = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.python3}/bin/python3 %h/.local/bin/obsidian-poll";
+      Environment = "PATH=${pkgs.gh}/bin:${pkgs.git}/bin:/usr/bin:/bin";
+    };
+  };
+
+  systemd.user.timers.obsidian-poll = {
+    Unit.Description = "Run obsidian-poll every 2 hours";
+    Timer = {
+      OnCalendar = "*-*-* 0/2:00:00";
+      Persistent = true;
+    };
+    Install.WantedBy = [ "timers.target" ];
+  };
 }
