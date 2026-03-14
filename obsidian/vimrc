@@ -12,34 +12,31 @@ exmap surround_curly_brackets surround { }
 exmap surround_bold surround ** **
 exmap surround_italic surround * *
 
-" vim-surround-style: ys{motion}{char}
-" Note: Obsidian vimrc surround uses visual mode maps
+" vim-surround-style: visual select then S{char}
 nunmap S
 vunmap S
-nmap ys <Nop>
 
-map S" :surround_double_quotes
-map S' :surround_single_quotes
-map S` :surround_backticks
-map Sb :surround_brackets
-map S( :surround_brackets
-map S) :surround_brackets
-map S[ :surround_square_brackets
-map S{ :surround_curly_brackets
-map S* :surround_italic
-map SB :surround_bold
-map Sw :surround_wiki
+map S" :surround_double_quotes<CR>
+map S' :surround_single_quotes<CR>
+map S` :surround_backticks<CR>
+map Sb :surround_brackets<CR>
+map S( :surround_brackets<CR>
+map S) :surround_brackets<CR>
+map S[ :surround_square_brackets<CR>
+map S] :surround_square_brackets<CR>
+map S{ :surround_curly_brackets<CR>
+map S} :surround_curly_brackets<CR>
+map S* :surround_italic<CR>
+map SB :surround_bold<CR>
+map Sw :surround_wiki<CR>
 
 " ── Navigation ────────────────────────────────────
-" Use H/L to go to beginning/end of line
 nmap H ^
 nmap L $
 
-" ── Obsidian commands via Ex commands ─────────────
-exmap daily obcommand daily-notes
-exmap toggle_preview obcommand markdown:toggle-preview
-exmap search obcommand global-search:open
-
-nmap <Space>d :daily
-nmap <Space>p :toggle_preview
-nmap <Space>s :search
+" ── Leader (,) ────────────────────────────────────
+" ── Obsidian commands ──────────────────────────────
+" Ctrl+Shift+D = daily note
+" Ctrl+Shift+T = bookmarks (dash_tasks)
+" Ctrl+Shift+F = search
+" Ctrl+P = command palette (built-in)
