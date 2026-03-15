@@ -92,7 +92,7 @@ let
     templates = true;
     note-composer = true;
     command-palette = true;
-    slash-command = false;
+    slash-command = true;
     editor-status = true;
     markdown-importer = false;
     zk-prefixer = false;
@@ -159,6 +159,28 @@ let
         key = "F";
       }
     ];
+    "switcher:open" = [
+      {
+        modifiers = [
+          "Mod"
+          "Shift"
+        ];
+        key = "P";
+      }
+    ];
+    "app:go-back" = [
+      {
+        modifiers = [ "Mod" ];
+        key = "O";
+      }
+    ];
+    "app:go-forward" = [
+      {
+        modifiers = [ "Mod" ];
+        key = "I";
+      }
+    ];
+    "editor:toggle-italics" = [ ]; # unbind Ctrl+I conflict
   };
 
   # ── Read-only files tracked in dotfiles (no personal data) ─────
