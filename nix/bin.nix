@@ -311,6 +311,16 @@
       executable = true;
     };
 
+    ".local/bin/claude-diary-hook" = {
+      source = ../bin/claude-diary-hook;
+      executable = true;
+    };
+
+    ".local/bin/claude-diary" = {
+      source = ../bin/claude-diary;
+      executable = true;
+    };
+
     ".local/bin/toggle-obsidian-scratchpad" = {
       source = ../bin/toggle-obsidian-scratchpad;
       executable = true;

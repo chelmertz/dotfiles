@@ -1,0 +1,258 @@
+#!/usr/bin/env python3
+"""claude-diary: list Claude Code conversations as a table.
+
+Reads local Claude Code storage (~/.claude/) to produce a diary overview.
+No Claude API calls at runtime — pure local file parsing.
+
+Format version: written against Claude Code ~2.1.x storage layout (2026-03).
+If the format changes, the script will print checkpoint errors and exit
+so you can fix it with Claude's help.
+"""
+
+import json
+import os
+import sys
+from collections import defaultdict
+from datetime import datetime, timezone
+from pathlib import Path
+
+CLAUDE_DIR = Path.home() / ".claude"
+HISTORY_FILE = CLAUDE_DIR / "history.jsonl"
+PROJECTS_DIR = CLAUDE_DIR / "projects"
+DIARY_LOG = Path.home() / ".claude-diary.jsonl"
+
+# ── checkpoints ──────────────────────────────────────────────────────
+# Each checkpoint validates a structural assumption. If any fails, the
+# script stops with a clear message about what changed.
+
+def check(condition: bool, msg: str):
+    if not condition:
+        print(f"CHECKPOINT FAILED: {msg}", file=sys.stderr)
+        print("The Claude Code storage format may have changed. "
+              "Ask Claude to help you update this script.", file=sys.stderr)
+        sys.exit(1)
+
+
+def checkpoint_history_exists():
+    check(HISTORY_FILE.exists(),
+          f"Expected {HISTORY_FILE} to exist")
+
+
+def checkpoint_history_format(entry: dict):
+    required = {"display", "timestamp", "project", "sessionId"}
+    check(required.issubset(entry.keys()),
+          f"history.jsonl entry missing keys. "
+          f"Expected {required}, got {set(entry.keys())}")
+    check(isinstance(entry["timestamp"], (int, float)),
+          f"timestamp is not a number: {type(entry['timestamp'])}")
+
+
+def checkpoint_session_user_msg(msg: dict):
+    check(msg.get("type") == "user",
+          f"Expected type=user, got type={msg.get('type')}")
+    check("message" in msg,
+          f"User message missing 'message' key, keys: {set(msg.keys())}")
+
+
+# ── parsing ──────────────────────────────────────────────────────────
+
+def load_history() -> dict[str, list[dict]]:
+    """Return {sessionId: [entries...]} from history.jsonl, ordered by time."""
+    checkpoint_history_exists()
+    sessions: dict[str, list[dict]] = defaultdict(list)
+    with open(HISTORY_FILE) as f:
+        for lineno, line in enumerate(f, 1):
+            line = line.strip()
+            if not line:
+                continue
+            entry = json.loads(line)
+            if lineno == 1:
+                checkpoint_history_format(entry)
+            sessions[entry["sessionId"]].append(entry)
+    return sessions
+
+
+def build_session_file_index() -> dict[str, Path]:
+    """Return {sessionId: path_to_jsonl} for all session transcripts."""
+    index: dict[str, Path] = {}
+    if not PROJECTS_DIR.exists():
+        return index
+    for proj_dir in PROJECTS_DIR.iterdir():
+        if not proj_dir.is_dir():
+            continue
+        for f in proj_dir.glob("*.jsonl"):
+            sid = f.stem
+            index[sid] = f
+    return index
+
+
+def load_diary_log() -> dict[str, dict]:
+    """Return {session_id: entry} from the hook-generated diary log."""
+    index: dict[str, dict] = {}
+    if not DIARY_LOG.exists():
+        return index
+    try:
+        with open(DIARY_LOG) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                entry = json.loads(line)
+                sid = entry.get("session_id", "")
+                if sid:
+                    index[sid] = entry
+    except (json.JSONDecodeError, OSError):
+        pass
+    return index
+
+
+def get_git_branch(session_file: Path) -> str | None:
+    """Read the first user message from a session JSONL to get gitBranch."""
+    try:
+        with open(session_file) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                msg = json.loads(line)
+                if msg.get("type") == "user":
+                    checkpoint_session_user_msg(msg)
+                    return msg.get("gitBranch")
+    except (json.JSONDecodeError, OSError):
+        return None
+    return None
+
+
+def format_timestamp(ts_ms: int | float) -> str:
+    dt = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).astimezone()
+    return dt.strftime("%Y-%m-%d %H:%M")
+
+
+def truncate(s: str, maxlen: int) -> str:
+    s = s.replace("\n", " ").strip()
+    if len(s) <= maxlen:
+        return s
+    return s[:maxlen - 1] + "…"
+
+
+def shorten_path(p: str) -> str:
+    home = str(Path.home())
+    if p.startswith(home):
+        return "~" + p[len(home):]
+    return p
+
+
+# ── main ─────────────────────────────────────────────────────────────
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="List Claude Code conversations as a diary table")
+    parser.add_argument("-n", type=int, default=25,
+                        help="number of most recent sessions to show (default: 25)")
+    parser.add_argument("--all", action="store_true",
+                        help="show all sessions")
+    parser.add_argument("--project", type=str, default=None,
+                        help="filter by project path substring")
+    parser.add_argument("--tsv", action="store_true",
+                        help="output as TSV instead of aligned table")
+    args = parser.parse_args()
+
+    sessions = load_history()
+    session_files = build_session_file_index()
+    diary = load_diary_log()
+
+    # Build rows: one per session
+    rows = []
+    for sid, entries in sessions.items():
+        first = entries[0]
+        project = first["project"]
+
+        if args.project and args.project not in project:
+            continue
+
+        ts = format_timestamp(first["timestamp"])
+        prompt = first["display"]
+        folder = shorten_path(project)
+
+        # Prefer diary log data (from hook), fall back to session JSONL
+        diary_entry = diary.get(sid)
+        if diary_entry:
+            branch = diary_entry.get("branch") or ""
+            summary = diary_entry.get("summary") or ""
+        else:
+            branch = get_git_branch(session_files[sid]) if sid in session_files else ""
+            summary = ""
+
+        rows.append({
+            "date": ts,
+            "prompt": prompt,
+            "folder": folder,
+            "branch": branch or "",
+            "summary": summary,
+            "n_prompts": len(entries),
+        })
+
+    # Sort by date descending (most recent first)
+    rows.sort(key=lambda r: r["date"], reverse=True)
+
+    if not args.all:
+        rows = rows[:args.n]
+
+    if not rows:
+        print("No conversations found.")
+        return
+
+    if args.tsv:
+        print("date\tprompts\tbranch\tfolder\tsummary\tinitial_prompt")
+        for r in rows:
+            print(f"{r['date']}\t{r['n_prompts']}\t{r['branch']}\t{r['folder']}\t{r['summary']}\t{r['prompt']}")
+        return
+
+    # Compute column widths
+    w_date = 16  # fixed: "2026-03-12 14:40"
+    w_n = 3
+    w_branch = max((len(r["branch"]) for r in rows), default=0)
+    w_branch = max(w_branch, 6)  # "branch" header
+    w_branch = min(w_branch, 25)
+    w_folder = max((len(r["folder"]) for r in rows), default=0)
+    w_folder = max(w_folder, 6)
+    w_folder = min(w_folder, 45)
+
+    has_summaries = any(r["summary"] for r in rows)
+    w_summary = 30 if has_summaries else 0
+
+    # Remaining space for prompt (target ~terminal width)
+    try:
+        term_width = os.get_terminal_size().columns
+    except OSError:
+        term_width = 140
+    fixed = w_date + w_n + w_branch + w_folder + w_summary + 12
+    if has_summaries:
+        fixed += 2  # extra separator for summary column
+    w_prompt = term_width - fixed
+    w_prompt = max(w_prompt, 20)
+
+    header = (f"{'date':<{w_date}}  {'#':>{w_n}}  "
+              f"{'branch':<{w_branch}}  {'folder':<{w_folder}}")
+    if has_summaries:
+        header += f"  {'summary':<{w_summary}}"
+    header += "  prompt"
+    print(header)
+    print("─" * min(len(header) + w_prompt, term_width))
+
+    for r in rows:
+        prompt = truncate(r["prompt"], w_prompt)
+        branch = truncate(r["branch"], w_branch)
+        folder = truncate(r["folder"], w_folder)
+        line = (f"{r['date']:<{w_date}}  {r['n_prompts']:>{w_n}}  "
+                f"{branch:<{w_branch}}  {folder:<{w_folder}}")
+        if has_summaries:
+            summary = truncate(r["summary"], w_summary) if r["summary"] else ""
+            line += f"  {summary:<{w_summary}}"
+        line += f"  {prompt}"
+        print(line)
+
+
+if __name__ == "__main__":
+    main()

@@ -19,6 +19,7 @@ from pathlib import Path
 
 VAULT = Path.home() / "Dropbox" / "notes"
 CODE_DIR = Path.home() / "code"
+DIARY_LOG = Path.home() / ".claude-diary.jsonl"
 DAY_BOUNDARY = time(4, 0)
 LOOKBACK_DAYS = 7
 WORK_ORG = "matchiapp"
@@ -153,6 +154,44 @@ def fetch_git_activity(dates):
     return by_date
 
 
+# ── Claude sessions ────────────────────────────────────────────────
+
+def fetch_claude_sessions(dates):
+    """Returns {date: [session_dict]} from ~/.claude-diary.jsonl, grouped by logical day."""
+    by_date = defaultdict(list)
+    if not DIARY_LOG.exists():
+        return by_date
+    try:
+        with open(DIARY_LOG) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                entry = json.loads(line)
+                ts = entry.get("timestamp", "")
+                if not ts:
+                    continue
+                dt = datetime.fromisoformat(ts)
+                if dt.time() < DAY_BOUNDARY:
+                    d = (dt - timedelta(days=1)).date()
+                else:
+                    d = dt.date()
+                if d in dates:
+                    by_date[d].append(entry)
+    except (json.JSONDecodeError, OSError):
+        pass
+    for d in by_date:
+        by_date[d].sort(key=lambda e: e.get("timestamp", ""))
+    return by_date
+
+
+def shorten_path(p):
+    home = str(Path.home())
+    if p.startswith(home):
+        return "~" + p[len(home):]
+    return p
+
+
 def fmt_urls(prs):
     lines = []
     for pr in prs:
@@ -160,8 +199,9 @@ def fmt_urls(prs):
     return "\n".join(lines) if lines else "    []"
 
 
-def generate_day(authored, reviewed, git_repos):
-    if not authored and not reviewed and not git_repos:
+def generate_day(authored, reviewed, git_repos, claude_sessions=None):
+    claude_sessions = claude_sessions or []
+    if not authored and not reviewed and not git_repos and not claude_sessions:
         return None
 
     work_authored = [p for p in authored if is_work(p)]
@@ -181,6 +221,7 @@ def generate_day(authored, reviewed, git_repos):
 prs_authored: {len(authored)}
 prs_reviewed: {len(reviewed)}
 commits: {total_commits}
+claude_sessions: {len(claude_sessions)}
 repos: [{', '.join(all_repos)}]
 git_repos: [{', '.join(git_repo_names)}]
 work:
@@ -235,6 +276,33 @@ private:
         lines.append(" · ".join(repo_parts))
         sections.append("\n".join(lines))
 
+    # ── Claude sessions ──────────────────────────────────────
+    if claude_sessions:
+        lines = [f"## Claude sessions ({len(claude_sessions)})"]
+        lines.append("")
+        for s in claude_sessions:
+            ts = s.get("timestamp", "")
+            try:
+                t = datetime.fromisoformat(ts).strftime("%H:%M")
+            except ValueError:
+                t = "?"
+            summary = s.get("summary", "")
+            # Fall back to first line of prompt if no summary
+            if not summary or len(summary) > 80:
+                prompt = s.get("prompt", "")
+                summary = prompt.split("\n")[0][:60] if prompt else "?"
+            if len(summary) > 60:
+                summary = summary[:59] + "…"
+            folder = shorten_path(s.get("cwd", ""))
+            branch = s.get("branch", "")
+            parts = [f"- {t}  {summary}"]
+            if folder:
+                parts[0] += f"  · {folder}"
+            if branch and branch != "master" and branch != "main":
+                parts[0] += f" ({branch})"
+            lines.append(parts[0])
+        sections.append("\n".join(lines))
+
     return frontmatter + "\n\n" + "\n\n".join(sections) + "\n"
 
 
@@ -264,6 +332,7 @@ def main():
     authored_by_date = group_by_date(authored_all)
     reviewed_by_date = group_by_date(reviewed_all)
     git_by_date = fetch_git_activity(needed)
+    claude_by_date = fetch_claude_sessions(set(needed))
 
     for d in needed:
         path = outdir / f"{d}.md"
@@ -271,6 +340,7 @@ def main():
             authored_by_date.get(d, []),
             reviewed_by_date.get(d, []),
             git_by_date.get(d, []),
+            claude_by_date.get(d, []),
         )
         if content:
             path.write_text(content)

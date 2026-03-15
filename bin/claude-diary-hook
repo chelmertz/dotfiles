@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Hook for UserPromptSubmit — logs session metadata + generates summary.
+# Called by Claude Code with JSON on stdin.
+# Writes to ~/.claude-diary.jsonl
+#
+# Format version: 2026-03. Checkpoint: expects stdin keys:
+#   session_id, prompt, cwd, hook_event_name
+
+set -euo pipefail
+
+# Guard against recursion (claude -p triggers its own hooks)
+if [ "${CLAUDE_DIARY_HOOK:-}" = "1" ]; then
+    exit 0
+fi
+
+DIARY_LOG="$HOME/.claude-diary.jsonl"
+
+# Read hook input from stdin
+INPUT=$(cat)
+
+# Checkpoint: validate expected keys exist
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
+if [ -z "$SESSION_ID" ]; then
+    echo "CHECKPOINT FAILED: stdin missing session_id. Hook input format may have changed." >&2
+    echo "Keys received: $(echo "$INPUT" | jq -r 'keys | join(", ")')" >&2
+    exit 0  # don't block the user's session
+fi
+
+PROMPT=$(echo "$INPUT" | jq -r '.prompt // ""')
+CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
+
+# Fast path: skip if session already logged
+if [ -f "$DIARY_LOG" ] && grep -q "\"session_id\":\"$SESSION_ID\"" "$DIARY_LOG" 2>/dev/null; then
+    exit 0
+fi
+
+# Collect git branch (fast, local)
+BRANCH=""
+if [ -n "$CWD" ] && [ -d "$CWD/.git" ] || git -C "$CWD" rev-parse --git-dir >/dev/null 2>&1; then
+    BRANCH=$(git -C "$CWD" branch --show-current 2>/dev/null || true)
+fi
+
+TIMESTAMP=$(date -Iseconds)
+
+# Write the log entry immediately (summary="" for now)
+jq -n -c \
+    --arg sid "$SESSION_ID" \
+    --arg ts "$TIMESTAMP" \
+    --arg prompt "$PROMPT" \
+    --arg cwd "$CWD" \
+    --arg branch "$BRANCH" \
+    --arg summary "" \
+    '{session_id: $sid, timestamp: $ts, prompt: $prompt, cwd: $cwd, branch: $branch, summary: $summary}' \
+    >> "$DIARY_LOG"
+
+# Background: generate summary via claude -p, then update the entry
+(
+    export CLAUDE_DIARY_HOOK=1
+    # Unset CLAUDECODE to allow nested claude -p invocation
+    unset CLAUDECODE
+    # Haiku with no tools, truncated prompt to reduce rambling.
+    # Runs once per session (~100 tokens).
+    TRUNCATED=$(printf '%.500s' "$PROMPT")
+    SUMMARY=$(printf 'Label the following user prompt in 3-8 words. Output ONLY the label. No quotes, no markdown, no explanation.\n\nExamples:\ndebug mobile push notifications\nplan CRM data model\nfix CI translation workflow\n\n---\n%s\n---' "$TRUNCATED" | claude -p --model haiku --tools "" 2>/dev/null || true)
+    # Strip if Haiku still rambles
+    SUMMARY=$(echo "$SUMMARY" | head -1 | cut -c1-80)
+
+    if [ -n "$SUMMARY" ]; then
+        # Atomic update: rewrite the file with the summary filled in
+        # Use a temp file + mv for atomicity
+        TMP=$(mktemp "${DIARY_LOG}.XXXXXX")
+        while IFS= read -r line; do
+            if echo "$line" | grep -q "\"session_id\":\"$SESSION_ID\""; then
+                echo "$line" | jq -c --arg s "$SUMMARY" '.summary = $s'
+            else
+                echo "$line"
+            fi
+        done < "$DIARY_LOG" > "$TMP"
+        mv "$TMP" "$DIARY_LOG"
+    fi
+) &
+disown
+
+exit 0
