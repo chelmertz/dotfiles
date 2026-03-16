@@ -292,6 +292,7 @@ in
     Unit.Description = "Run obsidian-poll every 2 hours";
     Timer = {
       OnCalendar = "*-*-* 0/2:00:00";
+      OnBootSec = "1min";
       Persistent = true;
     };
     Install.WantedBy = [ "timers.target" ];
