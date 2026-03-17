@@ -203,10 +203,6 @@ let
 
     ---
 
-    ## Got cred #cred
-    <!-- drop screenshots here with ![[image.png]], or just write what happened -->
-
-
     ## Notes
 
     ![[integrations/<% tp.date.now("YYYY-MM-DD") %>]]
