@@ -159,6 +159,7 @@
     trurl
     uni
     unzip
+    uv
     vim-full
     visidata
     vlc
