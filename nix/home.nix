@@ -193,67 +193,49 @@
     enable = true;
     # default changed from "yy" to "y" in 26.05; pin to new default early
     shellWrapperName = "y";
-    keymap = {
-      manager.prepend_keymap = [
-        {
-          on = [
-            ","
-            "g"
-          ];
-          run = ''shell 'mv "$@" ~/Dropbox/inspiration/gui/' --confirm'';
-          desc = "Move to gui";
-        }
-        {
-          on = [
-            ","
-            "s"
-          ];
-          run = ''shell 'mv "$@" ~/Dropbox/photos/gaming/' --confirm'';
-          desc = "Move to gaming";
-        }
-        {
-          on = [
-            ","
-            "f"
-          ];
-          run = ''shell 'mv "$@" ~/Dropbox/photos/movies/' --confirm'';
-          desc = "Move to movies";
-        }
-        {
-          on = [
-            ","
-            "p"
-          ];
-          run = ''shell 'mv "$@" ~/Dropbox/photos/' --confirm'';
-          desc = "Move to photos";
-        }
-        {
-          on = [
-            ","
-            "c"
-          ];
-          run = ''shell 'mv "$@" ~/Dropbox/inspiration/typography_colors_patterns/' --confirm'';
-          desc = "Move to colors/patterns";
-        }
-        {
-          on = [
-            ","
-            "o"
-          ];
-          run = ''shell 'mv "$@" ~/Dropbox/orgzly/' --confirm'';
-          desc = "Move to orgzly";
-        }
-        {
-          on = [
-            ","
-            "m"
-          ];
-          run = ''shell 'mv "$@" ~/Dropbox/matchi/' --confirm'';
-          desc = "Move to matchi";
-        }
-      ];
-    };
   };
+
+  xdg.configFile."yazi/keymap.toml".text = ''
+    [[mgr.prepend_keymap]]
+    on = [",", "g"]
+    run = "shell -- mv %s ~/Dropbox/inspiration/gui/"
+    desc = "Move to gui"
+
+    [[mgr.prepend_keymap]]
+    on = [",", "s"]
+    run = "shell -- mv %s ~/Dropbox/photos/gaming/"
+    desc = "Move to gaming"
+
+    [[mgr.prepend_keymap]]
+    on = [",", "f"]
+    run = "shell -- mv %s ~/Dropbox/photos/movies/"
+    desc = "Move to movies"
+
+    [[mgr.prepend_keymap]]
+    on = [",", "p"]
+    run = "shell -- mv %s ~/Dropbox/photos/"
+    desc = "Move to photos"
+
+    [[mgr.prepend_keymap]]
+    on = [",", "c"]
+    run = "shell -- mv %s ~/Dropbox/inspiration/typography_colors_patterns/"
+    desc = "Move to colors/patterns"
+
+    [[mgr.prepend_keymap]]
+    on = [",", "o"]
+    run = "shell -- mv %s ~/Dropbox/orgzly/"
+    desc = "Move to orgzly"
+
+    [[mgr.prepend_keymap]]
+    on = [",", "w"]
+    run = "shell -- mv %s ~/Dropbox/wallpapers/"
+    desc = "Move to wallpapers"
+
+    [[mgr.prepend_keymap]]
+    on = [",", "m"]
+    run = "shell -- mv %s ~/Dropbox/matchi/"
+    desc = "Move to matchi"
+  '';
 
   programs.direnv = {
     enable = true;
