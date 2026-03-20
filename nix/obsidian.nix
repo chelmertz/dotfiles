@@ -52,6 +52,10 @@ let
       id = "obsidian-auto-link-title";
       repo = "zolrath/obsidian-auto-link-title";
     }
+    {
+      id = "note-refactor-obsidian";
+      repo = "lynchjames/note-refactor-obsidian";
+    }
   ];
 
   pluginIds = map (p: p.id) plugins;
@@ -68,6 +72,8 @@ let
     readableLineLength = true;
     strictLineBreaks = true;
     attachmentFolderPath = "attachments";
+    alwaysUpdateLinks = true;
+    newLinkFormat = "absolute";
   };
 
   appearanceJson = builtins.toJSON {
