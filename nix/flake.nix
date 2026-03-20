@@ -9,6 +9,7 @@
     };
     claude-code.url = "github:sadjow/claude-code-nix";
     elly.url = "github:chelmertz/elly";
+    serve.url = "github:chelmertz/serve";
   };
 
   outputs =
@@ -17,6 +18,7 @@
       home-manager,
       claude-code,
       elly,
+      serve,
       ...
     }:
     {
@@ -26,6 +28,7 @@
           overlays = [
             claude-code.overlays.default
             elly.overlays.default
+            serve.overlays.default
           ];
           config = {
             allowUnfreePredicate =

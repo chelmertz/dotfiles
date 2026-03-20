@@ -129,6 +129,7 @@
     rofi
     rofimoji
     runme
+    serve
     rxvt-unicode
     screenkey
     shellcheck

@@ -123,12 +123,47 @@
         "type": "github"
       }
     },
+    "nixpkgs_4": {
+      "locked": {
+        "lastModified": 1773821835,
+        "narHash": "sha256-TJ3lSQtW0E2JrznGVm8hOQGVpXjJyXY2guAxku2O9A4=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "b40629efe5d6ec48dd1efba650c797ddbd39ace0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "claude-code": "claude-code",
         "elly": "elly",
         "home-manager": "home-manager",
-        "nixpkgs": "nixpkgs_3"
+        "nixpkgs": "nixpkgs_3",
+        "serve": "serve"
+      }
+    },
+    "serve": {
+      "inputs": {
+        "nixpkgs": "nixpkgs_4"
+      },
+      "locked": {
+        "lastModified": 1774000287,
+        "narHash": "sha256-fNwAMvSqjUpso/5f0Rv/GrOtleR52QHLx6jKBk/z7rg=",
+        "owner": "chelmertz",
+        "repo": "serve",
+        "rev": "e3eac3846d91018fae551cf454f9c0fd8adb03ce",
+        "type": "github"
+      },
+      "original": {
+        "owner": "chelmertz",
+        "repo": "serve",
+        "type": "github"
       }
     },
     "systems": {
