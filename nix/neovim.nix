@@ -262,6 +262,30 @@
         end
       end
 
+      -- Format actions, keyed by filetype
+      local formatters = {
+        json = { cmd = "python3 -mjson.tool", desc = "format json" },
+      }
+
+      vim.api.nvim_create_autocmd("FileType", {
+        pattern = vim.tbl_keys(formatters),
+        callback = function(ev)
+          local fmt = formatters[ev.match]
+          if fmt then
+            wk.add({
+              {
+                "<leader><leader>F",
+                function()
+                  vim.cmd("%!" .. fmt.cmd)
+                end,
+                desc = fmt.desc,
+                buffer = ev.buf,
+              },
+            })
+          end
+        end,
+      })
+
       wk.add(mappings)
 
       -- ========================================================================
