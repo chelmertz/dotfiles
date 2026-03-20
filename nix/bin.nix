@@ -71,6 +71,11 @@
       executable = true;
     };
 
+    ".local/bin/mdpreview" = {
+      source = ../bin/mdpreview;
+      executable = true;
+    };
+
     ".local/bin/datedate" = {
       source = ../bin/datedate;
       executable = true;

@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+if [ -z "$1" ]; then
+	echo "Usage: mdpreview <file.md>" >&2
+	exit 1
+fi
+
+tmp=$(mktemp /tmp/mdpreview-XXXXXX.html)
+md2html "$1" > "$tmp"
+serve "$tmp"
