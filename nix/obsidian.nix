@@ -105,7 +105,7 @@ let
     random-note = false;
     outline = true;
     word-count = true;
-    slides = false;
+    slides = true;
     audio-recorder = false;
     workspaces = false;
     file-recovery = false;
