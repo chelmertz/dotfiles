@@ -4,28 +4,28 @@ case $1 in
 	auto)
 		monitors=$(xrandr --listmonitors | grep Monitors: | cut -d' ' -f 2)
 		if [ "$monitors" -gt 1 ]; then
-			layout="LARGE EXTERNAL"
+			layout="both"
 		else
-			layout=SINGLE
+			layout="laptop only"
 		fi
 		;;
 	*)
-		layout=$(zenity --question --text="Choose screenlayout" --switch --extra-button "LARGE EXTERNAL" --extra-button "SINGLE" --extra-button "SINGLE-BIG" --extra-button "Reconnect monitors")
+		layout=$(echo -e "both\nlaptop only\nexternal only\nreconnect" | rofi -dmenu -p "Choose screen layout" -l 4)
 		;;
 esac
 
 case $layout in
-	LARGE*)
+	"both")
 		source ~/.screenlayout/home_dual.sh
 		sleep 2
 		;;
-	"SINGLE")
+	"laptop only")
 		source ~/.screenlayout/single_small.sh
 		;;
-	"SINGLE-BIG")
+	"external only")
 		source ~/.screenlayout/single_big.sh
 		;;
-	"Reconnect monitors")
+	"reconnect")
 		reconnect-monitor
 		;;
 	*)
