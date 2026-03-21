@@ -9,9 +9,12 @@
 
 set -euo pipefail
 
-# Create temporary mermaid lua filter
+# Create temporary files
 mermaid_filter=$(mktemp --suffix=.lua)
-trap 'rm -f "$mermaid_filter"' EXIT
+toc_template=$(mktemp --suffix=.html)
+trap 'rm -f "$mermaid_filter" "$toc_template"' EXIT
+
+echo '$toc$' > "$toc_template"
 
 cat > "$mermaid_filter" <<'FILTER'
 function CodeBlock(block)
@@ -31,6 +34,9 @@ if [ $# -ge 1 ] && [ -f "$1" ]; then
 else
 	md_content=$(cat)
 fi
+
+# Generate TOC
+toc_html=$(echo "$md_content" | pandoc -f markdown+fenced_code_attributes -t html --toc --template="$toc_template" 2>/dev/null)
 
 # Convert markdown to HTML fragment
 body_html=$(echo "$md_content" | pandoc -f markdown+fenced_code_attributes -t html --highlight-style=kate --lua-filter "$mermaid_filter" 2>/dev/null)
@@ -126,9 +132,18 @@ code span.in { font-style: italic; }
 code span.kw { font-weight: bold; }
 code span.pp { font-weight: bold; }
 code span.wa { font-style: italic; }
+nav#toc {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+}
+nav#toc > ul { margin: 0; padding-left: 1.2em; }
+nav#toc ul { list-style: none; }
+nav#toc a { text-decoration: none; }
 </style>
 </head>
 <body>
+<nav id="toc">$toc_html</nav>
 $body_html
 </body>
 </html>
