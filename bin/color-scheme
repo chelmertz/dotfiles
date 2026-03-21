@@ -16,3 +16,11 @@ if ! $(gsettings set org.gnome.desktop.interface color-scheme "$new_color_scheme
 	echo "Could not set new color-scheme" >&2
 	exit 1
 fi
+
+rofi_config="$HOME/.config/rofi/config.rasi"
+mkdir -p "$(dirname "$rofi_config")"
+case "$new_color_scheme" in
+	prefer-dark) rofi_theme="solarized" ;;
+	*)           rofi_theme="default"   ;;
+esac
+printf '@theme "%s"\n' "$rofi_theme" > "$rofi_config"
