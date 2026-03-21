@@ -90,7 +90,7 @@ let
     global-search = true;
     switcher = true;
     graph = false;
-    backlink = false;
+    backlink = true;
     outgoing-link = false;
     tag-pane = false;
     page-preview = false;
