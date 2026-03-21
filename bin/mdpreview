@@ -2,10 +2,12 @@
 set -e
 
 if [ -z "$1" ]; then
-	echo "Usage: mdpreview <file.md>" >&2
-	exit 1
+	file=$(fd -e md --max-depth 1 . ~/Downloads ~/ -0 | xargs -0 stat -c '%Y	%n' | sort -rn | cut -f2- | fzf --no-sort)
+	[ -z "$file" ] && exit 1
+else
+	file="$1"
 fi
 
-tmp=$(mktemp /tmp/mdpreview-XXXXXX.html)
-md2html "$1" > "$tmp"
-serve "$tmp"
+tmpdir=$(mktemp -d /tmp/mdpreview-XXXXXX)
+md2html "$file" > "$tmpdir/index.html"
+serve -d "$tmpdir" -q
