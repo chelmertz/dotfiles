@@ -5,14 +5,17 @@
   programs.mpv = {
     enable = true;
     config = {
-      osc = false; # disable built-in OSC so uosc can take over
-      osd-bar = false; # uosc provides its own bar
+      osc = "no"; # disable built-in OSC so uosc can take over
+      osd-bar = "no"; # uosc provides its own bar
     };
     scripts = with pkgs.mpvScripts; [
       uosc # modern OSD/UI
       thumbfast # seekbar thumbnail previews (uosc integrates with this)
       autoload # auto-loads other files in same directory as playlist
     ];
+    bindings = {
+      TAB = "script-binding uosc/toggle-ui";
+    };
   };
 
   # Auto-convert GIFs to mp4 so thumbfast/seeking works. Cached by md5 in /tmp.
