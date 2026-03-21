@@ -9,6 +9,7 @@
     ./vscode.nix
     ./firefox.nix
     ./obsidian.nix
+    ./mpv.nix
   ];
 
   xsession.windowManager.i3 = {
@@ -59,6 +60,7 @@
     entr
     evince
     fd
+    ff2mpv-go
     feh
     figlet
     vivid
@@ -163,7 +165,7 @@
     uv
     vim-full
     visidata
-    vlc
+
     w3m
     whois
     wireshark
