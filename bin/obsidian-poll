@@ -12,6 +12,7 @@ Intended to run on a timer (e.g. every 2h via systemd).
 """
 
 import json
+import re
 import subprocess
 from collections import defaultdict
 from datetime import datetime, timedelta, time, date as Date
@@ -306,6 +307,27 @@ private:
     return frontmatter + "\n\n" + "\n\n".join(sections) + "\n"
 
 
+def ensure_daily_note(d):
+    """Create journal/YYYY-MM-DD.md from the vault template if it doesn't exist."""
+    note = VAULT / "journal" / f"{d}.md"
+    if note.exists():
+        return
+    template = VAULT / "templates" / "daily.md"
+    if not template.exists():
+        return
+    content = template.read_text()
+    # Replace Templater date expressions with the actual date.
+    # Handles <% tp.date.now("YYYY-MM-DD") %> and similar formats.
+    def replace_tp_date(m):
+        fmt = m.group(1)
+        py_fmt = fmt.replace("YYYY", "%Y").replace("MM", "%m").replace("DD", "%d")
+        return d.strftime(py_fmt)
+    content = re.sub(r'<%\s*tp\.date\.now\("([^"]+)"\)\s*%>', replace_tp_date, content)
+    note.parent.mkdir(parents=True, exist_ok=True)
+    note.write_text(content)
+    print(f"  {d}: created daily note")
+
+
 def main():
     today = logical_today()
     outdir = VAULT / "integrations"
@@ -344,6 +366,7 @@ def main():
         )
         if content:
             path.write_text(content)
+            ensure_daily_note(d)
             print(f"  {d}: updated")
         else:
             print(f"  {d}: no data")
