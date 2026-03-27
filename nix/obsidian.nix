@@ -56,6 +56,10 @@ let
       id = "note-refactor-obsidian";
       repo = "lynchjames/note-refactor-obsidian";
     }
+    {
+      id = "obsidian-tasks-plugin";
+      repo = "obsidian-tasks-group/obsidian-tasks";
+    }
   ];
 
   pluginIds = map (p: p.id) plugins;
@@ -187,6 +191,13 @@ let
       }
     ];
     "editor:toggle-italics" = [ ]; # unbind Ctrl+I conflict
+    "editor:open-search" = [ ]; # unbind default Ctrl+F
+    "omnisearch:show-modal" = [
+      {
+        modifiers = [ "Mod" ];
+        key = "F";
+      }
+    ];
   };
 
   # ── Read-only files tracked in dotfiles (no personal data) ─────
@@ -197,11 +208,13 @@ let
   # the dotfiles repo. Contains personal data (team member names).
   # Seeded once if missing, then never overwritten by nix.
   defaultTemplate = ''
-    ## Work
-
-
-    ## Personal
-
+    ## From the backlog
+    ```tasks
+    done on <% tp.date.now("YYYY-MM-DD") %>
+    path does not include journal/<% tp.date.now("YYYY-MM-DD") %>
+    short mode
+    hide toolbar
+    ```
 
     ---
 
