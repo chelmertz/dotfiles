@@ -1,3 +1,8 @@
+% swap, memory
+
+# Reset swap (moves all swapped pages back to RAM, then re-enables)
+free -b | awk '/Mem/{free=$4} /Swap/{swap=$3} END{printf "Free RAM: %.1fG | Swap used: %.1fG\n", free/2^30, swap/2^30; if(swap>free){print "ABORT: not enough free RAM"; exit 1}}' && printf "Press Enter to reset swap..." && read _ && sudo swapoff -a && sudo swapon -a
+
 % process, ps
 
 # Find process by name
