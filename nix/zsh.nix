@@ -356,9 +356,7 @@
                 zle reset-prompt
               }
 
-              vf() {
-                vim $(fzf --query "$*")
-              }
+              alias vf='vim -c "lua vim.schedule(function() require(\"telescope.builtin\").find_files() end)"'
 
               # Keybinds
               bindkey -e  # emacs mode: enables Ctrl+A, Ctrl+E, etc.
