@@ -18,6 +18,13 @@
     };
   };
 
+  # Show uosc UI on startup (Tab toggles it off/on)
+  xdg.configFile."mpv/scripts/uosc-show.lua".text = ''
+    mp.register_event("file-loaded", function()
+      mp.command("script-message toggle-elements timeline,controls")
+    end)
+  '';
+
   # Auto-convert GIFs to mp4 so thumbfast/seeking works. Cached by md5 in /tmp.
   xdg.configFile."mpv/scripts/gif-convert.lua".text = ''
     local utils = require("mp.utils")
