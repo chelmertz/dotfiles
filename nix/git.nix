@@ -52,6 +52,7 @@
       }
     ];
 
+    signing.format = null;
     settings = {
       alias = {
         # Force-overwrite local tags that diverge from remote (e.g. retagged releases).
