@@ -10,6 +10,7 @@
     ./firefox.nix
     ./obsidian.nix
     ./mpv.nix
+    ./fonts.nix
   ];
 
   xsession.windowManager.i3 = {
@@ -66,7 +67,6 @@
     vivid
     elly
     flameshot
-    font-awesome
     fzf
     gh
     ghostty
