@@ -187,7 +187,7 @@
       }
       {
         trigger = "<->";
-        replace = "↔";
+        replace = "⇔";
       }
       {
         trigger = "::PR";
