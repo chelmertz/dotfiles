@@ -154,7 +154,8 @@ if $USE_MOUSE_HIGHLIGHT; then
     highlight-pointer --radius 20 \
         --released-color '#d62728' \
         --pressed-color '#ffd700' \
-        --outline 4 &
+        --outline 4 \
+        --show-cursor &
     HIGHLIGHT_PID=$!
 fi
 
