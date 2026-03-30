@@ -200,6 +200,88 @@ let
     ];
   };
 
+  # ── Plugin settings (data.json) ────────────────────────────────
+
+  dataviewSettingsJson = builtins.toJSON {
+    enableDataviewJs = true;
+    enableInlineDataviewJs = true;
+  };
+
+  omnisearchSettingsJson = builtins.toJSON {
+    useCache = true;
+    hideExcluded = false;
+    recencyBoost = "0";
+    downrankedFoldersFilters = [ ];
+    ignoreDiacritics = true;
+    ignoreArabicDiacritics = false;
+    indexedFileTypes = [ ];
+    displayTitle = "";
+    PDFIndexing = false;
+    officeIndexing = false;
+    imagesIndexing = false;
+    aiImageIndexing = false;
+    unsupportedFilesIndexing = "default";
+    splitCamelCase = false;
+    openInNewPane = false;
+    vimLikeNavigationShortcut = true;
+    ribbonIcon = true;
+    showExcerpt = true;
+    maxEmbeds = 5;
+    renderLineReturnInExcerpts = true;
+    showCreateButton = false;
+    highlight = true;
+    showPreviousQueryResults = true;
+    simpleSearch = false;
+    tokenizeUrls = false;
+    fuzziness = "1";
+    weightBasename = 10;
+    weightDirectory = 7;
+    weightH1 = 6;
+    weightH2 = 5;
+    weightH3 = 4;
+    weightUnmarkedTags = 2;
+    weightCustomProperties = [ ];
+    httpApiEnabled = false;
+    httpApiPort = "51361";
+    httpApiNotice = true;
+    verboseLogging = false;
+  };
+
+  templaterSettingsJson = builtins.toJSON {
+    command_timeout = 5;
+    templates_folder = "";
+    templates_pairs = [
+      [
+        ""
+        ""
+      ]
+    ];
+    trigger_on_file_creation = true;
+    auto_jump_to_cursor = false;
+    enable_system_commands = false;
+    shell_path = "";
+    user_scripts_folder = "";
+    enable_folder_templates = true;
+    folder_templates = [
+      {
+        folder = "";
+        template = "";
+      }
+    ];
+    enable_file_templates = false;
+    file_templates = [
+      {
+        regex = ".*";
+        template = "";
+      }
+    ];
+    syntax_highlighting = true;
+    syntax_highlighting_mobile = false;
+    enabled_templates_hotkeys = [ "" ];
+    startup_templates = [ "" ];
+    intellisense_render = 1;
+  };
+
   # ── Read-only files tracked in dotfiles (no personal data) ─────
   dagbokCss = builtins.readFile ../obsidian/snippets/dagbok.css;
   vimrc = builtins.readFile ../obsidian/vimrc;
@@ -281,6 +363,14 @@ in
         cat > "$VAULT/.obsidian.vimrc" << 'VIMEOF'
     ${vimrc}
     VIMEOF
+
+        # Write plugin settings (nix is source of truth)
+        mkdir -p "$VAULT/.obsidian/plugins/dataview"
+        echo '${dataviewSettingsJson}' > "$VAULT/.obsidian/plugins/dataview/data.json"
+        mkdir -p "$VAULT/.obsidian/plugins/omnisearch"
+        echo '${omnisearchSettingsJson}' > "$VAULT/.obsidian/plugins/omnisearch/data.json"
+        mkdir -p "$VAULT/.obsidian/plugins/templater-obsidian"
+        echo '${templaterSettingsJson}' > "$VAULT/.obsidian/plugins/templater-obsidian/data.json"
 
         # Seed daily template ONLY if missing (contains personal data,
         # lives in Dropbox, not in dotfiles repo)
