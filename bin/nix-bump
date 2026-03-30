@@ -3,7 +3,7 @@ set -e
 
 DOTFILES=~/code/github/chelmertz/dotfiles
 
-nix flake update --flake "$DOTFILES/nix" && home-manager switch
+nix flake update --no-warn-dirty --flake "$DOTFILES/nix" && home-manager switch
 
 if git -C "$DOTFILES" diff --quiet nix/flake.lock; then
     exit 0
