@@ -10,6 +10,7 @@
     ./firefox.nix
     ./obsidian.nix
     ./mpv.nix
+    ./spotify.nix
     ./fonts.nix
   ];
 
@@ -124,6 +125,7 @@
     pnpm
     prometheus
     prometheus-blackbox-exporter
+    prometheus-node-exporter
     playerctl
     qbittorrent
     ripdrag
@@ -538,6 +540,11 @@
           - targets:
             - localhost:9876
 
+      - job_name: 'node'
+        static_configs:
+          - targets:
+            - localhost:9100
+
       - job_name: 'domain'
         metrics_path: /probe
         static_configs:
@@ -585,6 +592,14 @@
             annotations:
               summary: "Domain {{ $labels.domain }} expires in {{ $value }} days"
 
+          - alert: SpotifyBackupStale
+            expr: (time() - spotify_backup_last_success_timestamp) > 172800 or absent(spotify_backup_last_success_timestamp)
+            for: 1h
+            labels:
+              severity: warning
+            annotations:
+              summary: "Spotify backup stale (2+ days). Check: journalctl --user -u spotify-backup -e | Re-run: systemctl --user start spotify-backup"
+
           - alert: DomainExpiryCritical
             expr: domain_expiry_days < 30
             for: 1h
@@ -593,6 +608,19 @@
             annotations:
               summary: "Domain {{ $labels.domain }} expires in {{ $value }} days"
   '';
+
+  systemd.user.services.node-exporter = {
+    Unit = {
+      Description = "Node Exporter (textfile only)";
+    };
+    Service = {
+      ExecStart = "${pkgs.prometheus-node-exporter}/bin/node_exporter --collector.disable-defaults --collector.textfile --collector.textfile.directory=%h/.local/share/prometheus/textfile --web.listen-address=:9100";
+      Restart = "on-failure";
+    };
+    Install = {
+      WantedBy = [ "default.target" ];
+    };
+  };
 
   systemd.user.services.blackbox-exporter = {
     Unit = {
