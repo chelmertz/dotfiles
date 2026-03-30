@@ -127,6 +127,17 @@ body {
   border-color: var(--checkbox-color);
 }
 
+/* Cancelled/skipped [-] — muted + strikethrough */
+li[data-task="-"] .task-list-item-checkbox:checked,
+input[data-task="-"]:checked {
+  background-color: var(--text-faint) !important;
+  border-color: var(--text-faint) !important;
+}
+li[data-task="-"] {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
 /* ── Editor: larger textarea feel ─────────────────── */
 .cm-editor .cm-content {
   min-height: 30ch;
