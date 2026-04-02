@@ -152,5 +152,8 @@
     "go.inlayHints.ignoredError": true,
     "go.inlayHints.rangeVariableTypes": true,
     "go.inlayHints.parameterNames": true,
-    "claudeCode.preferredLocation": "sidebar"
+    "claudeCode.preferredLocation": "sidebar",
+    "search.exclude": {
+        "**/.direnv": true
+    }
 }
