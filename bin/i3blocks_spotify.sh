@@ -15,6 +15,8 @@ elif [[ "$BLOCK_BUTTON" -eq 3 ]]; then
 	[ "Paused" = "$status" ] && playerctl --player spotify play-pause
 elif [[ "$BLOCK_BUTTON" -eq 4 ]]; then
 	spotify-like toggle &>/dev/null
+elif [[ "$BLOCK_BUTTON" -eq 5 ]]; then
+	rofi_spotify_rate.sh &
 fi
 
 # font awesome: f28b = pause

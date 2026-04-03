@@ -241,6 +241,16 @@
       executable = true;
     };
 
+    ".local/bin/rofi_clipboard.sh" = {
+      source = ../bin/rofi_clipboard.sh;
+      executable = true;
+    };
+
+    ".local/bin/rofi_spotify_rate.sh" = {
+      source = ../bin/rofi_spotify_rate.sh;
+      executable = true;
+    };
+
     ".local/bin/rofi_power.sh" = {
       source = ../bin/rofi_power.sh;
       executable = true;
