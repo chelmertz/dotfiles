@@ -25,6 +25,12 @@ DAY_BOUNDARY = time(4, 0)
 LOOKBACK_DAYS = 7
 WORK_ORG = "matchiapp"
 GIT_AUTHOR_EMAIL = "helmertz@gmail.com"
+PR_LINK_RE = re.compile(
+    r'\[Page not found[^\]]*\]\((https://github\.com/[^/]+/[^/]+/pull/\d+)(?:[^)]*)\)'
+)
+CLAUDE_BULLET_RE = re.compile(
+    r'^- (\d{2}:\d{2})\s{2}(.+?)(?:\s{2}·\s+(\S+)(?:\s+\(([^)]+)\))?)?$'
+)
 
 
 def logical_today():
@@ -281,6 +287,8 @@ private:
     if claude_sessions:
         lines = [f"## Claude sessions ({len(claude_sessions)})"]
         lines.append("")
+        lines.append("| Time | Repo | Title |")
+        lines.append("|------|------|-------|")
         for s in claude_sessions:
             ts = s.get("timestamp", "")
             try:
@@ -288,20 +296,18 @@ private:
             except ValueError:
                 t = "?"
             summary = s.get("summary", "")
-            # Fall back to first line of prompt if no summary
             if not summary or len(summary) > 80:
                 prompt = s.get("prompt", "")
                 summary = prompt.split("\n")[0][:60] if prompt else "?"
             if len(summary) > 60:
                 summary = summary[:59] + "…"
             folder = shorten_path(s.get("cwd", ""))
+            repo = folder.split("/")[-1] if folder else "?"
             branch = s.get("branch", "")
-            parts = [f"- {t}  {summary}"]
-            if folder:
-                parts[0] += f"  · {folder}"
             if branch and branch != "master" and branch != "main":
-                parts[0] += f" ({branch})"
-            lines.append(parts[0])
+                repo += f" ({branch})"
+            summary = summary.replace("|", "\\|")
+            lines.append(f"| {t} | {repo} | {summary} |")
         sections.append("\n".join(lines))
 
     return frontmatter + "\n\n" + "\n\n".join(sections) + "\n"
@@ -328,6 +334,100 @@ def ensure_daily_note(d):
     print(f"  {d}: created daily note")
 
 
+def fix_broken_github_pr_links():
+    """Scan vault for 'Page not found' GitHub PR links, replace with actual titles."""
+    file_texts = {}
+    all_urls = set()
+    for md in VAULT.rglob("*.md"):
+        if ".obsidian" in md.parts or md.parent.name == "integrations":
+            continue
+        text = md.read_text()
+        urls = PR_LINK_RE.findall(text)
+        if urls:
+            file_texts[md] = text
+            all_urls.update(urls)
+
+    if not all_urls:
+        return
+
+    titles = {}
+    for url in all_urls:
+        result = gh_json(["pr", "view", url, "--json", "title"])
+        if isinstance(result, dict) and "title" in result:
+            titles[url] = result["title"]
+
+    if not titles:
+        return
+
+    fixed = 0
+    for md, text in file_texts.items():
+        new_text = text
+        for url, title in titles.items():
+            safe = title.replace("[", "\\[").replace("]", "\\]")
+            new_text = re.sub(
+                r'\[Page not found[^\]]*\]\(' + re.escape(url) + r'(?:[^)]*)\)',
+                f'[{safe}]({url})',
+                new_text,
+            )
+        if new_text != text:
+            md.write_text(new_text)
+            fixed += 1
+    if fixed:
+        print(f"  fixed broken PR links in {fixed} file(s)")
+
+
+def migrate_claude_sessions_to_table(outdir):
+    """Convert old bullet-list Claude sessions to table format in existing files."""
+    for md in sorted(outdir.glob("*.md")):
+        text = md.read_text()
+        lines = text.split("\n")
+
+        # Find Claude sessions section header
+        start = None
+        for i, line in enumerate(lines):
+            if line.startswith("## Claude sessions"):
+                start = i
+                break
+        if start is None:
+            continue
+
+        # Already migrated?
+        if any(lines[j].startswith("| Time") for j in range(start + 1, min(start + 4, len(lines)))):
+            continue
+
+        # Find end of section (next ## or end of content)
+        end = len(lines)
+        for i in range(start + 1, len(lines)):
+            if lines[i].startswith("## "):
+                end = i
+                break
+
+        # Parse bullet lines
+        bullets = []
+        for i in range(start + 1, end):
+            m = CLAUDE_BULLET_RE.match(lines[i])
+            if m:
+                bullets.append(m.groups())
+        if not bullets:
+            continue
+
+        # Build table
+        table_lines = [lines[start], "", "| Time | Repo | Title |", "|------|------|-------|"]
+        for time_str, summary, folder, branch in bullets:
+            repo = folder.split("/")[-1] if folder else "?"
+            if branch:
+                repo += f" ({branch})"
+            summary = summary.replace("|", "\\|")
+            table_lines.append(f"| {time_str} | {repo} | {summary} |")
+        table_lines.append("")
+
+        new_lines = lines[:start] + table_lines + lines[end:]
+        new_text = "\n".join(new_lines)
+        if new_text != text:
+            md.write_text(new_text)
+            print(f"  {md.name}: migrated claude sessions to table")
+
+
 def main():
     today = logical_today()
     outdir = VAULT / "integrations"
@@ -342,6 +442,8 @@ def main():
         path = outdir / f"{d}.md"
         if d == most_recent or not path.exists():
             needed.append(d)
+
+    migrate_claude_sessions_to_table(outdir)
 
     if not needed:
         print("all days populated, nothing to do")
@@ -370,6 +472,8 @@ def main():
             print(f"  {d}: updated")
         else:
             print(f"  {d}: no data")
+
+    fix_broken_github_pr_links()
 
 
 if __name__ == "__main__":
