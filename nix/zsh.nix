@@ -174,14 +174,14 @@
 
                 if [ $# -eq 0 ]; then
                   flags=("''${(@f)$(man "$cmd" 2>/dev/null | col -bx | grep -oE '^\s+--?[a-zA-Z0-9][-a-zA-Z0-9_]*' | sed 's/^[[:space:]]*//' | sort -u |
-                    fzf --multi --prompt "$cmd flags: " --preview "man $cmd 2>/dev/null | col -bx | grep -B2 -A5 -- {}")}")
+                    fzf --multi --prompt "$cmd flags: " --preview "man $cmd 2>/dev/null | col -bx | grep -A5 -- {}")}")
                   [ -z "$flags" ] && return
                 else
                   flags=("$@")
                 fi
 
                 for flag in "''${flags[@]}"; do
-                  local expanded="man $cmd | col -bx | grep -B2 -A5 -- '$flag'"
+                  local expanded="man $cmd | col -bx | grep -A5 -- '$flag'"
                   print -s "$expanded"
                   echo "=== $flag ==="
                   eval "$expanded"
