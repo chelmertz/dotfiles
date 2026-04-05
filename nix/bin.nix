@@ -146,6 +146,11 @@
       executable = true;
     };
 
+    ".local/bin/prom-system-health" = {
+      source = ../bin/prom-system-health;
+      executable = true;
+    };
+
     ".local/bin/i3blocks_redshift.sh" = {
       source = ../bin/i3blocks_redshift.sh;
       executable = true;

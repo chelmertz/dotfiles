@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROM_DIR="$HOME/.local/share/prometheus/textfile"
+
+# Failed systemd user units — per-unit metric + journal snippet file
+tmpfile="$PROM_DIR/systemd_failed.$$.prom"
+journal_file="$PROM_DIR/systemd_failed_journal.txt"
+cat > "$tmpfile" <<EOF
+# HELP systemd_user_unit_failed 1 if the systemd user unit is in failed state
+# TYPE systemd_user_unit_failed gauge
+EOF
+
+failed_units=$(systemctl --user --failed --no-legend --plain | awk '{print $1}')
+> "$journal_file"
+for unit in $failed_units; do
+  echo "systemd_user_unit_failed{unit=\"$unit\"} 1" >> "$tmpfile"
+  echo "=== $unit ===" >> "$journal_file"
+  journalctl --user -u "$unit" -n 5 --no-pager 2>/dev/null >> "$journal_file" || true
+  echo >> "$journal_file"
+done
+
+if [ -z "$failed_units" ]; then
+  echo "systemd_user_unit_failed{unit=\"\"} 0" >> "$tmpfile"
+fi
+mv "$tmpfile" "$PROM_DIR/systemd_failed.prom"
+
+# Filesystem usage per mount point (percentage used)
+tmpfile="$PROM_DIR/filesystem.$$.prom"
+cat > "$tmpfile" <<EOF
+# HELP filesystem_used_percent Percentage of filesystem used
+# TYPE filesystem_used_percent gauge
+EOF
+df --output=target,pcent -x tmpfs -x devtmpfs -x efivarfs -x squashfs | tail -n +2 | while read -r mount pct; do
+  pct="${pct%%%}"
+  echo "filesystem_used_percent{mountpoint=\"$mount\"} $pct" >> "$tmpfile"
+done
+mv "$tmpfile" "$PROM_DIR/filesystem.prom"

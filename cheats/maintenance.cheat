@@ -1,0 +1,7 @@
+% maintenance
+
+# Clean development caches (Go modules + build, uv Python packages)
+go clean -modcache && go clean -cache && uv cache prune
+
+# Disk usage explorer (GUI, treemap)
+baobab

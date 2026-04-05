@@ -185,6 +185,11 @@
 
   programs.home-manager.enable = true;
 
+  # Age-based cleanup of noisy log/cache dirs (runs daily via systemd-tmpfiles --user)
+  systemd.user.tmpfiles.rules = [
+    "e %h/.gradle/daemon/*/*.log - - - 7d"
+  ];
+
   # Build mandb cache at switch time so man -k covers nix-managed pages (e.g. git-diff)
   programs.man.generateCaches = true;
 
@@ -607,6 +612,30 @@
               severity: critical
             annotations:
               summary: "Domain {{ $labels.domain }} expires in {{ $value }} days"
+
+          - alert: SystemdUserUnitFailed
+            expr: systemd_user_unit_failed == 1
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Systemd user unit {{ $labels.unit }} failed. Journal: cat ~/.local/share/prometheus/textfile/systemd_failed_journal.txt"
+
+          - alert: FilesystemAlmostFull
+            expr: filesystem_used_percent > 90
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.mountpoint }} is {{ $value }}% full"
+
+          - alert: FilesystemFull
+            expr: filesystem_used_percent > 95
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "{{ $labels.mountpoint }} is {{ $value }}% full"
   '';
 
   systemd.user.services.node-exporter = {
@@ -647,6 +676,23 @@
     Install = {
       WantedBy = [ "default.target" ];
     };
+  };
+
+  systemd.user.services.prom-system-health = {
+    Unit.Description = "Collect system health metrics (systemd failures, disk usage) for Prometheus";
+    Service = {
+      Type = "oneshot";
+      ExecStart = "%h/.local/bin/prom-system-health";
+    };
+  };
+
+  systemd.user.timers.prom-system-health = {
+    Unit.Description = "Run prom-system-health every 5 minutes";
+    Timer = {
+      OnCalendar = "*:0/5";
+      Persistent = true;
+    };
+    Install.WantedBy = [ "timers.target" ];
   };
 
   systemd.user.services.domain-exporter = {
