@@ -298,6 +298,10 @@
         replace = "💀";
       }
       {
+        trigger = "::coffin";
+        replace = "⚰️";
+      }
+      {
         trigger = "::salute";
         replace = "🫡";
       }
