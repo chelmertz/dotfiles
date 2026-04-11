@@ -310,6 +310,10 @@
         replace = "🤓";
       }
       {
+        trigger = "::grim";
+        replace = "😬";
+      }
+      {
         trigger = "::money";
         replace = "💰";
       }
