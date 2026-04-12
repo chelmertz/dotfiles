@@ -22,8 +22,10 @@ else
 		youtube_id="$v_query_param"
 	else
 		# accepts 'https://youtu.be/chh0H1BZeOA?si=Xz2BQjhkqGLPwQ3g'
+		# accepts 'https://www.youtube.com/shorts/CJalATqPdpM'
 		video_id=$(trurl "$arg" --get '{path}')
 		video_id="${video_id:1}"
+		video_id="${video_id#shorts/}"
 
 		if [ -n "$video_id" ]; then
 			youtube_id="$video_id"
