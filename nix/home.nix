@@ -207,6 +207,13 @@
     shellWrapperName = "y";
   };
 
+  xdg.configFile."rofimoji.rc".text = ''
+    action = copy
+    clipboarder = xsel
+    no-frecency
+    max-recent = 0
+  '';
+
   xdg.configFile."yazi/keymap.toml".text = ''
     [[mgr.prepend_keymap]]
     on = [",", "g"]

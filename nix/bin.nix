@@ -261,6 +261,11 @@
       executable = true;
     };
 
+    ".local/bin/rofimoji_copy.sh" = {
+      source = ../bin/rofimoji_copy.sh;
+      executable = true;
+    };
+
     ".local/bin/rofi_timer.sh" = {
       source = ../bin/rofi_timer.sh;
       executable = true;
