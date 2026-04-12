@@ -384,6 +384,20 @@
     Install.WantedBy = [ "timers.target" ];
   };
 
+  systemd.user.services.redshift-disable = {
+    Unit.Description = "Stop redshift in the morning";
+    Service = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.systemd}/bin/systemctl --user stop redshift.service";
+    };
+  };
+
+  systemd.user.timers.redshift-disable = {
+    Unit.Description = "Stop redshift by 06:00";
+    Timer.OnCalendar = "*-*-* 06:00:00";
+    Install.WantedBy = [ "timers.target" ];
+  };
+
   xresources.properties = {
     # good for curved external monitor at home
     "Xft.dpi" = 70;
