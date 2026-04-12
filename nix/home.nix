@@ -72,6 +72,7 @@
     gh
     ghostty
     git-filter-repo
+    git-trim
     gleam
     go
     gojo
