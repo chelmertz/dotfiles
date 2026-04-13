@@ -61,6 +61,7 @@
     })
     entr
     evince
+    exercism
     fd
     ff2mpv-go
     feh

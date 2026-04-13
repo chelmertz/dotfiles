@@ -210,6 +210,7 @@
         { "<leader><leader>", group = "menu" },
         { "<leader><leader>f", "<cmd>Telescope find_files<cr>", desc = "find file" },
         { "<leader>f", "<cmd>Telescope find_files<cr>", desc = "find file" },
+        { "<leader>t", ":!cargo test<cr>", desc = "cargo test" },
         { "<leader><leader>v", function()
             vim.cmd("source " .. vim.env.MYVIMRC)
             vim.notify("Reloaded config")
