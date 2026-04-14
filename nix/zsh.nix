@@ -144,7 +144,7 @@
                 local scheme
                 scheme=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null)
                 [[ "$scheme" != *dark* ]] && theme="Monokai Extended Light"
-                command bat --theme="$theme" "$@"
+                command bat --theme="$theme" --pager="less -RFi --incsearch" "$@"
               }
 
               # mf - man flag: search man pages for specific flags
