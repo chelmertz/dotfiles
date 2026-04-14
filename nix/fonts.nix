@@ -26,6 +26,7 @@
     hanken-grotesk
     inter
     plus-jakarta-sans
+    public-sans
     roboto
     roboto-flex
 
