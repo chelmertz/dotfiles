@@ -33,6 +33,24 @@ in
     '';
   };
 
+  home.file.".local/bin/spotify" = {
+    source = pkgs.writeShellScript "spotify" ''
+      exec "$HOME/.nix-profile/bin/spotify" --force-device-scale-factor=1.1 "$@"
+    '';
+  };
+
+  xdg.desktopEntries.spotify = {
+    name = "Spotify";
+    exec = "spotify --force-device-scale-factor=1.1";
+    icon = "spotify";
+    terminal = false;
+    categories = [
+      "Audio"
+      "Music"
+      "Player"
+    ];
+  };
+
   systemd.user.services.spotify-backup = {
     Unit.Description = "Backup Spotify metadata to git";
     Service = {
