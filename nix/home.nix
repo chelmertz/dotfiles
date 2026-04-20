@@ -732,16 +732,59 @@
     };
   };
 
+  systemd.user.services.dropbox = {
+    Unit = {
+      Description = "Dropbox";
+      # Same X-race reasoning as flameshot below.
+      StartLimitIntervalSec = 300;
+      StartLimitBurst = 20;
+    };
+    Service = {
+      # dropboxd is a thin shell wrapper in ~/.dropbox-dist that execs the
+      # current versioned binary, so ExecStart stays stable across updates.
+      ExecStart = "%h/.dropbox-dist/dropboxd";
+      Restart = "on-failure";
+      RestartSec = 10;
+    };
+    Install = {
+      WantedBy = [ "default.target" ];
+    };
+  };
+
+  systemd.user.services.copyq = {
+    Unit = {
+      Description = "CopyQ clipboard manager";
+      # Same X-race reasoning as flameshot below.
+      StartLimitIntervalSec = 300;
+      StartLimitBurst = 20;
+    };
+    Service = {
+      ExecStart = "${pkgs.copyq}/bin/copyq";
+      Restart = "on-failure";
+      RestartSec = 10;
+    };
+    Install = {
+      WantedBy = [ "default.target" ];
+    };
+  };
+
   # flameshot as a daemon, otherwise ctrl+c doesn't work for me (using X11, in
   # the source of this derivation I see USE_WAYLAND_CLIPBOARD=true .. maybe
   # relevant)
   systemd.user.services.flameshot = {
     Unit = {
       Description = "Flameshot";
+      # Default (5 starts / 10s) is too tight: at boot the unit races the X
+      # session and burns all retries before DISPLAY exists, ending up failed.
+      # Ideal fix is wiring graphical-session.target, but GDM doesn't pull it
+      # in for non-GNOME sessions. Give it 5 min to catch X coming up.
+      StartLimitIntervalSec = 300;
+      StartLimitBurst = 20;
     };
     Service = {
       ExecStart = "${pkgs.flameshot}/bin/flameshot";
       Restart = "on-failure";
+      RestartSec = 10;
     };
     Install = {
       WantedBy = [ "default.target" ];
