@@ -43,30 +43,6 @@ sync_mentioned_tags() {
 	done
 }
 
-# Build D_MDLINK_DATA JSON for vim transient menu
-# Returns all tags for this entry as insertable links
-build_mdlink_data() {
-	local entry_id="$1"
-
-	# Get all tags for this entry
-	local tags
-	tags=$(sqlite3 -json "$DBFILE" "
-		select t.path, t.name
-		from entry_tags et
-		join tags t on t.id = et.tag_id
-		where et.entry_id = $entry_id
-		order by t.name
-		limit 36
-	" 2>/dev/null)
-
-	if [ -z "$tags" ] || [ "$tags" = "[]" ]; then
-		echo ""
-		return
-	fi
-
-	echo "{\"header\":\"Tags\",\"items\":$tags}"
-}
-
 export_html() {
 	local output_file="$D_PREVIEW_DIR/index.html"
 	local tmp_entries="$D_PREVIEW_DIR/entries.json"
@@ -824,11 +800,6 @@ case "$1" in
 		echo "Done."
 		exit 0
 		;;
-	build-mdlink)
-		# Build D_MDLINK_DATA JSON for an entry (used by fzf binding)
-		build_mdlink_data "$2"
-		exit 0
-		;;
 esac
 
 if [ ! -f "$DBFILE" ]; then
@@ -1002,7 +973,7 @@ sqlite3 -json "$DBFILE" "$sql_entries" |
 	--bind 'focus:transform-preview-label:[[ -n {} ]] && printf " %sfrom %s " {4} {3}' \
 	--bind "tab:execute@sqlite3 $DBFILE \"insert into log(user, entry) values ('\$USER', trim(trim(edit(''), X'0A')))\" && $0 sync-entry-tags \$(sqlite3 $DBFILE 'select last_insert_rowid()')@+become(d)" \
 	--bind "ctrl-d:execute@sqlite3 $DBFILE \"update log set deleted=datetime('now') where id={1}\"@+become(d)" \
-	--bind "enter:execute@export D_MDLINK_DATA=\"\$($0 build-mdlink {1})\"; sqlite3 $DBFILE \"update log set entry = trim(trim(edit(entry), X'0A')) where id={1}\"; $0 sync-entry-tags {1}@+become(d)" \
+	--bind "enter:execute@sqlite3 $DBFILE \"update log set entry = trim(trim(edit(entry), X'0A')) where id={1}\"; $0 sync-entry-tags {1}@+become(d)" \
 	--bind "shift-tab:execute@$0 html >/dev/null && xdg-open $D_PREVIEW_DIR/index.html@+become(d)" \
 	--bind "ctrl-a:execute@treemd <(sqlite3 $DBFILE \"select entry from log where id={1}\")@+become(d)" \
 	--bind "ctrl-t:execute@$0 tag {1}@+become(d)" \

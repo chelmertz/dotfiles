@@ -105,20 +105,6 @@
       })
 
       -- ========================================================================
-      -- Nix formatting on save
-      -- ========================================================================
-      vim.api.nvim_create_autocmd("BufWritePre", {
-        pattern = "*.nix",
-        callback = function()
-          local buf = vim.api.nvim_get_current_buf()
-          local filename = vim.api.nvim_buf_get_name(buf)
-          if filename == "" then return end
-          vim.cmd("silent !nixfmt " .. vim.fn.shellescape(filename))
-          vim.cmd("edit")
-        end,
-      })
-
-      -- ========================================================================
       -- Markdown folds on headers
       -- ========================================================================
       function _G.MarkdownFoldLevel()
@@ -175,7 +161,10 @@
       local wk = require("which-key")
       wk.setup({
         preset = "helix",
-        delay = 0,
+        -- delay before popup: long enough that flow-speed operator taps
+        -- (,y ,d ,p) don't flash the menu, short enough that a genuine
+        -- pause still surfaces it
+        delay = 150,
       })
 
       -- Toggle helper: toggles opt, then refreshes which-key descriptions
@@ -191,7 +180,7 @@
         for _, t in ipairs(toggles) do
           local on = vim.o[t.opt]
           table.insert(m, {
-            "<leader><leader>" .. t.key,
+            "<leader>" .. t.key,
             function()
               vim.o[t.opt] = not vim.o[t.opt]
               register_toggle_mappings()
@@ -205,68 +194,19 @@
 
       register_toggle_mappings()
 
-      -- Base menu under ,,
       local mappings = {
-        { "<leader><leader>", group = "menu" },
-        { "<leader><leader>f", "<cmd>Telescope find_files<cr>", desc = "find file" },
         { "<leader>f", "<cmd>Telescope find_files<cr>", desc = "find file" },
         { "<leader>t", ":!cargo test<cr>", desc = "cargo test" },
-        { "<leader><leader>v", function()
+        { "<leader>v", function()
             vim.cmd("source " .. vim.env.MYVIMRC)
             vim.notify("Reloaded config")
           end, desc = "reload config" },
       }
 
-      -- mdlink column from D_MDLINK_DATA env var
-      local mdlink_data = vim.env.D_MDLINK_DATA
-      if mdlink_data and mdlink_data ~= "" then
-        local ok, data = pcall(vim.json.decode, mdlink_data)
-        if ok and data and data.items then
-          local used_keys = {}
-
-          table.insert(mappings, { "<leader><leader>t", group = data.header or "Tags" })
-
-          for _, item in ipairs(data.items) do
-            local label = item.name or item.path
-            local key = nil
-
-            -- Try to find a key from the label characters
-            for i = 1, #label do
-              local char = label:sub(i, i):lower()
-              if char:match("[a-z0-9]") and not used_keys[char] then
-                key = char
-                break
-              end
-            end
-
-            -- Fallback: find any unused key
-            if not key then
-              for c in ("abcdefghijklmnopqrstuvwxyz0123456789"):gmatch(".") do
-                if not used_keys[c] then
-                  key = c
-                  break
-                end
-              end
-            end
-
-            if key then
-              used_keys[key] = true
-              local link = "[" .. label .. "](d:tag:" .. item.path .. ")"
-              table.insert(mappings, {
-                "<leader><leader>t" .. key,
-                function()
-                  vim.api.nvim_put({ link }, "c", true, true)
-                end,
-                desc = label,
-              })
-            end
-          end
-        end
-      end
-
       -- Format actions, keyed by filetype
       local formatters = {
         json = { cmd = "python3 -mjson.tool", desc = "format json" },
+        nix  = { cmd = "nixfmt",              desc = "format nix" },
       }
 
       vim.api.nvim_create_autocmd("FileType", {
@@ -276,7 +216,7 @@
           if fmt then
             wk.add({
               {
-                "<leader><leader>F",
+                "<leader>F",
                 function()
                   vim.cmd("%!" .. fmt.cmd)
                 end,
