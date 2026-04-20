@@ -417,4 +417,10 @@
 
   # fzf with zsh integration
   programs.fzf.enableZshIntegration = true;
+
+  # nix-shell / nix develop drop into zsh instead of bash
+  programs.nix-your-shell = {
+    enable = true;
+    enableZshIntegration = true;
+  };
 }
