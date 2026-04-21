@@ -196,17 +196,24 @@
 
       local mappings = {
         { "<leader>f", "<cmd>Telescope find_files<cr>", desc = "find file" },
-        { "<leader>t", ":!cargo test<cr>", desc = "cargo test" },
         { "<leader>v", function()
             vim.cmd("source " .. vim.env.MYVIMRC)
             vim.notify("Reloaded config")
           end, desc = "reload config" },
+        { "<leader>r", function()
+            local old = vim.fn.expand("%:p")
+            local new = vim.fn.input("Rename to: ", old, "file")
+            if new ~= "" and new ~= old then
+              vim.lsp.util.rename(old, new)
+            end
+          end, desc = "rename file (LSP)" },
       }
 
       -- Format actions, keyed by filetype
       local formatters = {
-        json = { cmd = "python3 -mjson.tool", desc = "format json" },
-        nix  = { cmd = "nixfmt",              desc = "format nix" },
+        json  = { cmd = "python3 -mjson.tool", desc = "format json" },
+        nix   = { cmd = "nixfmt",              desc = "format nix" },
+        gleam = { cmd = "gleam format --stdin", desc = "format gleam" },
       }
 
       vim.api.nvim_create_autocmd("FileType", {
@@ -218,9 +225,35 @@
               {
                 "<leader>F",
                 function()
+                  local view = vim.fn.winsaveview()
                   vim.cmd("%!" .. fmt.cmd)
+                  vim.fn.winrestview(view)
                 end,
                 desc = fmt.desc,
+                buffer = ev.buf,
+              },
+            })
+          end
+        end,
+      })
+
+      -- Test actions, keyed by filetype
+      local testers = {
+        rust  = { cmd = "cargo test",   desc = "cargo test" },
+        gleam = { cmd = "gleam test",   desc = "gleam test" },
+        go    = { cmd = "go test ./...", desc = "go test" },
+      }
+
+      vim.api.nvim_create_autocmd("FileType", {
+        pattern = vim.tbl_keys(testers),
+        callback = function(ev)
+          local t = testers[ev.match]
+          if t then
+            wk.add({
+              {
+                "<leader>t",
+                "<cmd>!NO_COLOR=1 " .. t.cmd .. "<cr>",
+                desc = t.desc,
                 buffer = ev.buf,
               },
             })
