@@ -238,6 +238,15 @@
         go    = { cmd = "go test ./...", desc = "go test" },
       }
 
+      -- Run a shell command in a bottom terminal split: ANSI colors render
+      -- properly, output is scrollable/yankable, q closes the buffer.
+      local function run_in_split(cmd)
+        vim.cmd("botright 15split")
+        vim.cmd("terminal " .. cmd)
+        vim.cmd("stopinsert")
+        vim.keymap.set("n", "q", "<cmd>bdelete!<cr>", { buffer = true, silent = true })
+      end
+
       vim.api.nvim_create_autocmd("FileType", {
         pattern = vim.tbl_keys(testers),
         callback = function(ev)
@@ -246,7 +255,7 @@
             wk.add({
               {
                 "<leader>t",
-                "<cmd>!NO_COLOR=1 " .. t.cmd .. "<cr>",
+                function() run_in_split(t.cmd) end,
                 desc = t.desc,
                 buffer = ev.buf,
               },
