@@ -318,7 +318,7 @@
         import os,sys
         d=sys.argv[1] if len(sys.argv)>1 else'.'
         def t(d,p='''):
-         entries=sorted(e for e in os.listdir(d) if e not in ('.git','.direnv','node_modules','target','dist','__pycache__'))
+         entries=sorted(e for e in os.listdir(d) if e not in ('.git','.direnv','node_modules','cdk.out','target','dist','__pycache__'))
          for i,e in enumerate(entries):
           f,l=os.path.join(d,e),i==len(entries)-1
           c='└── 'if l else'├── '
