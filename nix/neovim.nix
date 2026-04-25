@@ -216,10 +216,11 @@
           nix   = { "nixfmt" },
           gleam = { "gleam_format" },
         },
-        format_on_save = {
-          lsp_format = "fallback",
-          timeout_ms = 1000,
-        },
+        format_on_save = function(bufnr)
+          -- sqls likes to UPPERCASE keywords on format. Skip SQL.
+          if vim.bo[bufnr].filetype == "sql" then return nil end
+          return { lsp_format = "fallback", timeout_ms = 1000 }
+        end,
       })
 
       -- Test actions, keyed by filetype
