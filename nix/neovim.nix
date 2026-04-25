@@ -372,10 +372,11 @@
           local map = function(k, fn, desc)
             vim.keymap.set("n", k, fn, { buffer = ev.buf, desc = desc })
           end
-          map("<leader>a", vim.lsp.buf.code_action,  "code action")
-          map("K",         vim.lsp.buf.hover,        "hover")
-          map("<C-b>",     smart_goto,               "goto def / list refs")
-          map("<leader>e", vim.diagnostic.goto_next, "next diagnostic")
+          map("<leader>a", vim.lsp.buf.code_action,                                       "code action")
+          map("K",         vim.lsp.buf.hover,                                             "hover")
+          map("<C-b>",     smart_goto,                                                    "goto def / list refs")
+          map("<leader>e", vim.diagnostic.goto_next,                                      "next diagnostic")
+          map("<leader>l", function() require("telescope.builtin").lsp_document_symbols() end, "list symbols")
         end,
       })
 
