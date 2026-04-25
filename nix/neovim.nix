@@ -314,7 +314,7 @@
         capabilities = require("blink.cmp").get_lsp_capabilities(),
       })
 
-      vim.lsp.enable({ "gopls", "gleam", "bashls", "markdown_oxide", "nil_ls" })
+      vim.lsp.enable({ "gopls", "gleam", "bashls", "markdown_oxide", "nil_ls", "rust_analyzer" })
 
       -- JetBrains-style Ctrl-B: go to definition from a usage; if cursor is
       -- already at the definition's line, list references instead.
