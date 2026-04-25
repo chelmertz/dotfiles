@@ -298,6 +298,17 @@
         severity_sort = true,
       })
 
+      -- <Esc> in normal mode closes any visible float (diagnostic popup,
+      -- hover, signature help). Default is to close on cursor move, which
+      -- is fine — but Esc is a more reliable "go away" reflex.
+      vim.keymap.set("n", "<Esc>", function()
+        for _, win in ipairs(vim.api.nvim_list_wins()) do
+          if vim.api.nvim_win_get_config(win).relative ~= "" then
+            pcall(vim.api.nvim_win_close, win, false)
+          end
+        end
+      end, { desc = "close floats" })
+
       -- Advertise blink.cmp's completion capabilities to every LSP server
       vim.lsp.config("*", {
         capabilities = require("blink.cmp").get_lsp_capabilities(),
