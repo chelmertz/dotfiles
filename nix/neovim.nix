@@ -260,11 +260,6 @@
         defaults = {
           layout_strategy = "vertical",
         },
-        pickers = {
-          lsp_document_symbols           = { symbol_width = 60 },
-          lsp_workspace_symbols          = { symbol_width = 60 },
-          lsp_dynamic_workspace_symbols  = { symbol_width = 60 },
-        },
         extensions = {
           ["ui-select"] = { require("telescope.themes").get_dropdown({}) },
         },
@@ -381,7 +376,11 @@
           map("K",         vim.lsp.buf.hover,                                             "hover")
           map("<C-b>",     smart_goto,                                                    "goto def / list refs")
           map("<leader>e", vim.diagnostic.goto_next,                                      "next diagnostic")
-          map("<leader>l", function() require("telescope.builtin").lsp_document_symbols() end, "list symbols")
+          map("<leader>l", function()
+            -- ~25 cols reserved for borders, kind column, and padding
+            local sym_width = math.max(25, vim.o.columns - 25)
+            require("telescope.builtin").lsp_document_symbols({ symbol_width = sym_width })
+          end, "list symbols")
         end,
       })
 
