@@ -16,6 +16,7 @@
       nvim-lspconfig
       blink-cmp
       conform-nvim
+      vim-test
       nvim-surround
       which-key-nvim
       (pkgs.vimUtils.buildVimPlugin {
@@ -231,36 +232,26 @@
         },
       })
 
-      -- Test actions, keyed by filetype
-      local testers = {
-        rust  = { cmd = "cargo test",   desc = "cargo test" },
-        gleam = { cmd = "gleam test",   desc = "gleam test" },
-        go    = { cmd = "go test ./...", desc = "go test" },
-      }
-
-      -- Run a shell command in a bottom terminal split: ANSI colors render
-      -- properly, output is scrollable/yankable, q closes the buffer.
-      local function run_in_split(cmd)
-        vim.cmd("botright 15split")
-        vim.cmd("terminal " .. cmd)
-        vim.cmd("stopinsert")
-        vim.keymap.set("n", "q", "<cmd>bdelete!<cr>", { buffer = true, silent = true })
-      end
+      -- Test running via vim-test: <leader>t = nearest, <leader>T = whole
+      -- file. Output goes to a 15-row terminal split (ANSI colors render,
+      -- scroll/yank work, q closes).
+      vim.g["test#strategy"] = "neovim"
+      vim.g["test#neovim#term_position"] = "botright 15"
 
       vim.api.nvim_create_autocmd("FileType", {
-        pattern = vim.tbl_keys(testers),
+        pattern = { "rust", "gleam", "go" },
         callback = function(ev)
-          local t = testers[ev.match]
-          if t then
-            wk.add({
-              {
-                "<leader>t",
-                function() run_in_split(t.cmd) end,
-                desc = t.desc,
-                buffer = ev.buf,
-              },
-            })
-          end
+          wk.add({
+            { "<leader>t", "<cmd>TestNearest<cr>", desc = "test nearest", buffer = ev.buf },
+            { "<leader>T", "<cmd>TestFile<cr>",    desc = "test file",    buffer = ev.buf },
+          })
+        end,
+      })
+
+      -- q closes vim-test's terminal output buffer
+      vim.api.nvim_create_autocmd("TermOpen", {
+        callback = function()
+          vim.keymap.set("n", "q", "<cmd>bdelete!<cr>", { buffer = true, silent = true })
         end,
       })
 
