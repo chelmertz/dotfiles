@@ -317,24 +317,35 @@
       vim.lsp.enable({ "gopls", "gleam", "bashls", "markdown_oxide", "nil_ls" })
 
       -- JetBrains-style Ctrl-B: go to definition from a usage; if cursor is
-      -- already at the definition, list references instead.
+      -- already at the definition's line, list references instead.
+      -- Uses show_document directly (rather than going through a qflist) so
+      -- the cursor lands on the identifier's column, not column 0. Prefers
+      -- targetSelectionRange (the name) over targetRange (whole declaration)
+      -- when the server returns a LocationLink.
       local function smart_goto()
-        vim.lsp.buf.definition({
-          on_list = function(t)
-            if not t.items or #t.items == 0 then return end
-            if #t.items == 1 then
-              local item = t.items[1]
-              local cur = vim.api.nvim_win_get_cursor(0)
-              if item.filename == vim.api.nvim_buf_get_name(0)
-                  and item.lnum == cur[1] then
-                require("telescope.builtin").lsp_references()
-                return
-              end
-            end
-            vim.fn.setqflist({}, " ", t)
-            vim.cmd.cfirst()
-          end,
-        })
+        local clients = vim.lsp.get_clients({ bufnr = 0, method = "textDocument/definition" })
+        if #clients == 0 then return end
+        local client = clients[1]
+        local params = vim.lsp.util.make_position_params(0, client.offset_encoding)
+        client:request("textDocument/definition", params, function(err, result)
+          if err or not result then return end
+          local locations = vim.islist(result) and result or { result }
+          if #locations == 0 then return end
+          local first = locations[1]
+          local target_uri = first.uri or first.targetUri
+          local target_rng = first.targetSelectionRange or first.range or first.targetRange
+          local cur = vim.api.nvim_win_get_cursor(0)
+          if target_uri == vim.uri_from_bufnr(0)
+              and target_rng.start.line == cur[1] - 1 then
+            require("telescope.builtin").lsp_references()
+            return
+          end
+          vim.lsp.util.show_document(
+            { uri = target_uri, range = target_rng },
+            client.offset_encoding,
+            { focus = true }
+          )
+        end)
       end
 
       vim.api.nvim_create_autocmd("LspAttach", {
