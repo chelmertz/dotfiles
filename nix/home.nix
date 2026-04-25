@@ -163,6 +163,7 @@
     spotify
     sqlite
     sqls
+    sql-formatter
     sqlitebrowser
     tree
     texliveSmall
@@ -211,6 +212,12 @@
     # default changed from "yy" to "y" in 26.05; pin to new default early
     shellWrapperName = "y";
   };
+
+  # sqls: lowercase keyword suggestions in completion (the formatter is
+  # not affected by this option — sql-formatter handles format-on-save).
+  xdg.configFile."sqls/config.yaml".text = ''
+    lowercaseKeywords: true
+  '';
 
   xdg.configFile."rofimoji.rc".text = ''
     action = copy

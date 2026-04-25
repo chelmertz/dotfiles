@@ -215,12 +215,20 @@
           json  = { "jq" },
           nix   = { "nixfmt" },
           gleam = { "gleam_format" },
+          sql   = { "sql_formatter" },
         },
-        format_on_save = function(bufnr)
-          -- sqls likes to UPPERCASE keywords on format. Skip SQL.
-          if vim.bo[bufnr].filetype == "sql" then return nil end
-          return { lsp_format = "fallback", timeout_ms = 1000 }
-        end,
+        formatters = {
+          sql_formatter = {
+            prepend_args = {
+              "--language", "sqlite",
+              "--config",   '{"keywordCase":"lower","dataTypeCase":"lower","functionCase":"lower"}',
+            },
+          },
+        },
+        format_on_save = {
+          lsp_format = "fallback",
+          timeout_ms = 1000,
+        },
       })
 
       -- Test actions, keyed by filetype
