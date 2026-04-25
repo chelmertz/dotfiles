@@ -260,6 +260,11 @@
         defaults = {
           layout_strategy = "vertical",
         },
+        pickers = {
+          lsp_document_symbols           = { symbol_width = 60 },
+          lsp_workspace_symbols          = { symbol_width = 60 },
+          lsp_dynamic_workspace_symbols  = { symbol_width = 60 },
+        },
         extensions = {
           ["ui-select"] = { require("telescope.themes").get_dropdown({}) },
         },
