@@ -326,6 +326,7 @@
         local clients = vim.lsp.get_clients({ bufnr = 0, method = "textDocument/definition" })
         if #clients == 0 then return end
         local client = clients[1]
+        local word = vim.fn.expand("<cword>")
         local params = vim.lsp.util.make_position_params(0, client.offset_encoding)
         client:request("textDocument/definition", params, function(err, result)
           if err or not result then return end
@@ -345,6 +346,24 @@
             client.offset_encoding,
             { focus = true }
           )
+          -- Workaround: gleam-lsp (and possibly others) return a Location
+          -- whose range covers the whole declaration line/block with
+          -- character=0 and no targetSelectionRange — so we land on the
+          -- start of the line, not on the identifier. If the symbol we
+          -- jumped FROM appears on the landing line, reposition onto it.
+          if word ~= "" and not first.targetSelectionRange then
+            local landed = vim.api.nvim_win_get_cursor(0)
+            local line = vim.api.nvim_buf_get_lines(0, landed[1] - 1, landed[1], false)[1]
+            if line then
+              local at = line:sub(landed[2] + 1, landed[2] + #word)
+              if at ~= word then
+                local col = line:find(word, 1, true)
+                if col then
+                  vim.api.nvim_win_set_cursor(0, { landed[1], col - 1 })
+                end
+              end
+            end
+          end
         end)
       end
 
