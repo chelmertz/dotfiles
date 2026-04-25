@@ -279,7 +279,7 @@
           ["<CR>"]    = { "accept",           "fallback" },
           ["<Down>"]  = { "select_next",      "fallback" },
           ["<Up>"]    = { "select_prev",      "fallback" },
-          ["<Tab>"]   = { "snippet_forward",  "fallback" },
+          ["<Tab>"]   = { "snippet_forward",  "select_and_accept", "fallback" },
           ["<S-Tab>"] = { "snippet_backward", "fallback" },
           ["<Esc>"]   = { "hide",             "fallback" },
         },
@@ -314,7 +314,7 @@
         capabilities = require("blink.cmp").get_lsp_capabilities(),
       })
 
-      vim.lsp.enable({ "gopls", "gleam", "bashls", "markdown_oxide", "nil_ls", "rust_analyzer" })
+      vim.lsp.enable({ "gopls", "gleam", "bashls", "markdown_oxide", "nil_ls", "rust_analyzer", "sqls" })
 
       -- JetBrains-style Ctrl-B: go to definition from a usage; if cursor is
       -- already at the definition's line, list references instead.

@@ -162,6 +162,7 @@
     slop
     spotify
     sqlite
+    sqls
     sqlitebrowser
     tree
     texliveSmall
