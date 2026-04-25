@@ -12,6 +12,9 @@
       nvim-web-devicons
       telescope-fzf-native-nvim
       telescope-nvim
+      telescope-ui-select-nvim
+      nvim-lspconfig
+      blink-cmp
       nvim-surround
       which-key-nvim
       (pkgs.vimUtils.buildVimPlugin {
@@ -200,13 +203,7 @@
             vim.cmd("source " .. vim.env.MYVIMRC)
             vim.notify("Reloaded config")
           end, desc = "reload config" },
-        { "<leader>r", function()
-            local old = vim.fn.expand("%:p")
-            local new = vim.fn.input("Rename to: ", old, "file")
-            if new ~= "" and new ~= old then
-              vim.lsp.util.rename(old, new)
-            end
-          end, desc = "rename file (LSP)" },
+        { "<leader>r", vim.lsp.buf.rename, desc = "rename symbol" },
       }
 
       -- Format actions, keyed by filetype
@@ -275,8 +272,83 @@
         defaults = {
           layout_strategy = "vertical",
         },
+        extensions = {
+          ["ui-select"] = { require("telescope.themes").get_dropdown({}) },
+        },
       })
       require("telescope").load_extension("fzf")
+      require("telescope").load_extension("ui-select")
+
+      -- ========================================================================
+      -- Completion (blink.cmp): popup auto-shows while typing, nothing
+      -- preselected so <CR> only accepts when you've explicitly arrowed onto
+      -- an item. <Tab> jumps between snippet placeholders (the ''${1:foo} bits
+      -- some LSP servers emit when accepting a function/method).
+      -- ========================================================================
+      require("blink.cmp").setup({
+        keymap = {
+          preset = "none",
+          ["<CR>"]    = { "accept",           "fallback" },
+          ["<Down>"]  = { "select_next",      "fallback" },
+          ["<Up>"]    = { "select_prev",      "fallback" },
+          ["<Tab>"]   = { "snippet_forward",  "fallback" },
+          ["<S-Tab>"] = { "snippet_backward", "fallback" },
+          ["<Esc>"]   = { "hide",             "fallback" },
+        },
+        completion = {
+          list = { selection = { preselect = false, auto_insert = false } },
+          documentation = { auto_show = true },
+        },
+        signature = { enabled = true },
+      })
+
+      -- ========================================================================
+      -- LSP
+      -- ========================================================================
+      vim.diagnostic.config({
+        virtual_text = true,
+        severity_sort = true,
+      })
+
+      -- Advertise blink.cmp's completion capabilities to every LSP server
+      vim.lsp.config("*", {
+        capabilities = require("blink.cmp").get_lsp_capabilities(),
+      })
+
+      vim.lsp.enable({ "gopls", "gleam", "bashls", "markdown_oxide", "nil_ls" })
+
+      -- JetBrains-style Ctrl-B: go to definition from a usage; if cursor is
+      -- already at the definition, list references instead.
+      local function smart_goto()
+        vim.lsp.buf.definition({
+          on_list = function(t)
+            if not t.items or #t.items == 0 then return end
+            if #t.items == 1 then
+              local item = t.items[1]
+              local cur = vim.api.nvim_win_get_cursor(0)
+              if item.filename == vim.api.nvim_buf_get_name(0)
+                  and item.lnum == cur[1] then
+                require("telescope.builtin").lsp_references()
+                return
+              end
+            end
+            vim.fn.setqflist({}, " ", t)
+            vim.cmd.cfirst()
+          end,
+        })
+      end
+
+      vim.api.nvim_create_autocmd("LspAttach", {
+        callback = function(ev)
+          local map = function(k, fn, desc)
+            vim.keymap.set("n", k, fn, { buffer = ev.buf, desc = desc })
+          end
+          map("<leader>a", vim.lsp.buf.code_action,  "code action")
+          map("K",         vim.lsp.buf.hover,        "hover")
+          map("<C-b>",     smart_goto,               "goto def / list refs")
+          map("<leader>e", vim.diagnostic.goto_next, "next diagnostic")
+        end,
+      })
 
       -- ========================================================================
       -- Firenvim (browser textarea editing)

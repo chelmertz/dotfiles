@@ -42,6 +42,7 @@
     aws-cdk-cli
     awscli2
     baobab
+    bash-language-server
     bat
     brightnessctl
     bruno
@@ -99,6 +100,7 @@
     libreoffice
     litecli
     lnav
+    markdown-oxide
     meld
     moreutils
     (mycli.overridePythonAttrs (old: {
@@ -107,6 +109,7 @@
     mermaid-cli
     navi
     nethogs
+    nil
     nixfmt
     nmap
     (symlinkJoin {
