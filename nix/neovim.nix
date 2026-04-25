@@ -15,6 +15,7 @@
       telescope-ui-select-nvim
       nvim-lspconfig
       blink-cmp
+      conform-nvim
       nvim-surround
       which-key-nvim
       (pkgs.vimUtils.buildVimPlugin {
@@ -206,32 +207,19 @@
         { "<leader>r", vim.lsp.buf.rename, desc = "rename symbol" },
       }
 
-      -- Format actions, keyed by filetype
-      local formatters = {
-        json  = { cmd = "python3 -mjson.tool", desc = "format json" },
-        nix   = { cmd = "nixfmt",              desc = "format nix" },
-        gleam = { cmd = "gleam format --stdin", desc = "format gleam" },
-      }
-
-      vim.api.nvim_create_autocmd("FileType", {
-        pattern = vim.tbl_keys(formatters),
-        callback = function(ev)
-          local fmt = formatters[ev.match]
-          if fmt then
-            wk.add({
-              {
-                "<leader>F",
-                function()
-                  local view = vim.fn.winsaveview()
-                  vim.cmd("%!" .. fmt.cmd)
-                  vim.fn.winrestview(view)
-                end,
-                desc = fmt.desc,
-                buffer = ev.buf,
-              },
-            })
-          end
-        end,
+      -- Format on save (conform.nvim). For filetypes without an explicit
+      -- formatter, fall back to the LSP's own format request — so gopls
+      -- formats Go, etc.
+      require("conform").setup({
+        formatters_by_ft = {
+          json  = { "jq" },
+          nix   = { "nixfmt" },
+          gleam = { "gleam_format" },
+        },
+        format_on_save = {
+          lsp_format = "fallback",
+          timeout_ms = 1000,
+        },
       })
 
       -- Test actions, keyed by filetype
