@@ -40,6 +40,7 @@
     asciinema
     autorandr
     aws-cdk-cli
+    autotools-language-server
     awscli2
     baobab
     bash-language-server
