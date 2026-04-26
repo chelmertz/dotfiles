@@ -232,18 +232,37 @@
         },
       })
 
-      -- Test running via vim-test: <leader>t = nearest, <leader>T = whole
-      -- file. Output goes to a 15-row terminal split (ANSI colors render,
-      -- scroll/yank work, q closes).
+      -- Test running via vim-test. <leader>t is smart: nearest if you're
+      -- in a test file, whole-project suite otherwise. <leader>T always
+      -- runs the current file. Output goes to a 15-row terminal split.
       vim.g["test#strategy"] = "neovim"
       vim.g["test#neovim#term_position"] = "botright 15"
+
+      local function smart_test()
+        local path = vim.fn.expand("%:p")
+        local is_test = path:match("_test%.[^/]+$") or path:match("/tests?/")
+        -- Rust: tests live in the same file under #[cfg(test)] / #[test]
+        if not is_test and vim.bo.filetype == "rust" then
+          for _, line in ipairs(vim.api.nvim_buf_get_lines(0, 0, -1, false)) do
+            if line:match("#%[test%]") or line:match("#%[cfg%(test%)%]") then
+              is_test = true
+              break
+            end
+          end
+        end
+        if is_test then
+          vim.cmd("TestNearest")
+        else
+          vim.cmd("TestSuite")
+        end
+      end
 
       vim.api.nvim_create_autocmd("FileType", {
         pattern = { "rust", "gleam", "go" },
         callback = function(ev)
           wk.add({
-            { "<leader>t", "<cmd>TestNearest<cr>", desc = "test nearest", buffer = ev.buf },
-            { "<leader>T", "<cmd>TestFile<cr>",    desc = "test file",    buffer = ev.buf },
+            { "<leader>t", smart_test,            desc = "test (nearest or suite)", buffer = ev.buf },
+            { "<leader>T", "<cmd>TestFile<cr>",   desc = "test file",               buffer = ev.buf },
           })
         end,
       })
