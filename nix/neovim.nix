@@ -457,6 +457,7 @@
 
           pickers.new({}, {
             prompt_title = "LSP Document Symbols",
+            sorting_strategy = "descending",
             finder = finders.new_table({
               results = items,
               entry_maker = function(s)
