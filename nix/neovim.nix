@@ -398,6 +398,90 @@
         end)
       end
 
+      -- LSP document symbols picker: pre-sorts by visibility (public first)
+      -- then alphabetically, with a ● / ○ visibility decoration. Custom
+      -- picker because telescope's lsp_document_symbols ignores tiebreak.
+      local function smart_list_symbols()
+        local clients = vim.lsp.get_clients({ bufnr = 0, method = "textDocument/documentSymbol" })
+        if #clients == 0 then return end
+        local client = clients[1]
+        local params = { textDocument = vim.lsp.util.make_text_document_params(0) }
+        client:request("textDocument/documentSymbol", params, function(err, result)
+          if err or not result then return end
+          local source = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+          local ft = vim.bo.filetype
+
+          local function check_pub(src_line, name)
+            if src_line:match("^%s*pub[%s(]") then return true end
+            if ft == "go" and name and name:sub(1, 1):match("%u") then return true end
+            return false
+          end
+
+          local items = {}
+          local function flatten(syms)
+            for _, s in ipairs(syms) do
+              local rng = (s.location and s.location.range) or s.selectionRange or s.range
+              local ln = rng.start.line + 1
+              table.insert(items, {
+                name = s.name,
+                kind = vim.lsp.protocol.SymbolKind[s.kind] or "Unknown",
+                lnum = ln,
+                col = rng.start.character + 1,
+                pub = check_pub(source[ln] or "", s.name),
+              })
+              if s.children then flatten(s.children) end
+            end
+          end
+          flatten(result)
+
+          table.sort(items, function(a, b)
+            if a.pub ~= b.pub then return a.pub end
+            return a.name < b.name
+          end)
+
+          local pickers = require("telescope.pickers")
+          local finders = require("telescope.finders")
+          local conf = require("telescope.config").values
+          local entry_display = require("telescope.pickers.entry_display")
+
+          local displayer = entry_display.create({
+            separator = " ",
+            items = {
+              { width = 1 },          -- ● / ○
+              { width = 10 },         -- kind
+              { remaining = true },   -- symbol name
+            },
+          })
+
+          local current_file = vim.api.nvim_buf_get_name(0)
+
+          pickers.new({}, {
+            prompt_title = "LSP Document Symbols",
+            finder = finders.new_table({
+              results = items,
+              entry_maker = function(s)
+                return {
+                  value = s,
+                  ordinal = s.name,
+                  display = function()
+                    return displayer({
+                      { s.pub and "●" or "○", s.pub and "DiagnosticOk" or "Comment" },
+                      { s.kind:lower(),       "TelescopeResultsField" },
+                      { s.name,               "TelescopeResultsConstant" },
+                    })
+                  end,
+                  filename = current_file,
+                  lnum = s.lnum,
+                  col = s.col,
+                }
+              end,
+            }),
+            sorter = conf.generic_sorter({}),
+            previewer = conf.qflist_previewer({}),
+          }):find()
+        end)
+      end
+
       vim.api.nvim_create_autocmd("LspAttach", {
         callback = function(ev)
           local map = function(k, fn, desc)
@@ -407,54 +491,7 @@
           map("K",         vim.lsp.buf.hover,                                             "hover")
           map("<C-b>",     smart_goto,                                                    "goto def / list refs")
           map("<leader>e", vim.diagnostic.goto_next,                                      "next diagnostic")
-          map("<leader>l", function()
-            local sym_width = math.max(25, vim.o.columns - 27)
-            local ft = vim.bo.filetype
-            local make_entry = require("telescope.make_entry")
-            local entry_display = require("telescope.pickers.entry_display")
-
-            local function check_pub(line, name)
-              if line:match("^%s*pub[%s(]") then return true end
-              if ft == "go" and name and name:sub(1, 1):match("%u") then return true end
-              return false
-            end
-
-            local displayer = entry_display.create({
-              separator = " ",
-              items = {
-                { width = 1 },          -- ● / ○
-                { width = 10 },         -- kind
-                { remaining = true },   -- symbol name
-              },
-            })
-
-            local default_maker = make_entry.gen_from_lsp_symbols({ symbol_width = sym_width })
-
-            local function custom_maker(symbol)
-              local entry = default_maker(symbol)
-              if not entry then return end
-              local line = vim.api.nvim_buf_get_lines(0, entry.lnum - 1, entry.lnum, false)[1] or ""
-              local pub = check_pub(line, entry.symbol_name)
-              entry.is_pub = pub
-              entry.display = function()
-                return displayer({
-                  { pub and "●" or "○",                       pub and "DiagnosticOk" or "Comment" },
-                  { (entry.symbol_type or ""):lower(),        "TelescopeResultsField" },
-                  { entry.symbol_name or "",                  "TelescopeResultsConstant" },
-                })
-              end
-              return entry
-            end
-
-            require("telescope.builtin").lsp_document_symbols({
-              symbol_width = sym_width,
-              entry_maker = custom_maker,
-              tiebreak = function(a, b)
-                if a.is_pub ~= b.is_pub then return a.is_pub end
-                return (a.symbol_name or "") < (b.symbol_name or "")
-              end,
-            })
-          end, "list symbols")
+          map("<leader>l", smart_list_symbols, "list symbols")
         end,
       })
 
