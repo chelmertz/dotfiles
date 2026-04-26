@@ -237,6 +237,9 @@
       -- runs the current file. Output goes to a 15-row terminal split.
       vim.g["test#strategy"] = "neovim"
       vim.g["test#neovim#term_position"] = "botright 15"
+      -- Land in normal mode (not terminal-job mode) so keys navigate the
+      -- buffer instead of triggering nvim's "press any key to dismiss".
+      vim.g["test#neovim#start_normal"] = 1
 
       local function smart_test()
         local path = vim.fn.expand("%:p")
