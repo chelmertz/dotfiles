@@ -434,9 +434,12 @@
           end
           flatten(result)
 
+          -- Reversed: telescope renders the first input item nearest the
+          -- prompt (bottom). We want alpha to read top-down, so feed it
+          -- private-first and z→a within each visibility group.
           table.sort(items, function(a, b)
-            if a.pub ~= b.pub then return a.pub end
-            return a.name < b.name
+            if a.pub ~= b.pub then return not a.pub end
+            return a.name > b.name
           end)
 
           local pickers = require("telescope.pickers")
@@ -457,7 +460,6 @@
 
           pickers.new({}, {
             prompt_title = "LSP Document Symbols",
-            sorting_strategy = "descending",
             finder = finders.new_table({
               results = items,
               entry_maker = function(s)
