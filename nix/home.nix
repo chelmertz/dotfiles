@@ -34,6 +34,7 @@
   # for standard packages, without any custom configuration; otherwise, remove from this list and do "program.myprogram = { enable = true; .. other options}"
   home.packages = with pkgs; [
     _1password-cli
+    _1password-gui
     acpi
     age
     arandr
