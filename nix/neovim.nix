@@ -300,14 +300,15 @@
 
       -- ========================================================================
       -- Completion (blink.cmp): popup auto-shows while typing, nothing
-      -- preselected so <CR> only accepts when you've explicitly arrowed onto
-      -- an item. <Tab> jumps between snippet placeholders (the ''${1:foo} bits
-      -- some LSP servers emit when accepting a function/method).
+      -- preselected. <CR> picks the first item if none arrowed onto, otherwise
+      -- accepts the selected one; if the menu isn't open it inserts a newline.
+      -- <Tab> jumps between snippet placeholders (the ''${1:foo} bits some LSP
+      -- servers emit when accepting a function/method).
       -- ========================================================================
       require("blink.cmp").setup({
         keymap = {
           preset = "none",
-          ["<CR>"]    = { "accept",           "fallback" },
+          ["<CR>"]    = { "select_and_accept", "fallback" },
           ["<Down>"]  = { "select_next",      "fallback" },
           ["<Up>"]    = { "select_prev",      "fallback" },
           ["<Tab>"]   = { "snippet_forward",  "select_and_accept", "fallback" },
