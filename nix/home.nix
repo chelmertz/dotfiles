@@ -74,7 +74,26 @@
     flameshot
     fzf
     gh
-    ghostty
+    # GTK4's default GSK renderer fails to acquire an OpenGL context on this
+    # driver stack (X11 + nouveau + i915); ngl works. Patch desktop/dbus/systemd
+    # entries too so D-Bus and rofi launches go through the wrapper, not the
+    # original binary.
+    (symlinkJoin {
+      name = "ghostty";
+      paths = [ ghostty ];
+      buildInputs = [ makeWrapper ];
+      postBuild = ''
+        for rel in \
+          share/applications/com.mitchellh.ghostty.desktop \
+          share/dbus-1/services/com.mitchellh.ghostty.service \
+          share/systemd/user/app-com.mitchellh.ghostty.service; do
+          rm $out/$rel
+          substitute ${ghostty}/$rel $out/$rel \
+            --replace-fail "${ghostty}/bin/ghostty" "$out/bin/ghostty"
+        done
+        wrapProgram $out/bin/ghostty --set GSK_RENDERER ngl
+      '';
+    })
     git-filter-repo
     git-trim
     gleam
