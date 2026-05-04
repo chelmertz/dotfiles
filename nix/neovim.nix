@@ -200,12 +200,36 @@
       register_toggle_mappings()
 
       local mappings = {
-        { "<leader>f", "<cmd>Telescope find_files<cr>", desc = "find file" },
+        { "<leader>f", function()
+            require("telescope.builtin").find_files({
+              prompt_title = "Find Files  •  <C-v> vsplit  <C-x> split  <C-t> tab",
+            })
+          end, desc = "find file" },
         { "<leader>v", function()
             vim.cmd("source " .. vim.env.MYVIMRC)
             vim.notify("Reloaded config")
           end, desc = "reload config" },
         { "<leader>r", vim.lsp.buf.rename, desc = "rename symbol" },
+        { "<leader>b", function()
+            require("telescope.builtin").buffers({
+              prompt_title = "Buffers  •  <Del> kill  •  <C-v> vsplit  <C-x> split  <C-t> tab",
+            })
+          end, desc = "buffers" },
+        { "<leader>g", function()
+            -- empty() sorter preserves gopls's ranking. The default fuzzy
+            -- sorter scores against the full display string (type prefix
+            -- included), which buries exact name matches like SchedulePush
+            -- under near-misses like CancelScheduledPush.
+            require("telescope.builtin").lsp_dynamic_workspace_symbols({
+              prompt_title = "Workspace Symbols",
+              sorter = require("telescope.sorters").empty(),
+            })
+          end, desc = "workspace symbols" },
+        { "<leader>G", function()
+            require("telescope.builtin").live_grep({
+              prompt_title = "Live Grep  •  <C-v> vsplit  <C-x> split  <C-t> tab",
+            })
+          end, desc = "live grep" },
       }
 
       -- Format on save (conform.nvim). For filetypes without an explicit
@@ -290,6 +314,30 @@
       require("telescope").setup({
         defaults = {
           layout_strategy = "vertical",
+          vimgrep_arguments = {
+            "rg",
+            "--color=never",
+            "--no-heading",
+            "--with-filename",
+            "--line-number",
+            "--column",
+            "--smart-case",
+            "--hidden",
+            "--glob=!**/.git/**",
+          },
+        },
+        pickers = {
+          buffers = {
+            mappings = {
+              n = {
+                ["dd"]      = require("telescope.actions").delete_buffer,
+                ["<Del>"]   = require("telescope.actions").delete_buffer,
+              },
+              i = {
+                ["<Del>"]   = require("telescope.actions").delete_buffer,
+              },
+            },
+          },
         },
         extensions = {
           ["ui-select"] = { require("telescope.themes").get_dropdown({}) },
