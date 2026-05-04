@@ -74,10 +74,11 @@
     flameshot
     fzf
     gh
-    # GTK4's default GSK renderer fails to acquire an OpenGL context on this
-    # driver stack (X11 + nouveau + i915); ngl works. Patch desktop/dbus/systemd
-    # entries too so D-Bus and rofi launches go through the wrapper, not the
-    # original binary.
+    # On non-NixOS, EGL can't find the system GLVND vendor config or Mesa,
+    # so D-Bus/rofi launches fail with "Failed to create EGL display" (a
+    # terminal-launched ghostty inherits these from the shell env, hiding the
+    # bug). Same wrapping wezterm uses below. Patch desktop/dbus/systemd
+    # entries too so launches go through the wrapper, not the original binary.
     (symlinkJoin {
       name = "ghostty";
       paths = [ ghostty ];
@@ -91,7 +92,14 @@
           substitute ${ghostty}/$rel $out/$rel \
             --replace-fail "${ghostty}/bin/ghostty" "$out/bin/ghostty"
         done
-        wrapProgram $out/bin/ghostty --set GSK_RENDERER ngl
+        wrapProgram $out/bin/ghostty \
+          --set __EGL_VENDOR_LIBRARY_DIRS "/usr/share/glvnd/egl_vendor.d" \
+          --prefix LD_LIBRARY_PATH : "${
+            lib.makeLibraryPath [
+              libglvnd
+              mesa
+            ]
+          }"
       '';
     })
     git-filter-repo
