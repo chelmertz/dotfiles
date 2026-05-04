@@ -36,10 +36,10 @@ else
 fi
 
 # Generate TOC
-toc_html=$(echo "$md_content" | pandoc -f markdown+fenced_code_attributes -t html --toc --template="$toc_template" 2>/dev/null)
+toc_html=$(echo "$md_content" | pandoc -f markdown+fenced_code_attributes+lists_without_preceding_blankline -t html --toc --template="$toc_template" 2>/dev/null)
 
 # Convert markdown to HTML fragment
-body_html=$(echo "$md_content" | pandoc -f markdown+fenced_code_attributes -t html --highlight-style=kate --lua-filter "$mermaid_filter" 2>/dev/null)
+body_html=$(echo "$md_content" | pandoc -f markdown+fenced_code_attributes+lists_without_preceding_blankline -t html --highlight-style=kate --lua-filter "$mermaid_filter" 2>/dev/null)
 
 cat <<HTMLEOF
 <!DOCTYPE html>
