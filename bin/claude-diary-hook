@@ -66,9 +66,12 @@ jq -n -c \
     SUMMARY=$(echo "$SUMMARY" | head -1 | cut -c1-80)
 
     if [ -n "$SUMMARY" ]; then
-        # Atomic update: rewrite the file with the summary filled in
-        # Use a temp file + mv for atomicity
-        TMP=$(mktemp "${DIARY_LOG}.XXXXXX")
+        # Rewrite the file with the summary filled in.
+        # Temp goes in /tmp (not next to DIARY_LOG) so this works under
+        # systemd-run sandboxes that only expose DIARY_LOG as a file (no
+        # parent-dir write access). Final step is truncate+write on the
+        # existing file, which only needs file-level RW.
+        TMP=$(mktemp)
         while IFS= read -r line; do
             if echo "$line" | grep -q "\"session_id\":\"$SESSION_ID\""; then
                 echo "$line" | jq -c --arg s "$SUMMARY" '.summary = $s'
@@ -76,7 +79,8 @@ jq -n -c \
                 echo "$line"
             fi
         done < "$DIARY_LOG" > "$TMP"
-        mv "$TMP" "$DIARY_LOG"
+        cat "$TMP" > "$DIARY_LOG"
+        rm -f "$TMP"
     fi
 ) &
 disown
