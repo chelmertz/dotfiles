@@ -271,7 +271,7 @@
                 systemd-run --user --pty --wait --collect --quiet \
                   -p WorkingDirectory="$PWD" \
                   -p ProtectHome=read-only \
-                  -p ReadWritePaths="$HOME/code /tmp /run/user/$UID -$HOME/.claude -$HOME/.claude.json -$HOME/.config/claude -$HOME/.config/claude-code -$HOME/.cache/claude -$HOME/.cache/claude-code -$HOME/.local/state/claude -$HOME/.local/state/claude-code -$HOME/.local/share/claude -$HOME/.local/share/claude-code" \
+                  -p ReadWritePaths="$HOME/code /tmp /run/user/$UID -$HOME/.claude -$HOME/.claude.json -$HOME/.claude-diary.jsonl -$HOME/.config/claude -$HOME/.config/claude-code -$HOME/.cache/claude -$HOME/.cache/claude-code -$HOME/.local/state/claude -$HOME/.local/state/claude-code -$HOME/.local/share/claude -$HOME/.local/share/claude-code" \
                   -- claude --dangerously-skip-permissions "$@"
               }
 
