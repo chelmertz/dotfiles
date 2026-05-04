@@ -19,6 +19,7 @@
       vim-test
       nvim-surround
       which-key-nvim
+      undotree
       (pkgs.vimUtils.buildVimPlugin {
         pname = "vim-lumen";
         version = "unstable";
@@ -45,6 +46,7 @@
       -- Disable mouse so terminal handles selection (X PRIMARY / middle-click paste)
       vim.opt.mouse = ""
       vim.opt.cursorline = true
+      vim.opt.undofile = true
       vim.opt.autoindent = true
       vim.opt.foldmethod = "indent"
       vim.opt.foldlevel = 20
@@ -230,6 +232,7 @@
               prompt_title = "Live Grep  •  <C-v> vsplit  <C-x> split  <C-t> tab",
             })
           end, desc = "live grep" },
+        { "<leader>u", "<cmd>UndotreeToggle<cr>", desc = "undo tree" },
       }
 
       -- Format on save (conform.nvim). For filetypes without an explicit
