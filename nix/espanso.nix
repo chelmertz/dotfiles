@@ -338,6 +338,10 @@
         trigger = "::white";
         replace = "⚪";
       }
+      {
+        trigger = "::dot";
+        replace = "·";
+      }
 
       {
         trigger = "::mermseq";
