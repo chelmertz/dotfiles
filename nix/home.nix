@@ -179,7 +179,6 @@
 
     w3m
     whois
-    wireshark
     wmctrl
     xcape
     xclip
