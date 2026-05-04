@@ -205,6 +205,7 @@
         { "<leader>f", function()
             require("telescope.builtin").find_files({
               prompt_title = "Find Files  •  <C-v> vsplit  <C-x> split  <C-t> tab",
+              find_command = { "rg", "--files", "--hidden", "--glob=!.git/" },
             })
           end, desc = "find file" },
         { "<leader>v", function()
@@ -230,6 +231,7 @@
         { "<leader>G", function()
             require("telescope.builtin").live_grep({
               prompt_title = "Live Grep  •  <C-v> vsplit  <C-x> split  <C-t> tab",
+              additional_args = function() return { "--hidden", "--glob=!.git/" } end,
             })
           end, desc = "live grep" },
         { "<leader>u", "<cmd>UndotreeToggle<cr>", desc = "undo tree" },
@@ -399,6 +401,17 @@
 
       vim.lsp.enable({ "gopls", "gleam", "bashls", "markdown_oxide", "nil_ls", "rust_analyzer", "sqls", "autotools_ls" })
 
+      -- :LspRestart — stop clients attached to current buffer and re-attach.
+      -- nvim-lspconfig used to provide this; with the vim.lsp.config API we
+      -- roll our own.
+      vim.api.nvim_create_user_command("LspRestart", function()
+        local clients = vim.lsp.get_clients({ bufnr = 0 })
+        for _, c in ipairs(clients) do
+          vim.lsp.stop_client(c.id)
+        end
+        vim.cmd.edit()
+      end, { desc = "restart LSP clients on current buffer" })
+
       -- JetBrains-style Ctrl-B: go to definition from a usage; if cursor is
       -- already at the definition's line, list references instead.
       -- Uses show_document directly (rather than going through a qflist) so
@@ -543,8 +556,10 @@
             vim.keymap.set("n", k, fn, { buffer = ev.buf, desc = desc })
           end
           map("<leader>a", vim.lsp.buf.code_action,                                       "code action")
-          map("K",         vim.lsp.buf.hover,                                             "hover")
+          map("K",         vim.lsp.buf.hover,                                             "symbol info (type/docs)")
+          map("<leader>K", vim.lsp.buf.hover,                                             "symbol info (type/docs)")
           map("<C-b>",     smart_goto,                                                    "goto def / list refs")
+          map("gd",        smart_goto,                                                    "goto def / list refs")
           map("<leader>e", vim.diagnostic.goto_next,                                      "next diagnostic")
           map("<leader>l", smart_list_symbols, "list symbols")
         end,
