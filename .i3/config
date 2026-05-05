@@ -84,8 +84,6 @@ bindsym $mod+Shift+space floating toggle
 
 assign [class="firefox"] $ws2
 assign [class="Google-chrome"] $ws2
-assign [class="jetbrains-idea"] $ws3
-assign [class="jetbrains-toolbox"] $ws10
 assign [class="Slack"] $ws9
 assign [class="Element"] $ws9
 assign [class="steam"] $ws7
