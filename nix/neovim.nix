@@ -659,6 +659,67 @@
         end)
       end
 
+      -- Returns 1 if the entry looks like a mock/fake/test/noop, 0 otherwise.
+      -- Matches both the file path and the source line text — the latter
+      -- catches cases like `type noopPusher struct{}` in cmd/*/main.go where
+      -- the path is innocent but the type itself is a stand-in.
+      local function impl_is_fake(filename, text)
+        local s = ((filename or "") .. " " .. (text or "")):lower()
+        if s:match("mock") or s:match("fake") or s:match("noop")
+            or s:match("_test%.") or s:match("/tests?/") then
+          return 1
+        end
+        return 0
+      end
+
+      -- LSP implementations picker: demotes mock/fake/test/noop entries so
+      -- the "real" implementation ends up preselected. Telescope preserves
+      -- insertion order with an empty prompt, so we just pre-sort items
+      -- (reals first → first input → bottom → preselected with the default
+      -- descending strategy). Direct jump if only one result.
+      local function smart_implementations()
+        local clients = vim.lsp.get_clients({ bufnr = 0, method = "textDocument/implementation" })
+        if #clients == 0 then return end
+        local client = clients[1]
+        local params = vim.lsp.util.make_position_params(0, client.offset_encoding)
+        client:request("textDocument/implementation", params, function(err, result)
+          if err or not result or vim.tbl_isempty(result) then return end
+          local locs = vim.islist(result) and result or { result }
+
+          if #locs == 1 then
+            local first = locs[1]
+            vim.lsp.util.show_document(
+              { uri = first.uri or first.targetUri,
+                range = first.targetSelectionRange or first.range or first.targetRange },
+              client.offset_encoding, { focus = true })
+            return
+          end
+
+          local items = vim.lsp.util.locations_to_items(locs, client.offset_encoding)
+          table.sort(items, function(a, b)
+            local fa = impl_is_fake(a.filename, a.text)
+            local fb = impl_is_fake(b.filename, b.text)
+            if fa ~= fb then return fa < fb end
+            return (a.filename or "") < (b.filename or "")
+          end)
+
+          local pickers = require("telescope.pickers")
+          local finders = require("telescope.finders")
+          local conf = require("telescope.config").values
+          local make_entry = require("telescope.make_entry")
+
+          pickers.new({}, {
+            prompt_title = "LSP Implementations",
+            finder = finders.new_table({
+              results = items,
+              entry_maker = make_entry.gen_from_quickfix({}),
+            }),
+            sorter = conf.generic_sorter({}),
+            previewer = conf.qflist_previewer({}),
+          }):find()
+        end)
+      end
+
       vim.api.nvim_create_autocmd("LspAttach", {
         callback = function(ev)
           local map = function(k, fn, desc)
@@ -669,6 +730,7 @@
           map("<leader>K", vim.lsp.buf.hover,                                             "symbol info (type/docs)")
           map("<C-b>",     smart_goto,                                                    "goto def / list refs")
           map("gd",        smart_goto,                                                    "goto def / list refs")
+          map("<C-S-b>",   smart_implementations,                                         "list implementations (real first)")
           map("<leader>e", vim.diagnostic.goto_next,                                      "next diagnostic")
           map("<leader>l", smart_list_symbols, "list symbols")
         end,
