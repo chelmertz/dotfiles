@@ -394,9 +394,9 @@ in
   };
 
   systemd.user.timers.obsidian-poll = {
-    Unit.Description = "Run obsidian-poll every 2 hours";
+    Unit.Description = "Run obsidian-poll every 15 minutes";
     Timer = {
-      OnCalendar = "*-*-* 0/2:00:00";
+      OnCalendar = "*:0/15";
       OnBootSec = "1min";
       Persistent = true;
     };

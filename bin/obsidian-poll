@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """Generate daily integration files for the Obsidian vault.
 
-Writes integrations/YYYY-MM-DD.md for the last 7 completed days.
+Writes integrations/YYYY-MM-DD.md for today and the last 7 completed days.
 A "day" runs 04:00 local → 04:00 next day.
-Never touches the current (incomplete) day.
+Today is regenerated on every run; older days are written once unless missing.
 
 Uses 2 GitHub API calls per run (batch fetch, then group by date).
-Skips days that already have files, except the most recent completed day.
 
-Intended to run on a timer (e.g. every 2h via systemd).
+Intended to run on a timer (every 15min via systemd).
 """
 
 import json
@@ -199,6 +198,20 @@ def shorten_path(p):
     return p
 
 
+def md_link(text, url):
+    """Markdown link with `[`, `]`, and backslash escaped in the text."""
+    text = (text
+        .replace("\\", "\\\\")
+        .replace("[", "\\[")
+        .replace("]", "\\]"))
+    return f"[{text}]({url})"
+
+
+def md_cell(text):
+    """Make a string safe to drop into a GFM table cell."""
+    return text.replace("|", "\\|").replace("\n", " ")
+
+
 def fmt_urls(prs):
     lines = []
     for pr in prs:
@@ -256,8 +269,8 @@ private:
             repo_short = repo.split("/")[-1]
             repo_url = f"https://github.com/{repo}"
             lines.append(
-                f"- \\* [{pr['title']}]({pr['url']}) · "
-                f"[{repo_short}]({repo_url})"
+                f"- \\* {md_link(pr['title'], pr['url'])} · "
+                f"{md_link(repo_short, repo_url)}"
             )
         for pr in reviewed:
             repo = pr["repository"]["nameWithOwner"]
@@ -265,8 +278,8 @@ private:
             repo_url = f"https://github.com/{repo}"
             author = pr.get("author", {}).get("login", "?")
             lines.append(
-                f"- \\> [{pr['title']}]({pr['url']}) · "
-                f"[{repo_short}]({repo_url}) · {author}"
+                f"- \\> {md_link(pr['title'], pr['url'])} · "
+                f"{md_link(repo_short, repo_url)} · {author}"
             )
         sections.append("\n".join(lines))
 
@@ -277,7 +290,7 @@ private:
         repo_parts = []
         for name, count, url in git_repos:
             if url:
-                repo_parts.append(f"[{name}]({url}) ({count})")
+                repo_parts.append(f"{md_link(name, url)} ({count})")
             else:
                 repo_parts.append(f"{name} ({count})")
         lines.append(" · ".join(repo_parts))
@@ -306,8 +319,12 @@ private:
             branch = s.get("branch", "")
             if branch and branch != "master" and branch != "main":
                 repo += f" ({branch})"
-            summary = summary.replace("|", "\\|")
-            lines.append(f"| {t} | {repo} | {summary} |")
+            sid = s.get("session_id", "")
+            if sid:
+                title_cell = md_cell(md_link(summary, f"claude-resume://{sid}"))
+            else:
+                title_cell = md_cell(summary)
+            lines.append(f"| {t} | {md_cell(repo)} | {title_cell} |")
         sections.append("\n".join(lines))
 
     return frontmatter + "\n\n" + "\n\n".join(sections) + "\n"
@@ -433,7 +450,7 @@ def main():
     outdir = VAULT / "integrations"
     outdir.mkdir(parents=True, exist_ok=True)
 
-    dates = [today - timedelta(days=i) for i in range(1, LOOKBACK_DAYS + 1)]
+    dates = [today - timedelta(days=i) for i in range(0, LOOKBACK_DAYS + 1)]
     most_recent = dates[0]
 
     # Which dates need updating?

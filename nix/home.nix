@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, config, ... }:
 {
   imports = [
     ./zsh.nix
@@ -315,6 +315,75 @@
       shell-integration-features = "no-cursor";
     };
   };
+
+  # Clickable claude-resume://<uuid> links: paste into Obsidian (or any
+  # markdown surface), click to relaunch `claude --resume <uuid>` in a new
+  # ghostty window in the session's original cwd. See
+  # claude-resume-clickable-links.md for the design.
+  #
+  # Mime registration is *not* nix-managed because ~/.config/mimeapps.list is
+  # hand-curated. Register manually after `home-manager switch`:
+  #   xdg-mime default claude-resume.desktop x-scheme-handler/claude-resume
+  #   xdg-mime default com.mitchellh.ghostty.desktop x-scheme-handler/terminal
+  xdg.desktopEntries.claude-resume = {
+    name = "claude --resume";
+    exec = "${config.home.homeDirectory}/bin/claude-resume-open %u";
+    noDisplay = true;
+    mimeType = [ "x-scheme-handler/claude-resume" ];
+  };
+
+  home.file."bin/claude-resume-open".source = "${
+    pkgs.writeShellApplication {
+      name = "claude-resume-open";
+      runtimeInputs = with pkgs; [
+        jq
+        libnotify
+        coreutils
+      ];
+      text = ''
+        # Make any unexpected failure visible — writeShellApplication enables
+        # `set -euo pipefail`, which otherwise aborts silently when xdg-open
+        # dispatches us with no controlling terminal.
+        on_exit() {
+          rc=$?
+          if [ "$rc" -ne 0 ]; then
+            notify-send "claude-resume" "wrapper failed (exit=$rc)"
+          fi
+        }
+        trap on_exit EXIT
+
+        uri="''${1:-}"
+        uuid="''${uri#claude-resume://}"
+
+        case "$uuid" in
+          [0-9a-f]*-*-*-*-*) ;;
+          *) notify-send "claude-resume" "invalid uri: $uri"; exit 1 ;;
+        esac
+
+        shopt -s nullglob
+        matches=( "$HOME"/.claude/projects/*/"$uuid".jsonl )
+        if [ ''${#matches[@]} -eq 0 ]; then
+          notify-send "claude-resume" "session $uuid not found"
+          exit 1
+        fi
+        match="''${matches[0]}"
+
+        # `head -n 1` closes its stdin after one line, so jq exits via SIGPIPE.
+        # That's a non-zero status, and pipefail would abort the script before
+        # the directory check below. Disable pipefail just for this assignment.
+        cwd=$(set +o pipefail; jq -r 'select(.cwd) | .cwd' "$match" 2>/dev/null | head -n 1)
+
+        if [ -z "$cwd" ] || [ ! -d "$cwd" ]; then
+          notify-send "claude-resume" "session $uuid has unusable cwd: $cwd"
+          exit 1
+        fi
+
+        exec ${config.programs.ghostty.package}/bin/ghostty +new-window \
+          --working-directory="$cwd" \
+          --command="${pkgs.claude-code}/bin/claude --resume $uuid"
+      '';
+    }
+  }/bin/claude-resume-open";
 
   programs.wezterm = {
     enable = true;
