@@ -313,6 +313,23 @@
       # would override cursor-style at runtime (it ships a "bar" cursor at the
       # prompt by default).
       shell-integration-features = "no-cursor";
+      # Hide the GTK header bar (hamburger + tab strip + window buttons);
+      # i3 handles window controls, and ctrl+shift+p (toggle_command_palette)
+      # exposes everything the hamburger menu would. With the headerbar gone,
+      # tabs have nowhere to live, so move them behind toggle_tab_overview
+      # (ctrl+shift+a).
+      gtk-titlebar = false;
+      gtk-tabs-location = "hidden";
+
+      copy-on-select = "clipboard";
+      # OSC 52 from nvim/tmux/ssh works without a per-yank prompt.
+      clipboard-read = "allow";
+      clipboard-write = "allow";
+
+      resize-overlay = "never";
+      window-save-state = "never";
+      scrollback-limit = 50000000;
+      auto-update = "off";
     };
   };
 
