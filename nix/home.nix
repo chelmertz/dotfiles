@@ -27,7 +27,7 @@
   news.display = "silent";
 
   home.sessionVariables = {
-    TERMINAL = "wezterm";
+    TERMINAL = "ghostty";
     CDK_DISABLE_TELEMETRY = "1";
   };
 
@@ -74,34 +74,6 @@
     flameshot
     fzf
     gh
-    # On non-NixOS, EGL can't find the system GLVND vendor config or Mesa,
-    # so D-Bus/rofi launches fail with "Failed to create EGL display" (a
-    # terminal-launched ghostty inherits these from the shell env, hiding the
-    # bug). Same wrapping wezterm uses below. Patch desktop/dbus/systemd
-    # entries too so launches go through the wrapper, not the original binary.
-    (symlinkJoin {
-      name = "ghostty";
-      paths = [ ghostty ];
-      buildInputs = [ makeWrapper ];
-      postBuild = ''
-        for rel in \
-          share/applications/com.mitchellh.ghostty.desktop \
-          share/dbus-1/services/com.mitchellh.ghostty.service \
-          share/systemd/user/app-com.mitchellh.ghostty.service; do
-          rm $out/$rel
-          substitute ${ghostty}/$rel $out/$rel \
-            --replace-fail "${ghostty}/bin/ghostty" "$out/bin/ghostty"
-        done
-        wrapProgram $out/bin/ghostty \
-          --set __EGL_VENDOR_LIBRARY_DIRS "/usr/share/glvnd/egl_vendor.d" \
-          --prefix LD_LIBRARY_PATH : "${
-            lib.makeLibraryPath [
-              libglvnd
-              mesa
-            ]
-          }"
-      '';
-    })
     git-filter-repo
     git-trim
     gleam
@@ -299,6 +271,49 @@
   programs.direnv = {
     enable = true;
     nix-direnv.enable = true;
+  };
+
+  programs.ghostty = {
+    enable = true;
+    # On non-NixOS, EGL can't find the system GLVND vendor config or Mesa,
+    # so D-Bus/rofi launches fail with "Failed to create EGL display" (a
+    # terminal-launched ghostty inherits these from the shell env, hiding the
+    # bug). Same wrapping wezterm uses below. Patch desktop/dbus/systemd
+    # entries too so launches go through the wrapper, not the original binary.
+    package = pkgs.symlinkJoin {
+      name = "ghostty";
+      paths = [ pkgs.ghostty ];
+      buildInputs = [ pkgs.makeWrapper ];
+      postBuild = ''
+        for rel in \
+          share/applications/com.mitchellh.ghostty.desktop \
+          share/dbus-1/services/com.mitchellh.ghostty.service \
+          share/systemd/user/app-com.mitchellh.ghostty.service; do
+          rm $out/$rel
+          substitute ${pkgs.ghostty}/$rel $out/$rel \
+            --replace-fail "${pkgs.ghostty}/bin/ghostty" "$out/bin/ghostty"
+        done
+        wrapProgram $out/bin/ghostty \
+          --set __EGL_VENDOR_LIBRARY_DIRS "/usr/share/glvnd/egl_vendor.d" \
+          --prefix LD_LIBRARY_PATH : "${
+            pkgs.lib.makeLibraryPath [
+              pkgs.libglvnd
+              pkgs.mesa
+            ]
+          }"
+      '';
+    };
+    settings = {
+      theme = "dark:Catppuccin Frappe,light:Catppuccin Latte";
+      font-family = "Go Mono";
+      font-size = 15;
+      cursor-style = "block";
+      cursor-style-blink = false;
+      # Stop ghostty's shell integration from sending DECSCUSR escapes that
+      # would override cursor-style at runtime (it ships a "bar" cursor at the
+      # prompt by default).
+      shell-integration-features = "no-cursor";
+    };
   };
 
   programs.wezterm = {
