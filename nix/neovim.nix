@@ -20,6 +20,8 @@
       nvim-surround
       which-key-nvim
       undotree
+      csvview-nvim
+      rainbow_csv
       (pkgs.vimUtils.buildVimPlugin {
         pname = "vim-lumen";
         version = "unstable";
@@ -216,6 +218,8 @@
         { "<leader>b", function()
             require("telescope.builtin").buffers({
               prompt_title = "Buffers  •  <Del> kill  •  <C-v> vsplit  <C-x> split  <C-t> tab",
+              ignore_current_buffer = true,
+              sort_mru = true,
             })
           end, desc = "buffers" },
         { "<leader>g", function()
@@ -312,6 +316,111 @@
       -- Surround (ys, cs, ds)
       -- ========================================================================
       require("nvim-surround").setup()
+
+      -- ========================================================================
+      -- CSV: csvview aligns columns + keeps the header pinned (defaults are
+      -- already sticky_header=true, header_lnum=auto). rainbow_csv gives
+      -- column tinting and RBQL via :Select. RBQL needs python3 on PATH.
+      -- ========================================================================
+      require("csvview").setup({
+        view = { display_mode = "border" },  -- draw │ between columns
+      })
+
+      -- Returns (col_idx, value, header_text) for the field under the cursor,
+      -- or nil if csvview isn't attached / cursor isn't on a field.
+      local function csv_cell()
+        local ok, util = pcall(require, "csvview.util")
+        if not ok then return end
+        local ok2, cur = pcall(util.get_cursor)
+        if not ok2 or cur.kind ~= "field" then return end
+        local col = cur.pos[2]
+        -- Naive header lookup: split line 1 on the buffer's delimiter. Doesn't
+        -- handle quoted commas — refine if it bites.
+        local delim = vim.bo.filetype == "tsv" and "\t" or ","
+        local header_line = vim.api.nvim_buf_get_lines(0, 0, 1, false)[1] or ""
+        local hdr = vim.split(header_line, delim, { plain = true })[col]
+        return col, cur.text, hdr or ("col" .. col)
+      end
+
+      -- Count lines in a buffer, ignoring a trailing empty line. RBQL writes
+      -- one to its result buffer; source files often have one too.
+      local function csv_records(buf)
+        buf = buf or 0
+        local n = vim.api.nvim_buf_line_count(buf)
+        local last = vim.api.nvim_buf_get_lines(buf, n - 1, n, false)[1]
+        if last == "" then n = n - 1 end
+        return n
+      end
+
+      -- Run an RBQL Select and notify match/total. `expr` is the WHERE clause.
+      local function csv_run_select(expr, label)
+        local total = csv_records(0) - 1  -- minus header row
+        vim.cmd(string.format([[Select * where %s]], expr))
+        vim.defer_fn(function()
+          vim.notify(string.format("%s : %d / %d rows",
+            label, csv_records(0), total))
+        end, 400)
+      end
+
+      -- :CsvFilter — prompt for column + substring (used outside the cursor
+      -- flow, e.g. when you don't have csvview attached).
+      vim.api.nvim_create_user_command("CsvFilter", function()
+        vim.ui.input({ prompt = "Column (1-based): " }, function(col)
+          if not col or col == "" then return end
+          vim.ui.input({ prompt = "Substring in a" .. col .. ": " }, function(val)
+            if not val then return end
+            local esc = val:gsub('"', '\\"')
+            csv_run_select(
+              string.format([[a%s like "%%%s%%"]], col, esc),
+              string.format("a%s ~ %q", col, val))
+          end)
+        end)
+      end, {})
+
+      -- Per-buffer setup: enable view, remap PageUp/Down to half-page (so the
+      -- cursor doesn't overlap and hide the sticky header), bind ,C submenu.
+      vim.api.nvim_create_autocmd("FileType", {
+        pattern = { "csv", "tsv" },
+        callback = function(ev)
+          vim.cmd("CsvViewEnable")
+
+          local opts = { buffer = ev.buf, silent = true }
+          vim.keymap.set("n", "<PageDown>", "<C-d>", opts)
+          vim.keymap.set("n", "<PageUp>",   "<C-u>", opts)
+
+          require("which-key").add({
+            { "<leader>C",  group = "csv", buffer = ev.buf },
+            { "<leader>Cv", "<cmd>CsvViewToggle<cr>",
+              desc = "toggle aligned view + sticky header", buffer = ev.buf },
+            { "<leader>Cp", "<cmd>CsvFilter<cr>",
+              desc = "filter rows: ask for column + substring", buffer = ev.buf },
+            { "<leader>Ch", function()
+                local col, val, hdr = csv_cell()
+                if not col then return vim.notify("not on a CSV field") end
+                vim.notify(string.format("col %d (%s) = %q", col, hdr, val))
+              end,
+              desc = "show this cell's column name + value", buffer = ev.buf },
+            { "<leader>Cf", function()
+                local col, val, hdr = csv_cell()
+                if not col then return vim.notify("not on a CSV field") end
+                local esc = val:gsub('"', '\\"')
+                csv_run_select(
+                  string.format([[a%d == "%s"]], col, esc),
+                  string.format("%s == %q", hdr, val))
+              end,
+              desc = "filter rows where this column equals this cell", buffer = ev.buf },
+            { "<leader>Cl", function()
+                local col, val, hdr = csv_cell()
+                if not col then return vim.notify("not on a CSV field") end
+                local esc = val:gsub('"', '\\"')
+                csv_run_select(
+                  string.format([[a%d like "%%%s%%"]], col, esc),
+                  string.format("%s ~ %q", hdr, val))
+              end,
+              desc = "filter rows where this column contains this cell", buffer = ev.buf },
+          })
+        end,
+      })
 
       -- ========================================================================
       -- Telescope setup
