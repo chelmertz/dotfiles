@@ -322,6 +322,9 @@
       gtk-tabs-location = "hidden";
 
       copy-on-select = "clipboard";
+      # Silences the "Copied to clipboard" toast that fires on every selection
+      # under copy-on-select. Keeps config-reload notifications.
+      app-notifications = "no-clipboard-copy";
       # OSC 52 from nvim/tmux/ssh works without a per-yank prompt.
       clipboard-read = "allow";
       clipboard-write = "allow";
