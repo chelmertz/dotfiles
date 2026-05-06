@@ -62,6 +62,8 @@
       gls = "git log -M -w --stat --pretty=fuller --show-notes";
       gl = "git log -p -M -w --stat --pretty=fuller --show-notes";
 
+      diff = "diff --color=auto";
+
       l = "ls --color=auto --group-directories-first -alhX --hyperlink=auto";
       ll = "ls --color=auto --group-directories-first -alhXtr --hyperlink=auto";
       l1 = "ls --color=auto -1";
