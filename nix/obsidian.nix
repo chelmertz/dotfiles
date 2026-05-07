@@ -78,6 +78,7 @@ let
     attachmentFolderPath = "attachments";
     alwaysUpdateLinks = true;
     newLinkFormat = "absolute";
+    spellcheck = false;
   };
 
   appearanceJson = builtins.toJSON {
