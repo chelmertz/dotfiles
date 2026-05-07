@@ -129,7 +129,7 @@ These are intentionally kept as apt/system/other and should not be migrated:
 | Emacs + Doom | apt (PPA) | Fragile, keeping until new computer |
 | Java 11 | apt | Keep as-is |
 | Rustup + cargo | ~/.cargo | Toolchain management; image-sorter not in nixpkgs |
-| Firefox | snap | OpenGL/Mesa issues on non-NixOS; revisit on NixOS |
+| Firefox | apt (Mozilla repo) | snap confinement blocks 1Password native messaging; pinned via /etc/apt/preferences.d/mozilla |
 | gamemode | apt | Keep as-is |
 | cheese, dconf-editor, gnome-tweaks | apt | GNOME-coupled |
 | GNOME core (calculator, sysmon, disks, terminal) | apt | GNOME-coupled |

@@ -7,7 +7,6 @@
     ./neovim.nix
     ./espanso.nix
     ./vscode.nix
-    ./firefox.nix
     ./obsidian.nix
     ./mpv.nix
     ./spotify.nix
