@@ -181,6 +181,7 @@
     xdotool
     xsel
     ffmpegthumbnailer
+    yaml-language-server
     yq
     yt-dlp
     zip

@@ -508,7 +508,24 @@
         capabilities = require("blink.cmp").get_lsp_capabilities(),
       })
 
-      vim.lsp.enable({ "gopls", "gleam", "bashls", "markdown_oxide", "nil_ls", "rust_analyzer", "sqls", "autotools_ls" })
+      -- yamlls: schemastore stays on (so .github/workflows/*.yml, gitlab-ci,
+      -- docker-compose, etc. get auto-bound). Explicitly bind OpenAPI 3.0 to
+      -- our spec filenames — schemastore's openapi entry only globs
+      -- `openapi.yaml`, but our specs are named api.yml.
+      vim.lsp.config("yamlls", {
+        settings = {
+          yaml = {
+            schemas = {
+              ["https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/schemas/v3.0/schema.yaml"] = {
+                "**/api.yml", "**/api.yaml",
+                "**/openapi.yml", "**/openapi.yaml",
+              },
+            },
+          },
+        },
+      })
+
+      vim.lsp.enable({ "gopls", "gleam", "bashls", "markdown_oxide", "nil_ls", "rust_analyzer", "sqls", "autotools_ls", "yamlls" })
 
       -- :LspRestart — stop clients attached to current buffer and re-attach.
       -- nvim-lspconfig used to provide this; with the vim.lsp.config API we
@@ -521,6 +538,113 @@
         vim.cmd.edit()
       end, { desc = "restart LSP clients on current buffer" })
 
+      -- yaml-language-server's getDefinition only handles YAML anchors
+      -- (&foo/*foo), not JSON $refs. So we resolve $ref ourselves: split on
+      -- '#', resolve the file part relative to the current buffer's dir,
+      -- then walk the JSON pointer by treating each segment as a key under
+      -- the previous (assumes 2-space indentation, which OpenAPI uses).
+      -- Returns true if cursor was on a $ref line (regardless of jump
+      -- success), so smart_goto knows to skip the LSP path.
+      local function try_yaml_ref_goto()
+        if vim.bo.filetype ~= "yaml" then return false end
+        local line = vim.api.nvim_get_current_line()
+        local ref = line:match([[%$ref:%s*['"]?([^'"%s]+)]])
+        if not ref then return false end
+
+        local file_part, fragment = ref:match("^([^#]*)#?(.*)$")
+        file_part = file_part or ""
+        fragment  = fragment or ""
+
+        if file_part ~= "" then
+          local cur_dir = vim.fn.expand("%:p:h")
+          local abs = vim.fn.fnamemodify(cur_dir .. "/" .. file_part, ":p")
+          if vim.fn.filereadable(abs) == 0 then
+            vim.notify("yaml-ref: file not readable: " .. abs, vim.log.levels.WARN)
+            return true
+          end
+          vim.cmd("edit " .. vim.fn.fnameescape(abs))
+        end
+
+        if fragment == "" or fragment == "/" then
+          vim.api.nvim_win_set_cursor(0, { 1, 0 })
+          return true
+        end
+
+        -- JSON Pointer: split on '/', unescape ~1 -> /, ~0 -> ~
+        local segments = {}
+        for seg in fragment:gmatch("[^/]+") do
+          seg = seg:gsub("~1", "/"):gsub("~0", "~")
+          table.insert(segments, seg)
+        end
+
+        local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+        local from = 1
+        local found_line = nil
+        for level, seg in ipairs(segments) do
+          local indent = string.rep("  ", level - 1)
+          local pattern = "^" .. indent .. vim.pesc(seg) .. ":"
+          found_line = nil
+          for i = from, #lines do
+            if lines[i]:match(pattern) then
+              found_line = i
+              from = i + 1
+              break
+            end
+          end
+          if not found_line then
+            vim.notify("yaml-ref: segment not found: " .. seg, vim.log.levels.WARN)
+            return true
+          end
+        end
+        local final_indent = string.rep("  ", #segments - 1)
+        vim.api.nvim_win_set_cursor(0, { found_line, #final_indent })
+        vim.cmd("normal! zz")
+        return true
+      end
+
+      -- Inverse of try_yaml_ref_goto: when cursor is on a top-level OpenAPI
+      -- component definition (components/<type>/<name>), search the workspace
+      -- for $refs pointing to it. Mirrors smart_goto's "press C-b at the def
+      -- to list refs" behavior, since yamlls returns nothing for these keys.
+      local function try_yaml_ref_back()
+        if vim.bo.filetype ~= "yaml" then return false end
+        if vim.api.nvim_get_current_line():match("%$ref:") then return false end
+
+        -- Build the JSON pointer of the cursor's key by walking back through
+        -- ancestors with smaller indentation. Assumes 2-space indentation.
+        local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+        local cur_lnum = vim.api.nvim_win_get_cursor(0)[1]
+        local cur_indent, cur_key = (lines[cur_lnum] or ""):match("^( *)([^:%s][^:]*):")
+        if not cur_key then return false end
+
+        local segments = { cur_key }
+        local indent = #cur_indent
+        for i = cur_lnum - 1, 1, -1 do
+          local lead, key = lines[i]:match("^( *)([^:%s][^:]*):")
+          if lead and #lead < indent then
+            table.insert(segments, 1, key)
+            indent = #lead
+            if indent == 0 then break end
+          end
+        end
+
+        -- Only trigger for components/<type>/<name>. Skip nested fields,
+        -- root keys, paths/method nodes, etc.
+        if #segments ~= 3 or segments[1] ~= "components" then return false end
+        local pointer = "#/" .. table.concat(segments, "/")
+
+        -- Strip leading '#' from the search so this matches both same-file
+        -- (#/...) and cross-file (path.yml#/...) refs.
+        require("telescope.builtin").grep_string({
+          prompt_title = "$ref usages of " .. pointer,
+          search = pointer:sub(2),
+          additional_args = function()
+            return { "--hidden", "--glob=!.git/" }
+          end,
+        })
+        return true
+      end
+
       -- JetBrains-style Ctrl-B: go to definition from a usage; if cursor is
       -- already at the definition's line, list references instead.
       -- Uses show_document directly (rather than going through a qflist) so
@@ -528,6 +652,8 @@
       -- targetSelectionRange (the name) over targetRange (whole declaration)
       -- when the server returns a LocationLink.
       local function smart_goto()
+        if try_yaml_ref_goto() then return end
+        if try_yaml_ref_back() then return end
         local clients = vim.lsp.get_clients({ bufnr = 0, method = "textDocument/definition" })
         if #clients == 0 then return end
         local client = clients[1]
