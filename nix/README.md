@@ -130,6 +130,7 @@ These are intentionally kept as apt/system/other and should not be migrated:
 | Java 11 | apt | Keep as-is |
 | Rustup + cargo | ~/.cargo | Toolchain management; image-sorter not in nixpkgs |
 | Firefox | apt (Mozilla repo) | snap confinement blocks 1Password native messaging; pinned via /etc/apt/preferences.d/mozilla |
+| 1Password (gui + cli) | apt (1Password repo) | nix can't run the privileged post-install (onepassword group, setgid on 1Password-BrowserSupport, polkit policy in /usr/share/polkit-1/actions/) needed for desktop↔extension integration and polkit unlock |
 | gamemode | apt | Keep as-is |
 | cheese, dconf-editor, gnome-tweaks | apt | GNOME-coupled |
 | GNOME core (calculator, sysmon, disks, terminal) | apt | GNOME-coupled |

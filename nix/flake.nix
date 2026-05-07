@@ -60,8 +60,6 @@
                 name = pkg.pname or "";
               in
               builtins.elem name [
-                "1password"
-                "1password-cli"
                 "claude-code"
                 "google-chrome"
                 "slack"
