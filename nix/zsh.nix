@@ -247,7 +247,7 @@
               }
 
               # File/directory utilities
-              lc() {
+              dump() {
                 local dir="''${1:-.}"
                 find $(echo "$dir" | sed -e 's#[^/]$#&/#') -type f | xargs head -n99 2>/dev/null | less -p '==> .* <==' --use-color --color=Skm
               }
