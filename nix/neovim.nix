@@ -525,7 +525,14 @@
         },
       })
 
-      vim.lsp.enable({ "gopls", "gleam", "bashls", "markdown_oxide", "nil_ls", "rust_analyzer", "sqls", "autotools_ls", "yamlls" })
+      -- ruff handles lint + format; defer hover to basedpyright (richer type info).
+      vim.lsp.config("ruff", {
+        on_attach = function(client)
+          client.server_capabilities.hoverProvider = false
+        end,
+      })
+
+      vim.lsp.enable({ "gopls", "gleam", "bashls", "markdown_oxide", "nil_ls", "rust_analyzer", "sqls", "autotools_ls", "yamlls", "basedpyright", "ruff" })
 
       -- :LspRestart — stop clients attached to current buffer and re-attach.
       -- nvim-lspconfig used to provide this; with the vim.lsp.config API we
@@ -645,6 +652,55 @@
         return true
       end
 
+      -- Returns 1 if the entry's path/source line looks like noise (tests,
+      -- mocks/fakes/noop stand-ins, generated build artifacts), 0 otherwise.
+      -- Matches both filename and source text — the latter catches cases like
+      -- `type noopPusher struct{}` where the path itself is innocent.
+      local function entry_is_low_priority(filename, text)
+        local s = ((filename or "") .. " " .. (text or "")):lower()
+        if s:match("test") or s:match("mock") or s:match("fake") or s:match("noop")
+            or s:match("^build/") or s:match("/build/") then
+          return 1
+        end
+        return 0
+      end
+
+      -- LSP references picker: demotes test-adjacent entries so production
+      -- usages float to the top. Telescope preserves insertion order with an
+      -- empty prompt, so we just pre-sort items.
+      local function smart_references()
+        local clients = vim.lsp.get_clients({ bufnr = 0, method = "textDocument/references" })
+        if #clients == 0 then return end
+        local client = clients[1]
+        local params = vim.lsp.util.make_position_params(0, client.offset_encoding)
+        params.context = { includeDeclaration = true }
+        client:request("textDocument/references", params, function(err, result)
+          if err or not result or vim.tbl_isempty(result) then return end
+          local items = vim.lsp.util.locations_to_items(result, client.offset_encoding)
+          table.sort(items, function(a, b)
+            local fa = entry_is_low_priority(a.filename, a.text)
+            local fb = entry_is_low_priority(b.filename, b.text)
+            if fa ~= fb then return fa < fb end
+            return (a.filename or "") < (b.filename or "")
+          end)
+
+          local pickers = require("telescope.pickers")
+          local finders = require("telescope.finders")
+          local conf = require("telescope.config").values
+          local make_entry = require("telescope.make_entry")
+
+          pickers.new({}, {
+            prompt_title = "LSP References",
+            finder = finders.new_table({
+              results = items,
+              entry_maker = make_entry.gen_from_quickfix({}),
+            }),
+            sorter = conf.generic_sorter({}),
+            previewer = conf.qflist_previewer({}),
+          }):find()
+        end)
+      end
+
       -- JetBrains-style Ctrl-B: go to definition from a usage; if cursor is
       -- already at the definition's line, list references instead.
       -- Uses show_document directly (rather than going through a qflist) so
@@ -669,7 +725,7 @@
           local cur = vim.api.nvim_win_get_cursor(0)
           if target_uri == vim.uri_from_bufnr(0)
               and target_rng.start.line == cur[1] - 1 then
-            require("telescope.builtin").lsp_references()
+            smart_references()
             return
           end
           vim.lsp.util.show_document(
@@ -785,20 +841,7 @@
         end)
       end
 
-      -- Returns 1 if the entry looks like a mock/fake/test/noop, 0 otherwise.
-      -- Matches both the file path and the source line text — the latter
-      -- catches cases like `type noopPusher struct{}` in cmd/*/main.go where
-      -- the path is innocent but the type itself is a stand-in.
-      local function impl_is_fake(filename, text)
-        local s = ((filename or "") .. " " .. (text or "")):lower()
-        if s:match("mock") or s:match("fake") or s:match("noop")
-            or s:match("_test%.") or s:match("/tests?/") then
-          return 1
-        end
-        return 0
-      end
-
-      -- LSP implementations picker: demotes mock/fake/test/noop entries so
+      -- LSP implementations picker: demotes test-adjacent entries so
       -- the "real" implementation ends up preselected. Telescope preserves
       -- insertion order with an empty prompt, so we just pre-sort items
       -- (reals first → first input → bottom → preselected with the default
@@ -823,8 +866,8 @@
 
           local items = vim.lsp.util.locations_to_items(locs, client.offset_encoding)
           table.sort(items, function(a, b)
-            local fa = impl_is_fake(a.filename, a.text)
-            local fb = impl_is_fake(b.filename, b.text)
+            local fa = entry_is_low_priority(a.filename, a.text)
+            local fb = entry_is_low_priority(b.filename, b.text)
             if fa ~= fb then return fa < fb end
             return (a.filename or "") < (b.filename or "")
           end)
