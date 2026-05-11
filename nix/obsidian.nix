@@ -12,7 +12,7 @@ let
       repo = "SilentVoid13/Templater";
     }
     {
-      id = "calendar";
+      id = "calendar-beta";
       repo = "liamcain/obsidian-calendar-plugin";
     }
     {
