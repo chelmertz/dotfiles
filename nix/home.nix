@@ -28,7 +28,34 @@
   home.sessionVariables = {
     TERMINAL = "ghostty";
     CDK_DISABLE_TELEMETRY = "1";
+    # ghostty calls gtk_widget_set_cursor_from_name(widget, "text") for
+    # the terminal area. The system default (DMZ-White) has no "text"
+    # cursor and no Inherits= chain, so libXcursor lookup fails and GTK
+    # falls back to the legacy X11 core cursor font — a thin monochrome
+    # I-beam that's hard to spot. Yaru provides "text" (and inherits
+    # Humanity), so the lookup resolves to a properly themed cursor.
+    XCURSOR_THEME = "Yaru";
   };
+
+  # Set the cursor theme via every channel a GTK4 / libadwaita / Xcursor
+  # app might consult, since on i3 there's no gnome-settings-daemon /
+  # XSETTINGS to coordinate them.
+  dconf.settings = {
+    "org/gnome/desktop/interface" = {
+      cursor-theme = "Yaru";
+      cursor-size = 24;
+    };
+  };
+  xdg.configFile."gtk-3.0/settings.ini".text = ''
+    [Settings]
+    gtk-cursor-theme-name=Yaru
+    gtk-cursor-theme-size=24
+  '';
+  xdg.configFile."gtk-4.0/settings.ini".text = ''
+    [Settings]
+    gtk-cursor-theme-name=Yaru
+    gtk-cursor-theme-size=24
+  '';
 
   # for standard packages, without any custom configuration; otherwise, remove from this list and do "program.myprogram = { enable = true; .. other options}"
   home.packages = with pkgs; [
@@ -293,6 +320,9 @@
         done
         wrapProgram $out/bin/ghostty \
           --set __EGL_VENDOR_LIBRARY_DIRS "/usr/share/glvnd/egl_vendor.d" \
+          --set-default XCURSOR_THEME "Yaru" \
+          --set-default XCURSOR_SIZE "32" \
+          --set-default XCURSOR_PATH "${config.home.homeDirectory}/.icons:${config.home.homeDirectory}/.local/share/icons:/usr/share/icons:/usr/share/pixmaps" \
           --prefix LD_LIBRARY_PATH : "${
             pkgs.lib.makeLibraryPath [
               pkgs.libglvnd
