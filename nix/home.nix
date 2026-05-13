@@ -68,6 +68,7 @@
     autotools-language-server
     awscli2
     baobab
+    basedpyright
     bash-language-server
     bat
     brightnessctl
@@ -120,6 +121,7 @@
     imagemagick
     jq
     jujutsu
+    kubectl
     lazydocker
     lazygit
     libreoffice
@@ -146,6 +148,7 @@
       '';
     })
     nodejs_22
+    openspec
     pandoc
     pastel
     pavucontrol
@@ -162,6 +165,7 @@
     ripgrep
     rofi
     rofimoji
+    ruff
     runme
     serve
     rxvt-unicode
