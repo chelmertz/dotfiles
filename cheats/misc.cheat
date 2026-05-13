@@ -55,6 +55,13 @@ patch -p1 -R < <patch_file>
 setxkbmap -layout se -option caps:ctrl_modifier
 xcape -e "Caps_Lock=Escape" -t 50
 
+% video, webm, mp4, ffmpeg, screen recording
+
+# Convert webm to mp4 (h264/aac), open in ripdrag for sharing
+qt_to_mp4 "<webm>" && rd ~/"$(basename "<webm>" .webm)".mp4
+
+$ webm: find ~/Downloads -maxdepth 1 -name '*.webm' -printf '%T@\t%TY-%Tm-%Td %TH:%TM\t%p\n' | sort -nr | awk -F'\t' -v now=$(date +%s) 'BEGIN{OFS="\t"} {d=now-$1; if(d<60)r=int(d)"s ago"; else if(d<3600)r=int(d/60)"m ago"; else if(d<86400)r=int(d/3600)"h ago"; else r=int(d/86400)"d ago"; print $2,r,$3}' --- --column 3 --delimiter '\t'
+
 % salt, saltstack
 
 # Apply salt state on current minion
