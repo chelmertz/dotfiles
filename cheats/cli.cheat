@@ -1,0 +1,4 @@
+% cli
+
+# list $PATH
+echo $PATH | tr : '\n'
