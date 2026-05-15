@@ -81,8 +81,12 @@
     };
 
     sessionVariables = {
-      EDITOR = "vim";
-      VISUAL = "vim";
+      EDITOR = "nvim";
+      VISUAL = "nvim";
+      # sudoedit / sudo -e can't rely on PATH (sudoers env_reset strips it),
+      # so point it at the absolute nix-profile path. Lets `sudoedit /etc/foo`
+      # actually launch nvim instead of falling back to nano.
+      SUDO_EDITOR = "/home/ch/.nix-profile/bin/nvim";
       TZ = "Europe/Stockholm";
       XDG_CONFIG_HOME = "$HOME/.config";
       GROFF_NO_SGR = "1";
