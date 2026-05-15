@@ -691,6 +691,15 @@
     };
   };
 
+  # Bluetooth headset: auto-switch the BT card from A2DP to HFP when any app
+  # opens a capture stream (e.g. Google Meet asks Chrome for mic access), and
+  # back to A2DP after the stream closes. Avoids manually toggling profile
+  # around every call. Indexed assignment merges into the table set by the
+  # system's 50-bluez-config.lua rather than replacing it.
+  xdg.configFile."wireplumber/bluetooth.lua.d/51-bluez-autoswitch.lua".text = ''
+    bluez_monitor.properties["bluez5.autoswitch-profile"] = true
+  '';
+
   # lazygit: use reverse video for selection so it adapts to any terminal color scheme
   xdg.configFile."lazygit/config.yml".text = ''
     gui:
