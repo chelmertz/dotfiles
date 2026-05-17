@@ -146,6 +146,18 @@ nav#toc {
 nav#toc > ul { margin: 0; padding-left: 1.2em; }
 nav#toc ul { list-style: none; }
 nav#toc a { text-decoration: none; }
+table {
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.6rem;
+  vertical-align: top;
+  text-align: left;
+}
+th { background: var(--border); }
+tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--border) 25%, transparent); }
 </style>
 </head>
 <body>
