@@ -35,6 +35,14 @@ else
 	md_content=$(cat)
 fi
 
+# Embed font as base64 data URI — file:// refs are blocked when the HTML is served over http://
+# Only the regular weight is embedded; the browser synthesizes bold.
+font_regular="$HOME/.local/share/fonts/Go/Go-Mono.ttf"
+font_regular_src='local("Go Mono")'
+if [ -f "$font_regular" ]; then
+	font_regular_src="url(\"data:font/ttf;base64,$(base64 -w0 "$font_regular")\") format(\"truetype\")"
+fi
+
 # Generate TOC
 toc_html=$(echo "$md_content" | pandoc -f markdown+fenced_code_attributes+lists_without_preceding_blankline -t html --toc --template="$toc_template" 2>/dev/null)
 
@@ -59,14 +67,8 @@ cat <<HTMLEOF
 <style>
 @font-face {
   font-family: "Go Mono";
-  src: url("file:///home/ch/.local/share/fonts/Go/Go-Mono.ttf");
+  src: $font_regular_src;
   font-weight: normal;
-  font-style: normal;
-}
-@font-face {
-  font-family: "Go Mono";
-  src: url("file:///home/ch/.local/share/fonts/Go/Go-Mono-Bold.ttf");
-  font-weight: bold;
   font-style: normal;
 }
 :root {
