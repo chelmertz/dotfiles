@@ -73,9 +73,10 @@ cat <<HTMLEOF
 }
 :root {
   --bg: #fff; --fg: #222; --muted: #666; --border: #ccc; --accent: #444;
+  --code-bg: #fffff5;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #1a1a1a; --fg: #e0e0e0; --muted: #888; --border: #444; --accent: #aaa; }
+  :root { --bg: #1a1a1a; --fg: #e0e0e0; --muted: #888; --border: #444; --accent: #aaa; --code-bg: #222; }
 }
 * { box-sizing: border-box; }
 body {
@@ -125,7 +126,7 @@ pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
-div.sourceCode { margin: 1em 0; }
+div.sourceCode { margin: 1em 0; background: var(--code-bg); }
 pre.sourceCode { margin: 0; }
 @media screen { div.sourceCode { overflow: auto; } }
 code span.al { font-weight: bold; }
