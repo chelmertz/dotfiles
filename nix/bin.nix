@@ -221,6 +221,11 @@
       executable = true;
     };
 
+    ".local/bin/prose-check" = {
+      source = ../bin/prose-check;
+      executable = true;
+    };
+
     ".local/bin/qt_to_mp4" = {
       source = ../bin/qt_to_mp4;
       executable = true;

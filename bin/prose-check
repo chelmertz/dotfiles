@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Flags weasel words, passive voice, and duplicate words.
+# Source: matt.might.net/articles/shell-scripts-for-passive-voice-weasel-words-duplicates/
+# Usage:  prose-check [FILE]   (reads stdin when FILE is omitted)
+# Output: matches on stderr, one per line, tagged with the rule that fired.
+# Exit:   1 if any matches, 0 if clean, 2 on usage error.
+
+set -u
+
+weasels='many|various|very|fairly|several|extremely|exceedingly|quite|remarkably|few|surprisingly|mostly|largely|huge|tiny|((are|is) a number)|excellent|interestingly|significantly|substantially|clearly|vast|relatively|completely'
+
+irregulars='awoken|been|born|beat|become|begun|bent|beset|bet|bid|bidden|bound|bitten|bled|blown|broken|bred|brought|broadcast|built|burnt|burst|bought|cast|caught|chosen|clung|come|cost|crept|cut|dealt|dug|dived|done|drawn|dreamt|driven|drunk|eaten|fallen|fed|felt|fought|found|fit|fled|flung|flown|forbidden|forgotten|foregone|forgiven|forsaken|frozen|gotten|given|gone|ground|grown|hung|heard|hidden|hit|held|hurt|kept|knelt|knit|known|laid|led|leapt|learnt|left|lent|let|lain|lighted|lost|made|meant|met|misspelt|mistaken|mown|overcome|overdone|overtaken|overthrown|paid|pled|proven|put|quit|read|rid|ridden|rung|risen|run|sawn|said|seen|sought|sold|sent|set|sewn|shaken|shaven|shorn|shed|shone|shod|shot|shown|shrunk|shut|sung|sunk|sat|slept|slain|slid|slung|slit|smitten|sown|spoken|sped|spent|spilt|spun|spit|split|spread|sprung|stood|stolen|stuck|stung|stunk|stridden|struck|strung|striven|sworn|swept|swollen|swum|swung|taken|taught|torn|told|thought|thrived|thrown|thrust|trodden|understood|upheld|upset|woken|worn|woven|wed|wept|wound|won|withheld|withstood|wrung|written'
+
+prog=$(basename "$0")
+
+if [ $# -gt 1 ]; then
+    echo "usage: $prog [FILE]" >&2
+    exit 2
+fi
+
+if [ $# -eq 1 ]; then
+    src=$1
+    label=$src
+    if [ ! -r "$src" ]; then
+        echo "$prog: cannot read $src" >&2
+        exit 2
+    fi
+else
+    src=/dev/stdin
+    label='<stdin>'
+fi
+
+tmp=$(mktemp)
+out=$(mktemp)
+trap 'rm -f "$tmp" "$out"' EXIT
+cat -- "$src" > "$tmp"
+
+decorate() {
+    awk -v lbl="$label" -v tag="$1" '{print "[" tag "] " lbl ":" $0}'
+}
+
+rg -i -n "\b($weasels)\b" "$tmp" \
+    | decorate weasel >> "$out"
+
+rg -i -n "\b(am|are|were|being|is|been|was|be)\b[ ]*(\w+ed|($irregulars))\b" "$tmp" \
+    | decorate passive >> "$out"
+
+# Duplicate word detection.
+# We deliberately diverge from Matt Might's original perl (which compares
+# every `\w+` token to the previous one, across all punctuation and lines)
+# because that produces a long tail of structural false positives in
+# markdown: HTML anchors next to `## A.1.1` headings emit "a a" / "1 1",
+# table cells emit "Google | Google", clauses emit "role; role-based",
+# markdown links emit "[Section X](#section-x)", and heading echoes across
+# blank lines emit "RACI RACI".
+#
+# The redefinition: a duplicate is two adjacent word tokens separated by
+# whitespace ONLY (no punctuation, no line break), where the token is at
+# least 2 chars long and starts with a letter (filters pure-digit dups
+# from numbering like "A.1.1"). Implemented as a single PCRE2 backreference.
+rg -i -P -n -o "\b([A-Za-z]\w+)\s+\1\b" "$tmp" \
+    | decorate duplicate >> "$out"
+
+if [ -s "$out" ]; then
+    cat "$out" >&2
+    exit 1
+fi
+exit 0
