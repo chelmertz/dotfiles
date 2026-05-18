@@ -319,7 +319,7 @@
                     wmctrl -a "Firefox"
                     ;;
                   *md)
-                    treemd $1
+                    mdpreview $1
                     ;;
                   *)
                     xdg-open $1
