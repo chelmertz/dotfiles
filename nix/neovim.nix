@@ -135,6 +135,69 @@
       })
 
       -- ========================================================================
+      -- Prose check (markdown only)
+      -- Surfaces weasel words / passive voice / duplicate words from
+      -- ~/.local/bin/prose-check as LSP-style diagnostics. With the existing
+      -- vim.diagnostic.config({ virtual_text = true }) below, hits render
+      -- inline next to the offending line — same UX as LSP warnings.
+      -- Runs async on BufReadPost + BufWritePost. Manual trigger via :ProseCheck.
+      -- ========================================================================
+      local prose_ns = vim.api.nvim_create_namespace("prose_check")
+      local prose_msg = {
+        weasel    = "weasel word",
+        passive   = "passive voice",
+        duplicate = "duplicate words",
+      }
+
+      local function prose_check_run(bufnr)
+        bufnr = bufnr or vim.api.nvim_get_current_buf()
+        local file = vim.api.nvim_buf_get_name(bufnr)
+        if file == "" or vim.fn.filereadable(file) == 0 then return end
+        if vim.fn.executable("prose-check") == 0 then return end
+
+        vim.system({ "prose-check", file }, { text = true }, function(result)
+          local diagnostics = {}
+          -- Format: "[rule] /path:lineno:rest-of-line". Use lazy .- for the
+          -- path part so colons in paths (rare) don't break parsing.
+          for line in (result.stderr or ""):gmatch("[^\n]+") do
+            local rule, lnum, rest = line:match("^%[(%w+)%] .-:(%d+):(.*)$")
+            if rule and lnum then
+              -- duplicates are almost always real prose bugs → WARN (yellow).
+              -- weasel / passive are judgment calls → HINT (subtle, gray).
+              local sev = (rule == "duplicate")
+                  and vim.diagnostic.severity.WARN
+                  or  vim.diagnostic.severity.HINT
+              local msg = (rule == "duplicate")
+                  and ("duplicate: " .. rest)
+                  or  (prose_msg[rule] or rule)
+              table.insert(diagnostics, {
+                bufnr    = bufnr,
+                lnum     = tonumber(lnum) - 1,
+                col      = 0,
+                severity = sev,
+                source   = "prose-check",
+                message  = msg,
+              })
+            end
+          end
+          vim.schedule(function()
+            if vim.api.nvim_buf_is_valid(bufnr) then
+              vim.diagnostic.set(prose_ns, bufnr, diagnostics)
+            end
+          end)
+        end)
+      end
+
+      vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost" }, {
+        pattern = "*.md",
+        callback = function(ev) prose_check_run(ev.buf) end,
+      })
+
+      vim.api.nvim_create_user_command("ProseCheck", function()
+        prose_check_run()
+      end, { desc = "Run prose-check on current buffer" })
+
+      -- ========================================================================
       -- Trailing space highlight (only when :set list is on)
       -- ========================================================================
       vim.api.nvim_set_hl(0, "TrailingSpace", { bg = "#ff0000", fg = "#ffffff", ctermbg = "red", ctermfg = "white" })
@@ -239,6 +302,9 @@
             })
           end, desc = "live grep" },
         { "<leader>u", "<cmd>UndotreeToggle<cr>", desc = "undo tree" },
+        -- Prose-check refresh. Auto-runs on save/open of *.md, but useful
+        -- to retrigger manually if you've cleaned up and want to confirm.
+        { "<leader>P", prose_check_run, desc = "prose check (md)" },
       }
 
       -- Format on save (conform.nvim). For filetypes without an explicit
