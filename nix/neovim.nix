@@ -258,7 +258,9 @@
               register_toggle_mappings()
             end,
             desc = t.label,
-            icon = on and "●" or "○",
+            -- explicit hl: default WhichKeyIcon links to @markup.link, which is
+            -- underlined in most themes — wrong look for our toggle bullets
+            icon = { icon = on and "●" or "○", hl = "WhichKeyDesc" },
           })
         end
         wk.add(m)
