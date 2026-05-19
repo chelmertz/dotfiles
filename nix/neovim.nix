@@ -371,6 +371,22 @@
         end,
       })
 
+      vim.api.nvim_create_autocmd("FileType", {
+        pattern = "markdown",
+        callback = function(ev)
+          wk.add({
+            { "<leader>m", function()
+                local file = vim.api.nvim_buf_get_name(0)
+                if file == "" then
+                  vim.notify("No file to preview", vim.log.levels.WARN)
+                  return
+                end
+                vim.fn.jobstart({ "mdpreview", file }, { detach = true })
+              end, desc = "mdpreview", buffer = ev.buf },
+          })
+        end,
+      })
+
       -- q closes vim-test's terminal output buffer
       vim.api.nvim_create_autocmd("TermOpen", {
         callback = function()
