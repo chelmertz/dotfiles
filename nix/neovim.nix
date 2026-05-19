@@ -726,9 +726,31 @@
 
         -- Strip leading '#' from the search so this matches both same-file
         -- (#/...) and cross-file (path.yml#/...) refs.
+        local search = pointer:sub(2)
+
+        -- If there's exactly one usage, jump straight there instead of
+        -- making the user confirm a single-entry telescope picker.
+        local rg_out = vim.fn.systemlist({
+          "rg", "--vimgrep", "--color=never", "--fixed-strings",
+          "--hidden", "--glob=!.git/", search,
+        })
+        local hits = {}
+        for _, l in ipairs(rg_out) do
+          if l ~= "" then table.insert(hits, l) end
+        end
+        if #hits == 1 then
+          local file, lnum, col = hits[1]:match("^(.-):(%d+):(%d+):")
+          if file then
+            vim.cmd("edit " .. vim.fn.fnameescape(file))
+            vim.api.nvim_win_set_cursor(0, { tonumber(lnum), tonumber(col) - 1 })
+            vim.cmd("normal! zz")
+            return true
+          end
+        end
+
         require("telescope.builtin").grep_string({
           prompt_title = "$ref usages of " .. pointer,
-          search = pointer:sub(2),
+          search = search,
           additional_args = function()
             return { "--hidden", "--glob=!.git/" }
           end,
