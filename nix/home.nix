@@ -653,7 +653,6 @@
         icon_position = "left";
         min_icon_size = 0;
         max_icon_size = 32;
-        icon_path = "/usr/share/icons/gnome/16x16/status/:/usr/share/icons/gnome/16x16/devices/";
         sticky_history = true;
         history_length = 20;
         dmenu = "rofi -dmenu -p dunst";
