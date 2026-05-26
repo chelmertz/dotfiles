@@ -232,9 +232,19 @@ $body_html
   targets.sort((a, b) =>
     (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1);
 
+  const toc = document.querySelector('nav#toc');
+  // Scroll only inside the ToC's own overflow box — never the page.
+  // In stacked (narrow) mode the nav has no internal scroll, so we no-op.
+  const keepLinkVisibleInToc = (link) => {
+    if (!toc || toc.scrollHeight <= toc.clientHeight) return;
+    const lr = link.getBoundingClientRect();
+    const tr = toc.getBoundingClientRect();
+    if (lr.top < tr.top) toc.scrollTop += lr.top - tr.top - 4;
+    else if (lr.bottom > tr.bottom) toc.scrollTop += lr.bottom - tr.bottom + 4;
+  };
+
   let active = null;
   const update = () => {
-    // Activation line: a heading is "current" once its top crosses above this y.
     const line = Math.max(80, window.innerHeight * 0.25);
     let candidate = targets[0];
     for (const t of targets) {
@@ -246,7 +256,7 @@ $body_html
     if (active) active.classList.remove('active');
     if (next) {
       next.classList.add('active');
-      next.scrollIntoView({ block: 'nearest' });
+      keepLinkVisibleInToc(next);
     }
     active = next;
   };
