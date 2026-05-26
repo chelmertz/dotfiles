@@ -197,7 +197,6 @@
     tree
     texliveSmall
     treemd
-    trurl
     uni
     unzip
     uv
