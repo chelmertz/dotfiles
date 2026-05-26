@@ -33,6 +33,9 @@
         };
       })
       firenvim
+      neogit
+      diffview-nvim
+      blame-nvim
     ];
 
     initLua = ''
@@ -44,6 +47,8 @@
       vim.opt.incsearch = true
       vim.opt.ignorecase = true
       vim.opt.smartcase = true
+      -- Treat hyphens as part of words so `*` matches "foo-bar" whole (markdown, css)
+      vim.opt.iskeyword:append("-")
       vim.opt.number = false
       -- Disable mouse so terminal handles selection (X PRIMARY / middle-click paste)
       vim.opt.mouse = ""
@@ -307,6 +312,15 @@
         -- Prose-check refresh. Auto-runs on save/open of *.md, but useful
         -- to retrigger manually if you've cleaned up and want to confirm.
         { "<leader>P", prose_check_run, desc = "prose check (md)" },
+        { "<leader>,",  group = "git" },
+        { "<leader>,,", "<cmd>Neogit<cr>",                desc = "neogit (magit-style top-level)" },
+        { "<leader>,b", "<cmd>BlameToggle<cr>",           desc = "blame toggle (side buffer)" },
+        { "<leader>,h", "<cmd>DiffviewFileHistory %<cr>", desc = "file history (current file, --follow)" },
+        { "<leader>,l", function()
+            local line = vim.fn.line(".")
+            local file = vim.fn.expand("%")
+            vim.cmd(string.format("DiffviewFileHistory -L%d,%d:%s", line, line, file))
+          end, desc = "line history (current line, git log -L)" },
       }
 
       -- Format on save (conform.nvim). For filetypes without an explicit
@@ -400,6 +414,15 @@
       -- Surround (ys, cs, ds)
       -- ========================================================================
       require("nvim-surround").setup()
+
+      -- ========================================================================
+      -- Git: neogit (magit clone — status, stage, commit, branch, rebase) +
+      -- diffview (file/commit history with --follow, line evolution via -L) +
+      -- blame.nvim (togglable side-buffer blame, per-commit colors).
+      -- Diffview needs no setup; neogit auto-detects it for commit views.
+      -- ========================================================================
+      require("neogit").setup({})
+      require("blame").setup()
 
       -- ========================================================================
       -- CSV: csvview aligns columns + keeps the header pinned (defaults are
@@ -1006,7 +1029,7 @@
           map("<C-b>",     smart_goto,                                                    "goto def / list refs")
           map("gd",        smart_goto,                                                    "goto def / list refs")
           map("<C-S-b>",   smart_implementations,                                         "list implementations (real first)")
-          map("<leader>e", vim.diagnostic.goto_next,                                      "next diagnostic")
+          map("<leader>e", function() vim.diagnostic.jump({ count = 1, float = true }) end, "next diagnostic")
           map("<leader>l", smart_list_symbols, "list symbols")
         end,
       })
