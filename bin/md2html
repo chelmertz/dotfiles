@@ -73,22 +73,23 @@ cat <<HTMLEOF
 }
 :root {
   --bg: #fff; --fg: #222; --muted: #666; --border: #ccc; --accent: #444;
-  --code-bg: #fffff5;
+  --code-bg: #ececec;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #1a1a1a; --fg: #e0e0e0; --muted: #888; --border: #444; --accent: #aaa; --code-bg: #222; }
+  :root { --bg: #1a1a1a; --fg: #e0e0e0; --muted: #888; --border: #444; --accent: #aaa; --code-bg: #2a2a2a; }
 }
 * { box-sizing: border-box; }
 body {
   font-family: "Noto Serif", Georgia, "Times New Roman", serif;
   font-size: 1.15rem;
-  margin: 0 auto;
+  margin: 0;
   padding: 2rem 1rem;
-  max-width: 70ch;
   background: var(--bg);
   color: var(--fg);
   line-height: 1.5;
 }
+main { max-width: 70ch; margin: 0 auto; min-width: 0; }
+:is(h1, h2, h3, h4, h5, h6)[id] { scroll-margin-top: 1rem; }
 a { color: var(--accent); }
 code, pre { font-family: "Go Mono", monospace; }
 blockquote {
@@ -126,7 +127,7 @@ pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
-div.sourceCode { margin: 1em 0; background: var(--code-bg); }
+div.sourceCode { margin: 1em 0; background: var(--code-bg); border: 1px solid var(--border); }
 pre.sourceCode { margin: 0; }
 @media screen { div.sourceCode { overflow: auto; } }
 code span.al { font-weight: bold; }
@@ -141,17 +142,58 @@ code span.in { font-style: italic; }
 code span.kw { font-weight: bold; }
 code span.pp { font-weight: bold; }
 code span.wa { font-style: italic; }
+aside.toc-wrap { min-width: 0; }
 nav#toc {
-  margin-bottom: 2rem;
+  margin: 0 auto 2rem;
   padding: 1rem;
   border: 1px solid var(--border);
+  max-width: 70ch;
+  font-size: 0.95rem;
 }
 nav#toc > ul { margin: 0; padding-left: 1.2em; }
-nav#toc ul { list-style: none; }
-nav#toc a { text-decoration: none; }
+nav#toc ul { list-style: none; padding-left: 1em; }
+nav#toc li { margin: 0.2em 0; }
+nav#toc a {
+  display: inline-block;
+  text-decoration: none;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  border-left: 2px solid transparent;
+  padding-left: 0.4em;
+  margin-left: -0.4em;
+}
+nav#toc a.active {
+  font-weight: bold;
+  color: var(--fg);
+  border-left-color: var(--accent);
+}
+
+/* Sidebar layout: enable once viewport is wide enough for content + side rail.
+   Two-column grid centered in the viewport so wide monitors don't get stretched. */
+@media (min-width: 70rem) {
+  body {
+    display: grid;
+    grid-template-columns: minmax(0, 18rem) minmax(0, 70ch);
+    column-gap: 2rem;
+    justify-content: center;
+  }
+  aside.toc-wrap { grid-column: 1; min-width: 0; }
+  main { grid-column: 2; margin: 0; max-width: none; }
+  nav#toc {
+    position: sticky;
+    top: 1rem;
+    margin: 0;
+    max-width: none;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+  }
+}
 table {
   border-collapse: collapse;
   margin: 1rem 0;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
 }
 th, td {
   border: 1px solid var(--border);
@@ -164,8 +206,62 @@ tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--border) 25%, 
 </style>
 </head>
 <body>
-<nav id="toc">$toc_html</nav>
+<aside class="toc-wrap"><nav id="toc">$toc_html</nav></aside>
+<main>
 $body_html
+</main>
+<script>
+(function () {
+  const tocLinks = document.querySelectorAll('nav#toc a[href^="#"]');
+  if (!tocLinks.length) return;
+  const linkById = new Map();
+  tocLinks.forEach(a => {
+    try {
+      const id = decodeURIComponent(a.getAttribute('href').slice(1));
+      if (id) linkById.set(id, a);
+    } catch (_) {}
+  });
+  const targets = [];
+  linkById.forEach((_, id) => {
+    const el = document.getElementById(id);
+    if (el) targets.push(el);
+  });
+  if (!targets.length) return;
+
+  // Normalize to document order so we can short-circuit the scan.
+  targets.sort((a, b) =>
+    (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1);
+
+  let active = null;
+  const update = () => {
+    // Activation line: a heading is "current" once its top crosses above this y.
+    const line = Math.max(80, window.innerHeight * 0.25);
+    let candidate = targets[0];
+    for (const t of targets) {
+      if (t.getBoundingClientRect().top <= line) candidate = t;
+      else break;
+    }
+    const next = linkById.get(candidate.id);
+    if (next === active) return;
+    if (active) active.classList.remove('active');
+    if (next) {
+      next.classList.add('active');
+      next.scrollIntoView({ block: 'nearest' });
+    }
+    active = next;
+  };
+
+  let ticking = false;
+  const schedule = () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => { ticking = false; update(); });
+  };
+  window.addEventListener('scroll', schedule, { passive: true });
+  window.addEventListener('resize', schedule);
+  update();
+})();
+</script>
 </body>
 </html>
 HTMLEOF
