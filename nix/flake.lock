@@ -24,11 +24,11 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1776194926,
-        "narHash": "sha256-KIKEW6vUiq5INx1FZWh/ybTKDLVx4nIIoJaAgELtTvE=",
+        "lastModified": 1779797983,
+        "narHash": "sha256-cETdK82qMmLYxWDhFZUZuUwZuKDez5d4o+6rYrL4l90=",
         "owner": "chelmertz",
         "repo": "elly",
-        "rev": "f9d62922dc8b1d257a7a34dc6ab39eb09a56b021",
+        "rev": "1186de07304236d0b4d83224faf0a758dc10c752",
         "type": "github"
       },
       "original": {
