@@ -20,8 +20,10 @@ from pathlib import Path
 VAULT = Path.home() / "Dropbox" / "notes"
 CODE_DIR = Path.home() / "code"
 DIARY_LOG = Path.home() / ".claude-diary.jsonl"
+CLAUDE_PROJECTS_DIR = Path.home() / ".claude" / "projects"
 DAY_BOUNDARY = time(4, 0)
 LOOKBACK_DAYS = 7
+MTIME_CUSHION_DAYS = 2
 WORK_ORG = "matchiapp"
 GIT_AUTHOR_EMAIL = "helmertz@gmail.com"
 PR_LINK_RE = re.compile(
@@ -162,30 +164,139 @@ def fetch_git_activity(dates):
 
 # ── Claude sessions ────────────────────────────────────────────────
 
-def fetch_claude_sessions(dates):
-    """Returns {date: [session_dict]} from ~/.claude-diary.jsonl, grouped by logical day."""
-    by_date = defaultdict(list)
+def load_diary_metadata():
+    """Returns {session_id: diary_entry} from ~/.claude-diary.jsonl."""
+    meta = {}
     if not DIARY_LOG.exists():
-        return by_date
+        return meta
     try:
         with open(DIARY_LOG) as f:
             for line in f:
                 line = line.strip()
                 if not line:
                     continue
-                entry = json.loads(line)
-                ts = entry.get("timestamp", "")
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                sid = entry.get("session_id")
+                if sid:
+                    meta[sid] = entry
+    except OSError:
+        pass
+    return meta
+
+
+def logical_day_of(dt):
+    if dt.time() < DAY_BOUNDARY:
+        return (dt - timedelta(days=1)).date()
+    return dt.date()
+
+
+def scan_session_jsonl(path):
+    """Return ({day: earliest_dt_that_day}, fallback_cwd, fallback_first_user_text)
+    for a session JSONL, or None if it's a 'claude -p' sdk-cli run (noise from
+    the diary hook itself).
+    """
+    day_to_first_dt = {}
+    fallback_cwd = None
+    fallback_first_text = None
+    checked_entrypoint = False
+    try:
+        with open(path) as f:
+            for line in f:
+                if '"type":"user"' not in line:
+                    continue
+                try:
+                    msg = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not checked_entrypoint:
+                    checked_entrypoint = True
+                    if msg.get("entrypoint") == "sdk-cli":
+                        return None
+                if msg.get("type") != "user" or msg.get("isSidechain"):
+                    continue
+                ts = msg.get("timestamp")
                 if not ts:
                     continue
-                dt = datetime.fromisoformat(ts)
-                if dt.time() < DAY_BOUNDARY:
-                    d = (dt - timedelta(days=1)).date()
-                else:
-                    d = dt.date()
-                if d in dates:
-                    by_date[d].append(entry)
-    except (json.JSONDecodeError, OSError):
-        pass
+                try:
+                    dt = datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone()
+                except ValueError:
+                    continue
+                d = logical_day_of(dt)
+                prev = day_to_first_dt.get(d)
+                if prev is None or dt < prev:
+                    day_to_first_dt[d] = dt
+                if fallback_cwd is None:
+                    fallback_cwd = msg.get("cwd")
+                if fallback_first_text is None:
+                    m = msg.get("message")
+                    if isinstance(m, dict):
+                        content = m.get("content")
+                        if isinstance(content, str):
+                            fallback_first_text = content
+                        elif isinstance(content, list):
+                            for c in content:
+                                if isinstance(c, dict) and c.get("type") == "text":
+                                    fallback_first_text = c.get("text", "")
+                                    break
+    except OSError:
+        return None
+    return day_to_first_dt, fallback_cwd, fallback_first_text
+
+
+def fetch_claude_sessions(dates):
+    """Returns {date: [session_row]} covering every (session, logical_day) where
+    the user prompted that day. Rows include `is_new` = True iff that day is the
+    session's earliest active day in its JSONL.
+
+    Source of activity: ~/.claude/projects/*/*.jsonl (Claude's own session logs).
+    mtime filter keeps cost low (only opens recently touched sessions).
+    Source of summary/branch/cwd: ~/.claude-diary.jsonl (per-session metadata
+    captured by claude-diary-hook on first prompt).
+    """
+    by_date = defaultdict(list)
+    if not dates or not CLAUDE_PROJECTS_DIR.exists():
+        return by_date
+
+    meta = load_diary_metadata()
+    dates_set = set(dates)
+
+    cutoff_date = min(dates) - timedelta(days=MTIME_CUSHION_DAYS)
+    cutoff_ts = datetime.combine(cutoff_date, time(0, 0)).timestamp()
+
+    for proj_dir in CLAUDE_PROJECTS_DIR.iterdir():
+        if not proj_dir.is_dir():
+            continue
+        for jsonl in proj_dir.glob("*.jsonl"):
+            try:
+                if jsonl.stat().st_mtime < cutoff_ts:
+                    continue
+            except OSError:
+                continue
+            result = scan_session_jsonl(jsonl)
+            if result is None:
+                continue
+            day_to_first_dt, fb_cwd, fb_text = result
+            if not day_to_first_dt:
+                continue
+            sid = jsonl.stem
+            earliest_day = min(day_to_first_dt)
+            m = meta.get(sid, {})
+            for d, dt in day_to_first_dt.items():
+                if d not in dates_set:
+                    continue
+                by_date[d].append({
+                    "session_id": sid,
+                    "timestamp": dt.isoformat(),
+                    "is_new": (d == earliest_day),
+                    "summary": m.get("summary", ""),
+                    "prompt": m.get("prompt") or (fb_text or ""),
+                    "cwd": m.get("cwd") or (fb_cwd or ""),
+                    "branch": m.get("branch", ""),
+                })
+
     for d in by_date:
         by_date[d].sort(key=lambda e: e.get("timestamp", ""))
     return by_date
@@ -320,10 +431,11 @@ private:
             if branch and branch != "master" and branch != "main":
                 repo += f" ({branch})"
             sid = s.get("session_id", "")
+            marker = "🆕 " if s.get("is_new") else ""
             if sid:
-                title_cell = md_cell(md_link(summary, f"claude-resume://{sid}"))
+                title_cell = md_cell(marker + md_link(summary, f"claude-resume://{sid}"))
             else:
-                title_cell = md_cell(summary)
+                title_cell = md_cell(marker + summary)
             lines.append(f"| {t} | {md_cell(repo)} | {title_cell} |")
         sections.append("\n".join(lines))
 
@@ -451,21 +563,13 @@ def main():
     outdir.mkdir(parents=True, exist_ok=True)
 
     dates = [today - timedelta(days=i) for i in range(0, LOOKBACK_DAYS + 1)]
-    most_recent = dates[0]
-
-    # Which dates need updating?
-    needed = []
-    for d in dates:
-        path = outdir / f"{d}.md"
-        if d == most_recent or not path.exists():
-            needed.append(d)
 
     migrate_claude_sessions_to_table(outdir)
 
-    if not needed:
-        print("all days populated, nothing to do")
-        return
-
+    # Always regenerate every lookback day. A session resumed today may add a
+    # row to today's note AND retroactively mark its original-day row, so we
+    # can't skip "already exists" days.
+    needed = list(dates)
     start_date = min(needed)
     end_date = max(needed)
 
@@ -483,12 +587,15 @@ def main():
             git_by_date.get(d, []),
             claude_by_date.get(d, []),
         )
-        if content:
-            path.write_text(content)
-            ensure_daily_note(d)
-            print(f"  {d}: updated")
-        else:
+        if not content:
             print(f"  {d}: no data")
+            continue
+        existing = path.read_text() if path.exists() else None
+        if content == existing:
+            continue
+        path.write_text(content)
+        ensure_daily_note(d)
+        print(f"  {d}: updated")
 
     fix_broken_github_pr_links()
 
