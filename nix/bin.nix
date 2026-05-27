@@ -86,6 +86,11 @@
       executable = true;
     };
 
+    ".local/bin/difft-auto" = {
+      source = ../bin/difft-auto;
+      executable = true;
+    };
+
     ".local/bin/debug" = {
       source = ../bin/debug;
       executable = true;

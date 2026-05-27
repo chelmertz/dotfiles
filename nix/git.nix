@@ -1,5 +1,9 @@
 { ... }:
 {
+  programs.difftastic = {
+    enable = true;
+    git.enable = false;
+  };
   programs.git = {
     enable = true;
 
@@ -73,6 +77,7 @@
       diff = {
         algorithm = "histogram";
         colorMoved = "plain";
+        external = "difft-auto";
         mnemonicPrefix = true;
         renames = true;
         tool = "meld";

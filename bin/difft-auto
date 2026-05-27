@@ -1,0 +1,6 @@
+#!/bin/sh
+bg=dark
+case "$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null)" in
+	"'prefer-light'"|"'default'") bg=light ;;
+esac
+exec difft --background="$bg" --display=side-by-side "$@"
