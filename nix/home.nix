@@ -155,11 +155,12 @@
     peek
     pgcli
     php
+    playerctl
     pnpm
     prometheus
     prometheus-blackbox-exporter
     prometheus-node-exporter
-    playerctl
+    prr
     qbittorrent
     ripdrag
     ripgrep

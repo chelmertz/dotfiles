@@ -226,6 +226,11 @@
       executable = true;
     };
 
+    ".local/bin/pr" = {
+      source = ../bin/pr;
+      executable = true;
+    };
+
     ".local/bin/prose-check" = {
       source = ../bin/prose-check;
       executable = true;
