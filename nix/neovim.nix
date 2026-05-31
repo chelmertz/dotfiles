@@ -55,6 +55,18 @@
           }/vim/. $out/
         '';
       })
+      # haunt.nvim: visible, persistent line bookmarks (marks replacement).
+      # Not in nixpkgs yet, so pin from GitHub like the others.
+      (pkgs.vimUtils.buildVimPlugin {
+        pname = "haunt-nvim";
+        version = "unstable-2026-05-31";
+        src = pkgs.fetchFromGitHub {
+          owner = "TheNoeTrevino";
+          repo = "haunt.nvim";
+          rev = "113c2f0689fc8c203f7f316da992e44b074a71ea";
+          hash = "sha256-ldw/5iekHDjyLr3eWP4MR2xBOZz/sDdLMJIVZgIcm4Y=";
+        };
+      })
     ];
 
     initLua = ''
@@ -592,6 +604,46 @@
             -- Surround (ys, cs, ds)
             -- ========================================================================
             require("nvim-surround").setup()
+
+            -- ========================================================================
+            -- haunt.nvim: visible, persistent line bookmarks — replaces marks.
+            -- Each bookmark is an annotation on a line, shown as a gutter sign +
+            -- EOL ghost text and stored as JSON per git repo+branch. So unlike
+            -- marks they're (a) visible at a glance, (b) not file-local, and
+            -- (c) reliably there across restarts. Picker reuses telescope.
+            -- API lives in haunt.api; picker in haunt.picker.
+            -- ========================================================================
+            require("haunt").setup({
+              per_branch_bookmarks = true,  -- bookmarks scoped to the current git branch
+              picker = "telescope",
+            })
+
+            local haunt      = require("haunt.api")
+            local haunt_pick = require("haunt.picker")
+
+            local function haunt_list()
+              haunt_pick.show({ prompt_title = "Haunt Bookmarks" })
+            end
+
+            wk.add({
+              { "<leader>h",  group = "haunt (bookmarks)" },
+              { "<leader>ha", haunt.annotate,         desc = "annotate line (add/edit note)" },
+              { "<leader>hd", haunt.delete,           desc = "delete bookmark on line" },
+              { "<leader>hl", haunt_list,             desc = "list bookmarks (telescope)" },
+              { "<leader>hn", haunt.next,             desc = "next bookmark" },
+              { "<leader>hp", haunt.prev,             desc = "prev bookmark" },
+              { "<leader>hh", haunt.toggle_all_lines, desc = "toggle ghost-text visibility" },
+              { "<leader>hy", haunt.yank_locations,   desc = "yank locations (AI/sidekick fmt)" },
+              { "<leader>hX", haunt.clear_all,        desc = "clear ALL bookmarks" },
+            })
+
+            -- Hijack marks: I don't use vim's manual marks, so repurpose their
+            -- keys for haunt. `m` (was: set mark) → annotate this line; `'` (was:
+            -- linewise jump to mark) → bookmark picker. Backtick (`) is left
+            -- unmapped on purpose — it still reaches the automatic marks
+            -- (``, `., `^, `[, `]) for jump-back/last-change/last-insert.
+            vim.keymap.set("n", "m", haunt.annotate, { desc = "annotate line (haunt)" })
+            vim.keymap.set("n", "'", haunt_list,     { desc = "list bookmarks (haunt)" })
 
             -- ========================================================================
             -- Git: neogit (magit clone — status, stage, commit, branch, rebase) +
