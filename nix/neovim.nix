@@ -1209,7 +1209,19 @@
               end,
             })
 
-            vim.lsp.enable({ "gopls", "gleam", "bashls", "markdown_oxide", "nil_ls", "rust_analyzer", "sqls", "autotools_ls", "yamlls", "basedpyright", "ruff" })
+            -- vtsls (TypeScript/TSX). autoUseWorkspaceTsdk makes it resolve the
+            -- TypeScript install from each project's own node_modules — so it
+            -- tracks the repo's pinned TS version (VSCode "Use Workspace Version"
+            -- behavior) instead of vtsls's bundled copy. Requires deps installed
+            -- (bun/pnpm install) and node on PATH. No tsserver = no symbols, so
+            -- this is also what lets <leader>g find symbols in .ts/.tsx files.
+            vim.lsp.config("vtsls", {
+              settings = {
+                vtsls = { autoUseWorkspaceTsdk = true },
+              },
+            })
+
+            vim.lsp.enable({ "gopls", "gleam", "bashls", "markdown_oxide", "nil_ls", "rust_analyzer", "sqls", "autotools_ls", "yamlls", "basedpyright", "ruff", "vtsls" })
 
             -- :LspRestart — stop clients attached to current buffer and re-attach.
             -- nvim-lspconfig used to provide this; with the vim.lsp.config API we

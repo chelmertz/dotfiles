@@ -203,6 +203,7 @@
     uv
     vim-full
     visidata
+    vtsls
 
     w3m
     whois
