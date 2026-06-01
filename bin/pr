@@ -14,9 +14,19 @@ repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null) || {
     exit 1
 }
 
-selected=$(gh pr list --state open --limit 200 \
+prs=$(gh pr list --state open --limit 200 \
     --json number,title,author \
-    --jq '.[] | "\(.number)  \(.title)  [@\(.author.login)]"' \
+    --jq '.[] | "\(.number)  \(.title)  [@\(.author.login)]"') || {
+    echo "pr: failed to list PRs for $repo" >&2
+    exit 1
+}
+
+[ -n "$prs" ] || {
+    echo "pr: no open PRs in $repo" >&2
+    exit 0
+}
+
+selected=$(printf '%s\n' "$prs" \
   | fzf --prompt="PR> " \
         --header="open PRs in $repo · enter: prr get + edit") || exit 0
 
