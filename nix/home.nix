@@ -313,6 +313,7 @@
       name = "ghostty";
       paths = [ pkgs.ghostty ];
       buildInputs = [ pkgs.makeWrapper ];
+      meta.mainProgram = "ghostty";
       postBuild = ''
         for rel in \
           share/applications/com.mitchellh.ghostty.desktop \
