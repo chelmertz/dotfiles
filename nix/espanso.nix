@@ -342,6 +342,10 @@
         trigger = "::dot";
         replace = "·";
       }
+      {
+        trigger = "::=";
+        replace = "≈";
+      }
 
       {
         trigger = "::mermseq";
