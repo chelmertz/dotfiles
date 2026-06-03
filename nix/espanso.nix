@@ -6,6 +6,9 @@
     configs.default = {
       search_shortcut = "CTRL+CMD+ALT+SPACE";
       paste_shortcut = "CTRL+SHIFT+V";
+      # XSendEvent (fast inject) is dropped by terminals (ghostty) and nvim inside
+      # them; XTestFakeKeyEvent looks like real input so it lands everywhere.
+      disable_x11_fast_inject = true;
     };
 
     matches.default.matches = [
