@@ -150,6 +150,10 @@
         replace = "➕";
       }
       {
+        trigger = "::minus";
+        replace = "➖";
+      }
+      {
         trigger = "::thumb";
         replace = "👍";
       }
