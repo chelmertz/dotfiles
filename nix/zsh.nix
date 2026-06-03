@@ -313,6 +313,12 @@
               }
 
               x() {
+                if [ $# -eq 0 ]; then
+                  local choice
+                  choice=$(fd --type f | fzf) || return
+                  [ -n "$choice" ] && x "$choice"
+                  return
+                fi
                 case $1 in
                   http*|*html)
                     xdg-open $1 2>/dev/null
