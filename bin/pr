@@ -1,51 +1,74 @@
 #!/usr/bin/env bash
-# pr — pick an open PR in the current repo via fzf, fetch and open it in prr.
+# pr — review a github PR with prr.
 #
-# Workflow: cd into a git repo with a github remote, run `pr`, pick a PR.
-# The script runs `prr get` then `prr edit`, which opens the review file in
-# $EDITOR.
+#   pr                      pick an open PR in the current repo via fzf
+#   pr <owner>/<repo>/<num> review that specific PR (skips fzf)
+#
+# Either way: runs `prr get`, opens the review in $EDITOR (`prr edit`), then
+# offers to `prr submit`. The second form is what the prr:// scheme handler
+# (bin/prr-open) invokes after deriving the id from a github PR url.
 #
 # Requires: gh (authed), prr (configured: ~/.config/prr/config.toml), fzf.
 
 set -euo pipefail
 
-repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null) || {
-    echo "pr: not a github repo (or gh not authed)" >&2
-    exit 1
-}
+target="${1:-}"
 
-prs=$(gh pr list --state open --limit 200 \
-    --json number,title,author \
-    --jq '.[] | "\(.number)  \(.title)  [@\(.author.login)]"') || {
-    echo "pr: failed to list PRs for $repo" >&2
-    exit 1
-}
+if [ -n "$target" ]; then
+    # Explicit owner/repo/number. Validate strictly — this path is reachable
+    # from a clickable prr:// link, so don't pass unsanitised input to prr/gh.
+    case "$target" in
+        [A-Za-z0-9._-]*/[A-Za-z0-9._-]*/[0-9]*) ;;
+        *)
+            echo "pr: expected <owner>/<repo>/<number>, got: $target" >&2
+            exit 1
+            ;;
+    esac
+    pr_id="$target"
+else
+    repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null) || {
+        echo "pr: not a github repo (or gh not authed)" >&2
+        exit 1
+    }
 
-[ -n "$prs" ] || {
-    echo "pr: no open PRs in $repo" >&2
-    exit 0
-}
+    prs=$(gh pr list --state open --limit 200 \
+        --json number,title,author \
+        --jq '.[] | "\(.number)  \(.title)  [@\(.author.login)]"') || {
+        echo "pr: failed to list PRs for $repo" >&2
+        exit 1
+    }
 
-selected=$(printf '%s\n' "$prs" \
-  | fzf --prompt="PR> " \
-        --header="open PRs in $repo · enter: prr get + edit") || exit 0
+    [ -n "$prs" ] || {
+        echo "pr: no open PRs in $repo" >&2
+        exit 0
+    }
 
-num=$(printf '%s' "$selected" | awk '{print $1}')
-[ -n "$num" ] || exit 0
+    selected=$(printf '%s\n' "$prs" \
+      | fzf --prompt="PR> " \
+            --header="open PRs in $repo · enter: prr get + edit") || exit 0
 
-prr get "$repo/$num"
-prr edit "$repo/$num"
+    num=$(printf '%s' "$selected" | awk '{print $1}')
+    [ -n "$num" ] || exit 0
+    pr_id="$repo/$num"
+fi
+
+# Print the PR url to stderr up front. ghostty makes it clickable, and being
+# before the editor means it survives any exit path (:wq, :cq, C-z + kill, …).
+printf 'PR: https://github.com/%s/pull/%s\n' "${pr_id%/*}" "${pr_id##*/}" >&2
+
+prr get "$pr_id"
+prr edit "$pr_id"
 
 # Editor closed cleanly (set -e would have bailed on failure). Offer to
 # submit. Enter / Y submits via prr (the @prr approve|reject|comment
 # directive in the file picks the review type; default is comment-only).
 # Any other key skips submit and leaves the .prr file as a draft.
-read -rp "Submit review for $repo/$num? [Y/n] " ans
+read -rp "Submit review for $pr_id? [Y/n] " ans
 case "$ans" in
     ""|y|Y|yes|YES)
-        prr submit "$repo/$num"
+        prr submit "$pr_id"
         ;;
     *)
-        echo "skipped; draft kept at \$workdir/$repo/$num.prr"
+        echo "skipped; draft kept at \$workdir/$pr_id.prr"
         ;;
 esac
