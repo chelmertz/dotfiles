@@ -237,6 +237,17 @@
     fi
   '';
 
+  # Register the dotfiles-managed custom URI scheme handlers. `xdg-mime
+  # default` edits ~/.config/mimeapps.list in place, so the rest of that
+  # hand-curated file (firefox-as-default, signal, postman, …) is left alone —
+  # unlike `xdg.mimeApps`, which would take ownership of the whole file. The
+  # command is idempotent: re-running just re-asserts the same association.
+  home.activation.xdgSchemeHandlers = ''
+    ${pkgs.xdg-utils}/bin/xdg-mime default prr-open.desktop x-scheme-handler/prr
+    ${pkgs.xdg-utils}/bin/xdg-mime default claude-resume.desktop x-scheme-handler/claude-resume
+    ${pkgs.xdg-utils}/bin/xdg-mime default com.mitchellh.ghostty.desktop x-scheme-handler/terminal
+  '';
+
   programs.yazi = {
     enable = true;
     # default changed from "yy" to "y" in 26.05; pin to new default early
@@ -375,10 +386,8 @@
   # ghostty window in the session's original cwd. See
   # claude-resume-clickable-links.md for the design.
   #
-  # Mime registration is *not* nix-managed because ~/.config/mimeapps.list is
-  # hand-curated. Register manually after `home-manager switch`:
-  #   xdg-mime default claude-resume.desktop x-scheme-handler/claude-resume
-  #   xdg-mime default com.mitchellh.ghostty.desktop x-scheme-handler/terminal
+  # Mime registration is handled idempotently by home.activation.xdgSchemeHandlers
+  # (xdg-mime default ...), which edits the hand-curated mimeapps.list in place.
   xdg.desktopEntries.claude-resume = {
     name = "claude --resume";
     exec = "${config.home.homeDirectory}/bin/claude-resume-open %u";
@@ -438,6 +447,86 @@
       '';
     }
   }/bin/claude-resume-open";
+
+  # Clickable prr://<owner>/<repo>/<number> links: derived from a github PR
+  # url (github.com/<owner>/<repo>/pull/<number>) by a browser userscript,
+  # click to launch `pr <owner>/<repo>/<number>` in a ghostty window, in the
+  # local clone's directory. See prr-clickable-links.md for the design.
+  #
+  # Mime registration handled by home.activation.xdgSchemeHandlers.
+  xdg.desktopEntries.prr-open = {
+    name = "prr review";
+    exec = "${config.home.homeDirectory}/bin/prr-open %u";
+    noDisplay = true;
+    mimeType = [ "x-scheme-handler/prr" ];
+  };
+
+  home.file."bin/prr-open".source = "${
+    pkgs.writeShellApplication {
+      name = "prr-open";
+      runtimeInputs = with pkgs; [
+        git
+        libnotify
+        coreutils
+        findutils
+        gnused
+      ];
+      text = ''
+        on_exit() {
+          rc=$?
+          if [ "$rc" -ne 0 ]; then
+            notify-send "prr" "wrapper failed (exit=$rc)"
+          fi
+        }
+        trap on_exit EXIT
+
+        uri="''${1:-}"
+        rest="''${uri#prr://}"
+        # Strip any trailing slash the browser might append.
+        rest="''${rest%/}"
+
+        case "$rest" in
+          [A-Za-z0-9._-]*/[A-Za-z0-9._-]*/[0-9]*) ;;
+          *) notify-send "prr" "invalid uri: $uri"; exit 1 ;;
+        esac
+
+        owner="''${rest%%/*}"
+        tmp="''${rest#*/}"
+        repo="''${tmp%%/*}"
+        number="''${tmp##*/}"
+        target="$owner/$repo"
+
+        # Locate the local clone: scan ~/code for a git repo whose origin
+        # remote resolves to <owner>/<repo>. Fast-path on directory basename
+        # (clones are conventionally named after the repo), then verify the
+        # remote so a same-named clone of a different fork isn't matched.
+        dir=""
+        while IFS= read -r gitdir; do
+          candidate="''${gitdir%/.git}"
+          remote=$(git -C "$candidate" remote get-url origin 2>/dev/null) || continue
+          norm=$(printf '%s' "$remote" | sed -E 's#\.git$##; s#^.*[:/]([^/]+/[^/]+)$#\1#')
+          if [ "$norm" = "$target" ]; then
+            dir="$candidate"
+            break
+          fi
+        done < <(find "$HOME/code" -maxdepth 4 -type d -name "$repo" -exec test -d '{}/.git' \; -print 2>/dev/null | sed 's#$#/.git#')
+
+        if [ -z "$dir" ]; then
+          notify-send "prr" "no local clone of $target under ~/code; opening in \$HOME"
+          dir="$HOME"
+        fi
+
+        # Run through an interactive zsh so ~/.local/bin (where `pr` lives) and
+        # the nix profile are on PATH — those are added in zsh's interactive
+        # init, not the env xdg-open hands us. After `pr` finishes, drop into
+        # an interactive shell in the repo so further poking (prr apply, git…)
+        # is one step away.
+        exec ${config.programs.ghostty.package}/bin/ghostty +new-window \
+          --working-directory="$dir" \
+          --command="zsh -ic 'pr $owner/$repo/$number; exec zsh -i'"
+      '';
+    }
+  }/bin/prr-open";
 
   programs.wezterm = {
     enable = true;
