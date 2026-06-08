@@ -8,21 +8,12 @@ DOTFILES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Stage any files that were updated
 git -C "$DOTFILES_DIR" add \
-    vscode-settings.json \
-    vscode-keybindings.json \
-    cursor-settings.json \
-    cursor-keybindings.json \
-    copyq.conf \
-    2>/dev/null
-
-# Format any staged .nix files
-NIX_FILES=$(git -C "$DOTFILES_DIR" diff --cached --name-only --diff-filter=ACM -- '*.nix')
-if [ -n "$NIX_FILES" ]; then
-    echo "$NIX_FILES" | while read -r f; do
-        nixfmt "$DOTFILES_DIR/$f"
-    done
-    echo "$NIX_FILES" | xargs -I{} git -C "$DOTFILES_DIR" add {}
-fi
+	vscode-settings.json \
+	vscode-keybindings.json \
+	cursor-settings.json \
+	cursor-keybindings.json \
+	copyq.conf \
+	2>/dev/null
 
 # Always allow the commit to proceed
 exit 0
