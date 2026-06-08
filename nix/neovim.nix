@@ -180,10 +180,10 @@
             -- Runs async on BufReadPost + BufWritePost. Manual trigger via :ProseCheck.
             -- ========================================================================
             local prose_ns = vim.api.nvim_create_namespace("prose_check")
-            local prose_msg = {
-              weasel    = "weasel word",
-              passive   = "passive voice",
-              duplicate = "duplicate words",
+            local prose_label = {
+              weasel    = "weasel",
+              passive   = "passive",
+              duplicate = "duplicate",
             }
 
             local function prose_check_run(bufnr)
@@ -194,26 +194,31 @@
 
               vim.system({ "prose-check", file }, { text = true }, function(result)
                 local diagnostics = {}
-                -- Format: "[rule] /path:lineno:rest-of-line". Use lazy .- for the
-                -- path part so colons in paths (rare) don't break parsing.
+                -- Format: "[rule] /path:lineno:col:match". Lazy .- for the path
+                -- part so colons in paths (rare) don't break parsing.
                 for line in (result.stderr or ""):gmatch("[^\n]+") do
-                  local rule, lnum, rest = line:match("^%[(%w+)%] .-:(%d+):(.*)$")
-                  if rule and lnum then
+                  local rule, lnum, col, match =
+                      line:match("^%[(%w+)%] .-:(%d+):(%d+):(.*)$")
+                  if rule and lnum and col and match then
                     -- duplicates are almost always real prose bugs → WARN (yellow).
                     -- weasel / passive are judgment calls → HINT (subtle, gray).
                     local sev = (rule == "duplicate")
                         and vim.diagnostic.severity.WARN
                         or  vim.diagnostic.severity.HINT
-                    local msg = (rule == "duplicate")
-                        and ("duplicate: " .. rest)
-                        or  (prose_msg[rule] or rule)
+                    -- col + end_col turn the line-wide flag into a per-word
+                    -- squiggle. rg's --column is 1-based; vim.diagnostic is
+                    -- 0-based. end_col is exclusive — points just past the
+                    -- last byte of the match. ASCII-only here; multi-byte
+                    -- matches would need utf-aware byte counting.
+                    local start = tonumber(col) - 1
                     table.insert(diagnostics, {
                       bufnr    = bufnr,
                       lnum     = tonumber(lnum) - 1,
-                      col      = 0,
+                      col      = start,
+                      end_col  = start + #match,
                       severity = sev,
                       source   = "prose-check",
-                      message  = msg,
+                      message  = (prose_label[rule] or rule) .. ": " .. match,
                     })
                   end
                 end
@@ -983,6 +988,22 @@
               vim.keymap.set("n", "<Esc>", "<cmd>close<cr>", { buffer = buf, silent = true })
             end
 
+            -- prr.vim colours added/removed lines foreground-only (links to
+            -- Added/Removed). On a light terminal that green/red reads as
+            -- near-black. Background-tint the whole line instead — like github
+            -- and Claude Code's own diff render — for real legibility. Uses
+            -- 256-cube indices (16-255 are fixed regardless of the active
+            -- ghostty palette), since nvim runs without termguicolors. The
+            -- gui values are set too, harmless now, correct if truecolor is
+            -- ever enabled. Highlight groups are global, so set once.
+            local function prr_diff_highlights()
+              vim.api.nvim_set_hl(0, "prrAdded",
+                { ctermbg = 194, ctermfg = 22, bg = "#d7ffd7", fg = "#005f00" })
+              vim.api.nvim_set_hl(0, "prrRemoved",
+                { ctermbg = 224, ctermfg = 52, bg = "#ffd7d7", fg = "#5f0000" })
+            end
+            prr_diff_highlights()
+
             vim.api.nvim_create_autocmd("FileType", {
               pattern = "prr",
               callback = function(ev)
@@ -991,6 +1012,8 @@
                 vim.wo.winbar = "  > quoted (diff)   @prr approve|reject|comment   [...] collapse   <leader>? cheatsheet  "
                 vim.keymap.set("n", "<leader>?", open_prr_cheatsheet,
                   { buffer = ev.buf, silent = true, desc = "prr cheatsheet" })
+                -- Re-assert in case something reset the groups (e.g. :syntax on).
+                prr_diff_highlights()
               end,
             })
 

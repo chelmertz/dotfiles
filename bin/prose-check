@@ -39,10 +39,13 @@ decorate() {
     awk -v lbl="$label" -v tag="$1" '{print "[" tag "] " lbl ":" $0}'
 }
 
-rg -i -n "\b($weasels)\b" "$tmp" \
+# --column + -o makes rg emit "lineno:col:match" instead of the full line.
+# Trades CLI readability (no surrounding context) for editor-integration
+# precision: callers can underline the exact span and jump to the column.
+rg -i -n --column -o "\b($weasels)\b" "$tmp" \
     | decorate weasel >> "$out"
 
-rg -i -n "\b(am|are|were|being|is|been|was|be)\b[ ]*(\w+ed|($irregulars))\b" "$tmp" \
+rg -i -n --column -o "\b(am|are|were|being|is|been|was|be)\b[ ]*(\w+ed|($irregulars))\b" "$tmp" \
     | decorate passive >> "$out"
 
 # Duplicate word detection.
@@ -58,7 +61,7 @@ rg -i -n "\b(am|are|were|being|is|been|was|be)\b[ ]*(\w+ed|($irregulars))\b" "$t
 # whitespace ONLY (no punctuation, no line break), where the token is at
 # least 2 chars long and starts with a letter (filters pure-digit dups
 # from numbering like "A.1.1"). Implemented as a single PCRE2 backreference.
-rg -i -P -n -o "\b([A-Za-z]\w+)\s+\1\b" "$tmp" \
+rg -i -P -n --column -o "\b([A-Za-z]\w+)\s+\1\b" "$tmp" \
     | decorate duplicate >> "$out"
 
 if [ -s "$out" ]; then
