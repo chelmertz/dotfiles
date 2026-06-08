@@ -340,7 +340,7 @@
     settings = {
       theme = "dark:Catppuccin Frappe,light:Catppuccin Latte";
       font-family = "Go Mono";
-      font-size = 15;
+      font-size = 16;
       cursor-style = "block";
       cursor-style-blink = false;
       # Stop ghostty's shell integration from sending DECSCUSR escapes that
