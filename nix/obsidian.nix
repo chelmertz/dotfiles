@@ -293,8 +293,8 @@ let
   defaultTemplate = ''
     ## From the backlog
     ```tasks
-    done on <% tp.date.now("YYYY-MM-DD") %>
-    path does not include journal/<% tp.date.now("YYYY-MM-DD") %>
+    done on <% tp.file.title %>
+    path does not include journal/<% tp.file.title %>
     short mode
     hide toolbar
     ```
@@ -307,7 +307,7 @@ let
 
     ## Notes
 
-    ![[integrations/<% tp.date.now("YYYY-MM-DD") %>]]
+    ![[integrations/<% tp.file.title %>]]
   '';
 
   # ── Plugin installer script ────────────────────────────────────
