@@ -659,6 +659,36 @@
             require("neogit").setup({})
             require("blame").setup()
 
+            -- Neogit popup switches/options show their *enabled* state only via
+            -- text colour: NeogitPopupSwitchEnabled links to SpecialChar, which
+            -- is distinct on the dark theme but washes out on Catppuccin Latte
+            -- (and the disabled state is a subtle grey, which reads fine — leave
+            -- it). Make an enabled argument a coloured "chip": steal the cyan
+            -- foreground of the section-title group (NeogitPopupSectionTitle →
+            -- Function, the "Arguments"/"Create" headings — legible in both
+            -- themes) and use it as the chip *background*, with a dark fg on top.
+            -- Reading it dynamically means it tracks the palette; ANSI cyan is
+            -- the fallback. Re-asserted on the popup's FileType so neogit's own
+            -- hl setup can't clobber it.
+            local function neogit_enabled_arg_hl()
+              local fn = vim.api.nvim_get_hl(0, { name = "Function", link = false })
+              local chip = {
+                ctermbg = fn.ctermfg or 6, -- section-title cyan as background
+                ctermfg = 15,              -- bright white on top (more contrast than black)
+                cterm = { bold = true },
+                bg = fn.fg,                -- gui equivalents (used only if truecolor on)
+                fg = "#ffffff",
+                bold = true,
+              }
+              vim.api.nvim_set_hl(0, "NeogitPopupSwitchEnabled", chip)
+              vim.api.nvim_set_hl(0, "NeogitPopupOptionEnabled", chip)
+            end
+            neogit_enabled_arg_hl()
+            vim.api.nvim_create_autocmd("FileType", {
+              pattern = "NeogitPopup",
+              callback = neogit_enabled_arg_hl,
+            })
+
             -- octo.nvim: GitHub PR/issue review in-editor. Uses `gh` CLI auth.
             -- `<leader>,p` opens PR list (telescope). Inside an octo buffer the
             -- plugin's own keymaps take over — defaults live on <space>.
