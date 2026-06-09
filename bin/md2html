@@ -49,6 +49,15 @@ toc_html=$(echo "$md_content" | pandoc -f markdown+fenced_code_attributes+lists_
 # Convert markdown to HTML fragment
 body_html=$(echo "$md_content" | pandoc -f markdown+fenced_code_attributes+lists_without_preceding_blankline -t html --highlight-style=kate --lua-filter "$mermaid_filter" 2>/dev/null)
 
+# Only render the ToC aside (and enable the sidebar grid layout) when there's something to show.
+if printf '%s' "$toc_html" | grep -q '<a '; then
+	toc_aside="<aside class=\"toc-wrap\"><nav id=\"toc\">${toc_html}</nav></aside>"
+	body_class=' class="has-toc"'
+else
+	toc_aside=""
+	body_class=""
+fi
+
 cat <<HTMLEOF
 <!DOCTYPE html>
 <html lang="en">
@@ -168,18 +177,18 @@ nav#toc a.active {
   border-left-color: var(--accent);
 }
 
-/* Sidebar layout: enable once viewport is wide enough for content + side rail.
+/* Sidebar layout: only when a ToC exists AND viewport is wide enough.
    Two-column grid centered in the viewport so wide monitors don't get stretched. */
 @media (min-width: 70rem) {
-  body {
+  body.has-toc {
     display: grid;
     grid-template-columns: minmax(0, 18rem) minmax(0, 70ch);
     column-gap: 2rem;
     justify-content: center;
   }
-  aside.toc-wrap { grid-column: 1; min-width: 0; }
-  main { grid-column: 2; margin: 0; max-width: none; }
-  nav#toc {
+  body.has-toc aside.toc-wrap { grid-column: 1; min-width: 0; }
+  body.has-toc main { grid-column: 2; margin: 0; max-width: none; }
+  body.has-toc nav#toc {
     position: sticky;
     top: 1rem;
     margin: 0;
@@ -205,8 +214,8 @@ th { background: var(--border); }
 tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--border) 25%, transparent); }
 </style>
 </head>
-<body>
-<aside class="toc-wrap"><nav id="toc">$toc_html</nav></aside>
+<body${body_class}>
+${toc_aside}
 <main>
 $body_html
 </main>
