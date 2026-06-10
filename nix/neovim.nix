@@ -18,6 +18,15 @@
       conform-nvim
       vim-test
       nvim-surround
+      # Treesitter: grammars compiled by nix here (no runtime :TSInstall /
+      # compiler). This is the MAIN branch — config API differs from every
+      # blog post (no .configs.setup{}). Grammars scoped to our LSP languages.
+      (nvim-treesitter.withPlugins (p: [
+        p.go p.rust p.typescript p.tsx p.gleam p.python p.nix
+        p.bash p.json p.yaml p.sql p.toml p.lua
+        p.markdown p.markdown_inline p.comment
+      ]))
+      nvim-treesitter-textobjects
       which-key-nvim
       undotree
       csvview-nvim
@@ -609,6 +618,55 @@
             -- Surround (ys, cs, ds)
             -- ========================================================================
             require("nvim-surround").setup()
+
+            -- ========================================================================
+            -- Treesitter (nvim-treesitter MAIN branch — there is NO
+            -- require("nvim-treesitter.configs").setup{} here; that's the old
+            -- master API). Grammars are nix-compiled (see plugins list), so no
+            -- :TSInstall. Highlighting is core Neovim's vim.treesitter.start();
+            -- function/class/parameter textobjects + motions come from
+            -- nvim-treesitter-textobjects (also main branch).
+            -- ========================================================================
+
+            -- Start TS highlighting wherever a parser exists; pcall so filetypes
+            -- without one (prr, csv, ...) silently keep their classic syntax.
+            vim.api.nvim_create_autocmd("FileType", {
+              callback = function(ev)
+                pcall(vim.treesitter.start, ev.buf)
+              end,
+            })
+
+            require("nvim-treesitter-textobjects").setup({
+              select = { lookahead = true },  -- if not inside one, jump to the next
+              move   = { set_jumps = true },  -- motions land in jumplist (<C-o> back)
+            })
+
+            -- Text objects: af/if function, ac/ic class, aa/ia parameter. Bound in
+            -- operator-pending (o) + visual (x), so daf / vif / cia / yaa all work.
+            -- These need no brackets — comfortable on the Nordic layout.
+            local ts_select = require("nvim-treesitter-textobjects.select")
+            local function pick(obj)
+              return function() ts_select.select_textobject(obj, "textobjects") end
+            end
+            for lhs, obj in pairs({
+              af = "@function.outer",  ["if"] = "@function.inner",
+              ac = "@class.outer",     ic     = "@class.inner",
+              aa = "@parameter.outer", ia     = "@parameter.inner",
+            }) do
+              vim.keymap.set({ "x", "o" }, lhs, pick(obj), { desc = "select " .. obj })
+            end
+
+            -- Function navigation on the Nordic home-row keys (no AltGr, unlike [ ]):
+            --   ö → previous function start — when inside a function this lands on
+            --       its header, i.e. jump to the SURROUNDING function.
+            --   ä → next function start.   Ö / Ä → previous / next function END.
+            -- Works in n/x/o, so e.g. dä deletes to the next function.
+            local ts_move = require("nvim-treesitter-textobjects.move")
+            local function go(fn) return function() ts_move[fn]("@function.outer", "textobjects") end end
+            vim.keymap.set({ "n", "x", "o" }, "ö", go("goto_previous_start"), { desc = "prev function start (surrounding)" })
+            vim.keymap.set({ "n", "x", "o" }, "ä", go("goto_next_start"),     { desc = "next function start" })
+            vim.keymap.set({ "n", "x", "o" }, "Ö", go("goto_previous_end"),   { desc = "prev function end" })
+            vim.keymap.set({ "n", "x", "o" }, "Ä", go("goto_next_end"),       { desc = "next function end" })
 
             -- ========================================================================
             -- haunt.nvim: visible, persistent line bookmarks — replaces marks.
