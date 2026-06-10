@@ -291,22 +291,42 @@ let
   # the dotfiles repo. Contains personal data (team member names).
   # Seeded once if missing, then never overwritten by nix.
   defaultTemplate = ''
-    ## From the backlog
+
+    ## Surfaced backlog
+    ```tasks
+    not done
+    path includes journal/
+    path does not include journal/<% tp.file.title %>
+    description does not include sync:
+    tag does not include #idea
+    sort by path
+    limit 1
+    short mode
+    hide toolbar
+    hide task count
+    ```
+    ```tasks
+    not done
+    path includes journal/
+    path does not include journal/<% tp.file.title %>
+    description does not include sync:
+    tag does not include #idea
+    sort by path reverse
+    limit 2
+    short mode
+    hide toolbar
+    hide task count
+    ```
+    ## Done today
     ```tasks
     done on <% tp.file.title %>
     path does not include journal/<% tp.file.title %>
     short mode
     hide toolbar
+    hide task count
     ```
-
-    ---
-
     ## Sync checklist
-
-    ---
-
     ## Notes
-
     ![[integrations/<% tp.file.title %>]]
   '';
 
