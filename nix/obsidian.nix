@@ -296,19 +296,7 @@ let
     ```tasks
     not done
     path includes journal/
-    path does not include journal/<% tp.file.title %>
-    description does not include sync:
-    tag does not include #idea
-    sort by path
-    limit 1
-    short mode
-    hide toolbar
-    hide task count
-    ```
-    ```tasks
-    not done
-    path includes journal/
-    path does not include journal/<% tp.file.title %>
+    path does not include {{query.file.path}}
     description does not include sync:
     tag does not include #idea
     sort by path reverse
@@ -317,17 +305,45 @@ let
     hide toolbar
     hide task count
     ```
-    ## Done today
     ```tasks
-    done on <% tp.file.title %>
-    path does not include journal/<% tp.file.title %>
+    not done
+    path includes journal/
+    path does not include {{query.file.path}}
+    description does not include sync:
+    tag does not include #idea
+    priority is above none
+    sort by priority
+    sort by path reverse
+    limit 1
+    short mode
+    hide toolbar
+    hide task count
+    ```
+    ```tasks
+    not done
+    path includes journal/
+    path does not include {{query.file.path}}
+    description does not include sync:
+    tag does not include #idea
+    sort by path
+    limit 1
     short mode
     hide toolbar
     hide task count
     ```
     ## Sync checklist
+    ## Done today
+    ```tasks
+    done on {{query.file.filenameWithoutExtension}}
+    path does not include {{query.file.path}}
+    short mode
+    hide toolbar
+    hide task count
+    ```
     ## Notes
-    ![[integrations/<% tp.file.title %>]]
+    ```dataviewjs
+    dv.paragraph(`![[integrations/''${dv.current().file.name}]]`)
+    ```
   '';
 
   # ── Plugin installer script ────────────────────────────────────
