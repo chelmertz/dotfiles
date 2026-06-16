@@ -16,6 +16,13 @@ trap 'rm -f "$mermaid_filter" "$toc_template"' EXIT
 
 echo '$toc$' > "$toc_template"
 
+# Mermaid is rendered client-side via a CDN import (see the <script type="module">
+# below), so diagrams need network at view time. Future: render to static SVG at
+# build time and inline it here -> fully self-contained, offline, no CDN, no
+# securityLevel:'loose'. Candidate tool (headless Rust mermaid renderer):
+#   https://github.com/Latias94/merman
+# Revisit after 2026-09-12: check maturity/parity + whether it's nix-packaged. Keep
+# the CDN path as a per-block fallback for diagram types merman can't render.
 cat > "$mermaid_filter" <<'FILTER'
 function CodeBlock(block)
   if block.classes[1] == "mermaid" then

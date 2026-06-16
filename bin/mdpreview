@@ -8,6 +8,13 @@ else
 	file="$1"
 fi
 
-tmpdir=$(mktemp -d /tmp/mdpreview-XXXXXX)
-md2html "$file" > "$tmpdir/index.html"
-serve -d "$tmpdir" -q
+# Render to a stable cache path (not /tmp, which is wiped on reboot) so the
+# file:// URL stays bookmarkable and reopening the same source overwrites in
+# place. Self-contained HTML (inline CSS/JS, base64 font, mermaid via CDN over
+# https) means no server is needed — file:// works.
+abs=$(readlink -f "$file")
+cachedir="${XDG_CACHE_HOME:-$HOME/.cache}/mdpreview"
+mkdir -p "$cachedir"
+out="$cachedir/$(basename "$abs" .md)-$(printf '%s' "$abs" | sha1sum | cut -c1-8).html"
+md2html "$file" > "$out"
+xdg-open "file://$out"
