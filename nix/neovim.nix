@@ -95,6 +95,13 @@
             vim.opt.cursorline = true
             vim.opt.undofile = true
             vim.opt.autoindent = true
+            -- Load a project-local .nvim.lua / .nvimrc / .exrc from the cwd at
+            -- startup. Neovim prompts to :trust each file; the decision is stored
+            -- per file-hash in stdpath state, OUTSIDE this config — so onboarding a
+            -- new repo never touches the dotfiles. Lets a repo own its editor
+            -- tweaks (e.g. wiring conform→prettier for that repo). cwd-only, so
+            -- launch nvim from the repo root for it to load.
+            vim.opt.exrc = true
             vim.opt.foldmethod = "indent"
             vim.opt.foldlevel = 20
             vim.opt.listchars = {

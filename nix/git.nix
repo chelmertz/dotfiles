@@ -33,6 +33,11 @@
       "*.swo"
       "*~"
       ".~lock.*#"
+      # Neovim project-local config (exrc). Personal per-repo editor tweaks,
+      # not project artefacts — global-ignore them. Only hides UNTRACKED ones;
+      # a repo that deliberately commits .nvim.lua is unaffected (use `git add
+      # -f` if you ever need to contribute one).
+      ".nvim.lua"
       # Tags/cache
       "tags"
       ".sass-cache"
