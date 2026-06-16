@@ -1,16 +1,30 @@
 #!/usr/bin/env bash
 # pr — review a github PR with prr.
 #
-#   pr                      pick an open PR in the current repo via fzf
+#   pr                      resume an in-progress review, or pick an open PR
+#                           in the current repo via fzf
 #   pr <owner>/<repo>/<num> review that specific PR (skips fzf)
 #
-# Either way: runs `prr get`, opens the review in $EDITOR (`prr edit`), then
-# offers to `prr submit`. The second form is what the prr:// scheme handler
-# (bin/prr-open) invokes after deriving the id from a github PR url.
+# Resume-aware: prr tracks each review's state (NEW = fetched but untouched,
+# REVIEWED = has unsubmitted comments/decision, SUBMITTED = sent). With no
+# argument, any REVIEWED (in-progress) reviews are offered first so you can
+# jump straight back in. For whichever PR is chosen, an existing unsubmitted
+# review is resumed via `prr edit` instead of re-fetched with `prr get` (which
+# would error on an unsubmitted review and could clobber drafts).
+#
+# The <owner>/<repo>/<num> form is what the prr:// scheme handler (bin/prr-open)
+# invokes after deriving the id from a github PR url.
 #
 # Requires: gh (authed), prr (configured: ~/.config/prr/config.toml), fzf.
 
 set -euo pipefail
+
+# Status of a known review handle (empty if prr doesn't know it). `prr status`
+# reads local review files only — no network. `|| true` so a non-zero exit
+# (e.g. no reviews yet) doesn't trip `set -e`.
+review_status() {
+    { prr status -n 2>/dev/null || true; } | awk -v h="$1" '$1 == h { print $2; exit }'
+}
 
 target="${1:-}"
 
@@ -26,38 +40,60 @@ if [ -n "$target" ]; then
     esac
     pr_id="$target"
 else
-    repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null) || {
-        echo "pr: not a github repo (or gh not authed)" >&2
-        exit 1
-    }
+    pr_id=""
 
-    prs=$(gh pr list --state open --limit 200 \
-        --json number,title,author \
-        --jq '.[] | "\(.number)  \(.title)  [@\(.author.login)]"') || {
-        echo "pr: failed to list PRs for $repo" >&2
-        exit 1
-    }
+    # Offer to resume in-progress (REVIEWED) reviews first — across all repos,
+    # since you might have unfinished work elsewhere. ESC skips to a new review.
+    reviewed=$({ prr status -n 2>/dev/null || true; } | awk '$2 == "REVIEWED" { print $1 }')
+    if [ -n "$reviewed" ]; then
+        pr_id=$(printf '%s\n' "$reviewed" \
+          | fzf --prompt="resume> " \
+                --header="in-progress reviews · ENTER resume · ESC to start a new one") || true
+    fi
 
-    [ -n "$prs" ] || {
-        echo "pr: no open PRs in $repo" >&2
-        exit 0
-    }
+    # No resume picked → list open PRs in the current repo.
+    if [ -z "$pr_id" ]; then
+        repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null) || {
+            echo "pr: not a github repo (or gh not authed)" >&2
+            exit 1
+        }
 
-    selected=$(printf '%s\n' "$prs" \
-      | fzf --prompt="PR> " \
-            --header="open PRs in $repo · enter: prr get + edit") || exit 0
+        prs=$(gh pr list --state open --limit 200 \
+            --json number,title,author \
+            --jq '.[] | "\(.number)  \(.title)  [@\(.author.login)]"') || {
+            echo "pr: failed to list PRs for $repo" >&2
+            exit 1
+        }
 
-    num=$(printf '%s' "$selected" | awk '{print $1}')
-    [ -n "$num" ] || exit 0
-    pr_id="$repo/$num"
+        [ -n "$prs" ] || {
+            echo "pr: no open PRs in $repo" >&2
+            exit 0
+        }
+
+        selected=$(printf '%s\n' "$prs" \
+          | fzf --prompt="PR> " \
+                --header="open PRs in $repo · enter: review") || exit 0
+
+        num=$(printf '%s' "$selected" | awk '{print $1}')
+        [ -n "$num" ] || exit 0
+        pr_id="$repo/$num"
+    fi
 fi
 
 # Print the PR url to stderr up front. ghostty makes it clickable, and being
 # before the editor means it survives any exit path (:wq, :cq, C-z + kill, …).
 printf 'PR: https://github.com/%s/pull/%s\n' "${pr_id%/*}" "${pr_id##*/}" >&2
 
-prr get "$pr_id"
-prr edit "$pr_id"
+# Resume an existing unsubmitted review (NEW/REVIEWED) rather than re-fetching.
+case "$(review_status "$pr_id")" in
+    NEW|REVIEWED)
+        prr edit "$pr_id"
+        ;;
+    *)
+        prr get "$pr_id"
+        prr edit "$pr_id"
+        ;;
+esac
 
 # Editor closed cleanly (set -e would have bailed on failure). Offer to
 # submit. Enter / Y submits via prr (the @prr approve|reject|comment
