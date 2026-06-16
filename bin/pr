@@ -26,6 +26,18 @@ review_status() {
     { prr status -n 2>/dev/null || true; } | awk -v h="$1" '$1 == h { print $2; exit }'
 }
 
+# Delete a review after a y/N confirm (default No). `-f` because in-progress
+# reviews are unsubmitted and `prr remove` would otherwise refuse them — the
+# prompt is the safety, not prr's check.
+confirm_remove() {
+    local ans
+    read -rp "delete review $1? [y/N] " ans || true
+    case "$ans" in
+        [yY]|[yY][eE][sS]) prr remove -f "$1" && echo "removed $1" >&2 ;;
+        *) echo "kept $1" >&2 ;;
+    esac
+}
+
 target="${1:-}"
 
 if [ -n "$target" ]; then
@@ -43,13 +55,23 @@ else
     pr_id=""
 
     # Offer to resume in-progress (REVIEWED) reviews first — across all repos,
-    # since you might have unfinished work elsewhere. ESC skips to a new review.
-    reviewed=$({ prr status -n 2>/dev/null || true; } | awk '$2 == "REVIEWED" { print $1 }')
-    if [ -n "$reviewed" ]; then
-        pr_id=$(printf '%s\n' "$reviewed" \
-          | fzf --prompt="resume> " \
-                --header="in-progress reviews · ENTER resume · ESC to start a new one") || true
-    fi
+    # since you might have unfinished work elsewhere. DEL deletes (with y/N),
+    # then the list refreshes; ENTER resumes; ESC skips to a new review.
+    while :; do
+        reviewed=$({ prr status -n 2>/dev/null || true; } | awk '$2 == "REVIEWED" { print $1 }')
+        [ -n "$reviewed" ] || break
+        out=$(printf '%s\n' "$reviewed" \
+          | fzf --prompt="resume> " --expect=del \
+                --header="in-progress reviews · ENTER resume · DEL delete · ESC start new") || break
+        key=$(printf '%s\n' "$out" | sed -n 1p)
+        sel=$(printf '%s\n' "$out" | sed -n 2p)
+        if [ "$key" = "del" ]; then
+            [ -n "$sel" ] && confirm_remove "$sel"
+            continue
+        fi
+        [ -n "$sel" ] && pr_id="$sel"
+        break
+    done
 
     # No resume picked → list open PRs in the current repo.
     if [ -z "$pr_id" ]; then
@@ -59,6 +81,8 @@ else
         }
 
         # number<TAB>title [@author] — tab keeps the number cleanly separable.
+        # Fetched once; the loop below only rebuilds review state (local) so a
+        # DEL deletion refreshes the labels without re-hitting the network.
         prs=$(gh pr list --state open --limit 200 \
             --json number,title,author \
             --jq '.[] | "\(.number)\t\(.title)  [@\(.author.login)]"') || {
@@ -71,33 +95,47 @@ else
             exit 0
         }
 
-        # Map each PR number in this repo to its prr review state, so the
-        # picker can flag which PRs already have a review going.
-        declare -A review_state=()
-        while read -r handle status _; do
-            review_state["${handle##*/}"]="$status"
-        done < <({ prr status -n 2>/dev/null || true; } | awk -v r="$repo/" 'index($1, r) == 1')
+        while :; do
+            # Map each PR number in this repo to its prr review state, so the
+            # picker can flag which PRs already have a review going.
+            declare -A review_state=()
+            while read -r handle status _; do
+                review_state["${handle##*/}"]="$status"
+            done < <({ prr status -n 2>/dev/null || true; } | awk -v r="$repo/" 'index($1, r) == 1')
 
-        # Annotate: <number>  [<label>]  <title> [@author]. Number stays first
-        # so the awk extraction below is unaffected.
-        annotated=""
-        while IFS=$'\t' read -r num rest; do
-            case "${review_state[$num]:-}" in
-                REVIEWED)  label="[in-progress]" ;;
-                NEW)       label="[fetched]    " ;;
-                SUBMITTED) label="[submitted]  " ;;
-                *)         label="             " ;;
-            esac
-            annotated+=$(printf '%-5s %s %s' "$num" "$label" "$rest")$'\n'
-        done <<< "$prs"
+            # Annotate: <number>  [<label>]  <title> [@author]. Number stays
+            # first so the awk extraction below is unaffected.
+            annotated=""
+            while IFS=$'\t' read -r num rest; do
+                case "${review_state[$num]:-}" in
+                    REVIEWED)  label="[in-progress]" ;;
+                    NEW)       label="[fetched]    " ;;
+                    SUBMITTED) label="[submitted]  " ;;
+                    *)         label="             " ;;
+                esac
+                annotated+=$(printf '%-5s %s %s' "$num" "$label" "$rest")$'\n'
+            done <<< "$prs"
 
-        selected=$(printf '%s' "$annotated" \
-          | fzf --prompt="PR> " \
-                --header="open PRs in $repo · [in-progress]=unsubmitted review · enter: review") || exit 0
+            out=$(printf '%s' "$annotated" \
+              | fzf --prompt="PR> " --expect=del \
+                    --header="open PRs in $repo · [in-progress]=unsubmitted · ENTER review · DEL delete review") || exit 0
+            key=$(printf '%s\n' "$out" | sed -n 1p)
+            num=$(printf '%s\n' "$out" | sed -n 2p | awk '{print $1}')
 
-        num=$(printf '%s' "$selected" | awk '{print $1}')
-        [ -n "$num" ] || exit 0
-        pr_id="$repo/$num"
+            if [ "$key" = "del" ]; then
+                [ -n "$num" ] || continue
+                if [ -n "${review_state[$num]:-}" ]; then
+                    confirm_remove "$repo/$num"
+                else
+                    echo "pr: no review for $repo/$num to delete" >&2; sleep 1
+                fi
+                continue
+            fi
+
+            [ -n "$num" ] || exit 0
+            pr_id="$repo/$num"
+            break
+        done
     fi
 fi
 
