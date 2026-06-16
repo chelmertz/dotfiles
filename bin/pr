@@ -58,9 +58,10 @@ else
             exit 1
         }
 
+        # number<TAB>title [@author] — tab keeps the number cleanly separable.
         prs=$(gh pr list --state open --limit 200 \
             --json number,title,author \
-            --jq '.[] | "\(.number)  \(.title)  [@\(.author.login)]"') || {
+            --jq '.[] | "\(.number)\t\(.title)  [@\(.author.login)]"') || {
             echo "pr: failed to list PRs for $repo" >&2
             exit 1
         }
@@ -70,9 +71,29 @@ else
             exit 0
         }
 
-        selected=$(printf '%s\n' "$prs" \
+        # Map each PR number in this repo to its prr review state, so the
+        # picker can flag which PRs already have a review going.
+        declare -A review_state=()
+        while read -r handle status _; do
+            review_state["${handle##*/}"]="$status"
+        done < <({ prr status -n 2>/dev/null || true; } | awk -v r="$repo/" 'index($1, r) == 1')
+
+        # Annotate: <number>  [<label>]  <title> [@author]. Number stays first
+        # so the awk extraction below is unaffected.
+        annotated=""
+        while IFS=$'\t' read -r num rest; do
+            case "${review_state[$num]:-}" in
+                REVIEWED)  label="[in-progress]" ;;
+                NEW)       label="[fetched]    " ;;
+                SUBMITTED) label="[submitted]  " ;;
+                *)         label="             " ;;
+            esac
+            annotated+=$(printf '%-5s %s %s' "$num" "$label" "$rest")$'\n'
+        done <<< "$prs"
+
+        selected=$(printf '%s' "$annotated" \
           | fzf --prompt="PR> " \
-                --header="open PRs in $repo · enter: review") || exit 0
+                --header="open PRs in $repo · [in-progress]=unsubmitted review · enter: review") || exit 0
 
         num=$(printf '%s' "$selected" | awk '{print $1}')
         [ -n "$num" ] || exit 0
