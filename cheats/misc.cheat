@@ -15,18 +15,26 @@ kill <signal> <pid>
 pstree -p <pid>
 
 $ process: ps -eo comm= | sort -u
-$ pid: ps -eo pid=,comm= | grep -i <process> --- --column 1
-$ signal: printf '%s\n' "-15 (SIGTERM)" "-9 (SIGKILL)" "-2 (SIGINT)" --- --column 1
+$ pid: ps -eo pid=,comm= | grep -i <process> | sed 's/^ *//' --- --column 1 --delimiter ' '
+$ signal: printf '%s\n' "-15 (SIGTERM)" "-9 (SIGKILL)" "-2 (SIGINT)" --- --column 1 --delimiter ' '
 
 % docker, container
 
 # Enter shell in running docker container
 docker exec -it <container_id> sh
 
-$ container_id: docker ps --format '{{.ID}} {{.Names}} {{.Image}}' --- --column 1
+$ container_id: docker ps --format '{{.ID}} {{.Names}} {{.Image}}' --- --column 1 --delimiter ' '
 
 # Disable autostart of container (stop it beforehand)
 docker update --restart=no <container_id>
+
+% strace
+
+# Strace a process (-f follows child processes)
+sudo strace <follow> -p <process_id>
+
+$ follow: printf '%s\n' '-f|follow children' '|no follow' --- --column 1 --delimiter '\|'
+$ process_id: ps -eo pid=,args= --sort=args | sed 's/^ *//' --- --column 1 --delimiter ' '
 
 % xdg, mime, default
 
