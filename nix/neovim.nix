@@ -1099,14 +1099,143 @@
             end
             prr_diff_highlights()
 
+            -- Set the review decision directive (@prr approve|reject|comment).
+            -- Only one is allowed per review, so replace an existing @prr line
+            -- wherever it is; otherwise insert it as the first line (the
+            -- review-level area, before the first `diff --git`).
+            local function prr_set_decision(decision)
+              local target = "@prr " .. decision
+              local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+              for i, l in ipairs(lines) do
+                if l:match("^@prr%s") then
+                  vim.api.nvim_buf_set_lines(0, i - 1, i, false, { target })
+                  vim.notify("prr: " .. target)
+                  return
+                end
+              end
+              vim.api.nvim_buf_set_lines(0, 0, 0, false, { target })
+              vim.notify("prr: " .. target .. " (added at top)")
+            end
+
+            -- Sticky filename for the winbar: the diff file whose section
+            -- contains the top visible line. Scanning up from `w0` makes it
+            -- behave like a pinned header — as you scroll deep into a long
+            -- file's diff (past its `> diff --git` line), the winbar keeps
+            -- showing which file you're in. Evaluated per redraw via %{}.
+            function _G.PrrWinbarFile()
+              local top = vim.fn.line("w0")
+              for l = top, 1, -1 do
+                local f = vim.fn.getline(l):match("^> diff %-%-git a/(.-) b/")
+                if f then return f end
+              end
+              return "(review header)"
+            end
+
+            -- The PR identity is encoded in the review file's path:
+            --   <workdir>/<owner>/<repo>/<number>.prr
+            local function prr_pr_from_buf()
+              local name = vim.api.nvim_buf_get_name(0)
+              return name:match("/([^/]+)/([^/]+)/(%d+)%.prr$")
+            end
+
+            -- Check out the PR's branch with gh. `gh pr checkout` fetches the
+            -- *current* PR head, so the working tree reflects the latest pushed
+            -- code — not the snapshot prr fetched at `get` time. Runs async via
+            -- vim.system (no lingering terminal window): notify on success and
+            -- `checktime` to reload buffers the branch switch changed on disk;
+            -- on failure (e.g. uncommitted changes, wrong cwd) surface gh's
+            -- message. Switches branches in the clone (nvim's cwd).
+            local function prr_checkout()
+              local owner, repo, number = prr_pr_from_buf()
+              if not number then
+                vim.notify("prr: can't derive PR from buffer name", vim.log.levels.WARN)
+                return
+              end
+              vim.notify("prr: checking out PR #" .. number .. " …")
+              vim.system(
+                { "gh", "pr", "checkout", number, "-R", owner .. "/" .. repo },
+                { text = true },
+                function(res)
+                  vim.schedule(function()
+                    if res.code == 0 then
+                      vim.notify("prr: checked out PR #" .. number)
+                      vim.cmd("checktime") -- reload files the branch switch changed
+                    else
+                      local msg = res.stderr ~= "" and res.stderr or (res.stdout or "gh pr checkout failed")
+                      vim.notify("prr checkout failed:\n" .. msg, vim.log.levels.ERROR)
+                    end
+                  end)
+                end)
+            end
+
+            -- Open the real file for the diff section under the cursor, at the
+            -- *new-file line* the cursor maps to, via `:e` (reuses the buffer
+            -- if loaded; full LSP/treesitter there, unlike the plain-text prr
+            -- buffer). Uses the `b/` path (current name post-rename),
+            -- repo-relative against cwd (the clone). Line is derived from the
+            -- `@@ … +C,D @@` header by counting context/added lines; removed
+            -- (`-`) and comment/blank lines don't advance the new-file line.
+            local function prr_open_file()
+              local cur = vim.fn.line(".")
+              local file, hunk_hdr, hunk_c
+              for l = cur, 1, -1 do
+                local line = vim.fn.getline(l)
+                if not hunk_hdr then
+                  local c = line:match("^> @@ %-%d+,?%d* %+(%d+),?%d* @@")
+                  if c then hunk_hdr, hunk_c = l, tonumber(c) end
+                end
+                local f = line:match("^> diff %-%-git a/.- b/(.+)$")
+                if f then file = f; break end
+              end
+              if not file then
+                vim.notify("prr: no diff file section above cursor", vim.log.levels.WARN)
+                return
+              end
+
+              local target
+              if hunk_hdr and cur == hunk_hdr then
+                target = hunk_c
+              elseif hunk_hdr then
+                local cur_new = hunk_c - 1
+                for l = hunk_hdr + 1, cur do
+                  local line = vim.fn.getline(l)
+                  local op = (line:sub(1, 2) == "> ") and line:sub(3, 3) or nil
+                  if op == "+" or op == " " then
+                    cur_new = cur_new + 1
+                    if l == cur then target = cur_new end
+                  elseif op == "-" then
+                    if l == cur then target = cur_new + 1 end -- nearest following new line
+                  elseif l == cur then
+                    target = math.max(cur_new, hunk_c)        -- comment/blank line
+                  end
+                end
+              end
+
+              vim.cmd("edit " .. vim.fn.fnameescape(file))
+              if target then
+                local last = vim.api.nvim_buf_line_count(0)
+                vim.api.nvim_win_set_cursor(0, { math.min(target, last), 0 })
+                vim.cmd("normal! zz")
+              end
+            end
+
             vim.api.nvim_create_autocmd("FileType", {
               pattern = "prr",
               callback = function(ev)
                 -- prr.vim defaults folds closed; open them so the review reads top-down.
                 vim.wo.foldlevel = 9999
-                vim.wo.winbar = "  > quoted (diff)   @prr approve|reject|comment   [...] collapse   <leader>? cheatsheet  "
+                vim.wo.winbar = "  %#Directory#%{v:lua.PrrWinbarFile()}%*    <localleader> menu  ·  <leader>? cheatsheet"
                 vim.keymap.set("n", "<leader>?", open_prr_cheatsheet,
                   { buffer = ev.buf, silent = true, desc = "prr cheatsheet" })
+                -- <localleader> (space) review menu.
+                wk.add({
+                  { "<localleader>",  group = "prr review",                          buffer = ev.buf },
+                  { "<localleader>a", function() prr_set_decision("approve") end, desc = "@prr approve", buffer = ev.buf },
+                  { "<localleader>r", function() prr_set_decision("reject")  end, desc = "@prr reject",  buffer = ev.buf },
+                  { "<localleader>c", function() prr_set_decision("comment") end, desc = "@prr comment", buffer = ev.buf },
+                  { "<localleader>b", prr_checkout,                               desc = "checkout PR branch (gh, fetches latest)", buffer = ev.buf },
+                  { "<localleader>f", prr_open_file,                              desc = "open real file (:e, full LSP)", buffer = ev.buf },
+                })
                 -- Re-assert in case something reset the groups (e.g. :syntax on).
                 prr_diff_highlights()
               end,
