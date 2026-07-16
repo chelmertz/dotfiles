@@ -1,4 +1,8 @@
-{ pkgs, config, ... }:
+{ pkgs, config, lib, ... }:
+let
+  # toggle off during vacation; flip back to true to re-enable the elly service
+  ellyEnabled = false;
+in
 {
   imports = [
     ./zsh.nix
@@ -128,6 +132,7 @@
     litecli
     lnav
     markdown-oxide
+    mdfried
     meld
     moreutils
     (mycli.overridePythonAttrs (old: {
@@ -1065,7 +1070,7 @@
     };
   };
 
-  systemd.user.services.elly = {
+  systemd.user.services.elly = lib.mkIf ellyEnabled {
     Unit = {
       Description = "Elly - Github PR dashbaord";
     };
