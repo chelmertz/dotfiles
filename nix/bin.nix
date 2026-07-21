@@ -266,6 +266,11 @@
       executable = true;
     };
 
+    ".local/bin/i3blocks_keylog.sh" = {
+      source = ../bin/i3blocks_keylog.sh;
+      executable = true;
+    };
+
     ".local/bin/rofi_spotify_rate.sh" = {
       source = ../bin/rofi_spotify_rate.sh;
       executable = true;

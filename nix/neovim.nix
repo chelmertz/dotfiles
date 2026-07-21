@@ -187,6 +187,22 @@
               end,
             })
 
+            -- keylog: feed the current filetype/buffer to the capture daemon so
+            -- reports can split usage by filetype. Silent no-op when no session
+            -- is running (the socket is absent). Binary is `keylog`, or
+            -- `keylogger` when installed via `go install`.
+            vim.api.nvim_create_autocmd({ "BufEnter", "FileType" }, {
+              callback = function(args)
+                local bin = vim.fn.exepath("keylog")
+                if bin == "" then bin = "keylogger" end
+                vim.fn.jobstart({
+                  bin, "ctx",
+                  "--filetype=" .. (vim.bo.filetype or ""),
+                  "--buffer=" .. (args.file or ""),
+                })
+              end,
+            })
+
             -- ========================================================================
             -- Prose check (markdown only)
             -- Surfaces weasel words / passive voice / duplicate words from
