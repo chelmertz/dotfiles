@@ -263,11 +263,10 @@ hide_edge_borders smart
 # when e.g. unplugging monitor, and a simple i3 reload solves it
 
 
-# hold caps for ctrl modifier, press for escape
-# inside .bashrc to make it execute (well, let's hope we open a new terminal)
-# after sleep/lid is closed (known issue, it seems like, when googling)
-exec_always --no-startup-id setxkbmap -layout se -option caps:ctrl_modifier
-exec --no-startup-id xcape -e "Caps_Lock=Escape" -t 199
+# caps = ctrl (hold) / escape (tap) is now handled by keyd at the kernel level
+# (see keyd/default.conf), below evdev, so keylog captures the real Esc/Ctrl.
+# Only the Swedish layout stays here.
+exec_always --no-startup-id setxkbmap -layout se
 
 exec_always --no-startup-id feh --randomize --no-fehbg --bg-scale ~/Dropbox/wallpapers/*
 
@@ -278,7 +277,7 @@ exec --no-startup-id ~/.local/bin/i3blocks_screenlayout.sh auto
 
 # `xset q` for viewing keypress rates
 # lower the initial keypress delay:
-exec --no-startup-id xset r rate 200 25
+exec_always --no-startup-id xset r rate 200 25
 # disable power saving for external monitors (this is *so* the wrong place to do this)
 # see https://wiki.archlinux.org/title/Display_Power_Management_Signaling
 exec --no-startup-id xset s off -dpms

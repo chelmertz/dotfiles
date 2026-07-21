@@ -11,6 +11,17 @@
 # Video group (for brightnessctl without sudo):
 #   sudo usermod -aG video ch
 #
+# Input group (for keylog to read /dev/input/event* without root — see keylogger/):
+#   sudo usermod -aG input ch
+#
+# keyd (kernel-level key remap; replaces xcape + setxkbmap caps:ctrl_modifier so
+# keylog sees the real Esc/Ctrl — see keyd/default.conf). Not in apt; build it:
+#   git clone https://github.com/rvaiya/keyd && cd keyd && make && sudo make install
+#   sudo cp <dotfiles>/keyd/default.conf /etc/keyd/default.conf
+#   sudo systemctl enable --now keyd
+#   sudo keyd reload   # after any config change; `sudo keyd monitor` to verify
+#   # then drop caps:ctrl_modifier + xcape from .i3/config and `xcape` from nix/home.nix
+#
 # Emacs/Doom (kept as apt PPA until next machine):
 #   sudo add-apt-repository ppa:kelleyk/emacs
 #   sudo apt install emacs27

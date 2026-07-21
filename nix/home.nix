@@ -213,7 +213,6 @@ in
     w3m
     whois
     wmctrl
-    xcape
     xclip
     xdotool
     xsel
