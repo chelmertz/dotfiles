@@ -183,12 +183,24 @@ func (s *Store) LoadSession(id int64) (model.Session, error) {
 	return m, err
 }
 
-// LoadCounts reads back all counts for a session (for the report).
+// LoadCounts reads back all counts for one session (for the report).
 func (s *Store) LoadCounts(id int64) (model.Counts, error) {
+	return s.loadCounts("WHERE session_id=?", id)
+}
+
+// LoadAllCounts merges counts across every session — the lifetime view.
+func (s *Store) LoadAllCounts() (model.Counts, error) {
+	return s.loadCounts("")
+}
+
+// loadCounts sums counts under an optional session filter. GROUP BY + SUM makes
+// it work identically for one session or all of them (a single session groups to
+// its own rows).
+func (s *Store) loadCounts(where string, args ...any) (model.Counts, error) {
 	var c model.Counts
 
-	rows, err := s.db.Query(`SELECT device, app, workspace, filetype, keycode, modmask, count
-		FROM unigrams WHERE session_id=?`, id)
+	rows, err := s.db.Query(`SELECT device, app, workspace, filetype, keycode, modmask, SUM(count)
+		FROM unigrams `+where+` GROUP BY device, app, workspace, filetype, keycode, modmask`, args...)
 	if err != nil {
 		return c, err
 	}
@@ -202,8 +214,8 @@ func (s *Store) LoadCounts(id int64) (model.Counts, error) {
 	}
 	rows.Close()
 
-	rows, err = s.db.Query(`SELECT device, app, workspace, filetype, kc1, kc2, count, interval_sum_ms
-		FROM bigrams WHERE session_id=?`, id)
+	rows, err = s.db.Query(`SELECT device, app, workspace, filetype, kc1, kc2, SUM(count), SUM(interval_sum_ms)
+		FROM bigrams `+where+` GROUP BY device, app, workspace, filetype, kc1, kc2`, args...)
 	if err != nil {
 		return c, err
 	}
@@ -217,8 +229,8 @@ func (s *Store) LoadCounts(id int64) (model.Counts, error) {
 	}
 	rows.Close()
 
-	rows, err = s.db.Query(`SELECT device, app, workspace, filetype, kc1, kc2, count
-		FROM skipgrams WHERE session_id=?`, id)
+	rows, err = s.db.Query(`SELECT device, app, workspace, filetype, kc1, kc2, SUM(count)
+		FROM skipgrams `+where+` GROUP BY device, app, workspace, filetype, kc1, kc2`, args...)
 	if err != nil {
 		return c, err
 	}
@@ -232,8 +244,8 @@ func (s *Store) LoadCounts(id int64) (model.Counts, error) {
 	}
 	rows.Close()
 
-	rows, err = s.db.Query(`SELECT device, app, workspace, filetype, wrong_kc, right_kc, count
-		FROM corrections WHERE session_id=?`, id)
+	rows, err = s.db.Query(`SELECT device, app, workspace, filetype, wrong_kc, right_kc, SUM(count)
+		FROM corrections `+where+` GROUP BY device, app, workspace, filetype, wrong_kc, right_kc`, args...)
 	if err != nil {
 		return c, err
 	}
@@ -248,4 +260,13 @@ func (s *Store) LoadCounts(id int64) (model.Counts, error) {
 	rows.Close()
 
 	return c, nil
+}
+
+// SessionStats returns the number of sessions and the earliest/latest timestamps
+// seen, for the --all report header.
+func (s *Store) SessionStats() (n int, earliest, latest int64, err error) {
+	err = s.db.QueryRow(`SELECT COUNT(*), COALESCE(MIN(started_at),0),
+		COALESCE(MAX(CASE WHEN ended_at>0 THEN ended_at ELSE started_at END),0) FROM sessions`).
+		Scan(&n, &earliest, &latest)
+	return
 }

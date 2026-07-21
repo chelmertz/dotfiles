@@ -63,6 +63,7 @@ func usage() {
   keylog seed                 fabricate a demo session (no hardware needed)
   keylog report [flags]       render the latest session's report
       --session N             report session N (default: latest)
+      --all                   aggregate across every session (lifetime view)
       --html PATH             write a self-contained HTML report
       --i3config PATH|demo    parse i3 bindings ("demo" uses sample data)
 
@@ -117,6 +118,7 @@ func cmdSeed(_ []string) error {
 func cmdReport(args []string) error {
 	fs := flag.NewFlagSet("report", flag.ContinueOnError)
 	sessionID := fs.Int64("session", 0, "session id (0 = latest)")
+	all := fs.Bool("all", false, "aggregate across every session (lifetime view)")
 	htmlPath := fs.String("html", "", "write HTML report to this path")
 	i3conf := fs.String("i3config", "", "i3 config path, or \"demo\"")
 	if err := fs.Parse(args); err != nil {
@@ -129,23 +131,37 @@ func cmdReport(args []string) error {
 	}
 	defer s.Close()
 
-	id := *sessionID
-	if id == 0 {
-		if id, err = s.LatestSessionID(); err != nil {
+	var sess model.Session
+	var counts model.Counts
+	if *all {
+		n, earliest, latest, err := s.SessionStats()
+		if err != nil {
 			return err
 		}
-	}
-	if id == 0 {
-		return fmt.Errorf("no sessions yet — run `keylog seed` or `keylog start`")
-	}
-
-	sess, err := s.LoadSession(id)
-	if err != nil {
-		return err
-	}
-	counts, err := s.LoadCounts(id)
-	if err != nil {
-		return err
+		if n == 0 {
+			return fmt.Errorf("no sessions yet — run `keylog seed` or `keylog start`")
+		}
+		host, _ := os.Hostname()
+		sess = model.Session{ID: 0, StartedAt: earliest, EndedAt: latest, Host: host, Note: fmt.Sprintf("%d sessions", n)}
+		if counts, err = s.LoadAllCounts(); err != nil {
+			return err
+		}
+	} else {
+		id := *sessionID
+		if id == 0 {
+			if id, err = s.LatestSessionID(); err != nil {
+				return err
+			}
+		}
+		if id == 0 {
+			return fmt.Errorf("no sessions yet — run `keylog seed` or `keylog start`")
+		}
+		if sess, err = s.LoadSession(id); err != nil {
+			return err
+		}
+		if counts, err = s.LoadCounts(id); err != nil {
+			return err
+		}
 	}
 
 	cfg := metrics.Config{I3Bindings: loadBindings(*i3conf)}

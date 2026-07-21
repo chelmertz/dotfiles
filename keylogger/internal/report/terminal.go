@@ -52,7 +52,11 @@ func dur(s model.Session) string {
 func Terminal(w io.Writer, s model.Session, m metrics.Metrics, fs []rules.Finding) {
 	p := func(format string, a ...any) { fmt.Fprintf(w, format, a...) }
 
-	p("keylog · session #%d · %s · %s · %d keydowns\n", s.ID, s.Host, dur(s), m.TotalKeydowns)
+	if s.ID == 0 { // --all: lifetime view, no single duration
+		p("keylog · all sessions (%s) · %s · %d keydowns\n", s.Note, s.Host, m.TotalKeydowns)
+	} else {
+		p("keylog · session #%d · %s · %s · %d keydowns\n", s.ID, s.Host, dur(s), m.TotalKeydowns)
+	}
 	if len(m.Devices) > 0 {
 		var parts []string
 		for _, d := range m.Devices {

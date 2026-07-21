@@ -4,7 +4,7 @@ import "html/template"
 
 var htmlTmpl = template.Must(template.New("report").Parse(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>keylog — session #{{.SessionID}}</title>
+<title>keylog — {{.Heading}}</title>
 <style>
 :root{
  --page:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink-2:#52514e;--muted:#898781;
@@ -71,8 +71,8 @@ td.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-num
 @media(max-width:640px){.tiles{grid-template-columns:repeat(2,1fr)}}
 </style></head><body><div class="wrap">
 <p class="eyebrow">keylog · session report</p>
-<h1>Session #{{.SessionID}}</h1>
-<div class="meta"><span>host <b>{{.Host}}</b></span><span>duration <b>{{.Dur}}</b></span><span>keydowns <b>{{.Total}}</b></span></div>
+<h1>{{.Heading}}</h1>
+<div class="meta"><span>host <b>{{.Host}}</b></span>{{if .Dur}}<span>duration <b>{{.Dur}}</b></span>{{end}}{{if .Note}}<span><b>{{.Note}}</b></span>{{end}}<span>keydowns <b>{{.Total}}</b></span></div>
 {{if .DeviceSplit}}<div class="device-split">{{range .DeviceSplit}}<div style="width:{{.WidthPct}}%;background:var(--left)">{{.Label}} · {{.Val}}</div>{{end}}</div>{{end}}
 
 <div class="tiles">{{range .Tiles}}

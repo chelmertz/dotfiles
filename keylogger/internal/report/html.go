@@ -63,8 +63,10 @@ type mistypeView struct {
 
 type htmlView struct {
 	SessionID    int64
+	Heading      string
 	Host         string
 	Dur          string
+	Note         string
 	Total        int64
 	DeviceSplit  []barView
 	Tiles        []tileView
@@ -92,7 +94,14 @@ func widthPct(share, max float64) string {
 }
 
 func buildView(s model.Session, m metrics.Metrics, fs []rules.Finding) htmlView {
-	v := htmlView{SessionID: s.ID, Host: s.Host, Dur: dur(s), Total: m.TotalKeydowns}
+	v := htmlView{SessionID: s.ID, Host: s.Host, Total: m.TotalKeydowns}
+	if s.ID == 0 { // --all lifetime view
+		v.Heading = "All sessions"
+		v.Note = s.Note // e.g. "3 sessions"
+	} else {
+		v.Heading = fmt.Sprintf("Session #%d", s.ID)
+		v.Dur = dur(s)
+	}
 
 	for _, d := range m.Devices {
 		v.DeviceSplit = append(v.DeviceSplit, barView{Label: nameOr(d.Device, "?"), WidthPct: fmt.Sprintf("%.0f", d.Share*100), Val: pct(d.Share)})
