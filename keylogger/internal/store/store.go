@@ -43,6 +43,13 @@ CREATE TABLE IF NOT EXISTS skipgrams (
   count INTEGER NOT NULL,
   PRIMARY KEY (session_id, device, app, workspace, filetype, kc1, kc2)
 ) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS corrections (
+  session_id INTEGER NOT NULL,
+  device TEXT NOT NULL, app TEXT NOT NULL, workspace TEXT NOT NULL, filetype TEXT NOT NULL,
+  wrong_kc INTEGER NOT NULL, right_kc INTEGER NOT NULL,
+  count INTEGER NOT NULL,
+  PRIMARY KEY (session_id, device, app, workspace, filetype, wrong_kc, right_kc)
+) WITHOUT ROWID;
 `
 
 // Open opens (creating if needed) the sqlite database and ensures the schema.
@@ -139,6 +146,21 @@ func (s *Store) Flush(sessionID int64, c model.Counts) error {
 		}
 	}
 
+	corr, err := tx.Prepare(`INSERT INTO corrections
+		(session_id, device, app, workspace, filetype, wrong_kc, right_kc, count)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT DO UPDATE SET count=excluded.count`)
+	if err != nil {
+		return err
+	}
+	defer corr.Close()
+	for _, cr := range c.Corrections {
+		if _, err := corr.Exec(sessionID, cr.Device, cr.App, cr.Workspace, cr.Filetype,
+			cr.WrongKC, cr.RightKC, cr.Count); err != nil {
+			return err
+		}
+	}
+
 	return tx.Commit()
 }
 
@@ -207,6 +229,21 @@ func (s *Store) LoadCounts(id int64) (model.Counts, error) {
 			return c, err
 		}
 		c.Skipgrams = append(c.Skipgrams, sk)
+	}
+	rows.Close()
+
+	rows, err = s.db.Query(`SELECT device, app, workspace, filetype, wrong_kc, right_kc, count
+		FROM corrections WHERE session_id=?`, id)
+	if err != nil {
+		return c, err
+	}
+	for rows.Next() {
+		var cr model.Correction
+		if err := rows.Scan(&cr.Device, &cr.App, &cr.Workspace, &cr.Filetype, &cr.WrongKC, &cr.RightKC, &cr.Count); err != nil {
+			rows.Close()
+			return c, err
+		}
+		c.Corrections = append(c.Corrections, cr)
 	}
 	rows.Close()
 

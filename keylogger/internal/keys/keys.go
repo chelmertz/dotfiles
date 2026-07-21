@@ -130,6 +130,22 @@ func SameFinger(kc1, kc2 int) bool {
 	return f1 == f2
 }
 
+// nonText: keycodes that are mapped but are not text-producing (control/nav).
+var nonText = map[int]bool{
+	1: true, 14: true, 15: true, 28: true, 58: true, // Esc, Backspace, Tab, Enter, Caps
+	103: true, 105: true, 106: true, 108: true, // arrows
+}
+
+// IsText reports whether a keycode produces text (letters, digits, punctuation,
+// space) — i.e. it edits the buffer, as opposed to modifiers or control/nav
+// keys. Used by the delete-and-replace mistype tracker.
+func IsText(keycode int) bool {
+	if _, ok := fingers[keycode]; !ok {
+		return false // unmapped/function keys
+	}
+	return !IsModifier(keycode) && !nonText[keycode]
+}
+
 // IsModifier reports whether a keycode is a modifier key (so metrics can
 // separate modifier load from typing load).
 func IsModifier(keycode int) bool {

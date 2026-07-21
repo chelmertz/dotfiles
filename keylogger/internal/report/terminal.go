@@ -108,6 +108,17 @@ func Terminal(w io.Writer, s model.Session, m metrics.Metrics, fs []rules.Findin
 		p("  same-finger skipgrams: %s\n", pct(m.SFSPercent))
 	}
 
+	if len(m.Mistypes) > 0 {
+		p("\n── MOST-MISTYPED KEYS (delete-and-replace) ──────────────\n")
+		for i, mk := range m.Mistypes {
+			if i == 10 {
+				break
+			}
+			p("  %-8s %4d mistypes  %5s of use   usually meant %s\n",
+				mk.Char, mk.Count, pct(mk.Rate), mk.TopSub)
+		}
+	}
+
 	if len(m.Contexts) > 0 {
 		p("\n── BY CONTEXT ───────────────────────────────────────────\n")
 		for _, c := range m.Contexts {

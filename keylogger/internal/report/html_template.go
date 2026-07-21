@@ -96,6 +96,12 @@ td.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-num
 {{range .SFB}}<tr><td><span class="cap">{{.Pair}}</span></td><td>{{.Finger}}</td><td class="num">{{.Count}}</td><td class="num">{{.Pct}}</td></tr>{{end}}
 </tbody></table></section>
 
+{{if .Mistypes}}<section class="card"><h2>Most-mistyped keys</h2>
+<p class="lead" style="color:var(--ink-2);font-size:13.5px;margin:-6px 0 16px;max-width:64ch">Keys you typed, deleted, and replaced with a different key — normalized by how often you type them. High = genuinely awkward for you.</p>
+<table><thead><tr><th>key</th><th></th><th class="num">mistypes</th><th class="num">of use</th><th>usually meant</th></tr></thead><tbody>
+{{range .Mistypes}}<tr><td><span class="cap">{{.Char}}</span></td><td style="width:40%"><div class="b" style="width:{{.WidthPct}}%;height:12px;border-radius:3px;background:var(--right)"></div></td><td class="num">{{.Count}}</td><td class="num">{{.Rate}}</td><td><span class="cap">{{.TopSub}}</span></td></tr>{{end}}
+</tbody></table></section>{{end}}
+
 {{if .Contexts}}<section class="card"><h2>By context</h2><div class="ctx">
 {{range .Contexts}}<div><h3>{{.Label}}<span class="pct">{{.Pct}}</span></h3>
 {{range .Keys}}<div class="minibar"><div class="l"><span class="cap">{{.Label}}</span></div><div class="b" style="width:{{.WidthPct}}%"></div><div class="v">{{.Val}}</div></div>{{end}}

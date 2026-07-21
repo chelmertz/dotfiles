@@ -65,9 +65,18 @@ type Skipgram struct {
 	Count    int64
 }
 
+// Correction records a delete-and-replace: WrongKC was typed, deleted, and
+// replaced by a different RightKC — evidence WrongKC was mistyped (→ RightKC).
+type Correction struct {
+	Context
+	WrongKC, RightKC int
+	Count            int64
+}
+
 // Counts is the aggregator's flushable snapshot for one session.
 type Counts struct {
-	Unigrams  []Unigram
-	Bigrams   []Bigram
-	Skipgrams []Skipgram
+	Unigrams    []Unigram
+	Bigrams     []Bigram
+	Skipgrams   []Skipgram
+	Corrections []Correction
 }

@@ -103,7 +103,30 @@ skipgrams(  -- skip-1, for same-finger-skipgram (SFS)
   count INTEGER,
   PRIMARY KEY (session_id, device, app, workspace, filetype, kc1, kc2)
 );
+
+corrections(  -- delete-and-replace mistypes: wrong_kc typed, deleted, replaced
+  session_id, device, app, workspace, filetype,
+  wrong_kc INTEGER, right_kc INTEGER,
+  count INTEGER,
+  PRIMARY KEY (session_id, device, app, workspace, filetype, wrong_kc, right_kc)
+);
 ```
+
+No migrations: schema is `CREATE TABLE IF NOT EXISTS`, so new tables appear on
+next open. While the captured dimensions are still in flux, dropping the DB beats
+migration ceremony.
+
+### Mistype tracking (delete-and-replace)
+
+The aggregator keeps a small reconstructed-text buffer plus a stack of chars
+deleted by Backspace. When a deleted char is replaced by a *different* char, the
+deleted one was a mistype (→ the replacement). Deleting and retyping the *same*
+char (collateral in a multi-backspace run) is not counted; command chords
+(Ctrl/Super) and nav keys (Enter/Tab/Esc/arrows) reset the buffer since their
+effect can't be reconstructed. So `abc`⌫⌫`cb` is attributed to the real error
+(`b`→`c`), not the collateral `c`. The report surfaces per-key mistype count,
+rate vs. usage (the frequency-normalized "hard-to-type" signal), and the most
+common intended key.
 
 Flat context columns (not a normalized `contexts` table): fewer moving parts, and the
 repeated strings are irrelevant at personal-session scale. The in-memory aggregator

@@ -84,6 +84,14 @@ func Counts() model.Counts {
 		{Context: bg, KC1: 18, KC2: 32, Count: 180}, // SFS
 		{Context: bg, KC1: 30, KC2: 31, Count: 220},
 	}
+	// mistypes: delete-and-replace. p and ä are hit disproportionately (flagged);
+	// e and l show up by volume but are low-rate (not flagged).
+	c.Corrections = []model.Correction{
+		{Context: bg, WrongKC: 25, RightKC: 24, Count: 46}, // p→o  (p=480  → ~9.6%)
+		{Context: bg, WrongKC: 40, RightKC: 39, Count: 26}, // ä→ö  (ä=240  → ~10.8%)
+		{Context: bg, WrongKC: 18, RightKC: 19, Count: 55}, // e→r  (e=2100 → ~2.6%)
+		{Context: bg, WrongKC: 38, RightKC: 37, Count: 28}, // l→k  (l=980  → ~2.9%)
+	}
 	return c
 }
 

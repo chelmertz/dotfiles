@@ -114,6 +114,66 @@ func TestRepeatedKeyIsSameFingerBigram(t *testing.T) {
 	}
 }
 
+// keycode names, so test sequences read as text rather than magic numbers.
+const (
+	kA  = 30
+	kB  = 48
+	kC  = 46
+	kW  = 17
+	kX  = 45
+	kY  = 21
+	kBS = 14
+)
+
+func corr(a *Aggregator, wrong, right int) int64 {
+	return a.corrections[corrKey{model.Context{}, wrong, right}]
+}
+
+func addSeq(a *Aggregator, codes ...int) {
+	for i, kc := range codes {
+		a.Add(k(kc, int64(i*100)))
+	}
+}
+
+func TestMistypeReplaceCatchesTheRealError(t *testing.T) {
+	a := New()
+	// type "abc", backspace twice, retype "cb" — the b→c fix is the real mistype
+	addSeq(a, kA, kB, kC, kBS, kBS, kC, kB)
+	if got := corr(a, kB, kC); got != 1 { // b mistyped, replaced by c
+		t.Errorf("b→c correction = %d, want 1", got)
+	}
+	if got := corr(a, kC, kB); got != 1 { // c mistyped, replaced by b (transposition)
+		t.Errorf("c→b correction = %d, want 1", got)
+	}
+}
+
+func TestMistypeSingleTypo(t *testing.T) {
+	a := New()
+	addSeq(a, kX, kBS, kY) // type x, delete, retype y
+	if got := corr(a, kX, kY); got != 1 {
+		t.Errorf("x→y correction = %d, want 1", got)
+	}
+}
+
+func TestDeleteAndRetypeSameCharIsNotAMistype(t *testing.T) {
+	a := New()
+	addSeq(a, kA, kBS, kA) // a, delete, retype the same a (pure collateral)
+	if len(a.corrections) != 0 {
+		t.Errorf("expected no corrections for delete-and-retype-same, got %v", a.corrections)
+	}
+}
+
+func TestCommandChordResetsEditBuffer(t *testing.T) {
+	a := New()
+	a.Add(k(kA, 0))                                                      // a
+	a.Add(k(kBS, 100))                                                   // BS -> pending=[a]
+	a.Add(model.KeyEvent{Keycode: kW, Modmask: model.ModCtrl, TsMs: 200}) // Ctrl+w: resets
+	a.Add(k(kB, 300))                                                    // b: pending empty -> no correction
+	if len(a.corrections) != 0 {
+		t.Errorf("command chord should have reset edit buffer, got %v", a.corrections)
+	}
+}
+
 func TestSnapshotRoundTrips(t *testing.T) {
 	a := New()
 	a.Add(k(30, 0))

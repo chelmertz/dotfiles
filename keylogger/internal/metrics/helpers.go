@@ -109,6 +109,46 @@ func slowBigrams(bs []model.Bigram) []PairStat {
 	return out
 }
 
+// computeMistypes aggregates corrections per wrong key: how often it was
+// mistyped, its rate relative to how often it's typed, and the key it was most
+// often corrected to.
+func computeMistypes(cs []model.Correction, byKey map[int]int64) []MistypeStat {
+	type agg struct {
+		total int64
+		subs  map[int]int64
+	}
+	byWrong := map[int]*agg{}
+	for _, c := range cs {
+		a := byWrong[c.WrongKC]
+		if a == nil {
+			a = &agg{subs: map[int]int64{}}
+			byWrong[c.WrongKC] = a
+		}
+		a.total += c.Count
+		a.subs[c.RightKC] += c.Count
+	}
+	var out []MistypeStat
+	for kc, a := range byWrong {
+		var topKC int
+		var topN int64
+		for rkc, n := range a.subs {
+			if n > topN {
+				topN, topKC = n, rkc
+			}
+		}
+		st := MistypeStat{
+			Keycode: kc, Char: keys.Char(kc), Count: a.total, Typed: byKey[kc],
+			TopSub: keys.Char(topKC), TopSubCount: topN,
+		}
+		if st.Typed > 0 {
+			st.Rate = float64(a.total) / float64(st.Typed)
+		}
+		out = append(out, st)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Count > out[j].Count })
+	return out
+}
+
 func comboString(keycode, modmask int) string {
 	var parts []string
 	if modmask&model.ModSuper != 0 {

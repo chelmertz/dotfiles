@@ -53,6 +53,14 @@ type tileView struct {
 	K, V, N, Class string
 }
 
+type mistypeView struct {
+	Char     string
+	Count    int64
+	Rate     string
+	TopSub   string
+	WidthPct string
+}
+
 type htmlView struct {
 	SessionID    int64
 	Host         string
@@ -68,6 +76,7 @@ type htmlView struct {
 	Contexts     []ctxView
 	Bindings     []bindView
 	DeadBindings int
+	Mistypes     []mistypeView
 }
 
 // HTML renders a self-contained report page.
@@ -166,6 +175,26 @@ func buildView(s model.Session, m metrics.Metrics, fs []rules.Finding) htmlView 
 			cv.Keys = append(cv.Keys, barView{Label: k.Char, WidthPct: widthPct(k.Share, cmax), Val: pct(k.Share)})
 		}
 		v.Contexts = append(v.Contexts, cv)
+	}
+
+	// mistypes
+	var mmax int64
+	for _, mk := range m.Mistypes {
+		if mk.Count > mmax {
+			mmax = mk.Count
+		}
+	}
+	for i, mk := range m.Mistypes {
+		if i == 12 {
+			break
+		}
+		w := "0"
+		if mmax > 0 {
+			w = fmt.Sprintf("%.1f", float64(mk.Count)/float64(mmax)*100)
+		}
+		v.Mistypes = append(v.Mistypes, mistypeView{
+			Char: mk.Char, Count: mk.Count, Rate: pct(mk.Rate), TopSub: mk.TopSub, WidthPct: w,
+		})
 	}
 
 	// bindings

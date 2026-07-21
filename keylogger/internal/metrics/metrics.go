@@ -61,6 +61,17 @@ type DeviceStat struct {
 	Share  float64
 }
 
+// MistypeStat: a key that was typed, deleted, and replaced by a different key.
+type MistypeStat struct {
+	Keycode     int
+	Char        string
+	Count       int64   // times mistyped
+	Typed       int64   // total presses of this key
+	Rate        float64 // Count/Typed — mistypes normalized by usage
+	TopSub      string  // the key it was most often corrected TO ("meant …")
+	TopSubCount int64
+}
+
 type Metrics struct {
 	TotalKeydowns int64
 	TotalBigrams  int64
@@ -86,6 +97,7 @@ type Metrics struct {
 	Contexts []ContextStat
 	Bindings []BindingStat
 	Devices  []DeviceStat
+	Mistypes []MistypeStat // desc by count
 }
 
 // DeadThreshold: keys below this share of keydowns are "near-dead".
@@ -223,6 +235,9 @@ func Compute(c model.Counts, cfg Config) Metrics {
 	// --- skipgrams: SFS ---
 	sfsPct, sfsTop, _ := sameFingerPairs(skipgramPairs(c.Skipgrams))
 	m.SFSPercent, m.SFSTop = sfsPct, sfsTop
+
+	// --- corrections: mistyped keys ---
+	m.Mistypes = computeMistypes(c.Corrections, byKey)
 
 	return m
 }

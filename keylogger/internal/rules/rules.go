@@ -54,6 +54,8 @@ type Thresholds struct {
 	NumberRowLow      float64
 	ModifierHigh      float64
 	SlowBigramMs      int64
+	MistypeRateHigh   float64 // delete-and-replace rate for a key that flags it as hard
+	MistypeMinSample  int64   // ignore keys typed fewer than this
 }
 
 func DefaultThresholds() Thresholds {
@@ -68,6 +70,8 @@ func DefaultThresholds() Thresholds {
 		NumberRowLow:      0.04,
 		ModifierHigh:      0.15,
 		SlowBigramMs:      280,
+		MistypeRateHigh:   0.05,
+		MistypeMinSample:  30,
 	}
 }
 
@@ -82,6 +86,7 @@ func Evaluate(m metrics.Metrics, t Thresholds) []Finding {
 		ruleWeakKeyHighFreq,
 		ruleSFB,
 		ruleSFS,
+		ruleHardToType,
 		ruleCorrection,
 		ruleCodingLayer,
 		ruleSlowBigrams,
@@ -188,6 +193,31 @@ func ruleSFS(m metrics.Metrics, t Thresholds) *Finding {
 		Title:    "Same-finger skipgrams above target",
 		Body: fmt.Sprintf("%s of skip-1 pairs land on the same finger (target <%s): %s.",
 			pct(m.SFSPercent), pct(t.SFSTarget), pairList(m.SFSTop, 3)),
+	}
+}
+
+func ruleHardToType(m metrics.Metrics, t Thresholds) *Finding {
+	var flagged []string
+	for _, mk := range m.Mistypes {
+		if mk.Typed < t.MistypeMinSample || mk.Rate < t.MistypeRateHigh {
+			continue
+		}
+		flagged = append(flagged, fmt.Sprintf("%s (%s of the time, usually meant %s)", mk.Char, pct(mk.Rate), mk.TopSub))
+		if len(flagged) == 5 {
+			break
+		}
+	}
+	if len(flagged) == 0 {
+		return nil
+	}
+	return &Finding{
+		Severity: Optimise,
+		Category: "hard-to-type",
+		Title:    "Keys you mistype disproportionately",
+		Body: fmt.Sprintf(
+			"You type-then-delete-and-replace these more than their share of use: %s. "+
+				"Normalized by frequency, these are your genuinely awkward keys — prime candidates for better positions on the Glove80.",
+			strings.Join(flagged, ", ")),
 	}
 }
 
