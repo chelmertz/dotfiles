@@ -58,18 +58,19 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprint(os.Stderr, `keylog — keyboard-usage profiler
+	prog := filepath.Base(os.Args[0])
+	fmt.Fprintf(os.Stderr, `%[1]s — keyboard-usage profiler
 
-  keylog seed                 fabricate a demo session (no hardware needed)
-  keylog report [flags]       render the latest session's report
+  %[1]s seed                 fabricate a demo session (no hardware needed)
+  %[1]s report [flags]       render the latest session's report
       --session N             report session N (default: latest)
       --all                   aggregate across every session (lifetime view)
       --html PATH             write a self-contained HTML report
       --i3config PATH|demo    parse i3 bindings ("demo" uses sample data)
 
-  keylog start|stop|status|ctx   live capture (requires input group)
-  keylog tail                    print live decoded events (verify capture)
-`)
+  %[1]s start|stop|status|ctx   live capture (requires input group)
+  %[1]s tail                    print live decoded events (verify capture)
+`, prog)
 }
 
 func dbPath() (string, error) {
