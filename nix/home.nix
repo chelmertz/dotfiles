@@ -106,6 +106,7 @@ in
     git-filter-repo
     git-trim
     gleam
+    erlang
     go
     gojo
     golangci-lint
