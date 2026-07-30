@@ -268,7 +268,7 @@ hide_edge_borders smart
 # Only the Swedish layout stays here.
 exec_always --no-startup-id setxkbmap -layout se
 
-exec_always --no-startup-id feh --randomize --no-fehbg --bg-scale ~/Dropbox/wallpapers/*
+exec_always --no-startup-id ~/.local/bin/set-wallpaper
 
 exec --no-startup-id autorandr -l $(autorandr --detected)
 # turn on num look on boot

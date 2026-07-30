@@ -41,6 +41,11 @@
       executable = true;
     };
 
+    ".local/bin/set-wallpaper" = {
+      source = ../bin/set-wallpaper;
+      executable = true;
+    };
+
     ".local/bin/sync-app-settings" = {
       source = ../bin/sync-app-settings;
       executable = true;

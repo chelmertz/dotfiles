@@ -24,3 +24,5 @@ case "$new_color_scheme" in
 	*)           rofi_theme="default"   ;;
 esac
 printf '@theme "%s"\n' "$rofi_theme" > "$rofi_config"
+
+"$HOME/.local/bin/set-wallpaper"
