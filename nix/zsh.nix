@@ -3,6 +3,13 @@
   # Powerlevel10k config file
   home.file.".p10k.zsh".source = ./p10k.zsh;
 
+  # compinit -C never notices new completion functions, so drop the dump when
+  # the profile changes - that is when new completions arrive. After installing
+  # completions outside nix: rm ~/.cache/zcompdump-*
+  home.activation.dropZcompdump = ''
+    rm -f "$HOME"/.cache/zcompdump-*
+  '';
+
   programs.zsh = {
     enable = true;
 
@@ -35,6 +42,17 @@
       highlight = "fg=#888888"; # grey that should be visible on both light/dark
     };
     syntaxHighlighting.enable = true;
+
+    # Ubuntu's /etc/zsh/zshrc runs compinit before ~/.zshrc gets a chance to
+    # paint the p10k instant prompt, and it fought with completionInit below
+    # over ~/.zcompdump: the two see different fpaths, so each rejected the
+    # other's dump and rescanned ~1000 completion files. ~650 ms per shell.
+    envExtra = "skip_global_compinit=1";
+
+    # -C trusts the dump instead of rescanning fpath on every start. The dump
+    # is per zsh version because /usr/bin/zsh (5.9, what ghostty starts) and
+    # the nix zsh (5.9.2) share $HOME and would invalidate each other.
+    completionInit = "autoload -U compinit && compinit -C -d $HOME/.cache/zcompdump-$ZSH_VERSION";
 
     shellAliases = {
       rm = "rm -i";
@@ -123,6 +141,27 @@
       ''
               # PATH additions
               export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:$HOME/.hishtory:$HOME/.maestro/bin:$BUN_INSTALL/bin:$HOME/bin:/usr/local/go/bin:$HOME/go/bin:$HOME/.emacs.d/bin:$HOME/.cargo/bin:$PATH"
+
+              # Generated completions and hooks cost twice over: running the
+              # tool, and zsh parsing a process substitution one byte at a time
+              # (jj: 23ms to generate, 54ms to parse). Cache to a real file and
+              # regenerate when the generating binary changes - store path for
+              # nix-installed tools, mtime for cargo/go/apt ones.
+              zmodload -F zsh/stat b:zstat
+              _cached_source() {
+                local cache=$HOME/.cache/zsh-generated/$1.zsh first stamp
+                local -a mt
+                shift
+                (( $+commands[$1] )) || return 0
+                zstat -A mt +mtime ''${commands[$1]}
+                stamp="# ''${commands[$1]:A} $mt[1]"
+                [[ -s $cache ]] && read -r first < $cache
+                [[ $first == "$stamp" ]] || {
+                  mkdir -p $cache:h
+                  { print -r -- $stamp; "$@" } > $cache.new && mv -f $cache.new $cache || rm -f $cache.new
+                }
+                [[ -s $cache ]] && source $cache
+              }
 
               # render man pages in colors
               export LESS_TERMCAP_mb=$'\e[1;32m'
@@ -356,7 +395,7 @@
                 grep -Fxvf <(tr -d '\r' < "$1") <(tr -d '\r' < "$2")
               }
 
-              eval "$(navi widget zsh)"
+              _cached_source navi navi widget zsh
 
               # z with fzf integration (z plugin loaded via programs.zsh.plugins)
               unalias z 2> /dev/null
@@ -416,7 +455,7 @@
               compdef _gh gh
 
               # jj (jujutsu) completions
-              source <(jj util completion zsh)
+              _cached_source jj jj util completion zsh
 
               # bun completions
               [ -s "/home/ch/.bun/_bun" ] && source "/home/ch/.bun/_bun"
@@ -427,8 +466,22 @@
               # matchi
               test -f ~/.zsh-matchi && source ~/.zsh-matchi
 
-              # hishtory
-              test -f /home/ch/.hishtory/config.zsh && source /home/ch/.hishtory/config.zsh
+              # hishtory. Two calls in its config.zsh cost ~65ms per shell and
+              # both answers are constant here: getColorSupport round-trips to
+              # the terminal and always says 1, enable-control-r is true. Shadow
+              # them for the duration of the source, everything else (including
+              # the completion) falls through to the real binary.
+              if [[ -f /home/ch/.hishtory/config.zsh ]]; then
+                hishtory() {
+                  case "$*" in
+                    getColorSupport) return 1 ;;
+                    "config-get enable-control-r") print -r true ;;
+                    *) command hishtory "$@" ;;
+                  esac
+                }
+                source /home/ch/.hishtory/config.zsh
+                unfunction hishtory
+              fi
 
               # Powerlevel10k config (theme loaded via plugins)
               [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
