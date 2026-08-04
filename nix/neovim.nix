@@ -206,9 +206,9 @@
             -- ========================================================================
             -- Prose check (markdown only)
             -- Surfaces weasel words / passive voice / duplicate words from
-            -- ~/.local/bin/prose-check as LSP-style diagnostics. With the existing
-            -- vim.diagnostic.config({ virtual_text = true }) below, hits render
-            -- inline next to the offending line — same UX as LSP warnings.
+            -- ~/.local/bin/prose-check as LSP-style diagnostics. The namespace
+            -- gets virtual_text = true further below (LSP diagnostics use
+            -- virtual_lines instead), so hits render inline next to the line.
             -- Runs async on BufReadPost + BufWritePost. Manual trigger via :ProseCheck.
             -- ========================================================================
             local prose_ns = vim.api.nvim_create_namespace("prose_check")
@@ -1427,9 +1427,73 @@
             -- ========================================================================
             -- LSP
             -- ========================================================================
+            -- LSP messages are often multi-line (gleam sends "Unused
+            -- variable\n\nThis variable is never used."), which rules out both
+            -- inline renderers: virt_text is one screen row, so newlines render
+            -- as ^@ and long messages run off the right edge, while virt_lines
+            -- reserves real rows and pushes the code below the cursor down.
+            -- A float is the only true overlay — z-index, multi-line, no shift.
+            -- It does cover the code beside the cursor; that's the trade.
+            -- Signs + underline stay on so off-cursor lines are still marked.
+            vim.diagnostic.config({
+              virtual_text = false,
+              virtual_lines = false,
+              severity_sort = true,
+            })
+
+            -- prose-check hits are short single-liners, so inline text suits
+            -- them, and they'd otherwise pop a float on every weasel word.
+            -- Per-namespace config overrides the global one above.
             vim.diagnostic.config({
               virtual_text = true,
-              severity_sort = true,
+              virtual_lines = false,
+            }, prose_ns)
+
+            -- Float follows the cursor. Debounced: CursorMoved fires per
+            -- keystroke, and holding j would otherwise open/close a window
+            -- each time. open_floating_preview's default close_events
+            -- (CursorMoved, CursorMovedI, InsertCharPre) close it for us, so
+            -- this only ever has to open.
+            local diag_float_timer = assert(vim.uv.new_timer())
+
+            local function diag_float_show()
+              -- normal mode only: in insert mode this fights blink.cmp's popup
+              if vim.api.nvim_get_mode().mode ~= "n" then return end
+              -- don't stack a float on top of a float
+              if vim.api.nvim_win_get_config(0).relative ~= "" then return end
+
+              local lnum = vim.api.nvim_win_get_cursor(0)[1] - 1
+              -- prose hits already render inline; a float would double them up.
+              -- Collect the namespaces that aren't prose and scope the float to
+              -- those, so a markdown line with only weasel words stays quiet.
+              local namespaces, seen = {}, {}
+              for _, d in ipairs(vim.diagnostic.get(0, { lnum = lnum })) do
+                if d.namespace and d.namespace ~= prose_ns and not seen[d.namespace] then
+                  seen[d.namespace] = true
+                  table.insert(namespaces, d.namespace)
+                end
+              end
+              if #namespaces == 0 then return end
+
+              vim.diagnostic.open_float({
+                namespace = namespaces,
+                scope = "line",
+                focus = false,
+                border = "rounded",
+                source = "if_many",
+                header = "",
+                max_width = 80,
+              })
+            end
+
+            vim.api.nvim_create_autocmd({ "CursorMoved", "DiagnosticChanged" }, {
+              desc = "diagnostic float follows cursor",
+              callback = function()
+                diag_float_timer:stop()
+                diag_float_timer:start(200, 0, vim.schedule_wrap(function()
+                  pcall(diag_float_show)
+                end))
+              end,
             })
 
             -- <Esc> in normal mode closes any visible float (diagnostic popup,
