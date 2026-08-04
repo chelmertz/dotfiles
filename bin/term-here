@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+# Open a ghostty window in the working directory of the focused terminal,
+# falling back to $HOME when the focused window isn't a terminal.
+#
+# Ghostty runs single-instance, so every window shares one pid and /proc alone
+# can't tell them apart. Each window's shell does carry WINDOWID in its
+# environment though, which maps back to the focused X window. `ghostty
+# +new-window` inherits the cwd of whoever launched it, so a cd is enough.
+
+set -u
+
+dir=$HOME
+wid=$(xdotool getactivewindow 2>/dev/null) || wid=
+app_pid=${wid:+$(xdotool getwindowpid "$wid" 2>/dev/null)}
+
+for outer in $(pgrep -P "${app_pid:-0}" 2>/dev/null); do
+	grep -qz "^WINDOWID=$wid$" "/proc/$outer/environ" 2>/dev/null || continue
+	# ghostty spawns `sh -c zsh`; the inner shell is the one tracking cd
+	inner=$(pgrep -P "$outer" | head -1)
+	cwd=$(readlink "/proc/${inner:-$outer}/cwd") && dir=$cwd
+	break
+done
+
+cd "$dir" 2>/dev/null || cd "$HOME" || exit 1
+exec ghostty +new-window

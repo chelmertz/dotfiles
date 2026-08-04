@@ -41,6 +41,11 @@
       executable = true;
     };
 
+    ".local/bin/term-here" = {
+      source = ../bin/term-here;
+      executable = true;
+    };
+
     ".local/bin/set-wallpaper" = {
       source = ../bin/set-wallpaper;
       executable = true;
