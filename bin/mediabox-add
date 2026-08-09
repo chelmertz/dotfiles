@@ -3,32 +3,35 @@
 #
 #   mediabox-add *.sfc                 # -> /data/games/roms/snes
 #   mediabox-add ~/Downloads/*         # routes what it knows, ignores the rest
-#   mediabox-add --as ps1 game.chd     # for extensions shared by several systems
 #   mediabox-add -n *.mkv              # dry run
 #
-# Reports everything on stderr, so stdout stays free for piping.
-# Colours are disabled if NO_COLOR or NOCOLOR is set, or stderr is not a tty.
+# Disc images (.bin .cue .iso ...) are used by several consoles, so those ask
+# which one rather than guessing. Everything is asked up front, before any
+# transfer starts.
+#
+# Reports on stderr, so stdout stays free for piping.
+# Colours are off if NO_COLOR or NOCOLOR is set, or stderr is not a tty.
 set -uo pipefail
 
 HOST="${MEDIABOX_HOST:-mediabox.local}"
 USER="${MEDIABOX_USER:-ch}"
 DRYRUN=0
-FORCE_SYSTEM=""
 
 MEDIA_ROOT="/data/media"
 ROM_ROOT="/data/games/roms"
 
+# The only systems a disc image could belong to here.
+DISC_SYSTEMS=(ps1 psp dreamcast)
+
 usage() {
   cat >&2 <<EOF
-usage: mediabox-add [-n|--dry-run] [--host HOST] [--as SYSTEM] FILE...
+usage: mediabox-add [-n|--dry-run] [--host HOST] FILE...
 
   -n, --dry-run    show what would happen, copy nothing
       --host HOST  default: ${HOST}  (or \$MEDIABOX_HOST)
-      --as SYSTEM  force a system for ambiguous extensions
-                   one of: ps1 psp dreamcast snes nes gb gba genesis n64
 
 Routes by extension. Unknown extensions are reported and skipped, so globbing a
-whole directory is safe.
+whole directory is safe. Disc images prompt for their system.
 EOF
 }
 
@@ -60,31 +63,50 @@ dest_for() {
   esac
 }
 
-# Extensions several consoles share — guessing would put a PS1 disc in the PSP
-# folder, so require --as instead.
-is_ambiguous() {
+is_disc_image() {
   case "${1,,}" in
     bin|cue|iso|chd|img|pbp) return 0 ;;
     *) return 1 ;;
   esac
 }
 
-system_dir() {
-  case "$1" in
-    ps1|psx)   echo "${ROM_ROOT}/ps1" ;;
-    psp)       echo "${ROM_ROOT}/psp" ;;
-    dreamcast|dc) echo "${ROM_ROOT}/dreamcast" ;;
-    snes)      echo "${ROM_ROOT}/snes" ;;
-    nes)       echo "${ROM_ROOT}/nes" ;;
-    gb|gbc)    echo "${ROM_ROOT}/gb" ;;
-    gba)       echo "${ROM_ROOT}/gba" ;;
-    genesis|md) echo "${ROM_ROOT}/genesis" ;;
-    n64)       echo "${ROM_ROOT}/n64" ;;
-    movies)    echo "${MEDIA_ROOT}/movies" ;;
-    series)    echo "${MEDIA_ROOT}/series" ;;
-    kids)      echo "${MEDIA_ROOT}/kids" ;;
-    *)         return 1 ;;
-  esac
+# Sets CHOICE to a system name, or empty to skip this file. The previous answer
+# becomes the default, since a PS1 game is a .cue and a .bin that belong
+# together and asking twice for one game is tedious.
+CHOICE=""
+LAST_CHOICE=""
+ask_system() {
+  local base="$1" ext="$2" ans i
+  while true; do
+    {
+      printf '\n%s %s\n' "${C_WARN}${base}${C_OFF}" "${C_DIM}(.${ext} — which system?)${C_OFF}"
+      for i in "${!DISC_SYSTEMS[@]}"; do
+        printf '  %d) %s\n' "$((i + 1))" "${DISC_SYSTEMS[$i]}"
+      done
+      printf '  s) skip\n'
+      if [ -n "${LAST_CHOICE}" ]; then
+        printf '> [%s] ' "${LAST_CHOICE}"
+      else
+        printf '> '
+      fi
+    } >/dev/tty
+
+    read -r ans </dev/tty || { CHOICE=""; return; }
+
+    if [ -z "${ans}" ] && [ -n "${LAST_CHOICE}" ]; then
+      CHOICE="${LAST_CHOICE}"; return
+    fi
+    case "${ans}" in
+      s|S|skip) CHOICE=""; return ;;
+      [0-9]*)
+        if [ "${ans}" -ge 1 ] 2>/dev/null && [ "${ans}" -le "${#DISC_SYSTEMS[@]}" ]; then
+          CHOICE="${DISC_SYSTEMS[$((ans - 1))]}"
+          LAST_CHOICE="${CHOICE}"
+          return
+        fi
+        ;;
+    esac
+  done
 }
 
 # --- args ------------------------------------------------------------------
@@ -93,7 +115,6 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -n|--dry-run) DRYRUN=1; shift ;;
     --host) HOST="${2:?--host needs a value}"; shift 2 ;;
-    --as) FORCE_SYSTEM="${2:?--as needs a value}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     --) shift; while [ $# -gt 0 ]; do FILES+=("$1"); shift; done ;;
     -*) say "${C_ERR}unknown option:${C_OFF} $1"; usage; exit 2 ;;
@@ -103,39 +124,44 @@ done
 
 if [ "${#FILES[@]}" -eq 0 ]; then usage; exit 2; fi
 
-if [ -n "${FORCE_SYSTEM}" ] && ! system_dir "${FORCE_SYSTEM}" >/dev/null; then
-  say "${C_ERR}unknown system:${C_OFF} ${FORCE_SYSTEM}"
-  exit 2
-fi
-
 # --- classify --------------------------------------------------------------
 declare -A BATCHES=()   # dest -> newline-separated files (NB: not GROUPS, that is a bash builtin)
-sent=0 skipped=0 ambiguous=0 missing=0
+sent=0 skipped=0 missing=0
 
 for f in "${FILES[@]}"; do
   base="$(basename -- "$f")"
   if [ -d "$f" ]; then
     say "${C_SKIP}skip  ${C_OFF} ${base} ${C_DIM}(directory)${C_OFF}"
-    skipped=$((skipped+1)); continue
+    skipped=$((skipped + 1)); continue
   fi
   if [ ! -f "$f" ]; then
     say "${C_ERR}miss  ${C_OFF} ${base} ${C_DIM}(no such file)${C_OFF}"
-    missing=$((missing+1)); continue
+    missing=$((missing + 1)); continue
   fi
 
   ext="${base##*.}"
   [ "$ext" = "$base" ] && ext=""
 
-  if [ -n "${FORCE_SYSTEM}" ]; then
-    dest="$(system_dir "${FORCE_SYSTEM}")"
-  elif dest="$(dest_for "$ext")"; then
+  if dest="$(dest_for "$ext")"; then
     :
-  elif is_ambiguous "$ext"; then
-    say "${C_WARN}ambig ${C_OFF} ${base} ${C_DIM}(.${ext} is shared by several systems — rerun with --as)${C_OFF}"
-    ambiguous=$((ambiguous+1)); continue
+  elif is_disc_image "$ext"; then
+    if [ "${DRYRUN}" -eq 1 ]; then
+      say "${C_WARN}ask   ${C_OFF} ${base} ${C_DIM}(.${ext} — would ask which system)${C_OFF}"
+      continue
+    fi
+    if [ ! -r /dev/tty ]; then
+      say "${C_WARN}skip  ${C_OFF} ${base} ${C_DIM}(.${ext} needs a system, no terminal to ask)${C_OFF}"
+      skipped=$((skipped + 1)); continue
+    fi
+    ask_system "${base}" "${ext}"
+    if [ -z "${CHOICE}" ]; then
+      say "${C_SKIP}skip  ${C_OFF} ${base} ${C_DIM}(skipped at prompt)${C_OFF}"
+      skipped=$((skipped + 1)); continue
+    fi
+    dest="${ROM_ROOT}/${CHOICE}"
   else
     say "${C_SKIP}ignore${C_OFF} ${base} ${C_DIM}(.${ext:-none} not handled)${C_OFF}"
-    skipped=$((skipped+1)); continue
+    skipped=$((skipped + 1)); continue
   fi
 
   BATCHES["$dest"]+="${f}"$'\n'
@@ -143,7 +169,7 @@ done
 
 if [ "${#BATCHES[@]}" -eq 0 ]; then
   say ""
-  say "nothing to send ${C_DIM}(${skipped} ignored, ${ambiguous} ambiguous, ${missing} missing)${C_OFF}"
+  say "nothing to send ${C_DIM}(${skipped} ignored, ${missing} missing)${C_OFF}"
   exit 0
 fi
 
@@ -156,7 +182,7 @@ for dest in "${!BATCHES[@]}"; do
     for f in "${batch[@]}"; do
       say "${C_DIM}would  ${C_OFF} $(basename -- "$f") ${C_DIM}->${C_OFF} ${short}"
     done
-    sent=$((sent+${#batch[@]}))
+    sent=$((sent + ${#batch[@]}))
     continue
   fi
 
@@ -170,7 +196,7 @@ for dest in "${!BATCHES[@]}"; do
     for f in "${batch[@]}"; do
       say "${C_OK}sent  ${C_OFF} $(basename -- "$f") ${C_DIM}->${C_OFF} ${short}"
     done
-    sent=$((sent+${#batch[@]}))
+    sent=$((sent + ${#batch[@]}))
   else
     say "${C_ERR}failed${C_OFF} sending to ${short}"
     exit 1
@@ -178,4 +204,4 @@ for dest in "${!BATCHES[@]}"; do
 done
 
 say ""
-say "${C_OK}${sent} sent${C_OFF}${C_DIM}, ${skipped} ignored, ${ambiguous} ambiguous, ${missing} missing -> ${USER}@${HOST}${C_OFF}"
+say "${C_OK}${sent} sent${C_OFF}${C_DIM}, ${skipped} ignored, ${missing} missing -> ${USER}@${HOST}${C_OFF}"
