@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+# mediabox-add — copy files to the right place on the media box, by extension.
+#
+#   mediabox-add *.sfc                 # -> /data/games/roms/snes
+#   mediabox-add ~/Downloads/*         # routes what it knows, ignores the rest
+#   mediabox-add --as ps1 game.chd     # for extensions shared by several systems
+#   mediabox-add -n *.mkv              # dry run
+#
+# Reports everything on stderr, so stdout stays free for piping.
+# Colours are disabled if NO_COLOR or NOCOLOR is set, or stderr is not a tty.
+set -uo pipefail
+
+HOST="${MEDIABOX_HOST:-mediabox.local}"
+USER="${MEDIABOX_USER:-ch}"
+DRYRUN=0
+FORCE_SYSTEM=""
+
+MEDIA_ROOT="/data/media"
+ROM_ROOT="/data/games/roms"
+
+usage() {
+  cat >&2 <<EOF
+usage: mediabox-add [-n|--dry-run] [--host HOST] [--as SYSTEM] FILE...
+
+  -n, --dry-run    show what would happen, copy nothing
+      --host HOST  default: ${HOST}  (or \$MEDIABOX_HOST)
+      --as SYSTEM  force a system for ambiguous extensions
+                   one of: ps1 psp dreamcast snes nes gb gba genesis n64
+
+Routes by extension. Unknown extensions are reported and skipped, so globbing a
+whole directory is safe.
+EOF
+}
+
+# --- colours ---------------------------------------------------------------
+if [ -n "${NO_COLOR:-}" ] || [ -n "${NOCOLOR:-}" ] || [ ! -t 2 ]; then
+  C_OK="" C_SKIP="" C_WARN="" C_ERR="" C_DIM="" C_OFF=""
+else
+  C_OK=$'\033[32m' C_SKIP=$'\033[90m' C_WARN=$'\033[33m'
+  C_ERR=$'\033[31m' C_DIM=$'\033[2m' C_OFF=$'\033[0m'
+fi
+
+say() { printf '%s\n' "$*" >&2; }
+
+# --- extension -> destination ----------------------------------------------
+# Only systems with a core actually installed on the box are listed.
+dest_for() {
+  case "${1,,}" in
+    mkv|mp4|mov|avi|webm|m4v|wmv|flv|mpg|mpeg|m2ts|ts) echo "${MEDIA_ROOT}/movies" ;;
+    srt|sub|ass|ssa|vtt)                               echo "${MEDIA_ROOT}/movies" ;;
+    sfc|smc)                                           echo "${ROM_ROOT}/snes" ;;
+    nes|fds)                                           echo "${ROM_ROOT}/nes" ;;
+    gb|gbc)                                            echo "${ROM_ROOT}/gb" ;;
+    gba)                                               echo "${ROM_ROOT}/gba" ;;
+    md|gen|smd|sms|gg)                                 echo "${ROM_ROOT}/genesis" ;;
+    n64|z64|v64)                                       echo "${ROM_ROOT}/n64" ;;
+    gdi|cdi)                                           echo "${ROM_ROOT}/dreamcast" ;;
+    cso)                                               echo "${ROM_ROOT}/psp" ;;
+    *)                                                 return 1 ;;
+  esac
+}
+
+# Extensions several consoles share — guessing would put a PS1 disc in the PSP
+# folder, so require --as instead.
+is_ambiguous() {
+  case "${1,,}" in
+    bin|cue|iso|chd|img|pbp) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+system_dir() {
+  case "$1" in
+    ps1|psx)   echo "${ROM_ROOT}/ps1" ;;
+    psp)       echo "${ROM_ROOT}/psp" ;;
+    dreamcast|dc) echo "${ROM_ROOT}/dreamcast" ;;
+    snes)      echo "${ROM_ROOT}/snes" ;;
+    nes)       echo "${ROM_ROOT}/nes" ;;
+    gb|gbc)    echo "${ROM_ROOT}/gb" ;;
+    gba)       echo "${ROM_ROOT}/gba" ;;
+    genesis|md) echo "${ROM_ROOT}/genesis" ;;
+    n64)       echo "${ROM_ROOT}/n64" ;;
+    movies)    echo "${MEDIA_ROOT}/movies" ;;
+    series)    echo "${MEDIA_ROOT}/series" ;;
+    kids)      echo "${MEDIA_ROOT}/kids" ;;
+    *)         return 1 ;;
+  esac
+}
+
+# --- args ------------------------------------------------------------------
+FILES=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -n|--dry-run) DRYRUN=1; shift ;;
+    --host) HOST="${2:?--host needs a value}"; shift 2 ;;
+    --as) FORCE_SYSTEM="${2:?--as needs a value}"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    --) shift; while [ $# -gt 0 ]; do FILES+=("$1"); shift; done ;;
+    -*) say "${C_ERR}unknown option:${C_OFF} $1"; usage; exit 2 ;;
+    *) FILES+=("$1"); shift ;;
+  esac
+done
+
+if [ "${#FILES[@]}" -eq 0 ]; then usage; exit 2; fi
+
+if [ -n "${FORCE_SYSTEM}" ] && ! system_dir "${FORCE_SYSTEM}" >/dev/null; then
+  say "${C_ERR}unknown system:${C_OFF} ${FORCE_SYSTEM}"
+  exit 2
+fi
+
+# --- classify --------------------------------------------------------------
+declare -A BATCHES=()   # dest -> newline-separated files (NB: not GROUPS, that is a bash builtin)
+sent=0 skipped=0 ambiguous=0 missing=0
+
+for f in "${FILES[@]}"; do
+  base="$(basename -- "$f")"
+  if [ -d "$f" ]; then
+    say "${C_SKIP}skip  ${C_OFF} ${base} ${C_DIM}(directory)${C_OFF}"
+    skipped=$((skipped+1)); continue
+  fi
+  if [ ! -f "$f" ]; then
+    say "${C_ERR}miss  ${C_OFF} ${base} ${C_DIM}(no such file)${C_OFF}"
+    missing=$((missing+1)); continue
+  fi
+
+  ext="${base##*.}"
+  [ "$ext" = "$base" ] && ext=""
+
+  if [ -n "${FORCE_SYSTEM}" ]; then
+    dest="$(system_dir "${FORCE_SYSTEM}")"
+  elif dest="$(dest_for "$ext")"; then
+    :
+  elif is_ambiguous "$ext"; then
+    say "${C_WARN}ambig ${C_OFF} ${base} ${C_DIM}(.${ext} is shared by several systems — rerun with --as)${C_OFF}"
+    ambiguous=$((ambiguous+1)); continue
+  else
+    say "${C_SKIP}ignore${C_OFF} ${base} ${C_DIM}(.${ext:-none} not handled)${C_OFF}"
+    skipped=$((skipped+1)); continue
+  fi
+
+  BATCHES["$dest"]+="${f}"$'\n'
+done
+
+if [ "${#BATCHES[@]}" -eq 0 ]; then
+  say ""
+  say "nothing to send ${C_DIM}(${skipped} ignored, ${ambiguous} ambiguous, ${missing} missing)${C_OFF}"
+  exit 0
+fi
+
+# --- transfer --------------------------------------------------------------
+for dest in "${!BATCHES[@]}"; do
+  mapfile -t batch < <(printf '%s' "${BATCHES[$dest]}")
+  short="${dest#/data/}"
+
+  if [ "${DRYRUN}" -eq 1 ]; then
+    for f in "${batch[@]}"; do
+      say "${C_DIM}would  ${C_OFF} $(basename -- "$f") ${C_DIM}->${C_OFF} ${short}"
+    done
+    sent=$((sent+${#batch[@]}))
+    continue
+  fi
+
+  if ! ssh -o BatchMode=yes "${USER}@${HOST}" "mkdir -p '${dest}'" 2>/dev/null; then
+    say "${C_ERR}error ${C_OFF} cannot reach ${USER}@${HOST} or create ${dest}"
+    exit 1
+  fi
+
+  if rsync -a --info=progress2 --human-readable "${batch[@]}" \
+       "${USER}@${HOST}:${dest}/" >&2; then
+    for f in "${batch[@]}"; do
+      say "${C_OK}sent  ${C_OFF} $(basename -- "$f") ${C_DIM}->${C_OFF} ${short}"
+    done
+    sent=$((sent+${#batch[@]}))
+  else
+    say "${C_ERR}failed${C_OFF} sending to ${short}"
+    exit 1
+  fi
+done
+
+say ""
+say "${C_OK}${sent} sent${C_OFF}${C_DIM}, ${skipped} ignored, ${ambiguous} ambiguous, ${missing} missing -> ${USER}@${HOST}${C_OFF}"
