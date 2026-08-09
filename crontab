@@ -23,7 +23,3 @@
 # m h  dom mon dow   command
 */2 * * * * /home/ch/http-monitor.sh
 
-# Snapshot mediabox's Kodi/RetroArch settings into chelmertz/mediaserver.
-# They rewrite their own configs on exit, so this is the only way to version
-# them. No-ops quietly when the box is off. See scripts/pull-settings.sh.
-17 */3 * * * /home/ch/code/github/chelmertz/mediaserver/scripts/pull-settings.sh --commit >> /home/ch/.cache/pull-settings.log 2>&1

@@ -14,6 +14,7 @@ in
     ./obsidian.nix
     ./mpv.nix
     ./spotify.nix
+    ./mediabox.nix
     ./fonts.nix
   ];
 
