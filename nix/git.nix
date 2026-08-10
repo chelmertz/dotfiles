@@ -51,6 +51,9 @@
       ".lein-repl-history"
       # Claude/direnv
       "**/.claude/settings.local.json"
+      # Claude Code agent worktrees. Each one is a throwaway checkout of the
+      # repo itself, created to isolate an agent's work — never tracked.
+      "**/.claude/worktrees/"
       ".direnv"
     ];
 
