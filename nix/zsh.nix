@@ -97,6 +97,7 @@
       ml = "matchi-cli links";
 
       claude = "command claude --add-dir ~/code/matchi";
+      ca = "command claude agents";
     };
 
     sessionVariables = {
