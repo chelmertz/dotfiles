@@ -74,6 +74,7 @@
       gdc = "git diff --cached -M -w";
       gfa = "git fetch --all";
       gs = "git status --short --branch";
+      gsp = "git-spinoff";
       gr = "git reflog --date=iso";
       gpre = "git tag -d prebase 2>/dev/null; git tag prebase; git log -n1 prebase";
       gp = "git pull";

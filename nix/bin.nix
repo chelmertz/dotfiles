@@ -151,6 +151,11 @@
       executable = true;
     };
 
+    ".local/bin/git-spinoff" = {
+      source = ../bin/git-spinoff;
+      executable = true;
+    };
+
     ".local/bin/go-deps" = {
       source = ../bin/go-deps;
       executable = true;

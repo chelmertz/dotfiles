@@ -1,0 +1,124 @@
+#!/bin/sh
+set -eu
+
+# git-spinoff — move a branch's unpushed commits onto a new branch.
+#
+#   git spinoff <new-branch> [<base>]     create + checkout <new-branch> at
+#                                         <base> (default: current branch),
+#                                         then rewind <base> to where it last
+#                                         agreed with its upstream
+#   git spinoff -s <new-branch> [<base>]  spinout: same, but stay on <base>
+#
+# A port of magit-branch-spinoff / magit-branch-spinout, for when work has
+# already begun on the wrong branch (usually master): the unpushed commits
+# move to a feature branch and the base branch goes back to matching origin.
+#
+# <base> is only rewound when it has unpushed commits relative to its upstream
+# (falling back to origin/<base> when no upstream is configured). Otherwise
+# <new-branch> is still created and <base> is left alone.
+#
+# The new branch gets no upstream on purpose: push.autoSetupRemote then points
+# it at origin/<new-branch> on the first `git push`, no -u needed. Tracking the
+# local base branch (what magit and git-toolbelt do) would suppress that.
+
+usage() {
+	cat >&2 <<'EOF'
+usage: git spinoff [-s] [-h] <new-branch> [<base>]
+
+Creates and checks out <new-branch> at <base> (default: the current branch),
+then rewinds <base> to the last commit it shares with its upstream. If <base>
+has no unpushed commits, <new-branch> is still created and <base> is untouched.
+
+Options:
+  -s   spinout: stay on <base> instead of checking out <new-branch>.
+       Uncommitted changes override this — they follow you to <new-branch>.
+  -h   show this help
+EOF
+}
+
+stay=false
+while getopts hs flag; do
+	case "$flag" in
+	s) stay=true ;;
+	h)
+		usage
+		exit 0
+		;;
+	*)
+		usage
+		exit 2
+		;;
+	esac
+done
+shift $((OPTIND - 1))
+
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then
+	usage
+	exit 2
+fi
+
+new_branch=$1
+current=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+base=${2:-$current}
+
+if [ -z "$base" ]; then
+	echo "git spinoff: HEAD is detached, name <base> explicitly" >&2
+	exit 1
+fi
+
+if ! git show-ref --verify --quiet "refs/heads/$base"; then
+	echo "git spinoff: no such branch: $base" >&2
+	exit 1
+fi
+
+if git show-ref --verify --quiet "refs/heads/$new_branch"; then
+	echo "git spinoff: branch already exists: $new_branch" >&2
+	exit 1
+fi
+
+base_sha=$(git rev-parse "$base")
+
+# Where <base> and its remote counterpart last agreed; everything after that is
+# unpushed and belongs on the new branch. Prefer the configured upstream, fall
+# back to origin/<base> for branches that never got one.
+upstream=$(git rev-parse --abbrev-ref --symbolic-full-name "$base@{upstream}" 2>/dev/null || true)
+if [ -z "$upstream" ] && git show-ref --verify --quiet "refs/remotes/origin/$base"; then
+	upstream="origin/$base"
+fi
+
+rewind_to=
+if [ -n "$upstream" ]; then
+	merge_base=$(git merge-base "$base" "$upstream")
+	if [ "$merge_base" != "$base_sha" ]; then
+		rewind_to=$merge_base
+	fi
+fi
+
+# Uncommitted changes can't be left behind on a rewound base, so -s gives way
+# and takes them along to the new branch, as magit does.
+if $stay && [ "$current" = "$base" ] && ! git diff --quiet HEAD; then
+	stay=false
+	echo "uncommitted changes: checking out $new_branch instead of staying on $base" >&2
+fi
+
+if $stay; then
+	git branch --quiet --no-track "$new_branch" "$base"
+else
+	git checkout --quiet --no-track -b "$new_branch" "$base"
+fi
+
+if [ -z "$rewind_to" ]; then
+	echo "$new_branch created at $(git rev-parse --short "$base_sha"), $base not touched"
+	exit 0
+fi
+
+if $stay; then
+	# --keep over --hard: refuses rather than discarding, though the tree is
+	# known clean by now.
+	git reset --quiet --keep "$rewind_to"
+else
+	git branch --quiet --force "$base" "$rewind_to"
+fi
+
+moved=$(git rev-list --count "$rewind_to..$base_sha")
+echo "$moved commit(s) on $new_branch, $base rewound to $(git rev-parse --short "$rewind_to") (was $(git rev-parse --short "$base_sha"))"

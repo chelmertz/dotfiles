@@ -67,6 +67,9 @@
         # Force-overwrite local tags that diverge from remote (e.g. retagged releases).
         # No config equivalent for --force on tags; pruneTags only handles deletions.
         pull-force = "!git fetch --tags --force && git rebase --autostash @{u}";
+        # Short name for bin/git-spinoff (which `git spinoff` already picks up
+        # from PATH). Points at the script directly, not at the zsh gsp alias.
+        spin = "!git-spinoff";
       };
       branch = {
         autoSetupMerge = "simple";
