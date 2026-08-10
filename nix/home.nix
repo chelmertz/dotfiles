@@ -107,7 +107,8 @@ in
     git-filter-repo
     git-trim
     gleam
-    erlang
+    # gleam needs an Erlang runtime; the top-level `erlang` alias is deprecated
+    beamPackages.erlang
     go
     gojo
     golangci-lint
