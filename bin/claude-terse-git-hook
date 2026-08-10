@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# Hook for PreToolUse (matcher: Bash) — caps the length of commit messages
+# and PR descriptions that Claude writes.
+# Called by Claude Code with JSON on stdin. Exit 2 blocks the tool call and
+# feeds stderr back to Claude as an error.
+#
+# Format version: 2026-08. Checkpoint: expects stdin keys:
+#   tool_name, tool_input.command, hook_event_name
+#
+# Fails open everywhere: an unparseable command is never blocked. Blocking a
+# legitimate commit is worse than letting a verbose one through.
+#
+# Escape hatch: CLAUDE_TERSE_GIT=0 disables the check. That is for you, not
+# for Claude — see the commit/PR section of ~/.claude/CLAUDE.md.
+
+set -euo pipefail
+
+if [ "${CLAUDE_TERSE_GIT:-1}" = "0" ]; then
+    exit 0
+fi
+
+COMMIT_BODY_MAX=3
+COMMIT_SUBJECT_MAX=72
+PR_BODY_MAX=5
+
+INPUT=$(cat)
+
+# Checkpoint: validate expected keys exist
+TOOL=$(echo "$INPUT" | jq -r '.tool_name // empty')
+if [ -z "$TOOL" ]; then
+    echo "CHECKPOINT FAILED: stdin missing tool_name. Hook input format may have changed." >&2
+    echo "Keys received: $(echo "$INPUT" | jq -r 'keys | join(", ")')" >&2
+    exit 0
+fi
+[ "$TOOL" = "Bash" ] || exit 0
+
+CMD=$(echo "$INPUT" | jq -r '.tool_input.command // ""')
+
+# What is being written, and how many body lines it gets.
+# gh is tested first: a PR body that mentions "git commit" is still a PR.
+if echo "$CMD" | grep -qE 'gh +pr +(create|edit)\b'; then
+    KIND=pr
+    LIMIT=$PR_BODY_MAX
+elif echo "$CMD" | grep -qE '(^|[;&|] *)git +(-[^ ]+ +| *)*commit\b'; then
+    KIND=commit
+    LIMIT=$COMMIT_BODY_MAX
+else
+    exit 0
+fi
+
+# Extract the message. Three shapes, in order of how often Claude emits them.
+BODY=""
+MARKER=$(printf '%s\n' "$CMD" | grep -oE "<<-?'?\"?[A-Za-z_][A-Za-z0-9_]*'?\"?" | head -1 |
+    sed -E "s/^<<-?['\"]?//; s/['\"]?$//" || true)
+if [ -n "$MARKER" ]; then
+    # heredoc: git commit -F - <<'EOF', gh pr create --body "$(cat <<'EOF' ...)"
+    BODY=$(printf '%s\n' "$CMD" |
+        sed -n "/<<-\{0,1\}['\"]\{0,1\}${MARKER}['\"]\{0,1\}/,/^[[:space:]]*${MARKER}[[:space:]]*$/p" |
+        sed '1d;$d')
+else
+    FILE=$(printf '%s\n' "$CMD" | grep -oE '(--body-file|-F) +[^ ]+' | head -1 |
+        sed -E 's/^(--body-file|-F) +//' || true)
+    if [ -n "$FILE" ] && [ "$FILE" != "-" ] && [ -r "$FILE" ]; then
+        BODY=$(cat "$FILE")
+    else
+        # --body "..." / -m '...'; single argument, may span lines
+        BODY=$(printf '%s\n' "$CMD" | awk '
+            { buf = buf $0 "\n" }
+            END {
+                if (!match(buf, /(--body|-m) +["'"'"']/)) exit
+                q = substr(buf, RSTART + RLENGTH - 1, 1)
+                rest = substr(buf, RSTART + RLENGTH)
+                end = index(rest, q)
+                if (end == 0) exit
+                printf "%s", substr(rest, 1, end - 1)
+            }')
+    fi
+fi
+
+[ -n "$BODY" ] || exit 0
+
+# Drop attribution footers and the subject line; they are not prose Claude chose
+BODY=$(printf '%s\n' "$BODY" |
+    grep -vE '^(Co-Authored-By:|🤖 Generated with|Generated with|Co-authored-by:)' || true)
+if [ "$KIND" = commit ]; then
+    SUBJECT=$(printf '%s\n' "$BODY" | head -1)
+    if [ "${#SUBJECT}" -gt "$COMMIT_SUBJECT_MAX" ]; then
+        echo "Commit subject is ${#SUBJECT} chars, limit is ${COMMIT_SUBJECT_MAX}. Shorten it." >&2
+        exit 2
+    fi
+    BODY=$(printf '%s\n' "$BODY" | tail -n +2)
+fi
+
+# Count non-blank lines; flag markdown structure outside fenced code blocks
+COUNT=0
+STRUCTURE=""
+FENCED=0
+while IFS= read -r line; do
+    case "$line" in '```'*) FENCED=$((1 - FENCED)); COUNT=$((COUNT + 1)); continue ;; esac
+    [ -z "${line//[[:space:]]/}" ] && continue
+    COUNT=$((COUNT + 1))
+    [ "$FENCED" = 1 ] && continue
+    case "$line" in
+        '#'*) STRUCTURE="headings" ;;
+        '- '* | '* '* | '+ '* | '| '*) [ -n "$STRUCTURE" ] || STRUCTURE="bullet lists or tables" ;;
+    esac
+done <<EOF
+$BODY
+EOF
+
+if [ "$COUNT" -gt "$LIMIT" ]; then
+    echo "This ${KIND} body is ${COUNT} lines, limit is ${LIMIT}. Cut it to the point of the change." >&2
+    echo "Scale the words to the diff. Quote only the part of an error that matters." >&2
+    exit 2
+fi
+if [ -n "$STRUCTURE" ]; then
+    echo "This ${KIND} body uses ${STRUCTURE}. Write ${LIMIT} lines of prose instead." >&2
+    echo "Fenced code blocks are the only formatting allowed, and only for a necessary excerpt." >&2
+    exit 2
+fi
+
+exit 0

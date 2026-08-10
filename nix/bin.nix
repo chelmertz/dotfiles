@@ -386,6 +386,11 @@
       executable = true;
     };
 
+    ".local/bin/claude-terse-git-hook" = {
+      source = ../bin/claude-terse-git-hook;
+      executable = true;
+    };
+
     ".local/bin/toggle-obsidian-scratchpad" = {
       source = ../bin/toggle-obsidian-scratchpad;
       executable = true;
