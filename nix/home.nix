@@ -338,8 +338,14 @@ in
           share/dbus-1/services/com.mitchellh.ghostty.service \
           share/systemd/user/app-com.mitchellh.ghostty.service; do
           rm $out/$rel
+          # The dbus/systemd units name an absolute store path, the .desktop
+          # entry a bare "ghostty" resolved through PATH, so rewrite both
+          # forms and assert every file ended up pointing at the wrapper.
           substitute ${pkgs.ghostty}/$rel $out/$rel \
-            --replace-fail "${pkgs.ghostty}/bin/ghostty" "$out/bin/ghostty"
+            --replace-quiet "${pkgs.ghostty}/bin/ghostty" "$out/bin/ghostty" \
+            --replace-quiet "Exec=ghostty" "Exec=$out/bin/ghostty" \
+            --replace-quiet "TryExec=ghostty" "TryExec=$out/bin/ghostty"
+          grep -qF "$out/bin/ghostty" $out/$rel
         done
         wrapProgram $out/bin/ghostty \
           --set __EGL_VENDOR_LIBRARY_DIRS "/usr/share/glvnd/egl_vendor.d" \
