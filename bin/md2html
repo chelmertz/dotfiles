@@ -50,6 +50,16 @@ if [ -f "$font_regular" ]; then
 	font_regular_src="url(\"data:font/ttf;base64,$(base64 -w0 "$font_regular")\") format(\"truetype\")"
 fi
 
+# Bake the desktop's color scheme into the document. Firefox is configured with
+# layout.css.prefers-color-scheme.content-override=1, which forces every page to
+# report `prefers-color-scheme: light`, so the media query alone never fires. The
+# data-theme attribute wins over it; the media query stays as a fallback for
+# browsers that report honestly.
+case "$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null)" in
+	*prefer-dark*) system_theme="dark" ;;
+	*)             system_theme="light" ;;
+esac
+
 # Generate TOC
 toc_html=$(echo "$md_content" | pandoc -f markdown+fenced_code_attributes+lists_without_preceding_blankline -t html --toc --template="$toc_template" 2>/dev/null)
 
@@ -67,15 +77,47 @@ fi
 
 cat <<HTMLEOF
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="$system_theme">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>md2html</title>
+<script>
+// Applied before the stylesheet so a remembered choice never flashes the other
+// scheme. Scope is one preview file, not all of them: Firefox's
+// privacy.file_unique_origin gives every file:// document its own origin, so
+// localStorage does not carry across cached previews — the data-theme baked in
+// above is what makes a *new* preview follow the desktop. The stored value
+// carries the desktop scheme it was overriding, so toggling the desktop
+// (bin/color-scheme) drops a stale override instead of pinning it forever.
+(function () {
+  try {
+    var parts = (localStorage.getItem('md2html-theme') || '').split('|');
+    if ((parts[0] === 'dark' || parts[0] === 'light') && parts[1] === '$system_theme') {
+      document.documentElement.dataset.theme = parts[0];
+    }
+  } catch (e) {}
+})();
+</script>
 <script type="module">
   try {
     const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
-    mermaid.initialize({ startOnLoad: true, securityLevel: 'loose', theme: 'base' });
+    const blocks = Array.from(document.querySelectorAll('pre.mermaid'));
+    const sources = blocks.map(b => b.textContent);
+    const render = async () => {
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: 'loose',
+        theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'base',
+      });
+      blocks.forEach((b, i) => {
+        b.textContent = sources[i];
+        b.removeAttribute('data-processed');
+      });
+      if (blocks.length) await mermaid.run({ nodes: blocks });
+    };
+    await render();
+    window.addEventListener('md2html:theme', render);
   } catch (e) {
     console.warn('Mermaid failed:', e);
   }
@@ -87,12 +129,17 @@ cat <<HTMLEOF
   font-weight: normal;
   font-style: normal;
 }
-:root {
+:root, :root[data-theme="light"] {
   --bg: #fff; --fg: #222; --muted: #666; --border: #ccc; --accent: #444;
   --code-bg: #ececec;
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #1a1a1a; --fg: #e0e0e0; --muted: #888; --border: #444; --accent: #aaa; --code-bg: #2a2a2a; }
+}
+/* Last, and one specificity step above the media query, so the baked-in
+   data-theme beats both the light default and a lying prefers-color-scheme. */
+:root[data-theme="dark"] {
+  --bg: #1a1a1a; --fg: #e0e0e0; --muted: #888; --border: #444; --accent: #aaa; --code-bg: #2a2a2a;
 }
 * { box-sizing: border-box; }
 body {
@@ -204,6 +251,22 @@ nav#toc a.active {
     overflow-y: auto;
   }
 }
+#theme-toggle {
+  position: fixed;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 1;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+#theme-toggle:hover { color: var(--fg); }
 table {
   border-collapse: collapse;
   margin: 1rem 0;
@@ -222,10 +285,26 @@ tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--border) 25%, 
 </style>
 </head>
 <body${body_class}>
+<button id="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode"></button>
 ${toc_aside}
 <main>
 $body_html
 </main>
+<script>
+(function () {
+  const root = document.documentElement;
+  const btn = document.getElementById('theme-toggle');
+  const label = () => { btn.textContent = root.dataset.theme === 'dark' ? '☀' : '☾'; };
+  btn.addEventListener('click', () => {
+    const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    root.dataset.theme = next;
+    try { localStorage.setItem('md2html-theme', next + '|' + '$system_theme'); } catch (e) {}
+    label();
+    window.dispatchEvent(new Event('md2html:theme'));
+  });
+  label();
+})();
+</script>
 <script>
 (function () {
   const tocLinks = document.querySelectorAll('nav#toc a[href^="#"]');
