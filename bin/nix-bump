@@ -3,7 +3,10 @@ set -e
 
 DOTFILES=~/code/github/chelmertz/dotfiles
 
-nix flake update --no-warn-dirty --flake "$DOTFILES/nix" && home-manager switch
+# The bump itself dirties nix/flake.lock, so both steps would warn about the
+# dirty tree; home-manager takes the setting rather than the --no-warn-dirty flag.
+nix flake update --no-warn-dirty --flake "$DOTFILES/nix" &&
+    home-manager --option warn-dirty false switch
 
 # Keep only the 3 most recent generations, then GC unreferenced store paths
 nix-env --delete-generations +3
