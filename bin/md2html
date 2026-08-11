@@ -161,14 +161,18 @@ cat <<HTMLEOF
 :root, :root[data-theme="light"] {
   --bg: #fff; --fg: #222; --muted: #666; --border: #ccc; --accent: #444;
   --code-bg: #ececec;
+  /* Saturation/lightness for the enum row tints; only the hue varies per value. */
+  --tint-s: 60%; --tint-l: 91%;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #1a1a1a; --fg: #e0e0e0; --muted: #888; --border: #444; --accent: #aaa; --code-bg: #2a2a2a; }
+  :root { --bg: #1a1a1a; --fg: #e0e0e0; --muted: #888; --border: #444; --accent: #aaa; --code-bg: #2a2a2a;
+          --tint-s: 35%; --tint-l: 22%; }
 }
 /* Last, and one specificity step above the media query, so the baked-in
    data-theme beats both the light default and a lying prefers-color-scheme. */
 :root[data-theme="dark"] {
   --bg: #1a1a1a; --fg: #e0e0e0; --muted: #888; --border: #444; --accent: #aaa; --code-bg: #2a2a2a;
+  --tint-s: 35%; --tint-l: 22%;
 }
 * { box-sizing: border-box; }
 body {
@@ -339,6 +343,13 @@ tr.filter-row input {
 }
 .table-count { color: var(--muted); font-size: 0.85rem; margin: 1rem 0 -0.75rem; }
 .table-count:empty { display: none; }
+/* Sorting by a column whose values repeat like an enum tints each row by that
+   value, so the sorted groups read as blocks. One class more specific than the
+   zebra rule above, which deliberately loses — stripes inside a colour block
+   are noise. --row-hue is set inline per row by the script. */
+table.interactive tbody tr.tinted td {
+  background: hsl(var(--row-hue) var(--tint-s) var(--tint-l));
+}
 </style>
 </head>
 <body${body_class}>
@@ -431,6 +442,14 @@ $body_html
   // markdown document is meant to be read whole.
   // Only tables past this length get controls; a filter row on three rows is noise.
   const MIN_ROWS = 8;
+  // A column counts as an enum when it has at least two distinct values, no more
+  // than this many, and each one repeats on average — a column of unique ids has
+  // no groups worth colouring.
+  const MAX_ENUM_VALUES = 8;
+  // Hues spread far enough apart to tell adjacent blocks apart; cycled if a
+  // column has more values than this. Deliberately not red/green pairs first,
+  // which would read as pass/fail on columns that mean nothing of the sort.
+  const HUES = [210, 145, 35, 280, 190, 320, 60, 0];
 
   const cellText = (row, i) => row.cells[i].textContent.trim();
   // Returns null for anything not wholly a number, which also drives the
@@ -459,6 +478,21 @@ $body_html
     const isNumeric = headCells.map((_, i) => {
       const values = rows.map((r) => cellText(r, i)).filter((v) => v !== '');
       return values.length > 0 && values.every((v) => numberOf(v) !== null);
+    });
+
+    // Value -> hue per column, or null where the column is not enum-like. Built
+    // once from document order so a value keeps its colour in either direction.
+    const enumHues = headCells.map((_, i) => {
+      const order = new Map();
+      rows.forEach((r) => {
+        const v = cellText(r, i);
+        if (!order.has(v)) order.set(v, order.size);
+      });
+      if (order.size < 2 || order.size > MAX_ENUM_VALUES) return null;
+      if (order.size * 2 > rows.length) return null;
+      const hues = new Map();
+      order.forEach((idx, v) => hues.set(v, HUES[idx % HUES.length]));
+      return hues;
     });
 
     table.classList.add('interactive');
@@ -502,6 +536,22 @@ $body_html
         ? '' : out.length + ' of ' + rows.length + ' rows';
     };
 
+    // Tints follow the sorted column only, so clicking back to document order
+    // clears them along with the sort.
+    const retint = () => {
+      const hues = dir === 0 ? null : enumHues[sortCol];
+      rows.forEach((r) => {
+        const hue = hues ? hues.get(cellText(r, sortCol)) : undefined;
+        if (hue === undefined) {
+          r.classList.remove('tinted');
+          r.style.removeProperty('--row-hue');
+        } else {
+          r.classList.add('tinted');
+          r.style.setProperty('--row-hue', hue + 'deg');
+        }
+      });
+    };
+
     headCells.forEach((th, i) => {
       const arrow = document.createElement('span');
       arrow.className = 'sort-arrow';
@@ -513,6 +563,7 @@ $body_html
         if (sortCol === i) dir = dir === 1 ? -1 : dir === -1 ? 0 : 1;
         else { sortCol = i; dir = 1; }
         if (dir === 0) sortCol = -1;
+        retint();
         headCells.forEach((h, j) => {
           const on = j === sortCol && dir !== 0;
           h.querySelector('.sort-arrow').textContent = on ? (dir === 1 ? ' ▲' : ' ▼') : '';
