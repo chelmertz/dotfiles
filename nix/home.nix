@@ -243,6 +243,33 @@ in
     "e %h/.gradle/daemon/*/*.log - - - 7d"
   ];
 
+  # Every .direnv registers a gcroot, and nix has no TTL for those — a root is
+  # either live or gone, so nix-gc walks past their closures forever (4.4G across
+  # eight abandoned projects when this was added). Expiring the roots is the only
+  # way to reach that space; direnv rebuilds the cache on the next cd.
+  # tmpfiles cannot express this: its globs do not recurse to arbitrary depth.
+  systemd.user.services.direnv-prune = {
+    Unit.Description = "Expire stale .direnv gcroots";
+    Service = {
+      Type = "oneshot";
+      ExecStart = pkgs.writeShellScript "direnv-prune" ''
+        ${pkgs.findutils}/bin/find "$HOME/code" -type d -name .direnv \
+          -not -path '*/node_modules/*' -mtime +60 -prune -exec rm -rf {} +
+      '';
+    };
+  };
+
+  systemd.user.timers.direnv-prune = {
+    Unit.Description = "Expire stale .direnv gcroots weekly";
+    Timer = {
+      OnCalendar = "weekly";
+      RandomizedDelaySec = "45min";
+      Persistent = true;
+      Unit = "direnv-prune.service";
+    };
+    Install.WantedBy = [ "timers.target" ];
+  };
+
   # Build mandb cache at switch time so man -k covers nix-managed pages (e.g. git-diff)
   programs.man.generateCaches = true;
 
