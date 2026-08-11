@@ -229,6 +229,16 @@ in
 
   programs.home-manager.enable = true;
 
+  # Nothing ever collected the nix store, so every generation since install
+  # stayed live and the store reached 152G — most of what filled / to 93%.
+  # A fortnight of generations is still plenty of rollback.
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    randomizedDelaySec = "45min";
+    options = "--delete-older-than 14d";
+  };
+
   # Age-based cleanup of noisy log/cache dirs (runs daily via systemd-tmpfiles --user)
   systemd.user.tmpfiles.rules = [
     "e %h/.gradle/daemon/*/*.log - - - 7d"
@@ -937,7 +947,7 @@ in
             labels:
               severity: warning
             annotations:
-              summary: "{{ $labels.mountpoint }} is {{ $value }}% full"
+              summary: "{{ $labels.mountpoint }} is {{ $value }}% full. Biggest dirs: du -xh -d1 / | sort -rh | head | Reclaim: nix-collect-garbage --delete-older-than 14d"
 
           - alert: FilesystemFull
             expr: filesystem_used_percent > 95
