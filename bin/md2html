@@ -743,16 +743,31 @@ $body_html
 (function () {
   // Vimium does not run on file:// URLs, so the preview carries its own scrolling.
   // Step sizes match Vimium's defaults to keep the muscle memory: j/k a nudge,
-  // d/u half a viewport.
+  // d/u half a viewport, gg and G the ends.
   const STEP = 60;
   const steps = { j: () => STEP, k: () => -STEP,
                   d: () => Math.round(window.innerHeight / 2),
                   u: () => Math.round(window.innerHeight / -2) };
+  let awaitingG = false;
   window.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.altKey || e.metaKey) return;
     // Never while a filter is being typed into or picked from.
     const el = e.target;
     if (el && (el.isContentEditable || (el.matches && el.matches('input, select, textarea')))) return;
+
+    if (e.key === 'g') {
+      // The second g of gg goes to the top; a lone g waits for it.
+      if (awaitingG) { awaitingG = false; e.preventDefault(); window.scrollTo(0, 0); }
+      else awaitingG = true;
+      return;
+    }
+    awaitingG = false; // as in vim, any other key abandons a pending g
+
+    if (e.key === 'G') {
+      e.preventDefault();
+      window.scrollTo(0, document.documentElement.scrollHeight);
+      return;
+    }
     const step = steps[e.key];
     if (!step) return;
     e.preventDefault();
