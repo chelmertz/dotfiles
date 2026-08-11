@@ -12,9 +12,31 @@ set -euo pipefail
 # Create temporary files
 mermaid_filter=$(mktemp --suffix=.lua)
 toc_template=$(mktemp --suffix=.html)
-trap 'rm -f "$mermaid_filter" "$toc_template"' EXIT
+title_filter=$(mktemp --suffix=.lua)
+title_template=$(mktemp --suffix=.html)
+trap 'rm -f "$mermaid_filter" "$toc_template" "$title_filter" "$title_template"' EXIT
 
 echo '$toc$' > "$toc_template"
+echo '$title$' > "$title_template"
+
+# Pick the <title>: YAML frontmatter title, else the first heading. Flattened to a
+# plain string so inline markup (code spans, emphasis) doesn't end up as literal
+# tags in the tab label, and so the HTML writer escapes it.
+cat > "$title_filter" <<'FILTER'
+function Pandoc(doc)
+  local title = doc.meta.title
+  if not title then
+    for _, block in ipairs(doc.blocks) do
+      if block.t == "Header" then
+        title = block.content
+        break
+      end
+    end
+  end
+  doc.meta = pandoc.Meta({ title = pandoc.MetaString(pandoc.utils.stringify(title or "")) })
+  return doc
+end
+FILTER
 
 # Mermaid is rendered client-side via a CDN import (see the <script type="module">
 # below), so diagrams need network at view time. Future: render to static SVG at
@@ -60,6 +82,13 @@ case "$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null)" in
 	*)             system_theme="light" ;;
 esac
 
+# Document title, for telling several open previews apart in the tab bar. The
+# filename is the fallback for a headingless document; a piped-in one has neither.
+doc_title=$(echo "$md_content" | pandoc -f markdown+fenced_code_attributes+lists_without_preceding_blankline -t html --template="$title_template" --lua-filter "$title_filter" 2>/dev/null)
+if [ -z "$doc_title" ]; then
+	doc_title=$(basename "${input_file:-md2html}")
+fi
+
 # Generate TOC
 toc_html=$(echo "$md_content" | pandoc -f markdown+fenced_code_attributes+lists_without_preceding_blankline -t html --toc --template="$toc_template" 2>/dev/null)
 
@@ -81,7 +110,7 @@ cat <<HTMLEOF
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>md2html</title>
+<title>$doc_title</title>
 <script>
 // Applied before the stylesheet so a remembered choice never flashes the other
 // scheme. Scope is one preview file, not all of them: Firefox's
