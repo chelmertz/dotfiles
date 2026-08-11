@@ -311,6 +311,34 @@ th, td {
 }
 th { background: var(--border); }
 tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--border) 25%, transparent); }
+/* Sort/filter controls, added by script to tables big enough to warrant them.
+   Filtered-out rows leave the DOM rather than being hidden, so the zebra
+   striping above stays correct without a second class-based rule. */
+table.interactive thead tr:first-child th {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+table.interactive thead tr:first-child th:hover { color: var(--accent); }
+.sort-arrow { font-size: 0.8em; color: var(--accent); }
+tr.filter-row td {
+  padding: 0.2rem 0.3rem;
+  background: var(--border);
+}
+tr.filter-row input {
+  font: inherit;
+  font-size: 0.8rem;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0.1rem 0.3rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--muted);
+  border-radius: 3px;
+}
+.table-count { color: var(--muted); font-size: 0.85rem; margin: 1rem 0 -0.75rem; }
+.table-count:empty { display: none; }
 </style>
 </head>
 <body${body_class}>
@@ -394,6 +422,125 @@ $body_html
   window.addEventListener('scroll', schedule, { passive: true });
   window.addEventListener('resize', schedule);
   update();
+})();
+</script>
+<script>
+(function () {
+  // Click a header to sort (asc, desc, back to document order); type in the row
+  // beneath it to filter that column. No pagination — a table sized for a
+  // markdown document is meant to be read whole.
+  // Only tables past this length get controls; a filter row on three rows is noise.
+  const MIN_ROWS = 8;
+
+  const cellText = (row, i) => row.cells[i].textContent.trim();
+  // Returns null for anything not wholly a number, which also drives the
+  // numeric-vs-text sort decision per column.
+  const numberOf = (v) => {
+    const cleaned = v.replace(/[\s,%]/g, '');
+    if (cleaned === '') return null;
+    const n = Number(cleaned);
+    return isFinite(n) ? n : null;
+  };
+
+  document.querySelectorAll('main table').forEach((table) => {
+    const head = table.tHead;
+    const body = table.tBodies[0];
+    if (!head || !body || head.rows.length !== 1) return;
+
+    const headCells = Array.from(head.rows[0].cells);
+    const rows = Array.from(body.rows);
+    if (rows.length < MIN_ROWS) return;
+    // Bail on anything that is not a plain grid — merged cells would scramble.
+    if (rows.some((r) => r.cells.length !== headCells.length)) return;
+    if (headCells.concat(rows.flatMap((r) => Array.from(r.cells)))
+        .some((c) => c.colSpan > 1 || c.rowSpan > 1)) return;
+
+    const labels = headCells.map((c) => c.textContent.trim());
+    const isNumeric = headCells.map((_, i) => {
+      const values = rows.map((r) => cellText(r, i)).filter((v) => v !== '');
+      return values.length > 0 && values.every((v) => numberOf(v) !== null);
+    });
+
+    table.classList.add('interactive');
+    const filters = headCells.map(() => '');
+    let sortCol = -1;
+    let dir = 0;
+
+    const count = document.createElement('div');
+    count.className = 'table-count';
+    count.setAttribute('aria-live', 'polite');
+    table.parentNode.insertBefore(count, table);
+
+    const render = () => {
+      let out = rows.filter((r) =>
+        filters.every((f, i) => !f || cellText(r, i).toLowerCase().includes(f)));
+      if (dir !== 0) {
+        const i = sortCol;
+        out = out.slice().sort((a, b) => {
+          const av = cellText(a, i);
+          const bv = cellText(b, i);
+          let c;
+          if (isNumeric[i]) {
+            const an = numberOf(av);
+            const bn = numberOf(bv);
+            // Blanks sink to the bottom in both directions rather than sorting.
+            if (an === null || bn === null) {
+              if (an === null && bn === null) return 0;
+              return an === null ? 1 : -1;
+            }
+            c = an - bn;
+          } else {
+            c = av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' });
+          }
+          return c * dir;
+        });
+      }
+      // Filtered-out rows leave the DOM instead of being hidden, so the
+      // nth-child zebra striping keeps alternating over what is on screen.
+      body.replaceChildren(...out);
+      count.textContent = out.length === rows.length
+        ? '' : out.length + ' of ' + rows.length + ' rows';
+    };
+
+    headCells.forEach((th, i) => {
+      const arrow = document.createElement('span');
+      arrow.className = 'sort-arrow';
+      th.appendChild(arrow);
+      th.tabIndex = 0;
+      th.setAttribute('role', 'button');
+      th.setAttribute('aria-sort', 'none');
+      const toggle = () => {
+        if (sortCol === i) dir = dir === 1 ? -1 : dir === -1 ? 0 : 1;
+        else { sortCol = i; dir = 1; }
+        if (dir === 0) sortCol = -1;
+        headCells.forEach((h, j) => {
+          const on = j === sortCol && dir !== 0;
+          h.querySelector('.sort-arrow').textContent = on ? (dir === 1 ? ' ▲' : ' ▼') : '';
+          h.setAttribute('aria-sort', on ? (dir === 1 ? 'ascending' : 'descending') : 'none');
+        });
+        render();
+      };
+      th.addEventListener('click', toggle);
+      th.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+      });
+    });
+
+    const filterRow = head.insertRow(-1);
+    filterRow.className = 'filter-row';
+    headCells.forEach((_, i) => {
+      const input = document.createElement('input');
+      input.type = 'search';
+      input.size = 6; // keeps auto table layout from widening the column
+      input.placeholder = 'filter';
+      input.setAttribute('aria-label', 'Filter by ' + (labels[i] || 'column ' + (i + 1)));
+      input.addEventListener('input', () => {
+        filters[i] = input.value.trim().toLowerCase();
+        render();
+      });
+      filterRow.insertCell(-1).appendChild(input);
+    });
+  });
 })();
 </script>
 </body>
