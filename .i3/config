@@ -87,7 +87,6 @@ bindsym $mod+a focus parent
 bindsym $mod+d focus child
 
 assign [class="firefox"] $ws2
-assign [class="Google-chrome"] $ws2
 assign [class="Slack"] $ws9
 assign [class="Element"] $ws9
 assign [class="steam"] $ws7

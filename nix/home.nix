@@ -112,7 +112,6 @@ in
     go
     gojo
     golangci-lint
-    google-chrome
     goose
     gopls
     gotests

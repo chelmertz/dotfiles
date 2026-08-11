@@ -44,7 +44,6 @@
           in
           builtins.elem name [
             "claude-code"
-            "google-chrome"
             "slack"
             "spotify"
             "vscode"
@@ -68,8 +67,6 @@
             # Unfree packages are not on cache.nixos.org (Hydra will not redistribute
             # them), so each bump downloads a vendor tarball and unpacks it locally —
             # 1.4G for vscode alone. Stable lags a release behind but rebuilds rarely.
-            # google-chrome deliberately stays on unstable: a browser two majors back
-            # misses security fixes, which is not worth the 430M of churn it saves.
             (final: prev: {
               inherit (pkgsStable)
                 slack
