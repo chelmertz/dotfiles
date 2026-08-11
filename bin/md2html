@@ -163,6 +163,8 @@ cat <<HTMLEOF
   --code-bg: #ececec;
   /* Saturation/lightness for the enum row tints; only the hue varies per value. */
   --tint-s: 60%; --tint-l: 91%;
+  /* Scroll-edge shadow. Mixed from --fg, so it needs no per-theme override. */
+  --edge: color-mix(in srgb, var(--fg) 45%, transparent);
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #1a1a1a; --fg: #e0e0e0; --muted: #888; --border: #444; --accent: #aaa; --code-bg: #2a2a2a;
@@ -311,8 +313,13 @@ nav#toc a.active {
    into the empty space on its right (--bleed-right, measured by script), so the
    page never scrolls sideways. width: max-content keeps narrow tables hugging
    their content instead of stretching. */
+/* Separate borders, not collapsed: box-shadow is spec'd not to apply to cells
+   under border-collapse: collapse, and a collapsed border is shared between two
+   cells, so it travels with the scrolling neighbour and leaves a pinned column
+   with no visible edge. Each cell owning its own borders fixes both. */
 table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   margin: 1rem 0;
   display: block;
   width: max-content;
@@ -322,17 +329,23 @@ table {
 /* Firefox paints overlay scrollbars that stay invisible until touched, so a
    clipped table reads as truncated. These edges say "there is more this way";
    the script toggles them per scroll position. */
-table.scrolls-right { box-shadow: inset -16px 0 12px -14px var(--fg); }
-table.scrolls-left { box-shadow: inset 16px 0 12px -14px var(--fg); }
-table.scrolls-left.scrolls-right {
-  box-shadow: inset 16px 0 12px -14px var(--fg), inset -16px 0 12px -14px var(--fg);
-}
+/* No inset shadow on the table itself as a "more content" hint: an inset shadow
+   paints under the element's own children, and every cell is opaque, so it would
+   never be seen. The status line above the table says so in words instead, and
+   the pinned column casts a real shadow (below) once anything is behind it. */
+/* Right and bottom only, so neighbouring cells do not double up to 2px now that
+   borders are not collapsed; the first column and first row add the outer edges. */
 th, td {
   border: 1px solid var(--border);
+  border-left-width: 0;
+  border-top-width: 0;
   padding: 0.4rem 0.6rem;
   vertical-align: top;
   text-align: left;
 }
+tr > :first-child { border-left-width: 1px; }
+thead tr:first-child > *,
+tbody:first-child tr:first-child > * { border-top-width: 1px; }
 th { background: var(--border); }
 /* Row background travels as a variable so the pinned first column can be opaque:
    a transparent cell would let the scrolled columns show through it. Mixed with
@@ -354,10 +367,12 @@ tr.filter-row td {
   padding: 0.2rem 0.3rem;
   background: var(--border);
 }
-tr.filter-row input {
+tr.filter-row input,
+tr.filter-row select {
   font: inherit;
   font-size: 0.8rem;
   width: 100%;
+  max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
   padding: 0.1rem 0.3rem;
@@ -384,11 +399,16 @@ table.sticky-first tr.filter-row td:first-child,
 table.sticky-first tbody td:first-child {
   position: sticky;
   left: 0;
-  box-shadow: 1px 0 0 var(--border);
 }
 table.sticky-first thead th:first-child,
 table.sticky-first tr.filter-row td:first-child { z-index: 2; }
 table.sticky-first tbody td:first-child { z-index: 1; }
+/* Columns are passing underneath the pinned one — say so on its right edge. */
+table.sticky-first.scrolls-left thead th:first-child,
+table.sticky-first.scrolls-left tr.filter-row td:first-child,
+table.sticky-first.scrolls-left tbody td:first-child {
+  box-shadow: 8px 0 12px -8px var(--edge);
+}
 </style>
 </head>
 <body${body_class}>
@@ -538,11 +558,25 @@ $body_html
 
   tables.forEach((table) => {
     // Every table gets the scroll affordances; only long ones get sort/filter.
-    const settle = () => { stickyFirst(table); edges(table); };
+    const status = document.createElement('div');
+    status.className = 'table-count';
+    status.setAttribute('aria-live', 'polite');
+    table.parentNode.insertBefore(status, table);
+    const state = { rows: '' }; // the filter code fills this in
+
+    const refresh = () => {
+      const parts = [];
+      if (state.rows) parts.push(state.rows);
+      // A long table's own scrollbar sits at its bottom edge, well below the
+      // fold, so the fact that it scrolls sideways has to be said in words.
+      if (table.scrollWidth > table.clientWidth) parts.push('⇄ scrolls sideways');
+      status.textContent = parts.join(' · ');
+    };
+    const settle = () => { stickyFirst(table); edges(table); refresh(); };
     relayout.push(settle);
     table.addEventListener('scroll', () => edges(table), { passive: true });
 
-    controls(table, settle);
+    controls(table, settle, state);
     settle();
   });
 
@@ -551,7 +585,7 @@ $body_html
     relayout.forEach((f) => f());
   });
 
-  function controls(table, settle) {
+  function controls(table, settle, state) {
     const head = table.tHead;
     const body = table.tBodies[0];
     if (!head || !body || head.rows.length !== 1) return;
@@ -586,18 +620,18 @@ $body_html
     });
 
     table.classList.add('interactive');
-    const filters = headCells.map(() => '');
+    // The same low-cardinality signal that drives the tints decides which filters
+    // are a dropdown rather than a text box.
+    const isChoice = enumHues.map((h) => h !== null);
+    // null means "not filtering", so the empty string stays usable as a value.
+    const filters = headCells.map(() => null);
     let sortCol = -1;
     let dir = 0;
 
-    const count = document.createElement('div');
-    count.className = 'table-count';
-    count.setAttribute('aria-live', 'polite');
-    table.parentNode.insertBefore(count, table);
-
     const render = () => {
-      let out = rows.filter((r) =>
-        filters.every((f, i) => !f || cellText(r, i).toLowerCase().includes(f)));
+      // A dropdown matches its value exactly; typing matches anywhere in the cell.
+      let out = rows.filter((r) => filters.every((f, i) => f === null
+        || (isChoice[i] ? cellText(r, i) === f : cellText(r, i).toLowerCase().includes(f))));
       if (dir !== 0) {
         const i = sortCol;
         out = out.slice().sort((a, b) => {
@@ -622,10 +656,11 @@ $body_html
       // Filtered-out rows leave the DOM instead of being hidden, so the
       // nth-child zebra striping keeps alternating over what is on screen.
       body.replaceChildren(...out);
-      count.textContent = out.length === rows.length
+      state.rows = out.length === rows.length
         ? '' : out.length + ' of ' + rows.length + ' rows';
       // Filtering changes column widths, so whether this table still overflows
-      // (and deserves a pinned column) has to be recomputed.
+      // (and deserves a pinned column) has to be recomputed. Also repaints the
+      // status line, which is why state.rows is set first.
       settle();
     };
 
@@ -673,18 +708,56 @@ $body_html
     const filterRow = head.insertRow(-1);
     filterRow.className = 'filter-row';
     headCells.forEach((_, i) => {
-      const input = document.createElement('input');
-      input.type = 'search';
-      input.size = 6; // keeps auto table layout from widening the column
-      input.placeholder = 'filter';
-      input.setAttribute('aria-label', 'Filter by ' + (labels[i] || 'column ' + (i + 1)));
-      input.addEventListener('input', () => {
-        filters[i] = input.value.trim().toLowerCase();
-        render();
-      });
-      filterRow.insertCell(-1).appendChild(input);
+      let control;
+      if (isChoice[i]) {
+        // Few enough values to pick from a list, so offer the list rather than
+        // making them be typed. The first option is the way back to unfiltered.
+        control = document.createElement('select');
+        control.appendChild(new Option('(all)'));
+        Array.from(enumHues[i].keys())
+          .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
+          .forEach((v) => control.appendChild(new Option(v === '' ? '(blank)' : v, v)));
+        control.addEventListener('change', () => {
+          // selectedIndex, not value: in a column that contains a blank cell,
+          // that value would otherwise be indistinguishable from "(all)".
+          filters[i] = control.selectedIndex === 0 ? null : control.value;
+          render();
+        });
+      } else {
+        control = document.createElement('input');
+        control.type = 'search';
+        control.size = 6; // keeps auto table layout from widening the column
+        control.placeholder = 'filter';
+        control.addEventListener('input', () => {
+          filters[i] = control.value.trim().toLowerCase() || null;
+          render();
+        });
+      }
+      control.setAttribute('aria-label', 'Filter by ' + (labels[i] || 'column ' + (i + 1)));
+      filterRow.insertCell(-1).appendChild(control);
     });
   }
+})();
+</script>
+<script>
+(function () {
+  // Vimium does not run on file:// URLs, so the preview carries its own scrolling.
+  // Step sizes match Vimium's defaults to keep the muscle memory: j/k a nudge,
+  // d/u half a viewport.
+  const STEP = 60;
+  const steps = { j: () => STEP, k: () => -STEP,
+                  d: () => Math.round(window.innerHeight / 2),
+                  u: () => Math.round(window.innerHeight / -2) };
+  window.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    // Never while a filter is being typed into or picked from.
+    const el = e.target;
+    if (el && (el.isContentEditable || (el.matches && el.matches('input, select, textarea')))) return;
+    const step = steps[e.key];
+    if (!step) return;
+    e.preventDefault();
+    window.scrollBy(0, step());
+  });
 })();
 </script>
 </body>
