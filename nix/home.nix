@@ -252,9 +252,14 @@ in
     Unit.Description = "Expire stale .direnv gcroots";
     Service = {
       Type = "oneshot";
+      # find exits 1 on the root-owned dirs it cannot read (docker volumes, gradle
+      # caches), which would fail the unit and trip SystemdUserUnitFailed. Piping
+      # to xargs drops find's status and keeps rm's, so only real deletion errors
+      # surface; the discarded stderr is scan noise from paths we never prune.
       ExecStart = pkgs.writeShellScript "direnv-prune" ''
         ${pkgs.findutils}/bin/find "$HOME/code" -type d -name .direnv \
-          -not -path '*/node_modules/*' -mtime +60 -prune -exec rm -rf {} +
+          -not -path '*/node_modules/*' -mtime +60 -prune -print0 2>/dev/null \
+          | ${pkgs.findutils}/bin/xargs -0 -r rm -rf
       '';
     };
   };
