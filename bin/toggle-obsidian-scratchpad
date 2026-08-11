@@ -1,11 +1,13 @@
 #!/bin/bash
-i3-msg '[class="obsidian"] scratchpad show, resize set 1800 1000'
+# Obsidian renamed its WM_CLASS from "obsidian" to "md.Obsidian" in 1.13.x, so
+# match case-insensitively on the substring instead of pinning the exact class.
+i3-msg '[class="(?i)obsidian"] scratchpad show, resize set 1800 1000'
 
 # If the toggle above was a no-op (no obsidian window in i3), start it.
 # Checking i3's tree instead of pgrep avoids the latency of process
-# scanning on every keypress — the happy path (line 2) is instant.
-if [ "$(i3-msg -t get_tree | grep -c '"class":"obsidian"')" -eq 0 ]; then
+# scanning on every keypress — the happy path (line 4) is instant.
+if ! i3-msg -t get_tree | grep -qi '"class":"[^"]*obsidian'; then
     ~/.nix-profile/bin/obsidian --open-vault ~/Dropbox/notes &
     sleep 2
-    i3-msg '[class="obsidian"] scratchpad show, resize set 1800 1000'
+    i3-msg '[class="(?i)obsidian"] scratchpad show, resize set 1800 1000'
 fi
