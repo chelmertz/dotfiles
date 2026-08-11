@@ -205,6 +205,13 @@ code {
   border-radius: 3px;
 }
 pre code { background: none; padding: 0; border-radius: 0; }
+/* A long identifier in inline code has no break opportunity, so it pushes the
+   whole page into horizontal scroll. Only inline code wraps; code blocks keep
+   their own scrollbar via the pre rule above. */
+:not(pre) > code { overflow-wrap: anywhere; }
+/* Except in a table, where breaking an identifier mid-token to save width is the
+   wrong trade: the table has its own horizontal scroll for that. */
+:is(th, td) code { overflow-wrap: normal; }
 img { max-width: 100%; }
 pre.mermaid {
   background: transparent;
@@ -300,12 +307,25 @@ nav#toc a.active {
   border-radius: 3px;
 }
 #theme-toggle:hover { color: var(--fg); }
+/* A wide table scrolls inside itself and is allowed to grow past the text column
+   into the empty space on its right (--bleed-right, measured by script), so the
+   page never scrolls sideways. width: max-content keeps narrow tables hugging
+   their content instead of stretching. */
 table {
   border-collapse: collapse;
   margin: 1rem 0;
   display: block;
-  max-width: 100%;
+  width: max-content;
+  max-width: calc(100% + var(--bleed-right, 0px));
   overflow-x: auto;
+}
+/* Firefox paints overlay scrollbars that stay invisible until touched, so a
+   clipped table reads as truncated. These edges say "there is more this way";
+   the script toggles them per scroll position. */
+table.scrolls-right { box-shadow: inset -16px 0 12px -14px var(--fg); }
+table.scrolls-left { box-shadow: inset 16px 0 12px -14px var(--fg); }
+table.scrolls-left.scrolls-right {
+  box-shadow: inset 16px 0 12px -14px var(--fg), inset -16px 0 12px -14px var(--fg);
 }
 th, td {
   border: 1px solid var(--border);
@@ -314,7 +334,12 @@ th, td {
   text-align: left;
 }
 th { background: var(--border); }
-tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--border) 25%, transparent); }
+/* Row background travels as a variable so the pinned first column can be opaque:
+   a transparent cell would let the scrolled columns show through it. Mixed with
+   --bg rather than transparent for the same reason. */
+tbody tr { --row-bg: var(--bg); }
+tbody tr:nth-child(even) { --row-bg: color-mix(in srgb, var(--border) 25%, var(--bg)); }
+tbody td { background: var(--row-bg); }
 /* Sort/filter controls, added by script to tables big enough to warrant them.
    Filtered-out rows leave the DOM rather than being hidden, so the zebra
    striping above stays correct without a second class-based rule. */
@@ -347,9 +372,23 @@ tr.filter-row input {
    value, so the sorted groups read as blocks. One class more specific than the
    zebra rule above, which deliberately loses — stripes inside a colour block
    are noise. --row-hue is set inline per row by the script. */
-table.interactive tbody tr.tinted td {
-  background: hsl(var(--row-hue) var(--tint-s) var(--tint-l));
+table.interactive tbody tr.tinted {
+  --row-bg: hsl(var(--row-hue) var(--tint-s) var(--tint-l));
 }
+/* Pinned first column. The script enables it only when that column is narrow
+   enough to leave the rest of the table usable. The divider is a box-shadow
+   because a collapsed border belongs to two cells and can paint underneath the
+   scrolled content instead of on top of it. */
+table.sticky-first thead th:first-child,
+table.sticky-first tr.filter-row td:first-child,
+table.sticky-first tbody td:first-child {
+  position: sticky;
+  left: 0;
+  box-shadow: 1px 0 0 var(--border);
+}
+table.sticky-first thead th:first-child,
+table.sticky-first tr.filter-row td:first-child { z-index: 2; }
+table.sticky-first tbody td:first-child { z-index: 1; }
 </style>
 </head>
 <body${body_class}>
@@ -461,7 +500,58 @@ $body_html
     return isFinite(n) ? n : null;
   };
 
-  document.querySelectorAll('main table').forEach((table) => {
+  const main = document.querySelector('main');
+  const root = document.documentElement;
+  const tables = Array.from(document.querySelectorAll('main table'));
+  if (!main || !tables.length) return;
+  const relayout = [];
+
+  // Room to the right of the text column, which wide tables are allowed to use.
+  // Reset before measuring so an already-widened table cannot feed its own width
+  // back into the next measurement.
+  const measureBleed = () => {
+    root.style.setProperty('--bleed-right', '0px');
+    const room = window.innerWidth - main.getBoundingClientRect().right - 16;
+    root.style.setProperty('--bleed-right', Math.max(0, Math.round(room)) + 'px');
+  };
+
+  const edges = (table) => {
+    const max = table.scrollWidth - table.clientWidth;
+    table.classList.toggle('scrolls-left', table.scrollLeft > 1);
+    table.classList.toggle('scrolls-right', table.scrollLeft < max - 1);
+  };
+
+  // Pinning only pays off while the pinned column leaves most of the width for
+  // everything else, so a table whose first column is most of its width keeps
+  // scrolling as one piece.
+  const stickyFirst = (table) => {
+    table.classList.remove('sticky-first');
+    if (table.scrollWidth <= table.clientWidth) return;
+    const first = table.tHead && table.tHead.rows[0] && table.tHead.rows[0].cells[0];
+    if (!first) return;
+    if (first.getBoundingClientRect().width <= table.clientWidth * 0.4) {
+      table.classList.add('sticky-first');
+    }
+  };
+
+  measureBleed();
+
+  tables.forEach((table) => {
+    // Every table gets the scroll affordances; only long ones get sort/filter.
+    const settle = () => { stickyFirst(table); edges(table); };
+    relayout.push(settle);
+    table.addEventListener('scroll', () => edges(table), { passive: true });
+
+    controls(table, settle);
+    settle();
+  });
+
+  window.addEventListener('resize', () => {
+    measureBleed();
+    relayout.forEach((f) => f());
+  });
+
+  function controls(table, settle) {
     const head = table.tHead;
     const body = table.tBodies[0];
     if (!head || !body || head.rows.length !== 1) return;
@@ -534,6 +624,9 @@ $body_html
       body.replaceChildren(...out);
       count.textContent = out.length === rows.length
         ? '' : out.length + ' of ' + rows.length + ' rows';
+      // Filtering changes column widths, so whether this table still overflows
+      // (and deserves a pinned column) has to be recomputed.
+      settle();
     };
 
     // Tints follow the sorted column only, so clicking back to document order
@@ -591,7 +684,7 @@ $body_html
       });
       filterRow.insertCell(-1).appendChild(input);
     });
-  });
+  }
 })();
 </script>
 </body>
