@@ -22,6 +22,19 @@
 #   sudo keyd reload   # after any config change; `sudo keyd monitor` to verify
 #   # then drop caps:ctrl_modifier + xcape from .i3/config and `xcape` from nix/home.nix
 #
+# Nix daemon settings (/etc/nix/nix.conf, root-owned — home-manager's nix.settings
+# writes the *user* nix.conf, which the daemon ignores for all three of these):
+#   max-jobs defaults to 1, so every local build runs one at a time on 16 cores.
+#   Without ch in trusted-users, any substituter or option set as ch is ignored.
+#   auto-optimise-store hardlinks duplicate files; it was saving nothing.
+#     sudo tee -a /etc/nix/nix.conf <<'EOF'
+#     max-jobs = 8
+#     trusted-users = root ch
+#     auto-optimise-store = true
+#     EOF
+#     sudo systemctl restart nix-daemon
+#   On NixOS this becomes nix.settings.{max-jobs,trusted-users,auto-optimise-store}.
+#
 # Emacs/Doom (kept as apt PPA until next machine):
 #   sudo add-apt-repository ppa:kelleyk/emacs
 #   sudo apt install emacs27
