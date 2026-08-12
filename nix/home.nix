@@ -169,6 +169,7 @@ in
     prometheus-node-exporter
     prr
     qbittorrent
+    qrencode
     ripdrag
     ripgrep
     rofi
