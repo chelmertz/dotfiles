@@ -1,7 +1,7 @@
 { pkgs, config, lib, ... }:
 let
   # toggle off during vacation; flip back to true to re-enable the elly service
-  ellyEnabled = false;
+  ellyEnabled = true;
 in
 {
   imports = [
