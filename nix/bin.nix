@@ -41,11 +41,6 @@
       executable = true;
     };
 
-    ".local/bin/mediabox-add" = {
-      source = ../bin/mediabox-add;
-      executable = true;
-    };
-
     ".local/bin/term-here" = {
       source = ../bin/term-here;
       executable = true;
