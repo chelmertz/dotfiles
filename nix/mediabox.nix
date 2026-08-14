@@ -1,5 +1,11 @@
 { pkgs, ... }:
 {
+  # mediabox-add copies files to the box, working out what each one is from its
+  # contents. It was a bash script routing purely on file extension; identifying
+  # ROMs by their headers and unpacking archives safely is not work bash can do
+  # without shelling out for every step, which was the thing worth removing.
+  home.packages = [ (pkgs.callPackage ../mediabox/package.nix { }) ];
+
   # Kodi and RetroArch on the media box rewrite their own configs on exit, so
   # they cannot be declared in that machine's NixOS flake the way everything
   # else is. This pulls them into chelmertz/mediaserver on a timer instead, so a
