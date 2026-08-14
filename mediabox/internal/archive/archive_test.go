@@ -149,6 +149,7 @@ func TestInspectRefusesSetuid(t *testing.T) {
 
 // A decompression bomb is caught from the index alone, so nothing is written.
 func TestInspectRefusesDecompressionBomb(t *testing.T) {
+	// A million to one, which is the order real bombs work at.
 	p := writeForgedZip(t, "bomb.sfc", rom(1024), 1<<30)
 	_, err := Inspect(p, DefaultLimits)
 	if !Rejected(err) {
@@ -156,6 +157,49 @@ func TestInspectRefusesDecompressionBomb(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "bomb") {
 		t.Errorf("error = %q, want it to name the bomb", err)
+	}
+}
+
+// The other side of that threshold, and the reason it cannot be tight: a
+// cartridge ROM is mostly padding, so an ordinary game archive compresses
+// around 1000:1. Refusing those would make the archive support useless.
+func TestInspectAcceptsPaddedROM(t *testing.T) {
+	// 4M of zeroes with a header in it, which is what a real ROM looks like
+	// to a compressor.
+	padded := make([]byte, 4<<20)
+	copy(padded[0x7FC0:], "LEGIT PADDED GAME")
+
+	p := writeZip(t, []member{{name: "game.sfc", body: padded}})
+	in, err := Inspect(p, DefaultLimits)
+	if err != nil {
+		t.Fatalf("a legitimately padded ROM was refused: %v", err)
+	}
+	if len(in.Payload) != 1 {
+		t.Fatalf("payload = %d, want 1", len(in.Payload))
+	}
+
+	dir, files, err := Extract(in, DefaultLimits)
+	if err != nil {
+		t.Fatalf("extract: %v", err)
+	}
+	defer os.RemoveAll(dir)
+	if st, err := os.Stat(files[0].Path); err != nil || st.Size() != int64(len(padded)) {
+		t.Errorf("extracted size = %v (err %v), want %d", st.Size(), err, len(padded))
+	}
+}
+
+// The absolute cap, not the ratio, is what actually bounds how much can land
+// on disk. It applies even when the ratio is entirely ordinary.
+func TestTotalCapAppliesRegardlessOfRatio(t *testing.T) {
+	lim := DefaultLimits
+	lim.MaxTotalBytes = 2 << 20
+	p := writeZip(t, []member{
+		{name: "a.sfc", body: rom(1 << 20)},
+		{name: "b.sfc", body: rom(1 << 20)},
+		{name: "c.sfc", body: rom(1 << 20)},
+	})
+	if _, err := Inspect(p, lim); !Rejected(err) {
+		t.Fatalf("want a rejection over the total cap, got %v", err)
 	}
 }
 

@@ -111,6 +111,13 @@ cleared every check.
 2. Reject: absolute paths, any `..` component, backslash or drive-letter names,
    symlink and device entries, entry count over cap, declared uncompressed total
    over cap, per-entry compression ratio over cap.
+
+   The declared-total cap is what actually bounds the damage, since extraction
+   enforces each entry's declared size exactly. The ratio cap is a cheap early
+   warning on top and must stay generous: cartridge ROMs are mostly padding and
+   legitimately compress around 1000:1, while real bombs run to a million to one.
+   A tight ratio only refuses ordinary games — confirmed against a 4 MB padded
+   ROM, which an earlier 300:1 cap rejected.
 3. Classify members: **payload** (routable), **companion** (`.txt .nfo .md5
    .sfv .jpg .png .diz`), **unknown** (including nested archives).
 4. **Zero payload members → do not extract, do not delete, report and move on.**

@@ -94,13 +94,20 @@ type Limits struct {
 	RatioFloor    uint64 // ratios below this size are noise, not bombs
 }
 
-// DefaultLimits are sized for game and film archives with room to spare, and
-// well under anything a decompression bomb needs to do damage.
+// DefaultLimits are sized for game and film archives with room to spare.
+//
+// MaxTotalBytes is the check that actually bounds the damage: extraction
+// enforces each entry's declared size exactly, so nothing can write more than
+// the index adds up to. MaxRatio is a cheap early warning on top of that, and
+// it has to be generous — cartridge ROMs are padded with large runs of zeroes
+// and legitimately compress around 1000:1, while real decompression bombs run
+// to a million to one and beyond. Setting it tight enough to be "strict" only
+// refuses ordinary games.
 var DefaultLimits = Limits{
 	MaxEntries:    2048,
 	MaxTotalBytes: 16 << 30,
 	MaxEntryBytes: 8 << 30,
-	MaxRatio:      300,
+	MaxRatio:      10000,
 	RatioFloor:    1 << 20,
 }
 
