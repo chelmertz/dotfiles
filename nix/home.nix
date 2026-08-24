@@ -699,11 +699,17 @@ in
   # Safety net: if redshift was toggled off via i3blocks during the day,
   # re-start it at 21:00. Timers can't target another service directly,
   # so we need this oneshot wrapper to start redshift.service.
+  # i3blocks_redshift.sh routes clicks through here too, so every attempt --
+  # timer or click -- lands under `journalctl --user -t redshift-ensure`.
   systemd.user.services.redshift-ensure = {
     Unit.Description = "Ensure redshift is running";
     Service = {
       Type = "oneshot";
-      ExecStart = "${pkgs.systemd}/bin/systemctl --user start redshift.service";
+      SyslogIdentifier = "redshift-ensure";
+      ExecStart = [
+        "${pkgs.coreutils}/bin/echo starting redshift.service"
+        "${pkgs.systemd}/bin/systemctl --user start redshift.service"
+      ];
     };
   };
 
@@ -714,10 +720,14 @@ in
   };
 
   systemd.user.services.redshift-disable = {
-    Unit.Description = "Stop redshift in the morning";
+    Unit.Description = "Stop redshift";
     Service = {
       Type = "oneshot";
-      ExecStart = "${pkgs.systemd}/bin/systemctl --user stop redshift.service";
+      SyslogIdentifier = "redshift-disable";
+      ExecStart = [
+        "${pkgs.coreutils}/bin/echo stopping redshift.service"
+        "${pkgs.systemd}/bin/systemctl --user stop redshift.service"
+      ];
     };
   };
 

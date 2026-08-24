@@ -5,12 +5,22 @@ if systemctl --user is-active --quiet redshift.service; then
 	state="on"
 fi
 
+# Toggle through the same oneshot units the timers use, logging under each
+# unit's own identifier, so clicks and timer runs share one journal stream:
+#   journalctl --user -t redshift-disable
+log() {
+	printf 'i3blocks clicked: starting %s.service\n' "$1" |
+		systemd-cat --identifier="$1"
+}
+
 toggle() {
 	if [[ "$state" = "on" ]] ; then
-		systemctl --user stop redshift.service
+		log redshift-disable
+		systemctl --user start redshift-disable.service
 		state="off"
 	else
-		systemctl --user start redshift.service
+		log redshift-ensure
+		systemctl --user start redshift-ensure.service
 		state="on"
 	fi
 }
