@@ -1,14 +1,3 @@
 #!/bin/sh
-# Apply the desktop background for the current GNOME color-scheme:
-#   dark  -> solid black
-#   light -> randomized wallpaper from ~/Dropbox/wallpapers
-scheme=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null)
-
-case "$scheme" in
-	"'prefer-dark'")
-		xsetroot -solid '#000000'
-		;;
-	*)
-		feh --randomize --no-fehbg --bg-scale ~/Dropbox/wallpapers/*
-		;;
-esac
+# Solid black desktop background, for every color-scheme.
+xsetroot -solid '#000000'
