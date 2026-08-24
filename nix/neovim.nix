@@ -1548,7 +1548,7 @@
               },
             })
 
-            vim.lsp.enable({ "gopls", "gleam", "bashls", "markdown_oxide", "nil_ls", "rust_analyzer", "sqls", "autotools_ls", "yamlls", "basedpyright", "ruff", "vtsls" })
+            vim.lsp.enable({ "gopls", "gleam", "bashls", "nil_ls", "rust_analyzer", "sqls", "autotools_ls", "yamlls", "basedpyright", "ruff", "vtsls" })
 
             -- :LspRestart — stop clients attached to current buffer and re-attach.
             -- nvim-lspconfig used to provide this; with the vim.lsp.config API we

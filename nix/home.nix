@@ -133,7 +133,6 @@ in
     libreoffice
     litecli
     lnav
-    markdown-oxide
     mdfried
     meld
     moreutils
