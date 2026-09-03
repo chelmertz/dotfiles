@@ -32,6 +32,10 @@ PR_LINK_RE = re.compile(
 CLAUDE_BULLET_RE = re.compile(
     r'^- (\d{2}:\d{2})\s{2}(.+?)(?:\s{2}·\s+(\S+)(?:\s+\(([^)]+)\))?)?$'
 )
+CLAUDE_RESUME_LINK_RE = re.compile(
+    r'\[((?:[^\]\\]|\\.)*)\]\(claude-resume://([0-9a-f-]+)\)'
+)
+TITLE_MAX = 60
 
 
 def logical_today():
@@ -194,18 +198,34 @@ def logical_day_of(dt):
 
 
 def scan_session_jsonl(path):
-    """Return ({day: earliest_dt_that_day}, fallback_cwd, fallback_first_user_text)
-    for a session JSONL, or None if it's a 'claude -p' sdk-cli run (noise from
-    the diary hook itself).
+    """Return ({day: earliest_dt_that_day}, fallback_cwd, fallback_first_user_text,
+    title) for a session JSONL, or None if it's a 'claude -p' sdk-cli run (noise
+    from the diary hook itself).
+
+    title is the session's own name: a `custom-title` entry (from /rename) wins
+    over an `ai-title` entry (Claude's auto-naming). Order in the file does not
+    decide: Claude rewrites the ai-title entry after a rename, so last-wins
+    would clobber the user's name. None if the session has neither.
     """
     day_to_first_dt = {}
     fallback_cwd = None
     fallback_first_text = None
+    custom_title = None
+    ai_title = None
     checked_entrypoint = False
     try:
         with open(path) as f:
             for line in f:
                 if '"type":"user"' not in line:
+                    if '-title"' in line:
+                        try:
+                            entry = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        if entry.get("type") == "custom-title":
+                            custom_title = entry.get("customTitle") or custom_title
+                        elif entry.get("type") == "ai-title":
+                            ai_title = entry.get("aiTitle") or ai_title
                     continue
                 try:
                     msg = json.loads(line)
@@ -243,22 +263,27 @@ def scan_session_jsonl(path):
                                     break
     except OSError:
         return None
-    return day_to_first_dt, fallback_cwd, fallback_first_text
+    return day_to_first_dt, fallback_cwd, fallback_first_text, custom_title or ai_title
 
 
 def fetch_claude_sessions(dates):
-    """Returns {date: [session_row]} covering every (session, logical_day) where
-    the user prompted that day. Rows include `is_new` = True iff that day is the
-    session's earliest active day in its JSONL.
+    """Returns ({date: [session_row]}, {session_id: title}).
 
-    Source of activity: ~/.claude/projects/*/*.jsonl (Claude's own session logs).
-    mtime filter keeps cost low (only opens recently touched sessions).
-    Source of summary/branch/cwd: ~/.claude-diary.jsonl (per-session metadata
+    Rows cover every (session, logical_day) where the user prompted that day and
+    include `is_new` = True iff that day is the session's earliest active day in
+    its JSONL. The title map holds the display title of every scanned session,
+    for retitling links in notes outside the regenerated window.
+
+    Source of activity + title: ~/.claude/projects/*/*.jsonl (Claude's own
+    session logs). mtime filter keeps cost low (only opens recently touched
+    sessions; a rename touches the file, so renamed sessions are always seen).
+    Fallback title/branch/cwd: ~/.claude-diary.jsonl (per-session metadata
     captured by claude-diary-hook on first prompt).
     """
     by_date = defaultdict(list)
+    titles = {}
     if not dates or not CLAUDE_PROJECTS_DIR.exists():
-        return by_date
+        return by_date, titles
 
     meta = load_diary_metadata()
     dates_set = set(dates)
@@ -278,12 +303,15 @@ def fetch_claude_sessions(dates):
             result = scan_session_jsonl(jsonl)
             if result is None:
                 continue
-            day_to_first_dt, fb_cwd, fb_text = result
+            day_to_first_dt, fb_cwd, fb_text, title = result
             if not day_to_first_dt:
                 continue
             sid = jsonl.stem
             earliest_day = min(day_to_first_dt)
             m = meta.get(sid, {})
+            title = session_title(title, m.get("summary", ""),
+                                  m.get("prompt") or (fb_text or ""))
+            titles[sid] = title
             for d, dt in day_to_first_dt.items():
                 if d not in dates_set:
                     continue
@@ -291,15 +319,29 @@ def fetch_claude_sessions(dates):
                     "session_id": sid,
                     "timestamp": dt.isoformat(),
                     "is_new": (d == earliest_day),
-                    "summary": m.get("summary", ""),
-                    "prompt": m.get("prompt") or (fb_text or ""),
+                    "title": title,
                     "cwd": m.get("cwd") or (fb_cwd or ""),
                     "branch": m.get("branch", ""),
                 })
 
     for d in by_date:
         by_date[d].sort(key=lambda e: e.get("timestamp", ""))
-    return by_date
+    return by_date, titles
+
+
+def session_title(own_title, summary, prompt):
+    """Display title for a session, best source first: the session's own name
+    (/rename or Claude's auto-title), the Haiku summary from claude-diary-hook,
+    the first line of the first prompt."""
+    title = (own_title or "").strip()
+    if not title:
+        title = summary if summary and len(summary) <= 80 else ""
+    if not title:
+        title = prompt.split("\n")[0][:TITLE_MAX] if prompt else "?"
+    title = title.replace("\n", " ")
+    if len(title) > TITLE_MAX:
+        title = title[:TITLE_MAX - 1] + "…"
+    return title
 
 
 def shorten_path(p):
@@ -419,12 +461,7 @@ private:
                 t = datetime.fromisoformat(ts).strftime("%H:%M")
             except ValueError:
                 t = "?"
-            summary = s.get("summary", "")
-            if not summary or len(summary) > 80:
-                prompt = s.get("prompt", "")
-                summary = prompt.split("\n")[0][:60] if prompt else "?"
-            if len(summary) > 60:
-                summary = summary[:59] + "…"
+            summary = s["title"]
             folder = shorten_path(s.get("cwd", ""))
             repo = folder.split("/")[-1] if folder else "?"
             branch = s.get("branch", "")
@@ -505,6 +542,31 @@ def fix_broken_github_pr_links():
         print(f"  fixed broken PR links in {fixed} file(s)")
 
 
+def retitle_claude_links(outdir, titles):
+    """Rewrite `[old title](claude-resume://sid)` links in integrations notes
+    older than the regenerated window, so a renamed session reads the same
+    everywhere. Only touches generated notes: hand-written links elsewhere in
+    the vault carry the user's own link text."""
+    if not titles:
+        return
+
+    def sub(m):
+        title = titles.get(m.group(2))
+        if title is None:
+            return m.group(0)
+        return md_cell(md_link(title, f"claude-resume://{m.group(2)}"))
+
+    fixed = 0
+    for md in outdir.glob("*.md"):
+        text = md.read_text()
+        new_text = CLAUDE_RESUME_LINK_RE.sub(sub, text)
+        if new_text != text:
+            md.write_text(new_text)
+            fixed += 1
+    if fixed:
+        print(f"  retitled claude session links in {fixed} file(s)")
+
+
 def migrate_claude_sessions_to_table(outdir):
     """Convert old bullet-list Claude sessions to table format in existing files."""
     for md in sorted(outdir.glob("*.md")):
@@ -577,7 +639,7 @@ def main():
     authored_by_date = group_by_date(authored_all)
     reviewed_by_date = group_by_date(reviewed_all)
     git_by_date = fetch_git_activity(needed)
-    claude_by_date = fetch_claude_sessions(set(needed))
+    claude_by_date, claude_titles = fetch_claude_sessions(set(needed))
 
     for d in needed:
         path = outdir / f"{d}.md"
@@ -597,6 +659,7 @@ def main():
         ensure_daily_note(d)
         print(f"  {d}: updated")
 
+    retitle_claude_links(outdir, claude_titles)
     fix_broken_github_pr_links()
 
 
