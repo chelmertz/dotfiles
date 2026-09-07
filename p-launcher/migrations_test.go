@@ -1,0 +1,64 @@
+package main
+
+import (
+	"database/sql"
+	"path/filepath"
+	"testing"
+
+	_ "modernc.org/sqlite"
+)
+
+func openTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "p.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	return db
+}
+
+func TestMigrateFreshAndIdempotent(t *testing.T) {
+	db := openTestDB(t)
+	for i := 0; i < 2; i++ {
+		if err := migrate(db); err != nil {
+			t.Fatalf("run %d: %v", i, err)
+		}
+	}
+	var v int
+	if err := db.QueryRow(`select max(db_version) from meta`).Scan(&v); err != nil {
+		t.Fatal(err)
+	}
+	if v != len(migrations) {
+		t.Fatalf("db_version %d, want %d", v, len(migrations))
+	}
+	var n int
+	if err := db.QueryRow(`select count(*) from meta`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != len(migrations) {
+		t.Fatalf("meta rows %d, want %d (second run must be a no-op)", n, len(migrations))
+	}
+}
+
+func TestMigrateSeedsNamespaces(t *testing.T) {
+	db := openTestDB(t)
+	if err := migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := db.Query(`select dir, label, sort_order from namespace order by sort_order`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var got []string
+	for rows.Next() {
+		var dir, label string
+		var so int
+		rows.Scan(&dir, &label, &so)
+		got = append(got, dir+"="+label)
+	}
+	if len(got) != 2 || got[0] != "m=matchi" || got[1] != "personal=personal" {
+		t.Fatalf("got %v", got)
+	}
+}
