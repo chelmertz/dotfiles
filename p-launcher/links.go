@@ -171,8 +171,9 @@ func refreshLinks(s *Store, d linkDeps) (refreshResult, error) {
 		if pr.IsDraft {
 			draft = 1
 		}
-		if _, err := s.db.Exec(`update link set action_needed = ?, detail = ?, review_status = ?, threads_actionable = ?, last_commenter = ?, is_draft = ? where id = ?`,
-			need, detail, pr.ReviewStatus, pr.ThreadsActionable, pr.LastCommenter, draft, id); err != nil {
+		if _, err := s.db.Exec(`update link set action_needed = ?, detail = ?, review_status = ?, threads_actionable = ?, last_commenter = ?, is_draft = ?,
+			elly_updated_at = coalesce(nullif(?, ''), elly_updated_at) where id = ?`,
+			need, detail, pr.ReviewStatus, pr.ThreadsActionable, pr.LastCommenter, draft, rfcOrEmpty(pr.LastUpdated), id); err != nil {
 			return res, err
 		}
 	}

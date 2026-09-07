@@ -57,12 +57,19 @@ func TestRefreshLinksHappy(t *testing.T) {
 			return ghPR{State: "open", Title: "Two", Author: "jd", CreatedAt: ts("2026-09-04T10:00:00Z")}, 200, `"e2"`, nil
 		},
 		elly: func() (map[string]ellyPR, time.Time, error) {
-			return map[string]ellyPR{"https://github.com/o/r/pull/2": {ReviewStatus: "", ThreadsActionable: 2}}, now.Add(-3 * time.Minute), nil
+			return map[string]ellyPR{"https://github.com/o/r/pull/2": {ReviewStatus: "", ThreadsActionable: 2, LastUpdated: now.Add(-40 * time.Minute)}}, now.Add(-3 * time.Minute), nil
 		},
 	}
 	res, err := refreshLinks(s, deps)
 	if err != nil {
 		t.Fatal(err)
+	}
+	var ellyUpdated string
+	if err := s.db.QueryRow(`select coalesce(elly_updated_at,'') from link where url like '%/2'`).Scan(&ellyUpdated); err != nil || ellyUpdated != now.Add(-40*time.Minute).UTC().Format(time.RFC3339) {
+		t.Fatalf("elly_updated_at %q %v", ellyUpdated, err)
+	}
+	if links, err := loadTendLinks(s); err != nil || len(links) != 2 || !links[1].LastUpdated.Equal(now.Add(-40*time.Minute)) {
+		t.Fatalf("tend must see elly's time: %+v %v", links, err)
 	}
 	if calls != 2 || res.Refreshed != 2 || res.Failed != 0 || res.EllyStale || res.EllyMissing {
 		t.Fatalf("calls=%d %+v", calls, res)

@@ -16,6 +16,14 @@ var migrations = []func(*sql.Tx) error{
 	migrate005,
 	migrate006,
 	migrate007,
+	migrate008,
+}
+
+// migrate008 stores elly's last_updated per link, so "new activity" means
+// activity on the PR rather than our own refresh time.
+func migrate008(tx *sql.Tx) error {
+	_, err := tx.Exec(`alter table link add column elly_updated_at text`)
+	return err
 }
 
 // migrate007 widens project_event.kind with snoozed (detail = wake time,
