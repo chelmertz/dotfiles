@@ -69,7 +69,6 @@
             # 1.4G for vscode alone. Stable lags a release behind but rebuilds rarely.
             (final: prev: {
               inherit (pkgsStable)
-                slack
                 spotify
                 vscode
                 ;
