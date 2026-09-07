@@ -21,7 +21,7 @@ func (e *hintError) Error() string { return e.msg + ". " + e.hint }
 func (e *hintError) Unwrap() error { return e.cause }
 
 func usage() error {
-	return errors.New("usage: p-launcher list | open <namespace/name> | menu [--toggle-key KEY]")
+	return errors.New("usage: p-launcher list | open <namespace/name> | menu [--toggle-key KEY] | hook")
 }
 
 func main() {
@@ -64,6 +64,10 @@ func run(args []string) error {
 		if len(args) != 2 {
 			return usage()
 		}
+	case "hook":
+		if len(args) != 1 {
+			return usage()
+		}
 	default:
 		return usage()
 	}
@@ -88,6 +92,14 @@ func run(args []string) error {
 		return Open(s, root, args[1])
 	case "menu":
 		return menu(s, root, toggleKey)
+	case "hook":
+		// Claude Code runs this on every hook event with JSON on stdin. It
+		// must never slow or fail a session: log to stderr and exit 0. Nothing
+		// goes to stdout, which Claude Code would inject into the session.
+		if err := hook(s, root, os.Stdin); err != nil {
+			fmt.Fprintln(os.Stderr, "p-launcher hook:", err)
+		}
+		return nil
 	}
 	panic("unreachable: cmd validated above")
 }
