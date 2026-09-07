@@ -14,7 +14,7 @@ func TestRows(t *testing.T) {
 		{Path: "oss/a&b", Name: "a&b", Label: "oss"},
 	}
 	open := map[string]bool{"p:m/dependabot": true, "p:m/reputation": true, "p:personal/health": true}
-	rows := Rows(ps, open)
+	rows := Rows(ps, open, false)
 	var lines, paths, icons []string
 	for _, r := range rows {
 		lines = append(lines, r.Text)
@@ -44,7 +44,7 @@ func TestRows(t *testing.T) {
 }
 
 func TestRowsEmpty(t *testing.T) {
-	if got := Rows(nil, nil); len(got) != 0 {
+	if got := Rows(nil, nil, false); len(got) != 0 {
 		t.Fatalf("got %+v", got)
 	}
 }

@@ -201,6 +201,66 @@ func copyqCopy(text string) error {
 	return nil
 }
 
+// contextText summarises one project for the "context" verb: status, ball,
+// links with their state, live sessions, last activity.
+func contextText(s *Store, path string) (string, error) {
+	ps, err := s.ListProjects()
+	if err != nil {
+		return "", err
+	}
+	var p Project
+	for _, x := range ps {
+		if x.Path == path {
+			p = x
+		}
+	}
+	if p.Path == "" {
+		return "", fmt.Errorf("unknown project %q", path)
+	}
+	var b strings.Builder
+	status := "ongoing"
+	if p.Archived {
+		status = "archived"
+	}
+	fmt.Fprintf(&b, "%s · %s", p.Path, status)
+	if p.Ball != "" {
+		fmt.Fprintf(&b, " · ball: %s", p.Ball)
+	}
+	if p.LastActive != "" {
+		fmt.Fprintf(&b, " · last active %s", p.LastActive)
+	}
+	b.WriteString("\n")
+	rows, err := s.db.Query(`select l.url, l.merged, l.closed_at is not null from link l join project pr on pr.id = l.project_id
+		where pr.path = ? order by l.id desc limit 8`, path)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var u string
+		var merged, closed bool
+		if err := rows.Scan(&u, &merged, &closed); err != nil {
+			return "", err
+		}
+		state := "open"
+		if merged {
+			state = "merged"
+		} else if closed {
+			state = "closed"
+		}
+		fmt.Fprintf(&b, "%s  %s\n", state, u)
+	}
+	var live int
+	cutoff := time.Now().Add(-staleSession).UTC().Format(time.RFC3339)
+	if err := s.db.QueryRow(`select count(*) from session_state ss join project pr on pr.id = ss.project_id where pr.path = ? and ss.since > ?`, path, cutoff).Scan(&live); err != nil {
+		return "", err
+	}
+	if live > 0 {
+		fmt.Fprintf(&b, "%d live session(s)\n", live)
+	}
+	return b.String(), nil
+}
+
 // reopenIfArchived writes a reopened event when the project's latest
 // lifecycle event is archived; opening an archived project is the reopen.
 func reopenIfArchived(s *Store, path string) (bool, error) {

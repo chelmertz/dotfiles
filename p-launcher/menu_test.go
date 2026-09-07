@@ -13,34 +13,21 @@ func TestWriteList(t *testing.T) {
 	}
 	var buf bytes.Buffer
 	writeList(&buf, ps, map[string]bool{"p:m/dependabot": true})
-	want := "m/dependabot\tdependabot\tmatchi\t1\t2026-09-01T10:00:00Z\tyou\n" +
-		"personal/health\thealth\tpersonal\t0\t\t\n"
+	want := "m/dependabot\tdependabot\tmatchi\t1\t2026-09-01T10:00:00Z\tyou\t0\n" +
+		"personal/health\thealth\tpersonal\t0\t\t\t0\n"
 	if buf.String() != want {
 		t.Fatalf("got %q", buf.String())
 	}
 }
 
 func TestRofiArgs(t *testing.T) {
-	plain := strings.Join(rofiArgs(""), " ")
+	plain := strings.Join(rofiArgs("project", ""), " ")
 	if strings.Contains(plain, "-kb-cancel") || !strings.Contains(plain, "-markup-rows") || !strings.Contains(plain, "-show-icons") {
 		t.Fatalf("got %q", plain)
 	}
-	withKey := strings.Join(rofiArgs("F5"), " ")
+	withKey := strings.Join(rofiArgs("project", "F5"), " ")
 	if !strings.Contains(withKey, "-kb-cancel Escape,Control+g,Control+bracketleft,F5") {
 		t.Fatalf("got %q", withKey)
-	}
-}
-
-func TestParseRofiIndex(t *testing.T) {
-	cases := map[string]struct {
-		idx int
-		ok  bool
-	}{"2\n": {2, true}, "0": {0, true}, "-1\n": {-1, true}, "": {0, false}, "abc": {0, false}}
-	for in, c := range cases {
-		idx, ok := parseRofiIndex(in)
-		if idx != c.idx || ok != c.ok {
-			t.Errorf("%q: got (%d,%v)", in, idx, ok)
-		}
 	}
 }
 

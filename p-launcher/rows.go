@@ -19,12 +19,20 @@ type Row struct {
 // The two columns are tab-separated and aligned by the tab-stop on
 // element-text in rofi/cards.rasinc, so the font need not be monospace. Rows are Pango markup
 // (rofi runs with -markup-rows), so names and labels are escaped.
-func Rows(ps []Project, open map[string]bool) []Row {
+func Rows(ps []Project, open map[string]bool, withTail bool) []Row {
 	var out []Row
 	for _, p := range ps {
 		text := html.EscapeString(p.Name) + "\t" +
 			`<span alpha="45%">` + html.EscapeString(p.Label) + `</span>`
-		out = append(out, Row{Text: text, Path: p.Path, Icon: stateIcon(p, open[tagFor(p.Path)])})
+		icon := stateIcon(p, open[tagFor(p.Path)])
+		if p.Archived {
+			icon = "archived"
+		}
+		out = append(out, Row{Text: text, Path: p.Path, Icon: icon})
+	}
+	if withTail {
+		// Switches the menu to the archived list; Path "" so it never opens.
+		out = append(out, Row{Text: "archived…", Icon: "archived"})
 	}
 	return out
 }
