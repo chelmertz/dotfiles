@@ -21,24 +21,13 @@ func TestWriteList(t *testing.T) {
 }
 
 func TestRofiArgs(t *testing.T) {
-	plain := strings.Join(rofiArgs("", nil), " ")
-	if strings.Contains(plain, "-kb-cancel") || strings.Contains(plain, "-a ") || !strings.Contains(plain, "-markup-rows") || !strings.Contains(plain, "-selected-row 1") {
+	plain := strings.Join(rofiArgs(""), " ")
+	if strings.Contains(plain, "-kb-cancel") || !strings.Contains(plain, "-markup-rows") {
 		t.Fatalf("got %q", plain)
 	}
-	withKey := strings.Join(rofiArgs("F5", []int{0, 3}), " ")
-	if !strings.Contains(withKey, "-kb-cancel Escape,Control+g,Control+bracketleft,F5") || !strings.Contains(withKey, "-a 0,3") {
+	withKey := strings.Join(rofiArgs("F5"), " ")
+	if !strings.Contains(withKey, "-kb-cancel Escape,Control+g,Control+bracketleft,F5") {
 		t.Fatalf("got %q", withKey)
-	}
-}
-
-func TestHeadingRows(t *testing.T) {
-	rows := []Row{{Text: "h"}, {Text: "a", Path: "m/a"}, {Text: "h2"}, {Text: "b", Path: "p/b"}}
-	got := headingRows(rows)
-	if len(got) != 2 || got[0] != 0 || got[1] != 2 {
-		t.Fatalf("got %v", got)
-	}
-	if headingRows(nil) != nil {
-		t.Fatal("want nil for no rows")
 	}
 }
 
@@ -58,7 +47,7 @@ func TestParseRofiIndex(t *testing.T) {
 func TestSelectRow(t *testing.T) {
 	rows := []Row{
 		{Text: "  dependabot", Path: "m/dependabot"},
-		{Text: "<b>ns</b>" + heading},
+		{Text: "ns"},
 		{Text: "  health", Path: "personal/health"},
 	}
 	cases := []struct {
@@ -67,7 +56,7 @@ func TestSelectRow(t *testing.T) {
 		wantOk   bool
 	}{
 		{0, "m/dependabot", true},
-		{1, "", false}, // heading
+		{1, "", false}, // row without a path
 		{2, "personal/health", true},
 		{-1, "", false},
 		{3, "", false},

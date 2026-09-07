@@ -20,12 +20,15 @@ func TestRows(t *testing.T) {
 		lines = append(lines, r.Text)
 		paths = append(paths, r.Path)
 	}
+	// Longest name is 10 runes; every label starts at the same column.
+	muted := func(l string) string { return `<span alpha="45%">` + l + `</span>` }
 	wantLines := []string{
-		"<b>matchi</b>" + heading, "  reputation", "● dependabot",
-		"<b>personal</b>" + heading, "  health",
-		"<b>oss</b>" + heading, "  a&amp;b",
+		"  reputation    " + muted("matchi"),
+		"● dependabot    " + muted("matchi"),
+		"  health        " + muted("personal"),
+		"  a&amp;b           " + muted("oss"),
 	}
-	wantPaths := []string{"", "m/reputation", "m/dependabot", "", "personal/health", "", "oss/a&b"}
+	wantPaths := []string{"m/reputation", "m/dependabot", "personal/health", "oss/a&b"}
 	if !reflect.DeepEqual(lines, wantLines) {
 		t.Fatalf("lines %q", lines)
 	}
