@@ -89,7 +89,7 @@ func Open(s *Store, root, path string) error {
 			return err
 		}
 	case actLaunch:
-		cmd, err := launch(dir, tag)
+		cmd, err := launch(dir, tag, "")
 		if err != nil {
 			return err
 		}
@@ -111,19 +111,31 @@ func Open(s *Store, root, path string) error {
 // launch starts a detached ghostty tagged with the project. Its stdio is
 // inherited so ghostty's own output lands in the same journal stream. The
 // caller is responsible for waiting on the returned *exec.Cmd.
-func launch(dir, tag string) (*exec.Cmd, error) {
-	cmd := exec.Command("ghostty",
-		"--x11-instance-name="+tag,
-		"--working-directory="+dir,
-		"-e", "zsh", "-ic", "claude; exec zsh")
+func launch(dir, tag, prompt string) (*exec.Cmd, error) {
+	argv, env := launchArgs(dir, tag, prompt)
+	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
-	cmd.Env = scrubEnv(os.Environ())
+	cmd.Env = env
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start ghostty for %s: %w", dir, err)
 	}
 	return cmd, nil
+}
+
+// launchArgs builds the ghostty command line and environment. A non-empty
+// prompt becomes Claude's first message; it travels in an environment
+// variable so no shell quoting of user-visible text is needed.
+func launchArgs(dir, tag, prompt string) (argv, env []string) {
+	shell := "claude; exec zsh"
+	env = scrubEnv(os.Environ())
+	if prompt != "" {
+		shell = `claude "$P_LAUNCHER_PROMPT"; exec zsh`
+		env = append(env, "P_LAUNCHER_PROMPT="+prompt)
+	}
+	argv = []string{"ghostty", "--x11-instance-name=" + tag, "--working-directory=" + dir, "-e", "zsh", "-ic", shell}
+	return argv, env
 }
 
 // scrubEnv strips every env var whose key starts with "CLAUDE". Without

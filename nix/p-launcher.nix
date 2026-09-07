@@ -22,7 +22,13 @@ in
     Unit.Description = "p-launcher: refresh PR links from GitHub and elly";
     Service = {
       Type = "oneshot";
-      ExecStart = "${p-launcher}/bin/p-launcher links refresh";
+      # refresh first, then let tend decide; tend is inert until
+      # `p-launcher kv set tend.enabled 1`, but its decisions land in the
+      # journal either way (journalctl --user -u p-launcher-links).
+      ExecStart = pkgs.writeShellScript "p-launcher-links" ''
+        ${p-launcher}/bin/p-launcher links refresh
+        ${p-launcher}/bin/p-launcher tend
+      '';
       Environment = "PATH=${lib.makeBinPath [ pkgs.gh ]}";
     };
   };

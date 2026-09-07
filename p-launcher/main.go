@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"strconv"
 	"time"
 )
 
@@ -21,7 +22,7 @@ func (e *hintError) Error() string { return e.msg + ". " + e.hint }
 func (e *hintError) Unwrap() error { return e.cause }
 
 func usage() error {
-	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | menu [--toggle-key KEY] | hook | desktop lock|unlock | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
+	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | menu [--toggle-key KEY] | hook | desktop lock|unlock | tend [--dry-run] [--max N] | kv get <key> | kv set <key> <value> | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
 }
 
 func main() {
@@ -49,7 +50,7 @@ func run(args []string) error {
 	toggleKey := ""
 	var ro reportOpts
 	var archiveReason string
-	listAll := false
+	listAll, tendDry, tendMax := false, false, 2
 	switch cmd {
 	case "list":
 		listAll = len(args) == 2 && args[1] == "--all"
@@ -79,6 +80,26 @@ func run(args []string) error {
 		}
 	case "desktop":
 		if len(args) != 2 || (args[1] != "lock" && args[1] != "unlock") {
+			return usage()
+		}
+	case "tend":
+		for i := 1; i < len(args); i++ {
+			switch {
+			case args[i] == "--dry-run":
+				tendDry = true
+			case args[i] == "--max" && i+1 < len(args):
+				n, err := strconv.Atoi(args[i+1])
+				if err != nil || n < 0 {
+					return usage()
+				}
+				tendMax = n
+				i++
+			default:
+				return usage()
+			}
+		}
+	case "kv":
+		if !(len(args) == 3 && args[1] == "get") && !(len(args) == 4 && args[1] == "set") {
 			return usage()
 		}
 	case "menu":
@@ -152,6 +173,26 @@ func run(args []string) error {
 		// Screen lock/unlock from the i3 xss-lock wrapper; the report's away
 		// detection reads these (session_id "desktop", no project).
 		return s.RecordSessionEvent(SessionEvent{SessionID: desktopSession, Kind: args[1]})
+	case "tend":
+		deps := tendDeps{now: time.Now(), notify: notifyInfo, launch: func(dir, tag, prompt string) error {
+			cmd, err := launch(dir, tag, prompt)
+			if err != nil {
+				return err
+			}
+			go func() { _ = cmd.Wait() }()
+			return nil
+		}}
+		return runTend(s, root, tendDry, tendMax, deps, ghLastComment, os.Stdout)
+	case "kv":
+		if args[1] == "get" {
+			v, err := s.kvGet(args[2])
+			if err != nil {
+				return err
+			}
+			fmt.Println(v)
+			return nil
+		}
+		return s.kvSet(args[2], args[3])
 	case "open":
 		return Open(s, root, args[1])
 	case "menu":
