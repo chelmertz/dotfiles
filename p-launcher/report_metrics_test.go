@@ -106,6 +106,10 @@ func TestBuckets(t *testing.T) {
 	if _, knee := buckets(nil, nil, nil); knee != -1 {
 		t.Fatalf("empty knee = %d", knee)
 	}
+	// hours but no merges: no knee either
+	if _, knee := buckets(conc, nil, ws); knee != -1 {
+		t.Fatalf("no-merge knee = %d", knee)
+	}
 }
 
 func TestWeeks(t *testing.T) {

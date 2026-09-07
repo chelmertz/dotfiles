@@ -272,7 +272,8 @@ func buckets(conc map[time.Time]int, links []rawLink, ws []wait) ([]Bucket, int)
 	for i := range out {
 		if out[i].Hours > 0 {
 			out[i].PRsPerHour = float64(out[i].Merged) / float64(out[i].Hours)
-			if knee < 0 || out[i].PRsPerHour > out[knee].PRsPerHour {
+			// a knee needs a merge; all-zero buckets highlight nothing
+			if out[i].Merged > 0 && (knee < 0 || out[i].PRsPerHour > out[knee].PRsPerHour) {
 				knee = i
 			}
 		}
