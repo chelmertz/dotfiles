@@ -766,6 +766,24 @@ in
     set hlsearch
   '';
 
+  # Minimal compositor, only so dunst and rofi can draw antialiased transparent
+  # corners; X has no alpha without one. No blur, fades or shadows. xrender, not
+  # glx: the Nix Mesa gets no GL visual from Ubuntu's X server ("Root visual is
+  # not a GL visual"), same family as the EGL problem ghostty is wrapped for.
+  services.picom = {
+    enable = true;
+    backend = "xrender";
+    vSync = true;
+    fade = false;
+    shadow = false;
+    settings = {
+      unredir-if-possible = true;
+      use-damage = true;
+      detect-client-opacity = true;
+      detect-rounded-corners = true;
+    };
+  };
+
   # rofi themes matching the dunst cards. bin/color-scheme picks dark or light by
   # writing @theme into ~/.config/rofi/config.rasi, which stays unmanaged for that.
   xdg.dataFile."rofi/themes/cards.rasinc".source = ../rofi/cards.rasinc;
