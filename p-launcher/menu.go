@@ -93,6 +93,11 @@ func menu(s *Store, root string) error {
 	}
 	path, ok := selectRow(rows, idx)
 	if !ok {
+		if idx == -1 {
+			// rofi gives only the index, not the typed text, so the
+			// notification can't name what was typed.
+			notifyInfo("no matching project; creating projects is not implemented yet")
+		}
 		return nil // typed non-match or divider: no-op for now
 	}
 	return Open(s, root, path)

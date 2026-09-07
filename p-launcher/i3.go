@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -83,8 +84,9 @@ func OpenTags(treeJSON []byte) (map[string]bool, error) {
 }
 
 // PickFocus chooses which window to focus: the one after the currently
-// focused one (wrapping), or the first when none is focused. Same rule as
-// ~/.local/bin/ror.py.
+// focused one (wrapping), or the first when none is focused. Same
+// next-after-focused/wrap rule as ~/.local/bin/ror.py, but over tree order
+// (the order FindTagged walks the i3 tree), not ror.py's window-id sort.
 func PickFocus(wins []Win) (int64, bool) {
 	if len(wins) == 0 {
 		return 0, false
@@ -110,11 +112,22 @@ func getTree() ([]byte, error) {
 func focusCon(conID int64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), i3Timeout)
 	defer cancel()
+	// Older i3-msg exits 0 on a failed command and only the JSON reply
+	// reports it; i3 4.25.1 exits 2 and writes "ERROR: ..." to stderr, which
+	// runCmd already turns into a CmdError above. Check both.
 	out, err := runCmd(ctx, "i3-msg", "[con_id="+strconv.FormatInt(conID, 10)+"] focus")
 	if err != nil {
 		return err
 	}
-	// i3-msg exits 0 even when the command fails; the JSON carries success.
+	if err := checkI3Reply(out); err != nil {
+		return fmt.Errorf("i3 focus con_id=%d: %w", conID, err)
+	}
+	return nil
+}
+
+// checkI3Reply parses an i3-msg command reply (`[{"success":bool,"error":string}]`)
+// and returns an error naming the first failed command, if any.
+func checkI3Reply(out []byte) error {
 	var res []struct {
 		Success bool   `json:"success"`
 		Error   string `json:"error"`
@@ -124,7 +137,7 @@ func focusCon(conID int64) error {
 	}
 	for _, r := range res {
 		if !r.Success {
-			return fmt.Errorf("i3 focus con_id=%d: %s", conID, r.Error)
+			return errors.New(r.Error)
 		}
 	}
 	return nil

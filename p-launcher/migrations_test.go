@@ -52,13 +52,23 @@ func TestMigrateSeedsNamespaces(t *testing.T) {
 	}
 	defer rows.Close()
 	var got []string
+	var sortOrders []int
 	for rows.Next() {
 		var dir, label string
 		var so int
-		rows.Scan(&dir, &label, &so)
+		if err := rows.Scan(&dir, &label, &so); err != nil {
+			t.Fatal(err)
+		}
 		got = append(got, dir+"="+label)
+		sortOrders = append(sortOrders, so)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
 	}
 	if len(got) != 2 || got[0] != "m=matchi" || got[1] != "personal=personal" {
 		t.Fatalf("got %v", got)
+	}
+	if len(sortOrders) != 2 || sortOrders[0] != 0 || sortOrders[1] != 1 {
+		t.Fatalf("sort_order = %v, want [0 1]", sortOrders)
 	}
 }

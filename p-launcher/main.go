@@ -12,9 +12,13 @@ import (
 )
 
 // hintError carries a self-healing instruction alongside the failure.
-type hintError struct{ msg, hint string }
+type hintError struct {
+	msg, hint string
+	cause     error
+}
 
 func (e *hintError) Error() string { return e.msg + ". " + e.hint }
+func (e *hintError) Unwrap() error { return e.cause }
 
 func usage() error {
 	return errors.New("usage: p-launcher list | open <namespace/name> | menu")
@@ -64,7 +68,7 @@ func run(args []string) error {
 
 	s, err := OpenStore(dbPath)
 	if err != nil {
-		return &hintError{msg: err.Error(), hint: "move " + dbPath + " aside and rerun; only selection history is lost"}
+		return &hintError{msg: err.Error(), hint: "move " + dbPath + " aside and rerun; only selection history is lost", cause: err}
 	}
 	defer s.Close()
 
@@ -93,13 +97,24 @@ func report(err error) {
 	notify(err.Error())
 }
 
-// notify raises a desktop notification with body. dunst renders the body as
-// Pango markup, so it is HTML-escaped first. A notify-send failure is
-// logged next to the original error, never instead of it.
+// notify raises a critical desktop notification for a failure, with body.
+// dunst renders the body as Pango markup, so it is HTML-escaped first. A
+// notify-send failure is logged next to the original error, never instead
+// of it.
 func notify(body string) {
+	notifySend("critical", "p-launcher failed", body)
+}
+
+// notifyInfo raises a low-urgency, non-error desktop notification, e.g. a
+// typed menu entry that matched no project.
+func notifyInfo(body string) {
+	notifySend("low", "p-launcher", body)
+}
+
+func notifySend(urgency, title, body string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if _, nerr := runCmd(ctx, "notify-send", "-u", "critical", "-a", "p-launcher", "p-launcher failed", html.EscapeString(body)); nerr != nil {
+	if _, nerr := runCmd(ctx, "notify-send", "-u", urgency, "-a", "p-launcher", title, html.EscapeString(body)); nerr != nil {
 		fmt.Fprintln(os.Stderr, "p-launcher: notify-send also failed:", nerr)
 	}
 }

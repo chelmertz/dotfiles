@@ -11,7 +11,8 @@ type Row struct {
 
 // Rows renders projects (already sorted) into rofi lines: a divider between
 // namespace groups, "● " for projects with an open window, "  " otherwise so
-// names align.
+// names align. Groups are runs of equal Label; ListProjects' ORDER BY
+// sort_order guarantees rows sharing a Label are always contiguous.
 func Rows(ps []Project, open map[string]bool) []Row {
 	var out []Row
 	prevLabel := ""

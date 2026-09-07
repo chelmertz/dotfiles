@@ -7,12 +7,15 @@ import (
 
 // Shape matches `i3-msg -t get_tree`: root → output → content con → workspace
 // → cons; scratchpad windows sit in floating_nodes under the __i3 output.
+// The content con pins that "window":null (a structural container, not just
+// an absent field) decodes as no window; con id 6 is above 2^53 to pin that
+// window/container ids decode as int64 without float64 precision loss.
 const treeFixture = `{"id":1,"type":"root","nodes":[
  {"id":2,"type":"output","name":"eDP-1","nodes":[
-  {"id":3,"type":"con","name":"content","nodes":[
+  {"id":3,"type":"con","name":"content","window":null,"nodes":[
    {"id":4,"type":"workspace","name":"1","nodes":[
     {"id":5,"type":"con","window":100,"focused":false,"window_properties":{"class":"com.mitchellh.ghostty","instance":"p:m/dependabot","title":"a"},"nodes":[],"floating_nodes":[]},
-    {"id":6,"type":"con","window":101,"focused":true,"window_properties":{"class":"com.mitchellh.ghostty","instance":"p:m/dependabot","title":"b"},"nodes":[],"floating_nodes":[]},
+    {"id":9443088493742400,"type":"con","window":101,"focused":true,"window_properties":{"class":"com.mitchellh.ghostty","instance":"p:m/dependabot","title":"b"},"nodes":[],"floating_nodes":[]},
     {"id":7,"type":"con","window":102,"focused":false,"window_properties":{"class":"firefox","instance":"Navigator","title":"c"},"nodes":[],"floating_nodes":[]}
    ],"floating_nodes":[]}
   ],"floating_nodes":[]}
@@ -33,7 +36,7 @@ func TestFindTagged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []Win{{ConID: 5, Focused: false}, {ConID: 6, Focused: true}}
+	want := []Win{{ConID: 5, Focused: false}, {ConID: 9443088493742400, Focused: true}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v", got)
 	}
@@ -83,5 +86,15 @@ func TestPickFocus(t *testing.T) {
 func TestFindTaggedBadJSON(t *testing.T) {
 	if _, err := FindTagged([]byte("{nope"), "x"); err == nil {
 		t.Fatal("want error")
+	}
+}
+
+func TestCheckI3Reply(t *testing.T) {
+	err := checkI3Reply([]byte(`[{"success":false,"error":"No window matches given criteria"}]`))
+	if err == nil || err.Error() != "No window matches given criteria" {
+		t.Fatalf("got %v", err)
+	}
+	if err := checkI3Reply([]byte(`[{"success":true}]`)); err != nil {
+		t.Fatalf("got %v, want nil", err)
 	}
 }

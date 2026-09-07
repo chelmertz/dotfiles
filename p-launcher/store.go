@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -39,11 +38,6 @@ func OpenStore(path string) (*Store, error) {
 
 func (s *Store) Close() error { return s.db.Close() }
 
-// cut splits "m/dependabot" into ("m", "dependabot", true).
-func cut(path string) (ns, name string, ok bool) {
-	return strings.Cut(path, "/")
-}
-
 // UpsertProjects makes sure every discovered namespace and project exists.
 // Unknown namespaces are appended after the seeded ones with label = dir.
 func (s *Store) UpsertProjects(found []Found) error {
@@ -61,6 +55,9 @@ func (s *Store) UpsertProjects(found []Found) error {
 			select ?, ?, coalesce(max(sort_order), -1) + 1 from namespace`, f.Namespace, f.Namespace); err != nil {
 			return fmt.Errorf("upsert namespace %s: %w", f.Namespace, err)
 		}
+		// OR IGNORE also swallows a NULL namespace_id (the subselect finding no
+		// row), so the namespace insert above must stay first in this same
+		// transaction or an unknown namespace silently drops its project.
 		if _, err := tx.Exec(`insert or ignore into project (namespace_id, path, name, first_seen_at)
 			values ((select id from namespace where dir = ?), ?, ?, ?)`, f.Namespace, f.Path, f.Name, ts); err != nil {
 			return fmt.Errorf("upsert project %s: %w", f.Path, err)
@@ -103,8 +100,10 @@ func (s *Store) recordAt(path, kind string, at time.Time) error {
 	if err != nil {
 		return fmt.Errorf("record %s for %s: %w", kind, path, err)
 	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
+	if n, err := res.RowsAffected(); err != nil || n == 0 {
+		if err != nil {
+			return fmt.Errorf("record %s for %s: %w", kind, path, err)
+		}
 		return fmt.Errorf("record %s: unknown project %q", kind, path)
 	}
 	return nil
