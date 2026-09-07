@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -184,8 +185,12 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 	if !ok {
 		return fmt.Errorf("rofi returned unexpected output %q", out)
 	}
-	if isArchivedTail(rows, idx) {
+	switch tailOf(rows, idx) {
+	case "archived":
 		return menuMode(s, root, toggleKey, iconDir, true)
+	case "report":
+		// render all three ranges and open the 30d one; output stays quiet
+		return runReport(reportOpts{rng: "30d", theme: "dark", open: true}, s, filepath.Dir(iconDir), io.Discard)
 	}
 	if idx < 0 {
 		// typed text that matched no row: offer to create it
@@ -194,7 +199,7 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 			notifyInfo("no matching project; type <namespace>/<name> to create one")
 			return nil
 		}
-		return verbMenu(s, root, toggleKey, Project{Path: path}, createRows(path))
+		return verbMenu(s, root, toggleKey, Project{Path: path}, createRows(path), icons)
 	}
 	path, ok := selectRow(rows, idx)
 	if !ok {
@@ -202,7 +207,7 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 	}
 	for _, p := range ps {
 		if p.Path == path {
-			return verbMenu(s, root, toggleKey, p, verbRows(p))
+			return verbMenu(s, root, toggleKey, p, verbRows(p), icons)
 		}
 	}
 	return nil
@@ -227,10 +232,17 @@ func selectRow(rows []Row, idx int) (string, bool) {
 	return rows[idx].Path, true
 }
 
-// isArchivedTail reports whether idx is the "archived…" switch row.
-func isArchivedTail(rows []Row, idx int) bool {
-	return idx >= 0 && idx < len(rows) && rows[idx].Path == "" && rows[idx].Icon == "archived"
+// tailOf names the docked row's action at idx ("archived", "report"), or ""
+// for a project row or an invalid index.
+func tailOf(rows []Row, idx int) string {
+	if idx < 0 || idx >= len(rows) {
+		return ""
+	}
+	return rows[idx].Action
 }
+
+// isArchivedTail reports whether idx is the "archived…" switch row.
+func isArchivedTail(rows []Row, idx int) bool { return tailOf(rows, idx) == "archived" }
 
 // createPathFromTyped accepts exactly "<namespace>/<name>" with clean
 // segments and no spaces; anything else is "".
@@ -259,33 +271,38 @@ type verbRow struct {
 	text string
 	verb verb
 	arg  string
+	icon string // name in iconPaths
 }
 
 func verbRows(p Project) []verbRow {
 	if p.Archived {
-		return []verbRow{{"open (reopen)", verbOpen, ""}, {"context", verbContext, ""}}
+		return []verbRow{{"open (reopen)", verbOpen, "", "reopened"}, {"context", verbContext, "", "context"}}
 	}
-	return []verbRow{{"open", verbOpen, ""}, {"archive", verbArchive, ""}, {"rename", verbRename, ""}, {"add link", verbAddLink, ""}, {"context", verbContext, ""}}
+	return []verbRow{{"open", verbOpen, "", "open"}, {"archive", verbArchive, "", "archived"}, {"rename", verbRename, "", "rename"}, {"add link", verbAddLink, "", "link"}, {"context", verbContext, "", "context"}}
 }
 
-func createRows(path string) []verbRow { return []verbRow{{"create " + path, verbCreate, path}} }
+func createRows(path string) []verbRow {
+	return []verbRow{{"create " + path, verbCreate, path, "create"}}
+}
 
 func reasonRows() []verbRow {
-	return []verbRow{{"done", verbArchive, "done"}, {"scrapped", verbArchive, "scrapped"}, {"deprioritized", verbArchive, "deprioritized"}, {"solved elsewhere", verbArchive, "elsewhere"}}
+	return []verbRow{{"done", verbArchive, "done", "done"}, {"scrapped", verbArchive, "scrapped", "scrapped"}, {"deprioritized", verbArchive, "deprioritized", "deprioritized"}, {"solved elsewhere", verbArchive, "elsewhere", "elsewhere"}}
 }
 
-func verbInput(vs []verbRow) []byte {
-	var b bytes.Buffer
+// verbInput renders verb rows for rofi with their icons (same row option as
+// the project rows); without icon files, plain rows.
+func verbInput(vs []verbRow, icons map[string]string) []byte {
+	rows := make([]Row, 0, len(vs))
 	for _, v := range vs {
-		b.WriteString(v.text + "\n")
+		rows = append(rows, Row{Text: v.text, Icon: v.icon})
 	}
-	return b.Bytes()
+	return rofiInput(rows, icons)
 }
 
 // pickVerb shows verb rows and returns the chosen one; ok is false on cancel
 // or a typed non-match.
-func pickVerb(prompt, toggleKey string, vs []verbRow) (verbRow, bool, error) {
-	out, cancelled, err := runRofi(prompt, toggleKey, verbInput(vs))
+func pickVerb(prompt, toggleKey string, vs []verbRow, icons map[string]string) (verbRow, bool, error) {
+	out, cancelled, err := runRofi(prompt, toggleKey, verbInput(vs, icons))
 	if err != nil || cancelled {
 		return verbRow{}, false, err
 	}
@@ -297,8 +314,8 @@ func pickVerb(prompt, toggleKey string, vs []verbRow) (verbRow, bool, error) {
 }
 
 // verbMenu runs the submenu for one project and executes the verb.
-func verbMenu(s *Store, root, toggleKey string, p Project, vs []verbRow) error {
-	v, ok, err := pickVerb(p.Path, toggleKey, vs)
+func verbMenu(s *Store, root, toggleKey string, p Project, vs []verbRow, icons map[string]string) error {
+	v, ok, err := pickVerb(p.Path, toggleKey, vs, icons)
 	if err != nil || !ok {
 		return err
 	}
@@ -311,7 +328,7 @@ func verbMenu(s *Store, root, toggleKey string, p Project, vs []verbRow) error {
 		}
 		return Open(s, root, v.arg)
 	case verbArchive:
-		r, ok, err := pickVerb("reason", toggleKey, reasonRows())
+		r, ok, err := pickVerb("reason", toggleKey, reasonRows(), icons)
 		if err != nil || !ok {
 			return err
 		}

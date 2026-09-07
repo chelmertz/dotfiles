@@ -7,9 +7,10 @@ import (
 // Row is one rofi line. Path is "" only for rows that must not open anything
 // (none are produced today; selectRow still guards it).
 type Row struct {
-	Text string
-	Path string
-	Icon string // state icon name (see iconPaths), "" for a closed project
+	Text   string
+	Path   string // project path; "" for docked action rows
+	Icon   string // icon name (see iconPaths), presentation only
+	Action string // docked row action: "archived" | "report"; "" for projects
 }
 
 // Rows renders projects (already sorted) into rofi lines: the folder name,
@@ -31,8 +32,11 @@ func Rows(ps []Project, open map[string]bool, withTail bool) []Row {
 		out = append(out, Row{Text: text, Path: p.Path, Icon: icon})
 	}
 	if withTail {
-		// Switches the menu to the archived list; Path "" so it never opens.
-		out = append(out, Row{Text: "archived…", Icon: "archived"})
+		// Docked rows: switch to the archived list, open the report. Path ""
+		// so they never open a project; the Icon names the action.
+		out = append(out,
+			Row{Text: "archived…", Icon: "archived", Action: "archived"},
+			Row{Text: "report…", Icon: "report", Action: "report"})
 	}
 	return out
 }

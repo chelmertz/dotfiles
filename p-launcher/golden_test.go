@@ -171,6 +171,29 @@ func TestGoldenRofiMenu(t *testing.T) {
 	compareGolden(t, "rofi-menu", out)
 }
 
+func TestGoldenRofiVerbs(t *testing.T) {
+	e2e(t)
+	needBins(t, "Xvfb", "rofi", "import")
+	display, stop := startXvfb(t)
+	defer stop()
+	dir := t.TempDir()
+	icons, err := writeIcons(filepath.Join(dir, "icons"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("rofi", rofiArgs("m/reputation", "F5")...)
+	cmd.Env = append(os.Environ(), "DISPLAY="+display)
+	cmd.Stdin = bytes.NewReader(verbInput(verbRows(Project{Path: "m/reputation", Name: "reputation"}), icons))
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = cmd.Process.Kill(); _ = cmd.Wait() }()
+	time.Sleep(1500 * time.Millisecond)
+	out := filepath.Join(dir, "verbs.png")
+	screenshot(t, display, out)
+	compareGolden(t, "rofi-verbs", out)
+}
+
 func TestGoldenReportDemo(t *testing.T) {
 	e2e(t)
 	needBins(t, "firefox")

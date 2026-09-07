@@ -2,6 +2,7 @@ package main
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -29,14 +30,27 @@ func TestParseRofiOut(t *testing.T) {
 func TestRowsArchivedTail(t *testing.T) {
 	ps := []Project{{Path: "m/a", Name: "a", Label: "matchi"}}
 	rows := Rows(ps, nil, true)
-	if len(rows) != 2 || rows[1].Text != "archived…" || rows[1].Icon != "archived" || rows[1].Path != "" {
+	if len(rows) != 3 || rows[1].Text != "archived…" || rows[1].Action != "archived" || rows[1].Path != "" || rows[2].Text != "report…" || rows[2].Action != "report" || rows[2].Path != "" {
 		t.Fatalf("%+v", rows)
 	}
-	if _, ok := selectRow(rows, 1); ok {
-		t.Fatal("tail row must not open anything")
+	if rows[0].Action != "" {
+		t.Fatalf("project row carries an action: %+v", rows[0])
 	}
-	if !isArchivedTail(rows, 1) || isArchivedTail(rows, 0) || isArchivedTail(rows, 5) {
+	// an archived project shares the icon with the switch row but is not one
+	arch := Rows([]Project{{Path: "m/z", Name: "z", Archived: true}}, nil, false)
+	if arch[0].Icon != "archived" || tailOf(arch, 0) != "" {
+		t.Fatalf("%+v", arch[0])
+	}
+	for _, i := range []int{1, 2} {
+		if _, ok := selectRow(rows, i); ok {
+			t.Fatal("tail row must not open anything")
+		}
+	}
+	if tailOf(rows, 1) != "archived" || tailOf(rows, 2) != "report" || tailOf(rows, 0) != "" || tailOf(rows, 5) != "" || tailOf(rows, -1) != "" {
 		t.Fatal("tail detection")
+	}
+	if !isArchivedTail(rows, 1) || isArchivedTail(rows, 2) {
+		t.Fatal("archived tail detection")
 	}
 	if got := Rows(ps, nil, false); len(got) != 1 {
 		t.Fatalf("%+v", got)
@@ -63,6 +77,21 @@ func TestVerbRows(t *testing.T) {
 	}
 	if reasonRows()[3].arg != "elsewhere" {
 		t.Fatalf("%+v", reasonRows()[3])
+	}
+	// every verb row has an icon that exists in the set
+	for _, vs := range [][]verbRow{ongoing, archived, createRows("m/x"), reasonRows()} {
+		for _, v := range vs {
+			if _, ok := iconPaths[v.icon]; !ok {
+				t.Errorf("verb %q has no icon %q", v.text, v.icon)
+			}
+			if _, ok := rofiIconColors[v.icon]; !ok {
+				t.Errorf("verb %q icon %q has no rofi color", v.text, v.icon)
+			}
+		}
+	}
+	in := string(verbInput(ongoing, map[string]string{"open": "/i/open.svg", "blank": "/i/blank.svg"}))
+	if !strings.HasPrefix(in, "open\x00icon\x1f/i/open.svg\n") || !strings.Contains(in, "archive\x00icon\x1f/i/blank.svg\n") {
+		t.Fatalf("%q", in)
 	}
 }
 
