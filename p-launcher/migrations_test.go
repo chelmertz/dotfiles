@@ -72,3 +72,23 @@ func TestMigrateSeedsNamespaces(t *testing.T) {
 		t.Fatalf("sort_order = %v, want [0 1]", sortOrders)
 	}
 }
+
+func TestMigrate002Tables(t *testing.T) {
+	db := openTestDB(t)
+	if err := migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	for _, tbl := range []string{"session_state", "session_event"} {
+		var n int
+		if err := db.QueryRow(`select count(*) from sqlite_master where type='table' and name=?`, tbl).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n != 1 {
+			t.Fatalf("table %s missing", tbl)
+		}
+	}
+	// state is constrained to the two ball holders
+	if _, err := db.Exec(`insert into session_state (session_id, project_id, state, since) values ('x', null, 'bogus', '2026-01-01T00:00:00Z')`); err == nil {
+		t.Fatal("bogus state accepted")
+	}
+}

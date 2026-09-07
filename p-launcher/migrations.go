@@ -10,6 +10,7 @@ import (
 // never edit a shipped migration, add a new one.
 var migrations = []func(*sql.Tx) error{
 	migrate001,
+	migrate002,
 }
 
 func migrate001(tx *sql.Tx) error {
@@ -37,6 +38,33 @@ create table activity (
   kind        text not null check (kind in ('launch', 'focus'))
 );
 create index activity_project_time on activity (project_id, occurred_at);`)
+	return err
+}
+
+// migrate002 adds Claude Code session tracking: the live per-session ball
+// state shown in the menu and the append-only event log for `report`.
+// project_id is nullable: sessions started outside ~/p are recorded too.
+func migrate002(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+create table session_state (
+  session_id text primary key,
+  project_id integer references project(id),
+  state      text not null check (state in ('claude', 'you')),
+  since      text not null
+);
+create index session_state_project on session_state (project_id);
+
+create table session_event (
+  id          integer primary key,
+  session_id  text not null,
+  project_id  integer references project(id),
+  cwd         text not null,
+  kind        text not null,
+  detail      text not null default '',
+  occurred_at text not null
+);
+create index session_event_project_time on session_event (project_id, occurred_at);
+create index session_event_session on session_event (session_id, occurred_at);`)
 	return err
 }
 
