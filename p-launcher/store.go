@@ -194,3 +194,38 @@ func (s *Store) recordEventAt(e SessionEvent, at time.Time) error {
 	}
 	return nil
 }
+
+// RecordPermission logs which tool the user approved and the allowlist rule
+// that would have avoided the ask. path may be "" (no project).
+func (s *Store) RecordPermission(sessionID, path, tool, rule string) error {
+	ts := now()
+	var err error
+	if path == "" {
+		_, err = s.db.Exec(`insert into permission_request (session_id, project_id, tool_name, rule, occurred_at) values (?, null, ?, ?, ?)`, sessionID, tool, rule, ts)
+	} else {
+		_, err = s.db.Exec(`insert into permission_request (session_id, project_id, tool_name, rule, occurred_at)
+			select ?, id, ?, ?, ? from project where path = ?`, sessionID, tool, rule, ts, path)
+	}
+	if err != nil {
+		return fmt.Errorf("record permission: %w", err)
+	}
+	return nil
+}
+
+// AddLink attaches a pull-request URL to a project; a known URL is a no-op.
+// opened_at is provisional until `links refresh` replaces it with GitHub's
+// created_at.
+func (s *Store) AddLink(path, url string) error {
+	res, err := s.db.Exec(`insert or ignore into link (project_id, url, opened_at)
+		select id, ?, ? from project where path = ?`, url, now(), path)
+	if err != nil {
+		return fmt.Errorf("add link %s: %w", url, err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		var exists int
+		if err := s.db.QueryRow(`select count(*) from link where url = ?`, url).Scan(&exists); err == nil && exists == 0 {
+			return fmt.Errorf("add link: unknown project %q", path)
+		}
+	}
+	return nil
+}

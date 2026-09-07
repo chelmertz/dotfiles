@@ -5,21 +5,26 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
 // HookInput is the subset of the Claude Code hook stdin JSON that p-launcher
 // uses (https://code.claude.com/docs/en/hooks). Unknown fields are ignored.
 type HookInput struct {
-	SessionID        string `json:"session_id"`
-	Cwd              string `json:"cwd"`
-	Event            string `json:"hook_event_name"`
-	NotificationType string `json:"notification_type"` // Notification
-	Trigger          string `json:"trigger"`           // PreCompact: manual|auto
-	Reason           string `json:"reason"`            // SessionEnd
-	Source           string `json:"source"`            // SessionStart
-	AgentID          string `json:"agent_id"`          // set when a subagent fired the hook
+	SessionID        string          `json:"session_id"`
+	Cwd              string          `json:"cwd"`
+	Event            string          `json:"hook_event_name"`
+	NotificationType string          `json:"notification_type"` // Notification
+	Trigger          string          `json:"trigger"`           // PreCompact: manual|auto
+	Reason           string          `json:"reason"`            // SessionEnd
+	Source           string          `json:"source"`            // SessionStart
+	AgentID          string          `json:"agent_id"`          // set when a subagent fired the hook
+	ToolName         string          `json:"tool_name"`         // PostToolUse
+	ToolInput        json.RawMessage `json:"tool_input"`
+	ToolResponse     json.RawMessage `json:"tool_response"`
 }
 
 // projectPathFor maps a session cwd to "namespace/name" when cwd is inside a
@@ -110,6 +115,11 @@ func hook(s *Store, root string, r io.Reader) error {
 			path = "" // directory gone: keep the event, drop the project link
 		}
 	}
+	if in.Event == "PostToolUse" {
+		// Not logged as an event (one per tool call would swamp the log);
+		// it only hands the ball back after an approval and captures links.
+		return postToolUse(s, path, in)
+	}
 	kind, detail, state := transition(in)
 	if in.AgentID != "" {
 		state = "" // a subagent's Stop is not the session's turn ending
@@ -131,4 +141,123 @@ func hook(s *Store, root string, r io.Reader) error {
 		return s.SetSessionState(in.SessionID, path, state, reason)
 	}
 	return nil
+}
+
+// postToolUse runs after every tool call. A tool running means Claude is
+// working: if the session was waiting on a permission, that permission was
+// granted for this tool, so the allowlist rule is recorded and the ball
+// returns. Any other "you" state (stop, idle prompt) also flips back, without
+// a rule. Subagent tool calls change nothing. A pull-request creation's
+// output becomes a link for the session's project.
+func postToolUse(s *Store, path string, in HookInput) error {
+	if in.AgentID != "" {
+		return nil
+	}
+	state, reason, err := s.SessionBall(in.SessionID)
+	if err != nil {
+		return err
+	}
+	if state == "you" {
+		if reason == "permission_prompt" {
+			if err := s.RecordPermission(in.SessionID, path, in.ToolName, ruleFor(in.ToolName, in.ToolInput)); err != nil {
+				return err
+			}
+		}
+		if path != "" {
+			if err := s.SetSessionState(in.SessionID, path, "claude", ""); err != nil {
+				return err
+			}
+		}
+	}
+	if in.ToolName == "Bash" && path != "" {
+		var ti struct {
+			Command string `json:"command"`
+		}
+		var tr struct {
+			Stdout string `json:"stdout"`
+		}
+		_ = json.Unmarshal(in.ToolInput, &ti)
+		_ = json.Unmarshal(in.ToolResponse, &tr)
+		if isPRCreate(ti.Command) {
+			for _, u := range prURLs(tr.Stdout) {
+				if err := s.AddLink(path, u); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// bashWords splits a command and drops leading VAR=value assignments, the
+// way the allowlist matcher does.
+func bashWords(cmd string) []string {
+	words := strings.Fields(cmd)
+	for len(words) > 0 && strings.Contains(words[0], "=") && !strings.HasPrefix(words[0], "=") {
+		words = words[1:]
+	}
+	return words
+}
+
+// isPRCreate recognises the gh subcommand that opens a pull request.
+func isPRCreate(cmd string) bool {
+	w := bashWords(cmd)
+	return len(w) >= 3 && w[0] == "gh" && w[1] == "pr" && w[2] == "create"
+}
+
+var prURLRe = regexp.MustCompile(`https://github\.com/[\w.-]+/[\w.-]+/pull/\d+`)
+
+func prURLs(s string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, u := range prURLRe.FindAllString(s, -1) {
+		if !seen[u] {
+			seen[u] = true
+			out = append(out, u)
+		}
+	}
+	return out
+}
+
+// subcommandTools are commands whose first argument names a subcommand, so
+// the rule keeps it: Bash(git status *) rather than Bash(git *).
+var subcommandTools = map[string]bool{"gh": true, "git": true, "go": true, "kubectl": true, "docker": true, "npm": true, "pnpm": true, "yarn": true, "make": true, "cargo": true, "terraform": true, "systemctl": true, "journalctl": true, "nix": true, "home-manager": true}
+
+// ruleFor derives the settings.json allowlist rule that would have granted
+// this tool call. Bash keeps one to three words with a trailing wildcard;
+// file tools keep the directory; WebFetch keeps the domain; MCP tools and
+// everything else are the bare tool name.
+func ruleFor(tool string, input json.RawMessage) string {
+	var m map[string]any
+	_ = json.Unmarshal(input, &m)
+	str := func(k string) string {
+		v, _ := m[k].(string)
+		return v
+	}
+	switch tool {
+	case "Bash":
+		w := bashWords(str("command"))
+		switch {
+		case len(w) == 0:
+			return "Bash"
+		case len(w) >= 2 && subcommandTools[w[0]] && !strings.HasPrefix(w[1], "-"):
+			// gh has two-level subcommands (gh pr view); keep the third word too
+			if w[0] == "gh" && len(w) >= 3 && !strings.HasPrefix(w[2], "-") {
+				return "Bash(" + w[0] + " " + w[1] + " " + w[2] + " *)"
+			}
+			return "Bash(" + w[0] + " " + w[1] + " *)"
+		}
+		return "Bash(" + w[0] + " *)"
+	case "Edit", "Write", "Read", "MultiEdit", "NotebookEdit":
+		if fp := str("file_path"); fp != "" {
+			return tool + "(" + filepath.Dir(fp) + "/**)"
+		}
+		return tool
+	case "WebFetch":
+		if u, err := url.Parse(str("url")); err == nil && u.Host != "" {
+			return "WebFetch(domain:" + u.Host + ")"
+		}
+		return tool
+	}
+	return tool
 }
