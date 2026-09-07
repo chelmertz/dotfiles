@@ -12,7 +12,9 @@ let
   };
 in
 {
-  home.packages = [ p-launcher ];
+  # xvfb: virtual X server for the screenshot golden tests
+  # (p-launcher/golden_test.go, P_LAUNCHER_E2E=1).
+  home.packages = [ p-launcher pkgs.xvfb ];
 
   # PR links: GitHub facts via gh (conditional requests) and elly's verdict,
   # refreshed on a timer so the F5 menu never touches the network.

@@ -26,7 +26,7 @@ func TestWriteIcons(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"you", "claude", "idle", "review", "blank"} {
+	for _, name := range []string{"you", "claude", "idle", "review", "archived", "blank"} {
 		p, ok := paths[name]
 		if !ok {
 			t.Fatalf("no path for %s", name)

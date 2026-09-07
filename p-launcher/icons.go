@@ -31,7 +31,7 @@ func iconSVG(name, color string, size int) template.HTML {
 
 // rofiIconColors are the dark theme accents (rofi's theme is dark). idle is
 // lighter than the report's idle gray so it stays visible on rofi's rows.
-var rofiIconColors = map[string]string{"you": "#d95926", "claude": "#3987e5", "idle": "#8a9199", "review": "#d95926"}
+var rofiIconColors = map[string]string{"you": "#d95926", "claude": "#3987e5", "idle": "#8a9199", "review": "#d95926", "archived": "#8a9199"}
 
 // writeIcons writes the state icons plus a transparent blank as standalone
 // SVG files for rofi's per-row icons (librsvg needs the xmlns), rewriting a
