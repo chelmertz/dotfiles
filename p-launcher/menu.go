@@ -85,7 +85,8 @@ func rofiInput(rows []Row, icons map[string]string) []byte {
 			if !ok {
 				p = icons["blank"]
 			}
-			b.WriteString("\x00icon\x1f" + p)
+			b.WriteString("\x00icon\x1f")
+			b.WriteString(p)
 		}
 		b.WriteByte('\n')
 	}
