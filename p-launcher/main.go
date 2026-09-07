@@ -21,7 +21,7 @@ func (e *hintError) Error() string { return e.msg + ". " + e.hint }
 func (e *hintError) Unwrap() error { return e.cause }
 
 func usage() error {
-	return errors.New("usage: p-launcher list | open <namespace/name> | menu [--toggle-key KEY] | hook")
+	return errors.New("usage: p-launcher list | open <namespace/name> | menu [--toggle-key KEY] | hook | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
 }
 
 func main() {
@@ -47,6 +47,7 @@ func run(args []string) error {
 	// Validate the subcommand and its arity before touching the store, so a
 	// typo'd subcommand never opens (and possibly migrates) the DB.
 	toggleKey := ""
+	var ro reportOpts
 	switch cmd {
 	case "list":
 		if len(args) != 1 {
@@ -68,6 +69,11 @@ func run(args []string) error {
 		if len(args) != 1 {
 			return usage()
 		}
+	case "report":
+		var err error
+		if ro, err = parseReportFlags(args[1:], os.Stderr); err != nil {
+			return err
+		}
 	default:
 		return usage()
 	}
@@ -78,6 +84,9 @@ func run(args []string) error {
 	}
 	root := filepath.Join(home, "p")
 	dbPath := filepath.Join(dataDir(home), "p-launcher", "p.db")
+	if cmd == "report" && ro.demo {
+		return runReport(ro, nil, filepath.Dir(dbPath), os.Stdout) // no DB needed
+	}
 
 	s, err := OpenStore(dbPath)
 	if err != nil {
@@ -92,6 +101,8 @@ func run(args []string) error {
 		return Open(s, root, args[1])
 	case "menu":
 		return menu(s, root, toggleKey, filepath.Join(filepath.Dir(dbPath), "icons"))
+	case "report":
+		return runReport(ro, s, filepath.Dir(dbPath), os.Stdout)
 	case "hook":
 		// Claude Code runs this on every hook event with JSON on stdin. It
 		// must never slow or fail a session: log to stderr and exit 0. Nothing

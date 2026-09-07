@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>p-launcher report</title>
+<style>{{reportCSS}}</style>
+</head>
+<body>
+<div class="root">
+  <div style="display:flex;align-items:center;justify-content:space-between;height:30px;padding:0 4px;">
+    <div style="display:flex;align-items:center;gap:14px;">
+      <span style="font-size:15px;font-weight:700;letter-spacing:0.02em;">p-launcher <span class="sec" style="font-weight:400;">report</span></span>
+      {{if .Demo}}<span class="badge">demo data</span>{{end}}
+      <span class="dim" style="font-size:11px;">generated {{time "Mon 2006-01-02 15:04:05" .GeneratedAt}} · window {{time "Mon 01-02" .From}} → now ({{.Range}}, weeks {{weekEnd .Weeks}})</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div class="legend"><span>{{icon "claude" 13}}Claude working</span><span>{{icon "you" 13}}needs you</span><span>{{icon "review" 13}}reviewer waiting</span><span>{{icon "idle" 13}}idle</span><span><i class="sw" style="background:{{css .Theme.Friction}};"></i>friction</span></div>
+      <div class="rngbox">{{rangeLink .Range "7d"}}{{rangeLink .Range "30d"}}{{rangeLink .Range "90d"}}</div>
+    </div>
+  </div>
+
+  {{/* ---- S1 ---- */}}
+  <div class="sect" style="height:360px;">
+  <section class="panel"><header class="ph"><span class="pt">How many things should I run at once?</span><span class="pr"><span>active hours <b>{{.ActiveHours}}</b></span><span>PRs merged <b>{{.MergedTotal}}</b></span><span>knee at <b>{{(bucket .).Label}}</b> concurrent</span></span></header>
+  <div class="pb">
+  {{if eq .EventCount 0}}<div class="empty">no events in range</div>{{else}}
+  <div style="display:grid;grid-template-columns:1.45fr 1fr;gap:16px;flex:1;min-height:0;">
+    <div style="display:flex;flex-direction:column;gap:4px;min-width:0;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;"><span class="sub" style="text-transform:none;letter-spacing:0;font-size:12px;">When I run N projects at once: how much gets finished, and how long agents sit waiting for me</span><span class="legend"><span><i class="sw" style="background:{{css .Theme.Claude}};"></i>finished PRs / hour</span><span><i class="sw" style="background:{{css .Theme.You}};border-radius:50%;"></i>agents waiting for me</span><span><i class="sw" style="background:{{css .Theme.ClaudeTint}};border:1px solid {{css .Theme.Claude}};"></i>best bucket</span></span></div>
+      {{kneeChart .Buckets .Knee 1090 292}}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;min-width:0;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;"><span class="sub">by week</span><span class="dim" style="font-size:10px;">steering cost = prompts / merged PR</span></div>
+      <table><thead><tr><th>week</th><th class="num">concurrency med <span class="plain">/ max</span></th><th class="num">PRs merged</th><th class="num">agents waiting med</th><th class="num">my reply med</th><th class="num">steering cost</th></tr></thead><tbody>
+      {{range .Weeks}}<tr{{if .Partial}} class="dim"{{end}}>
+        <td{{if not .Partial}} style="font-weight:600;"{{end}}>{{.Label}} <span class="dim" style="font-weight:400;">{{.Range}}{{if .Partial}} · partial{{end}}</span></td>
+        <td class="num">{{.Conc}} <span class="dim">/ {{.ConcMax}}</span></td>
+        <td class="num"{{if not .Partial}} style="font-weight:600;"{{end}}>{{.Merged}}</td>
+        <td class="num">{{fmtDur .WaitSec}}</td>
+        <td class="num">{{fmtDur .ReplySec}}</td>
+        <td class="num">{{dash .Steer ""}}</td>
+      </tr>{{end}}
+      </tbody></table>
+      <div style="margin-top:auto;display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;gap:6px;">
+          {{with bucket .}}<div class="tile" style="flex:1;"><div class="l">Best bucket so far</div><div class="v" style="font-size:22px;">{{.Label}} <small>concurrent</small></div><div class="s">{{f2 .PRsPerHour}} PRs / active h · wait {{fmtDur .WaitSec}}</div></div>{{end}}
+          {{with .LastFullWeek}}<div class="tile" style="flex:1;"><div class="l">Last full week ({{.Label}})</div><div class="v" style="font-size:22px;">{{.Conc}} <small>concurrent</small></div><div class="s">wait {{fmtDur .WaitSec}} · steering {{dash .Steer ""}}</div></div>{{else}}<div class="tile" style="flex:1;"><div class="l">Last full week</div><div class="v" style="font-size:22px;">—</div><div class="s">no full week in range</div></div>{{end}}
+        </div>
+        <div class="dim" style="font-size:10px;">suggestive until ~8 weeks of data · away time excluded from waiting · published guidance puts the knee at 3–5 parallel agents</div>
+      </div>
+    </div>
+  </div>
+  {{end}}
+  </div></section>
+  </div>
+
+  {{/* ---- S2 ---- */}}
+  <div class="sect" style="height:240px;">
+  <section class="panel"><header class="ph"><span class="pt">What did I finish, what is still open?</span><span class="pr"><span>merged <b>{{.Totals.Merged}}</b></span><span>open <b>{{.Totals.Open}}</b></span><span>closed unmerged <b>{{.Totals.Closed}}</b></span><span>ongoing <b>{{.Totals.Ongoing}}</b> · reopened <b>{{.Totals.Reopened}}</b> · archived <b>{{.Totals.Archived}}</b></span></span></header>
+  <div class="pb">
+  {{if not .Projects}}<div class="empty">no projects</div>{{else}}
+  <table><thead><tr><th style="width:190px;">project</th><th style="width:130px;">status</th><th class="num" style="width:120px;">PRs <span class="plain">merged / open / closed</span></th><th class="num" style="width:90px;">lead time med</th><th class="num" style="width:90px;">days in flight</th><th class="num" style="width:70px;">sessions</th><th style="width:110px;">last active</th><th>pull requests <span class="plain">— solid outline: you · dashed: coworker</span></th></tr></thead><tbody>
+  {{range .Projects}}{{$m := eq .Status "archived"}}<tr style="height:24px;{{if $m}}color:{{css $.Theme.Ink3}};{{end}}">
+    <td style="{{if not $m}}font-weight:600;{{else}}color:{{css $.Theme.Ink3}};{{end}}">{{.Path}}</td>
+    <td>{{if eq .Status "ongoing"}}<span class="kv" style="gap:5px;">{{icon "claude" 12}}<span style="font-weight:600;">ongoing</span></span>{{else if eq .Status "reopened"}}<span class="kv" style="gap:5px;">{{icon "reopened" 12}}<span style="font-weight:600;">reopened</span><span class="dim">×{{.Rounds}}</span></span>{{else}}<span class="kv" style="gap:5px;">{{icon "archived" 12}}<span class="dim">archived</span></span>{{end}}</td>
+    <td class="num"{{if $m}} style="color:{{css $.Theme.Ink3}};"{{end}}><span style="font-weight:{{if $m}}400{{else}}700{{end}};">{{.Merged}}</span><span class="dim"> / </span><span class="{{if $m}}dim{{else}}sec{{end}}">{{.Open}}</span><span class="dim"> / {{.Closed}}</span></td>
+    <td class="num"{{if $m}} style="color:{{css $.Theme.Ink3}};"{{end}}>{{dash .LeadDays "d"}}</td>
+    <td class="num"{{if $m}} style="color:{{css $.Theme.Ink3}};"{{end}}>{{.FlightDays}}</td>
+    <td class="num"{{if $m}} style="color:{{css $.Theme.Ink3}};"{{end}}>{{.Sessions}}</td>
+    <td class="dim">{{.LastActive}}</td>
+    <td><div style="display:flex;gap:4px;align-items:center;">{{range .PRs}}<a class="chip{{if not .Mine}} other{{end}}{{if $m}} muted{{end}}{{if .Demo}} demo{{end}}" href="{{.URL}}">{{.Short}}{{if not .Mine}}<span class="dim">@{{.Author}}</span>{{end}}<span class="card"><span class="t">{{if .Title}}{{.Title}}{{else}}{{.Short}}{{end}}</span><span class="d">{{if .Desc}}{{.Desc}}{{else}}No description.{{end}}</span><span class="m"><span class="ok">+{{.Add}}</span><span class="you">−{{.Del}}</span><span class="dim">opened {{.OpenedAgo}}</span><span class="dim">@{{.Author}}</span><span class="st {{.State}}">{{.State}}{{if .Detail}} <span class="dim" style="font-weight:400;text-transform:none;letter-spacing:0;">· {{.Detail}}</span>{{end}}</span></span></span></a>{{end}}{{if .More}}<span class="dim" style="font-size:10px;">+{{.More}}</span>{{end}}</div></td>
+  </tr>{{end}}
+  </tbody></table>
+  {{end}}
+  </div></section>
+  </div>
+
+  {{/* ---- S3 ---- */}}
+  <div class="sect" style="height:248px;">
+  <section class="panel"><header class="ph"><span class="pt">What friction should I remove?</span><span class="pr"><span>waiting for approval <b>{{.Approvals}}</b></span><span>waiting for user <b>{{.UserWaits}}</b></span><span>review replies owed <b>{{.ReviewOwed}}</b></span><span>compactions <b>{{.CompTotal}}</b></span><span>no-PR sessions <b>{{.NoPRSessions}}</b></span></span></header>
+  <div class="pb">
+  {{if eq .EventCount 0}}<div class="empty">no events in range</div>{{else}}
+  <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:16px;flex:1;min-height:0;">
+    <div style="display:flex;flex-direction:column;gap:6px;min-width:0;">
+      <div style="display:grid;grid-template-columns:1.2fr 1fr 1.25fr 0.7fr;gap:6px;">
+        <div class="tile"><div class="l kv" style="gap:5px;">{{icon "you" 11}}Waiting for approval</div><div class="v">{{.Approvals}}</div><div class="s">permission asks · target 0 · <span class="{{if gt .ApprovalDelta 0}}you{{else}}ok{{end}}">{{signed .ApprovalDelta}} vs prior</span></div></div>
+        <div class="tile"><div class="l kv" style="gap:5px;">{{icon "you" 11}}Waiting for user</div><div class="v">{{.UserWaits}}</div><div class="s">idle prompts + questions</div></div>
+        <div class="tile"><div class="l kv" style="gap:5px;">{{icon "review" 11}}PRs waiting for my review reply</div><div class="v">{{.ReviewOwed}}</div><div class="s">reviewer commented, no reply yet · from elly</div></div>
+        <div class="tile"><div class="l">Approval trend</div><div class="v">{{sparkline .ApprovalTrend 64 20 .Theme.Friction}}</div><div class="s">per week, {{weekEnd .Weeks}}</div></div>
+      </div>
+      {{if .Perms}}<table><thead><tr><th style="width:170px;">project</th><th class="num" style="width:50px;">asks</th><th>allowlist rule to paste</th><th style="width:70px;">weekly</th></tr></thead><tbody>
+      {{range .Perms}}<tr><td style="font-weight:600;">{{.Path}}</td><td class="num" style="font-weight:700;">{{.N}}</td><td><span class="rule">{{.Rule}}</span></td><td>{{sparkline .Spark 60 16 $.Theme.Friction}}</td></tr>{{end}}
+      </tbody></table>{{else}}<div class="empty">no permission asks recorded (the PermissionRequest hook fills this)</div>{{end}}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;min-width:0;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;"><span class="sub">compactions per session, by project</span><span class="legend"><span><i class="sw" style="background:{{css .Theme.Friction}};"></i>auto</span><span><i class="sw" style="background:{{css .Theme.Friction}};opacity:0.45;"></i>manual</span></span></div>
+      {{if .Compactions}}{{splitBars .Compactions 690 22}}{{else}}<div class="empty">no compactions</div>{{end}}
+      <div style="margin-top:auto;display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:6px;">
+        <div class="tile"><div class="l">Sessions that ended with no PR</div><div class="v">{{.NoPRSessions}} <small>of {{.SessionsTotal}} · {{pct .NoPRSessions .SessionsTotal}}</small></div><div class="s">waste indicator · median {{.NoPRMedianPrompts}} prompts each · {{.NoPRBig}} of them >30 prompts</div></div>
+        <div class="tile"><div class="l">Compactions</div><div class="v">{{.CompTotal}}</div><div class="s">{{.CompAuto}} auto · {{.CompManual}} manual</div></div>
+      </div>
+    </div>
+  </div>
+  {{end}}
+  </div></section>
+  </div>
+
+  {{/* ---- S4 ---- */}}
+  <div class="sect" style="height:128px;">
+  <section class="panel"><header class="ph"><span class="pt">What is waiting on me right now?</span><span class="pr"><span class="kv" style="gap:8px;font-size:11px;"><span class="kv" style="gap:5px;">{{icon "you" 13}}{{icon "review" 13}}<span class="you" style="font-weight:700;letter-spacing:0.04em;">NEED INPUT</span><b style="font-size:13px;">{{.NeedInput}}</b></span><span class="dim">·</span><span class="kv" style="gap:5px;">{{icon "claude" 13}}<span style="font-weight:700;letter-spacing:0.04em;color:{{css .Theme.Ink}};">WORKING</span><b style="font-size:13px;">{{.Working}}</b></span><span class="dim">·</span><span class="kv" style="gap:5px;">{{icon "idle" 13}}<span class="dim" style="font-weight:700;letter-spacing:0.04em;">IDLE</span><b style="font-size:13px;">{{.Idle}}</b>{{if .LiveHidden}} <span class="dim" style="font-weight:400;">({{.LiveHidden}} not shown)</span>{{end}}</span></span><span class="legend" style="gap:8px;"><span class="dim">{{stripTitle .}}:</span><span><i class="sw" style="background:{{css .Theme.Claude}};"></i>Claude</span><span><i class="sw" style="background:{{css .Theme.You}};"></i>waiting, busy elsewhere</span><span>{{awaySwatch}}away</span><span><i class="sw" style="background:{{css .Theme.Idle}};opacity:0.45;"></i>idle</span></span></span></header>
+  <div class="pb">
+  {{if not .Live}}<div class="empty">nothing live{{range .Notes}} · {{.}}{{end}}</div>{{else}}
+  <table><tbody>
+  {{range .Live}}<tr style="height:18px;"{{if or (eq .State "you") (eq .State "review")}} class="yrow"{{end}}>
+    <td style="height:18px;width:104px;"><div class="kv">{{icon .State 12}}<span style="{{stateLabelStyle .State}}letter-spacing:0.04em;font-size:10px;">{{.Label}}</span></div></td>
+    <td style="height:18px;width:190px;font-weight:{{if eq .State "idle"}}400{{else}}600{{end}};{{if eq .State "idle"}}color:{{css $.Theme.Ink2}};{{end}}">{{.Path}}</td>
+    <td class="num" style="height:18px;width:70px;{{if or (eq .State "you") (eq .State "review")}}color:{{css $.Theme.You}};font-weight:700;{{else if eq .State "idle"}}color:{{css $.Theme.Ink3}};{{end}}">{{.For}}</td>
+    <td class="sec" style="height:18px;width:360px;">{{.Why}}</td>
+    <td style="height:18px;">{{strip .Strip 1080 8}}</td>
+  </tr>{{end}}
+  </tbody></table>
+  {{end}}
+  </div></section>
+  </div>
+
+  <div class="dim" style="display:flex;justify-content:space-between;font-size:10px;padding:0 4px;height:14px;line-height:14px;"><span>lead time = first prompt in project → PR merged · blocked-wait = permission/idle notification → my next prompt, away time (no prompt anywhere / screen locked) excluded · steering cost = prompts / merged PR · concurrency = hourly max of active sessions{{range .Notes}} · {{.}}{{end}}</span><span>p.db · {{.EventCount}} events · {{.LinkCount}} PRs · {{.RenderMillis}} ms</span></div>
+</div>
+</body>
+</html>
