@@ -16,7 +16,8 @@ type Found struct {
 }
 
 // Discover lists ~/p/<ns>/<name> directories. "archive" and dot-dirs are
-// skipped; files at either level are ignored. Sorted by Path.
+// skipped; files at either level are ignored. Symlinked directories are
+// followed. Sorted by Path.
 func Discover(root string) ([]Found, error) {
 	nss, err := os.ReadDir(root)
 	if err != nil {
@@ -24,7 +25,7 @@ func Discover(root string) ([]Found, error) {
 	}
 	var out []Found
 	for _, ns := range nss {
-		if !ns.IsDir() || ns.Name() == "archive" || strings.HasPrefix(ns.Name(), ".") {
+		if ns.Name() == "archive" || strings.HasPrefix(ns.Name(), ".") || !isDir(filepath.Join(root, ns.Name())) {
 			continue
 		}
 		names, err := os.ReadDir(filepath.Join(root, ns.Name()))
@@ -32,7 +33,7 @@ func Discover(root string) ([]Found, error) {
 			return nil, fmt.Errorf("read namespace %s: %w", ns.Name(), err)
 		}
 		for _, n := range names {
-			if !n.IsDir() || strings.HasPrefix(n.Name(), ".") {
+			if strings.HasPrefix(n.Name(), ".") || !isDir(filepath.Join(root, ns.Name(), n.Name())) {
 				continue
 			}
 			out = append(out, Found{Namespace: ns.Name(), Name: n.Name(), Path: ns.Name() + "/" + n.Name()})
@@ -40,4 +41,10 @@ func Discover(root string) ([]Found, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
 	return out, nil
+}
+
+// isDir reports whether path is a directory, following symlinks.
+func isDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }

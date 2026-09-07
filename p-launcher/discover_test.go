@@ -15,8 +15,17 @@ func TestDiscover(t *testing.T) {
 		}
 	}
 	// files at both levels are ignored
-	os.WriteFile(filepath.Join(root, "CLAUDE.md"), []byte("x"), 0o644)
-	os.WriteFile(filepath.Join(root, "m", "CLAUDE.md"), []byte("x"), 0o644)
+	if err := os.WriteFile(filepath.Join(root, "CLAUDE.md"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "m", "CLAUDE.md"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// symlinked directories are followed
+	linkTarget := t.TempDir()
+	if err := os.Symlink(linkTarget, filepath.Join(root, "m", "linked")); err != nil {
+		t.Fatal(err)
+	}
 
 	got, err := Discover(root)
 	if err != nil {
@@ -24,6 +33,7 @@ func TestDiscover(t *testing.T) {
 	}
 	want := []Found{
 		{Namespace: "m", Name: "dependabot", Path: "m/dependabot"},
+		{Namespace: "m", Name: "linked", Path: "m/linked"},
 		{Namespace: "m", Name: "reputation", Path: "m/reputation"},
 		{Namespace: "personal", Name: "health", Path: "personal/health"},
 	}

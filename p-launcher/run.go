@@ -7,13 +7,14 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // CmdError describes a failed external process with enough context to act on
 // from a journal line alone.
 type CmdError struct {
-	Cmd      string // "sh -c echo"
-	ExitCode int    // -1 when the process could not be started or was killed
+	Cmd      string // `sh "-c" "echo"`
+	ExitCode int    // -1 when the process could not be started, was killed, or its pipes were abandoned after WaitDelay
 	Stderr   string // trimmed, at most 2000 bytes
 	Timeout  bool
 }
@@ -29,6 +30,10 @@ func (e *CmdError) Error() string {
 // error. Callers pass a ctx with a timeout for anything that must not hang.
 func runCmd(ctx context.Context, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	// exec.CommandContext's SIGKILL on ctx cancellation only reaches the
+	// direct child; without a WaitDelay, Run blocks until every grandchild
+	// (e.g. a process a shell spawned) closes stdout/stderr on its own.
+	cmd.WaitDelay = time.Second
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -36,23 +41,31 @@ func runCmd(ctx context.Context, name string, args ...string) ([]byte, error) {
 	if err == nil {
 		return stdout.Bytes(), nil
 	}
+	parts := make([]string, 0, 1+len(args))
+	parts = append(parts, name)
+	for _, a := range args {
+		parts = append(parts, fmt.Sprintf("%q", a))
+	}
 	ce := &CmdError{
-		Cmd:      name + " " + strings.Join(args, " "),
+		Cmd:      strings.Join(parts, " "),
 		ExitCode: -1,
 		Stderr:   clip(stderr.String()),
-		Timeout:  errors.Is(ctx.Err(), context.DeadlineExceeded),
 	}
 	var ee *exec.ExitError
-	if errors.As(err, &ee) && !ce.Timeout {
+	if errors.As(err, &ee) {
 		ce.ExitCode = ee.ExitCode()
 	}
+	// A process that exits with code N exactly as the deadline fires is
+	// reported as exit N, not as a timeout; only an unattributed exit
+	// (killed, or exec.ErrWaitDelay after pipes were abandoned) counts.
+	ce.Timeout = ce.ExitCode == -1 && errors.Is(ctx.Err(), context.DeadlineExceeded)
 	return stdout.Bytes(), ce
 }
 
 func clip(s string) string {
 	s = strings.TrimSpace(s)
 	if len(s) > 2000 {
-		return s[:2000] + "…"
+		return strings.ToValidUTF8(s[:2000], "") + "…"
 	}
 	return s
 }
