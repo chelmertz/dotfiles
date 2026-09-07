@@ -848,10 +848,11 @@ in
         timeout = 8;
       };
       urgency_critical = {
-        background = "#1e1e1e";
-        foreground = "#f2f2f2";
-        frame_color = "#e5484d";
+        background = "#2c1618";
+        foreground = "#f7eeee";
+        frame_color = "#7a2f33";
         highlight = "#e5484d";
+        format = "<span size='small' foreground='#ff8a8a'>%a</span>\\n<b>%s</b>\\n<span alpha='80%%'>%b</span>";
         timeout = 0;
       };
     };
