@@ -23,6 +23,7 @@ type rawLink struct {
 	Add, Del                                  int
 	OpenedAt, ClosedAt, MergedAt, RefreshedAt time.Time // zero when unknown
 	Merged, ActionNeeded                      bool
+	Rounds                                    int // automatic tend rounds
 }
 
 type rawProjectEvent struct {
@@ -484,6 +485,7 @@ func projectRows(paths []string, evs []rawEvent, links []rawLink, pe []rawProjec
 		sort.Slice(ls, func(i, j int) bool { return ls[i].OpenedAt.After(ls[j].OpenedAt) })
 		var merged []rawLink
 		for _, l := range ls {
+			r.AutoRounds += l.Rounds
 			switch linkState(l) {
 			case "merged":
 				r.Merged++
@@ -901,6 +903,11 @@ func computeReport(raw rawData, rng string, from, now time.Time, theme Theme) Re
 		}
 		if l.ActionNeeded {
 			r.ReviewOwed++
+		}
+	}
+	for _, e := range win {
+		if e.Kind == "tend" {
+			r.TendSessions++
 		}
 	}
 	r.Projects, r.Totals = projectRows(raw.Projects, raw.Events, raw.Links, raw.PEvents, raw.Me, now)

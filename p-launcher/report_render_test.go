@@ -18,7 +18,7 @@ func TestRenderDemo(t *testing.T) {
 		"<!doctype html>", "How many things should I run at once?", "What did I finish, what is still open?",
 		"What friction should I remove?", "What is waiting on me right now?", "demo data", "Bash(gh pr view *)",
 		`class="chip other demo"`, "away time", `href="https://github.com/matchi/matchi-web/pull/401"`,
-		"Court booking: block double-submit", "reviewer waiting · matchi/matchi-web#401", "(1 not shown)",
+		"Court booking: block double-submit", "reviewer waiting · matchi/matchi-web#401", "(1 not shown)", "auto ×2", "started by tend <b>2</b>",
 		`href="report-7d.html"`, `class="rng on" href="report-30d.html"`, "#0f1113",
 	} {
 		if !strings.Contains(s, want) {

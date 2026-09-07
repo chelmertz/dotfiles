@@ -60,7 +60,7 @@ func loadReportDataAt(s *Store, from, now time.Time) (rawData, error) {
 
 	rows, err = s.db.Query(`
 		select p.path, l.url, l.author, l.title, l.body, coalesce(l.additions, 0), coalesce(l.deletions, 0),
-		       coalesce(l.opened_at, ''), coalesce(l.closed_at, ''), l.merged, l.action_needed, coalesce(l.refreshed_at, '')
+		       coalesce(l.opened_at, ''), coalesce(l.closed_at, ''), l.merged, l.action_needed, coalesce(l.refreshed_at, ''), l.tend_rounds
 		from link l join project p on p.id = l.project_id`)
 	if err != nil {
 		return raw, fmt.Errorf("load links: %w", err)
@@ -69,7 +69,7 @@ func loadReportDataAt(s *Store, from, now time.Time) (rawData, error) {
 		var l rawLink
 		var opened, closed, refreshed string
 		var merged, action int
-		if err := rows.Scan(&l.Project, &l.URL, &l.Author, &l.Title, &l.Body, &l.Add, &l.Del, &opened, &closed, &merged, &action, &refreshed); err != nil {
+		if err := rows.Scan(&l.Project, &l.URL, &l.Author, &l.Title, &l.Body, &l.Add, &l.Del, &opened, &closed, &merged, &action, &refreshed, &l.Rounds); err != nil {
 			rows.Close()
 			return raw, err
 		}

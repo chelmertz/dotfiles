@@ -47,7 +47,7 @@ func demoReport(now time.Time, T Theme) Report {
 	web409 := chip("matchi/matchi-web#409", true, "")
 	web409.Title, web409.Desc, web409.Add, web409.Del, web409.OpenedAgo, web409.State = "Fix stale availability cache after cancellations", "Invalidate the slot cache on booking.cancelled events instead of on the 5-minute timer.", 41, 9, "4d ago", "merged"
 	r.Projects = []ProjectRow{
-		{Path: "m/matchi-web", Status: "ongoing", Merged: 7, Open: 2, Closed: 1, LeadDays: 1.6, FlightDays: 24, Sessions: 31, LastActive: "14:20 today", PRs: []PRChip{web412, web409, web401}, More: 7},
+		{Path: "m/matchi-web", Status: "ongoing", Merged: 7, Open: 2, Closed: 1, LeadDays: 1.6, FlightDays: 24, Sessions: 31, AutoRounds: 2, LastActive: "14:20 today", PRs: []PRChip{web412, web409, web401}, More: 7},
 		{Path: "m/nginx-ingress", Status: "ongoing", Merged: 3, Open: 1, Closed: 0, LeadDays: 2.8, FlightDays: 11, Sessions: 12, LastActive: "14:31 today", PRs: []PRChip{chip("matchi/nginx-ingress#88", true, ""), chip("matchi/nginx-ingress#86", false, "ak")}, More: 2},
 		{Path: "personal/p-launcher", Status: "ongoing", Merged: 5, Open: 1, Closed: 0, LeadDays: 0.6, FlightDays: 9, Sessions: 14, LastActive: "14:29 today", PRs: []PRChip{chip("chelmertz/p-launcher#14", true, ""), chip("chelmertz/p-launcher#12", true, ""), chip("chelmertz/p-launcher#11", true, "")}, More: 3},
 		{Path: "m/matchi-api", Status: "reopened", Rounds: 2, Merged: 4, Open: 1, Closed: 1, LeadDays: 3.1, FlightDays: 38, Sessions: 17, LastActive: "14:28 today", PRs: []PRChip{chip("matchi/matchi-api#231", true, ""), chip("matchi/matchi-api#227", false, "jd"), chip("matchi/matchi-api#219", true, "")}, More: 3},
@@ -78,6 +78,7 @@ func demoReport(now time.Time, T Theme) Report {
 	}
 	r.CompTotal, r.CompAuto, r.CompManual = 14, 11, 3
 	r.NoPRSessions, r.SessionsTotal, r.NoPRMedianPrompts, r.NoPRBig = 14, 38, 4, 3
+	r.TendSessions = 2
 
 	live := []LiveRow{
 		{State: "you", Label: "NEED INPUT", Path: "personal/p-launcher", For: "2m 14s", Why: "waiting for approval · Bash(go test ./...)"},

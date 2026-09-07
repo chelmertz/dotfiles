@@ -33,6 +33,7 @@ type Report struct {
 	CompTotal, CompAuto, CompManual  int
 	NoPRSessions, SessionsTotal      int
 	NoPRMedianPrompts, NoPRBig       int
+	TendSessions                     int // sessions started by tend in range
 
 	// S4: what is waiting on me right now?
 	Live                     []LiveRow
@@ -73,6 +74,7 @@ type ProjectRow struct {
 	LeadDays             float64 // NaN when nothing merged
 	FlightDays           int
 	Sessions             int
+	AutoRounds           int // automatic tend sessions across the project's links
 	LastActive           string
 	PRs                  []PRChip
 	More                 int
