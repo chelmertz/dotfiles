@@ -298,7 +298,8 @@ func ellyRead() (map[string]ellyPR, time.Time, error) {
 		out[u] = pr
 	}
 	var lf string
-	if err := db.QueryRow(`select coalesce(last_fetched,'') from meta limit 1`).Scan(&lf); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	// elly's meta is key/value; last_fetched is RFC3339 with a UTC offset.
+	if err := db.QueryRow(`select value from meta where key = 'last_fetched'`).Scan(&lf); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return out, time.Time{}, err
 	}
 	return out, parseAnyTime(lf), nil
