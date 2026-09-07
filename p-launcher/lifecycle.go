@@ -1,0 +1,220 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+)
+
+// Lifecycle: projects are created and archived by writing project_event
+// rows; folders never move. Archiving prints a checklist of what the project
+// leaves behind and copies the allowlist rules it kept asking for.
+
+var archiveReasons = map[string]bool{"done": true, "scrapped": true, "deprioritized": true, "elsewhere": true}
+
+// Create makes ~/p/<ns>/<name> with a CLAUDE.md stub, registers it and logs
+// the created event. The namespace directory must already exist; creating
+// namespaces is a deliberate act, not a typo's side effect.
+func Create(s *Store, root, path string) (string, error) {
+	seg := strings.Split(path, "/")
+	if len(seg) != 2 || !cleanSegment(seg[0]) || !cleanSegment(seg[1]) {
+		return "", fmt.Errorf("project path must be <namespace>/<name>, got %q", path)
+	}
+	nsDir := filepath.Join(root, seg[0])
+	if !isDir(nsDir) {
+		return "", fmt.Errorf("no namespace directory %s", nsDir)
+	}
+	dir := filepath.Join(nsDir, seg[1])
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		return "", fmt.Errorf("create %s: %w", dir, err)
+	}
+	claude := filepath.Join(dir, "CLAUDE.md")
+	if _, err := os.Stat(claude); os.IsNotExist(err) {
+		if err := os.WriteFile(claude, []byte("# "+seg[1]+"\n"), 0o644); err != nil {
+			return "", err
+		}
+	}
+	if err := s.UpsertProjects([]Found{{Namespace: seg[0], Name: seg[1], Path: path}}); err != nil {
+		return "", err
+	}
+	return dir, s.ProjectEvent(path, "created", "")
+}
+
+// RuleCount is one allowlist rule and how often the project asked for it.
+type RuleCount struct {
+	Rule string
+	N    int
+}
+
+// Checklist is what archiving found; nothing in it blocks the archive.
+type Checklist struct {
+	Path, Reason string
+	Rules        []RuleCount
+	OpenLinks    []string
+	LiveSessions int
+	DirtyClones  []string // clone dir names with uncommitted or unpushed work
+}
+
+// Text renders the checklist for stdout and the notification body.
+func (c Checklist) Text() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "archived %s (%s)\n", c.Path, c.Reason)
+	if len(c.Rules) > 0 {
+		fmt.Fprintf(&b, "%d allowlist rule(s) copied to the clipboard:\n", len(c.Rules))
+		for _, r := range c.Rules {
+			fmt.Fprintf(&b, "  %s  (%d asks)\n", r.Rule, r.N)
+		}
+	} else {
+		b.WriteString("no permission asks recorded\n")
+	}
+	if len(c.OpenLinks) > 0 {
+		fmt.Fprintf(&b, "%d open link(s):\n", len(c.OpenLinks))
+		for _, u := range c.OpenLinks {
+			b.WriteString("  " + u + "\n")
+		}
+	}
+	if c.LiveSessions > 0 {
+		fmt.Fprintf(&b, "%d live session(s) still running\n", c.LiveSessions)
+	}
+	if len(c.DirtyClones) > 0 {
+		fmt.Fprintf(&b, "clones with uncommitted or unpushed work: %s\n", strings.Join(c.DirtyClones, ", "))
+	}
+	return b.String()
+}
+
+// Archive logs the archived event with its reason, then gathers the
+// checklist. clip receives the rules (one per line) when there are any; it is
+// injected so tests need no clipboard.
+func Archive(s *Store, root, path, reason string, clip func(string) error) (Checklist, error) {
+	if !archiveReasons[reason] {
+		return Checklist{}, fmt.Errorf("archive reason must be done, scrapped, deprioritized or elsewhere, got %q", reason)
+	}
+	if err := s.ProjectEvent(path, "archived", reason); err != nil {
+		return Checklist{}, err
+	}
+	c := Checklist{Path: path, Reason: reason}
+	rows, err := s.db.Query(`select pr.rule, count(*) from permission_request pr join project p on p.id = pr.project_id
+		where p.path = ? group by pr.rule order by count(*) desc, pr.rule`, path)
+	if err != nil {
+		return c, err
+	}
+	for rows.Next() {
+		var r RuleCount
+		if err := rows.Scan(&r.Rule, &r.N); err != nil {
+			rows.Close()
+			return c, err
+		}
+		c.Rules = append(c.Rules, r)
+	}
+	rows.Close()
+	rows, err = s.db.Query(`select l.url from link l join project p on p.id = l.project_id
+		where p.path = ? and l.merged = 0 and l.closed_at is null order by l.id`, path)
+	if err != nil {
+		return c, err
+	}
+	for rows.Next() {
+		var u string
+		if err := rows.Scan(&u); err != nil {
+			rows.Close()
+			return c, err
+		}
+		c.OpenLinks = append(c.OpenLinks, u)
+	}
+	rows.Close()
+	cutoff := time.Now().Add(-staleSession).UTC().Format(time.RFC3339)
+	if err := s.db.QueryRow(`select count(*) from session_state ss join project p on p.id = ss.project_id
+		where p.path = ? and ss.since > ?`, path, cutoff).Scan(&c.LiveSessions); err != nil {
+		return c, err
+	}
+	if dir := filepath.Join(root, path); isDir(dir) {
+		c.DirtyClones = dirtyClones(dir)
+	}
+	if len(c.Rules) > 0 && clip != nil {
+		var lines []string
+		for _, r := range c.Rules {
+			lines = append(lines, r.Rule)
+		}
+		if err := clip(strings.Join(lines, "\n") + "\n"); err != nil {
+			return c, fmt.Errorf("clipboard: %w", err)
+		}
+	}
+	return c, nil
+}
+
+// dirtyClones lists git checkouts one level below dir that have uncommitted
+// changes or commits not on their upstream. No upstream means no unpushed
+// check. Errors from git count as clean: this is a hint, not a gate.
+func dirtyClones(dir string) []string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		if !e.IsDir() || !isDir(filepath.Join(dir, e.Name(), ".git")) {
+			continue
+		}
+		repo := filepath.Join(dir, e.Name())
+		if gitOut(repo, "status", "--porcelain") != "" {
+			out = append(out, e.Name())
+			continue
+		}
+		if n := gitOut(repo, "rev-list", "--count", "@{upstream}..HEAD"); n != "" && n != "0" {
+			out = append(out, e.Name())
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func gitOut(repo string, args ...string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = repo
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// copyqCopy puts text on the clipboard through copyq (the user's clipboard
+// manager), so pasted rules also land in its history.
+func copyqCopy(text string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "copyq", "copy", "-")
+	cmd.Stdin = bytes.NewReader([]byte(text))
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return &CmdError{Cmd: "copyq copy -", ExitCode: exitCode(err), Stderr: clip(stderr.String())}
+	}
+	return nil
+}
+
+// reopenIfArchived writes a reopened event when the project's latest
+// lifecycle event is archived; opening an archived project is the reopen.
+func reopenIfArchived(s *Store, path string) (bool, error) {
+	var kind string
+	err := s.db.QueryRow(`select pe.kind from project_event pe join project p on p.id = pe.project_id
+		where p.path = ? order by pe.occurred_at desc, pe.id desc limit 1`, path).Scan(&kind)
+	if err != nil {
+		if errors.Is(err, errNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	if kind != "archived" {
+		return false, nil
+	}
+	return true, s.ProjectEvent(path, "reopened", "")
+}

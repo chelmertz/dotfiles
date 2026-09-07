@@ -21,7 +21,7 @@ func (e *hintError) Error() string { return e.msg + ". " + e.hint }
 func (e *hintError) Unwrap() error { return e.cause }
 
 func usage() error {
-	return errors.New("usage: p-launcher list | open <namespace/name> | menu [--toggle-key KEY] | hook | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
+	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | menu [--toggle-key KEY] | hook | desktop lock|unlock | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
 }
 
 func main() {
@@ -48,9 +48,33 @@ func run(args []string) error {
 	// typo'd subcommand never opens (and possibly migrates) the DB.
 	toggleKey := ""
 	var ro reportOpts
+	var archiveReason string
+	listAll := false
 	switch cmd {
 	case "list":
-		if len(args) != 1 {
+		listAll = len(args) == 2 && args[1] == "--all"
+		if len(args) > 2 || (len(args) == 2 && !listAll) {
+			return usage()
+		}
+	case "create":
+		if len(args) != 2 {
+			return usage()
+		}
+	case "archive":
+		switch {
+		case len(args) == 2:
+			archiveReason = "done"
+		case len(args) == 4 && args[2] == "--reason" && args[3] != "":
+			archiveReason = args[3]
+		default:
+			return usage()
+		}
+	case "link":
+		if len(args) != 4 || args[1] != "add" {
+			return usage()
+		}
+	case "desktop":
+		if len(args) != 2 || (args[1] != "lock" && args[1] != "unlock") {
 			return usage()
 		}
 	case "menu":
@@ -96,7 +120,26 @@ func run(args []string) error {
 
 	switch cmd {
 	case "list":
-		return list(s, root, os.Stdout)
+		return list(s, root, os.Stdout, listAll)
+	case "create":
+		if _, err := Create(s, root, args[1]); err != nil {
+			return err
+		}
+		return Open(s, root, args[1])
+	case "archive":
+		cl, err := Archive(s, root, args[1], archiveReason, copyqCopy)
+		if err != nil {
+			return err
+		}
+		fmt.Print(cl.Text())
+		notifyInfo(cl.Text())
+		return nil
+	case "link":
+		return s.AddLink(args[2], args[3])
+	case "desktop":
+		// Screen lock/unlock from the i3 xss-lock wrapper; the report's away
+		// detection reads these (session_id "desktop", no project).
+		return s.RecordSessionEvent(SessionEvent{SessionID: desktopSession, Kind: args[1]})
 	case "open":
 		return Open(s, root, args[1])
 	case "menu":

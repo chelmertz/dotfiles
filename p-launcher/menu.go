@@ -13,7 +13,7 @@ import (
 
 // load discovers projects, upserts them, and returns the display list plus
 // the set of tags with open windows.
-func load(s *Store, root string) ([]Project, map[string]bool, error) {
+func load(s *Store, root string, all bool) ([]Project, map[string]bool, error) {
 	found, err := Discover(root)
 	if err != nil {
 		return nil, nil, err
@@ -21,7 +21,7 @@ func load(s *Store, root string) ([]Project, map[string]bool, error) {
 	if err := s.UpsertProjects(found); err != nil {
 		return nil, nil, err
 	}
-	ps, err := s.ListProjects()
+	ps, err := s.ListProjectsFiltered(all)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -38,8 +38,8 @@ func load(s *Store, root string) ([]Project, map[string]bool, error) {
 
 // list prints TSV rows for other front ends: path, name, label, open,
 // last_active, ball ("you", "claude" or empty).
-func list(s *Store, root string, w io.Writer) error {
-	ps, open, err := load(s, root)
+func list(s *Store, root string, w io.Writer, all bool) error {
+	ps, open, err := load(s, root, all)
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func rofiInput(rows []Row, icons map[string]string) []byte {
 }
 
 func menu(s *Store, root, toggleKey, iconDir string) error {
-	ps, open, err := load(s, root)
+	ps, open, err := load(s, root, false)
 	if err != nil {
 		return err
 	}

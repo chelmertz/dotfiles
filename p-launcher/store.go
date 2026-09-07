@@ -19,7 +19,10 @@ type Project struct {
 	Label      string // namespace label, "matchi"
 	LastActive string // RFC3339 UTC or "" when never selected
 	Ball       string // "you" (a Claude session waits on the user), "claude" (working), or ""
+	Archived   bool   // latest project_event is "archived"
 }
+
+var errNoRows = sql.ErrNoRows
 
 // OpenStore opens (creating dirs and file as needed) and migrates the DB.
 func OpenStore(path string) (*Store, error) {
@@ -72,20 +75,31 @@ func (s *Store) UpsertProjects(found []Found) error {
 // leave a row behind; after this it is ignored.
 const staleSession = 24 * time.Hour
 
-// ListProjects returns projects sorted for display: namespace order, then
-// needs-you first, then most recent activity, then never-active
-// alphabetically. Ball aggregates live sessions: any "you" wins over
-// "claude" (max() works because 'you' > 'claude'); no live session is "".
-func (s *Store) ListProjects() ([]Project, error) { return s.listProjectsAt(time.Now()) }
+// ListProjects returns every project (archived included) sorted for display:
+// namespace order, then needs-you first, then most recent activity, then
+// never-active alphabetically. Ball aggregates live sessions: any "you" wins
+// over "claude" (max() works because 'you' > 'claude'); no live session is "".
+func (s *Store) ListProjects() ([]Project, error) { return s.listProjectsAt(true, time.Now()) }
 
-func (s *Store) listProjectsAt(at time.Time) ([]Project, error) {
+// ListProjectsFiltered hides archived projects unless all is set; the menu
+// and `list` use it, hooks and the report use ListProjects.
+func (s *Store) ListProjectsFiltered(all bool) ([]Project, error) {
+	return s.listProjectsAt(all, time.Now())
+}
+
+// archivedExpr is true when the project's latest lifecycle event is archived.
+const archivedExpr = `coalesce((select pe.kind from project_event pe where pe.project_id = p.id order by pe.occurred_at desc, pe.id desc limit 1), '') = 'archived'`
+
+func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 	cutoff := at.Add(-staleSession).UTC().Format(time.RFC3339)
 	rows, err := s.db.Query(`
 		select p.path, p.name, n.label,
 		       coalesce((select max(occurred_at) from activity a where a.project_id = p.id), '') as last_active,
-		       coalesce((select max(state) from session_state ss where ss.project_id = p.id and ss.since > ?), '') as ball
+		       coalesce((select max(state) from session_state ss where ss.project_id = p.id and ss.since > ?), '') as ball,
+		       `+archivedExpr+` as archived
 		from project p join namespace n on n.id = p.namespace_id
-		order by n.sort_order, ball = 'you' desc, last_active = '', last_active desc, p.name`, cutoff)
+		where ? or not (`+archivedExpr+`)
+		order by n.sort_order, ball = 'you' desc, last_active = '', last_active desc, p.name`, cutoff, all)
 	if err != nil {
 		return nil, fmt.Errorf("list projects: %w", err)
 	}
@@ -93,12 +107,34 @@ func (s *Store) listProjectsAt(at time.Time) ([]Project, error) {
 	var out []Project
 	for rows.Next() {
 		var p Project
-		if err := rows.Scan(&p.Path, &p.Name, &p.Label, &p.LastActive, &p.Ball); err != nil {
+		if err := rows.Scan(&p.Path, &p.Name, &p.Label, &p.LastActive, &p.Ball, &p.Archived); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
 	}
 	return out, rows.Err()
+}
+
+// ProjectEvent appends a lifecycle event (created, archived with a reason,
+// reopened) for a known project.
+func (s *Store) ProjectEvent(path, kind, detail string) error {
+	switch kind {
+	case "created", "archived", "reopened":
+	default:
+		return fmt.Errorf("project event: unknown kind %q", kind)
+	}
+	res, err := s.db.Exec(`insert into project_event (project_id, kind, detail, occurred_at)
+		select id, ?, ?, ? from project where path = ?`, kind, detail, now(), path)
+	if err != nil {
+		return fmt.Errorf("project event %s for %s: %w", kind, path, err)
+	}
+	if n, err := res.RowsAffected(); err != nil || n == 0 {
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("project event: unknown project %q", path)
+	}
+	return nil
 }
 
 // RecordActivity appends a launch/focus event for a known project.

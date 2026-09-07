@@ -69,6 +69,10 @@ func Open(s *Store, root, path string) error {
 	if err := s.UpsertProjects([]Found{f}); err != nil {
 		return err
 	}
+	// Opening an archived project is how it comes back; one more event.
+	if _, err := reopenIfArchived(s, path); err != nil {
+		return err
+	}
 	tag := tagFor(path)
 	tree, err := getTree()
 	if err != nil {
