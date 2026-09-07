@@ -17,6 +17,14 @@ var migrations = []func(*sql.Tx) error{
 	migrate006,
 	migrate007,
 	migrate008,
+	migrate009,
+}
+
+// migrate009 adds the one-sentence project description shown as a subtitle
+// in the menu and in the report.
+func migrate009(tx *sql.Tx) error {
+	_, err := tx.Exec(`alter table project add column description text not null default ''`)
+	return err
 }
 
 // migrate008 stores elly's last_updated per link, so "new activity" means

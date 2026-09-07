@@ -216,6 +216,29 @@ func TestRecordSessionEvent(t *testing.T) {
 	}
 }
 
+func TestSetDescription(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.UpsertProjects(found("m/a")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetDescription("m/nope", "x"); err == nil {
+		t.Fatal("unknown project accepted")
+	}
+	if err := s.SetDescription("m/a", "  one sentence  "); err != nil {
+		t.Fatal(err)
+	}
+	ps, _ := s.ListProjects()
+	if ps[0].Description != "one sentence" {
+		t.Fatalf("%q", ps[0].Description)
+	}
+	if err := s.SetDescription("m/a", ""); err != nil {
+		t.Fatal(err)
+	}
+	if ps, _ = s.ListProjects(); ps[0].Description != "" {
+		t.Fatalf("not cleared: %q", ps[0].Description)
+	}
+}
+
 func TestSessionBallReason(t *testing.T) {
 	s := openTestStore(t)
 	if err := s.UpsertProjects(found("m/a")); err != nil {

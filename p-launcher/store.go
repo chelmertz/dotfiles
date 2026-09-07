@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -14,14 +15,30 @@ type Store struct{ db *sql.DB }
 
 // Project is one row of the launcher list, already sorted for display.
 type Project struct {
-	Path       string // "m/dependabot"
-	Name       string // "dependabot"
-	Label      string // namespace label, "matchi"
-	LastActive string // RFC3339 UTC or "" when never selected
-	Ball       string // "you" (a Claude session waits on the user), "claude" (working), or ""
-	Archived   bool   // latest project_event is "archived"
-	Snoozed    bool   // latest project_event is "snoozed" with a wake time still ahead
-	Review     bool   // a fresh elly verdict says a linked PR waits on the user
+	Path        string // "m/dependabot"
+	Name        string // "dependabot"
+	Label       string // namespace label, "matchi"
+	LastActive  string // RFC3339 UTC or "" when never selected
+	Ball        string // "you" (a Claude session waits on the user), "claude" (working), or ""
+	Archived    bool   // latest project_event is "archived"
+	Snoozed     bool   // latest project_event is "snoozed" with a wake time still ahead
+	Review      bool   // a fresh elly verdict says a linked PR waits on the user
+	Description string // one sentence of intent, "" when unset
+}
+
+// SetDescription stores the project's one-sentence intent ("" clears it).
+func (s *Store) SetDescription(path, text string) error {
+	res, err := s.db.Exec(`update project set description = ? where path = ?`, strings.TrimSpace(text), path)
+	if err != nil {
+		return fmt.Errorf("describe %s: %w", path, err)
+	}
+	if n, err := res.RowsAffected(); err != nil || n == 0 {
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("describe: unknown project %q", path)
+	}
+	return nil
 }
 
 var errNoRows = sql.ErrNoRows
@@ -107,7 +124,7 @@ func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 		fresh = true
 	}
 	rows, err := s.db.Query(`
-		select p.path, p.name, n.label,
+		select p.path, p.name, n.label, p.description,
 		       coalesce((select max(occurred_at) from activity a where a.project_id = p.id), '') as last_active,
 		       coalesce((select max(state) from session_state ss where ss.project_id = p.id and ss.since > ?), '') as ball,
 		       `+latestKindExpr+` as kind, `+latestDetailExpr+` as detail,
@@ -122,7 +139,7 @@ func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 	for rows.Next() {
 		var p Project
 		var kind, detail string
-		if err := rows.Scan(&p.Path, &p.Name, &p.Label, &p.LastActive, &p.Ball, &kind, &detail, &p.Review); err != nil {
+		if err := rows.Scan(&p.Path, &p.Name, &p.Label, &p.Description, &p.LastActive, &p.Ball, &kind, &detail, &p.Review); err != nil {
 			return nil, err
 		}
 		p.Archived = kind == "archived"

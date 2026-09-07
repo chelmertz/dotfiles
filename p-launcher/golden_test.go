@@ -151,7 +151,7 @@ func TestGoldenRofiMenu(t *testing.T) {
 	}
 	ps := []Project{
 		{Path: "m/reputation", Name: "reputation", Label: "matchi", Ball: "you"},
-		{Path: "m/dependabot", Name: "dependabot", Label: "matchi", Ball: "claude"},
+		{Path: "m/dependabot", Name: "dependabot", Label: "matchi", Ball: "claude", Description: "keep every service's dependencies current without breaking deploys"},
 		{Path: "m/nginx-ingress", Name: "nginx-ingress", Label: "matchi"},
 		{Path: "personal/p-launcher", Name: "p-launcher", Label: "personal"},
 		{Path: "personal/health", Name: "health", Label: "personal"},

@@ -43,6 +43,14 @@ func TestRows(t *testing.T) {
 	}
 }
 
+func TestRowsDescriptionSubtitle(t *testing.T) {
+	rows := Rows([]Project{{Path: "m/a", Name: "a", Label: "matchi", Description: "keep <deps> fresh"}}, nil, false)
+	want := "a\t" + `<span alpha="45%">matchi</span>` + "\n" + `<span size="small" alpha="60%">keep &lt;deps&gt; fresh</span>`
+	if rows[0].Text != want {
+		t.Fatalf("got %q", rows[0].Text)
+	}
+}
+
 func TestRowsEmpty(t *testing.T) {
 	if got := Rows(nil, nil, false); len(got) != 0 {
 		t.Fatalf("got %+v", got)

@@ -20,6 +20,7 @@ var iconPaths = map[string]string{
 	"reopened": `<path d="M21 12a9 9 0 1 1-2.64-6.36"></path><path d="M21 3v6h-6"></path>`,
 	"report":   `<line x1="12" x2="12" y1="20" y2="10"></line><line x1="18" x2="18" y1="20" y2="4"></line><line x1="6" x2="6" y1="20" y2="16"></line>`,
 	"snoozed":  `<circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>`,
+	"describe": `<path d="M17 6.1H3"></path><path d="M21 12.1H3"></path><path d="M15.1 18H3"></path>`,
 	// verb submenu
 	"open":          `<polygon points="6 3 20 12 6 21 6 3"></polygon>`,
 	"rename":        `<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path>`,
@@ -46,7 +47,7 @@ func iconSVG(name, color string, size int) template.HTML {
 var rofiIconColors = map[string]string{
 	"you": "#d95926", "claude": "#3987e5", "idle": "#8a9199", "review": "#d95926", "archived": "#8a9199", "report": "#8a9199", "snoozed": "#8a9199",
 	// verbs: neutral, except the default action and the "done" reason
-	"open": "#3987e5", "reopened": "#3987e5", "rename": "#9aa1a9", "link": "#9aa1a9", "context": "#9aa1a9", "create": "#199e70",
+	"open": "#3987e5", "reopened": "#3987e5", "rename": "#9aa1a9", "describe": "#9aa1a9", "link": "#9aa1a9", "context": "#9aa1a9", "create": "#199e70",
 	"done": "#199e70", "scrapped": "#d95926", "deprioritized": "#9aa1a9", "elsewhere": "#9aa1a9",
 }
 

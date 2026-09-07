@@ -25,6 +25,11 @@ func Rows(ps []Project, open map[string]bool, withTail bool) []Row {
 	for _, p := range ps {
 		text := html.EscapeString(p.Name) + "\t" +
 			`<span alpha="45%">` + html.EscapeString(p.Label) + `</span>`
+		if p.Description != "" {
+			// second line of the same row (rows are separated by \x1e, not
+			// \n), so the cursor never lands on it: decoration only
+			text += "\n" + `<span size="small" alpha="60%">` + html.EscapeString(p.Description) + `</span>`
+		}
 		icon := stateIcon(p, open[tagFor(p.Path)])
 		if p.Archived {
 			icon = "archived"

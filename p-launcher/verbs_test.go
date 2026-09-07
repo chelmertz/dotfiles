@@ -62,7 +62,7 @@ func TestVerbRows(t *testing.T) {
 	if got := verbTexts(postponeRows()); !reflect.DeepEqual(got, []string{"1 day", "3 days", "10 days"}) || postponeRows()[2].arg != "10" {
 		t.Fatalf("%v", got)
 	}
-	if got := verbTexts(ongoing); !reflect.DeepEqual(got, []string{"open", "archive", "postpone", "rename", "add link", "context"}) {
+	if got := verbTexts(ongoing); !reflect.DeepEqual(got, []string{"open", "archive", "postpone", "rename", "describe", "add link", "context"}) {
 		t.Fatalf("%v", got)
 	}
 	archived := verbRows(Project{Path: "m/a", Name: "a", Archived: true})
@@ -93,7 +93,7 @@ func TestVerbRows(t *testing.T) {
 		}
 	}
 	in := string(verbInput(ongoing, map[string]string{"open": "/i/open.svg", "blank": "/i/blank.svg"}))
-	if !strings.HasPrefix(in, "open\x00icon\x1f/i/open.svg\n") || !strings.Contains(in, "archive\x00icon\x1f/i/blank.svg\n") {
+	if !strings.HasPrefix(in, "open\x00icon\x1f/i/open.svg\x1e") || !strings.Contains(in, "archive\x00icon\x1f/i/blank.svg\x1e") {
 		t.Fatalf("%q", in)
 	}
 }

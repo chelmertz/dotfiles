@@ -1,3 +1,10 @@
+// p-launcher: one hotkey opens any ~/p project in a Claude Code terminal,
+// shows whose turn it is per project (you, Claude, a reviewer), and reports
+// weekly on how many things to run at once.
+//
+// Subcommands are porcelain (menu, open, create, archive, report) and
+// plumbing (list, hook, links refresh, tend, desktop). State lives in one
+// SQLite file under XDG data; nothing is stored under ~/p.
 package main
 
 import (

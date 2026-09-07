@@ -40,7 +40,7 @@ func load(s *Store, root string, all bool) ([]Project, map[string]bool, error) {
 
 // list prints TSV rows for other front ends: path, name, label, open,
 // last_active, ball ("you", "claude" or empty), archived (0/1), review (0/1:
-// a fresh verdict says a linked PR waits on the user).
+// a fresh verdict says a linked PR waits on the user), description.
 func list(s *Store, root string, w io.Writer, all bool) error {
 	ps, open, err := load(s, root, all)
 	if err != nil {
@@ -61,7 +61,7 @@ func writeList(w io.Writer, ps []Project, open map[string]bool) error {
 		if p.Review {
 			r = "1"
 		}
-		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p.Path, p.Name, p.Label, o, p.LastActive, p.Ball, a, r); err != nil {
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p.Path, p.Name, p.Label, o, p.LastActive, p.Ball, a, r, p.Description); err != nil {
 			return err
 		}
 	}
@@ -76,7 +76,9 @@ func writeList(w io.Writer, ps []Project, open map[string]bool) error {
 func rofiArgs(prompt, toggleKey string) []string {
 	// -sync: read all rows before painting, so the window never shows a frame
 	// without rows while the pipe drains (it did, intermittently).
-	args := []string{"-dmenu", "-sync", "-i", "-p", prompt, "-format", "i|f", "-matching", "fuzzy", "-markup-rows", "-show-icons"}
+	// -sep \x1e: rows are separated by the record separator so a row may
+	// contain a newline (the description subtitle).
+	args := []string{"-dmenu", "-sync", "-i", "-p", prompt, "-format", "i|f", "-matching", "fuzzy", "-markup-rows", "-show-icons", "-sep", rowSep}
 	if toggleKey != "" {
 		args = append(args, "-kb-cancel", "Escape,Control+g,Control+bracketleft,"+toggleKey)
 	}
@@ -86,6 +88,8 @@ func rofiArgs(prompt, toggleKey string) []string {
 // rofiInput renders rows for rofi: the text, then the dmenu row option
 // "\0icon\x1f<path>" so every row has an icon cell (a transparent blank for
 // closed projects keeps the column uniform). With no icon files, plain rows.
+const rowSep = "\x1e"
+
 func rofiInput(rows []Row, icons map[string]string) []byte {
 	var b bytes.Buffer
 	for _, r := range rows {
@@ -98,7 +102,7 @@ func rofiInput(rows []Row, icons map[string]string) []byte {
 			b.WriteString("\x00icon\x1f")
 			b.WriteString(p)
 		}
-		b.WriteByte('\n')
+		b.WriteString(rowSep)
 	}
 	return b.Bytes()
 }
@@ -288,6 +292,7 @@ const (
 	verbArchive
 	verbPostpone
 	verbRename
+	verbDescribe
 	verbAddLink
 	verbContext
 	verbCreate
@@ -304,7 +309,7 @@ func verbRows(p Project) []verbRow {
 	if p.Archived {
 		return []verbRow{{"open (reopen)", verbOpen, "", "reopened"}, {"context", verbContext, "", "context"}}
 	}
-	return []verbRow{{"open", verbOpen, "", "open"}, {"archive", verbArchive, "", "archived"}, {"postpone", verbPostpone, "", "snoozed"}, {"rename", verbRename, "", "rename"}, {"add link", verbAddLink, "", "link"}, {"context", verbContext, "", "context"}}
+	return []verbRow{{"open", verbOpen, "", "open"}, {"archive", verbArchive, "", "archived"}, {"postpone", verbPostpone, "", "snoozed"}, {"rename", verbRename, "", "rename"}, {"describe", verbDescribe, "", "describe"}, {"add link", verbAddLink, "", "link"}, {"context", verbContext, "", "context"}}
 }
 
 // postponeRows are the snooze lengths; arg is the number of days.
@@ -380,6 +385,25 @@ func verbMenu(s *Store, root, toggleKey string, p Project, vs []verbRow, icons m
 			return err
 		}
 		notifyInfo("postponed " + p.Path + " until " + until.Format("Mon Jan 02"))
+		return nil
+	case verbDescribe:
+		// the current sentence is pre-filled so it can be edited, not retyped
+		out, _, cancelled, err := runRofi("describe "+p.Name, toggleKey, nil, "-filter", p.Description)
+		if err != nil || cancelled {
+			return err
+		}
+		_, typed, ok := parseRofiOut(out)
+		if !ok {
+			return nil
+		}
+		if err := s.SetDescription(p.Path, typed); err != nil {
+			return err
+		}
+		if typed == "" {
+			notifyInfo("cleared the description of " + p.Path)
+		} else {
+			notifyInfo(p.Path + ": " + typed)
+		}
 		return nil
 	case verbRename:
 		out, _, cancelled, err := runRofi("rename "+p.Name+" to", toggleKey, nil)

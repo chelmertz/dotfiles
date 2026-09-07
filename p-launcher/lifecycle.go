@@ -253,6 +253,9 @@ func contextText(s *Store, path string) (string, error) {
 		status = "archived"
 	}
 	fmt.Fprintf(&b, "%s · %s", p.Path, status)
+	if p.Description != "" {
+		fmt.Fprintf(&b, "\n%s", p.Description)
+	}
 	if p.Ball != "" {
 		fmt.Fprintf(&b, " · ball: %s", p.Ball)
 	}
