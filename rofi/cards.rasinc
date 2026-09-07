@@ -64,6 +64,9 @@ element {
 element-text {
     text-color: inherit;
     cursor:     inherit;
+    /* two-line rows (-eh 2, description subtitle): keep single-line text
+       centred next to the icon instead of hugging the top */
+    vertical-align: 0.5;
     /* Column stop for tab-separated rows (p-launcher/rows.go): name, label.
        The state is the row icon (p-launcher writes them, -show-icons). */
     tab-stops:  [ 270px ];
