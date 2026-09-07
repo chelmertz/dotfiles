@@ -122,6 +122,9 @@ for_window [class="ripdrag"] floating enable, sticky enable
 
 for_window [class=".*"] title_format " %title"
 for_window [class=".*"] border pixel 3
+# Room for the rounded frame corners picom draws; without it the junctions
+# between tiles show the root window as black notches.
+gaps inner 6
 # from https://www.youtube.com/watch?v=dFWd0honbbw
 client.focused #000000 #285577 #ffffff #44eda7 #44eda7
 
