@@ -422,8 +422,8 @@ in
       # tabs have nowhere to live, so move them behind toggle_tab_overview
       # (ctrl+shift+a).
       gtk-titlebar = false;
-      # picom rounds the whole i3 frame (border included); ghostty must not round
-      # its own corners inside it as well.
+      # With a compositor present ghostty rounds its own corners, which leaves
+      # black notches inside i3's square border. Keep it square.
       window-decoration = "none";
       gtk-tabs-location = "hidden";
 
@@ -789,15 +789,12 @@ in
     shadowExclude = [ "!(class_g = 'Rofi')" ];
     settings = {
       shadow-radius = 24;
-      # Rounds every window frame, i3 borders included, so tiled windows match
-      # the cards and rofi's shadow is clipped to its curve. Bars keep straight
-      # edges; dunst already rounds itself. Fullscreen is excluded by default.
+      # Same radius as the rofi theme, so picom clips the shadow to the curve;
+      # otherwise the rectangular shadow shows through the transparent corners.
+      # Only rofi: rounding i3 frames cuts the border away at every corner,
+      # since picom clips the frame and cannot bend the border along the curve.
       corner-radius = cardRadius;
-      rounded-corners-exclude = [
-        "window_type = 'dock'"
-        "window_type = 'desktop'"
-        "class_g = 'Dunst'"
-      ];
+      rounded-corners-exclude = [ "!(class_g = 'Rofi')" ];
       unredir-if-possible = true;
       use-damage = true;
       detect-client-opacity = true;
