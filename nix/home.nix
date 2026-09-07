@@ -11,6 +11,7 @@ in
     ./zsh.nix
     ./git.nix
     ./bin.nix
+    ./claude.nix
     ./neovim.nix
     ./espanso.nix
     ./vscode.nix
