@@ -386,6 +386,11 @@
       executable = true;
     };
 
+    ".local/bin/claude-sign-comments-hook" = {
+      source = ../bin/claude-sign-comments-hook;
+      executable = true;
+    };
+
     ".local/bin/toggle-obsidian-scratchpad" = {
       source = ../bin/toggle-obsidian-scratchpad;
       executable = true;

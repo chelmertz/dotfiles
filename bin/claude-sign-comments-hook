@@ -1,0 +1,248 @@
+#!/usr/bin/env python3
+"""PreToolUse hook (matcher: Bash): every comment Claude posts via gh must end
+with a line that is exactly "--claude".
+
+Covers: gh pr comment, gh issue comment, gh pr review (when it carries a body),
+and gh api POST/PATCH/PUT to .../comments or .../reviews endpoints.
+
+Precision rules (2026-09-08):
+- Only a `gh` invocation that STARTS a command segment (line start, or after
+  ; && || |) is inspected. The same words inside a heredoc, a Python script or
+  a quoted string are not commands and are ignored.
+- A body-file path may be a simple `$VAR` / `${VAR}` when the same command
+  assigns VAR=... earlier (or the variable is exported in this environment).
+- Fails CLOSED only for a detected comment command whose body cannot be
+  determined (heredoc / stdin body, unresolvable variable, missing file).
+- Fails OPEN for anything that is not a comment command, and for unparseable
+  hook input.
+
+Exit 2 blocks the tool call; stderr goes back to Claude.
+Escape hatch for the user only: CLAUDE_SIGN_COMMENTS=0.
+"""
+import json
+import os
+import re
+import shlex
+import sys
+
+SIGNATURE = "--claude"
+GH_COMMENT_HEAD = re.compile(
+    r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*gh\s+(pr\s+(comment|review)|issue\s+comment|api)\b"
+)
+COMMENT_PATH = re.compile(r"/(comments|reviews)(/\d+)?/?$")
+VAR_REF = re.compile(r"^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$")
+ASSIGN = re.compile(r"(?:^|[;&|\s])([A-Za-z_][A-Za-z0-9_]*)=(\"[^\"]*\"|'[^']*'|\S+)")
+
+
+def block(msg: str) -> None:
+    print(f"[claude-sign-comments-hook]: {msg}", file=sys.stderr)
+    print(
+        f'Every comment must end with a line containing only "{SIGNATURE}". '
+        "Hard rule from ~/.claude/CLAUDE.md.",
+        file=sys.stderr,
+    )
+    sys.exit(2)
+
+
+def signed(body: str) -> bool:
+    lines = [ln.strip() for ln in body.splitlines() if ln.strip()]
+    return bool(lines) and lines[-1] == SIGNATURE
+
+
+def split_segments(cmd: str) -> list[str]:
+    """Top-level command segments: split on newlines and on ; && || | that are
+    not inside quotes, a $( ) group or a heredoc body."""
+    segs, buf, i, n = [], [], 0, len(cmd)
+    quote = None
+    depth = 0
+    heredoc_end = None
+    while i < n:
+        c = cmd[i]
+        if heredoc_end is not None:
+            # consume the heredoc body verbatim up to its terminator line
+            end = cmd.find("\n" + heredoc_end, i)
+            if end == -1:
+                buf.append(cmd[i:])
+                i = n
+            else:
+                buf.append(cmd[i:end + 1 + len(heredoc_end)])
+                i = end + 1 + len(heredoc_end)
+            heredoc_end = None
+            continue
+        if quote:
+            buf.append(c)
+            if c == "\\" and quote == '"' and i + 1 < n:
+                buf.append(cmd[i + 1]); i += 2; continue
+            if c == quote:
+                quote = None
+            i += 1
+            continue
+        if c in ("'", '"'):
+            quote = c; buf.append(c); i += 1; continue
+        if c == "$" and cmd.startswith("$(", i):
+            depth += 1; buf.append("$("); i += 2; continue
+        if c == "(" and depth:
+            depth += 1
+        if c == ")" and depth:
+            depth -= 1
+        if depth == 0 and cmd.startswith("<<", i):
+            m = re.match(r"<<-?\s*['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]?", cmd[i:])
+            if m:
+                buf.append(m.group(0)); i += len(m.group(0))
+                nl = cmd.find("\n", i)
+                if nl == -1:
+                    buf.append(cmd[i:]); i = n
+                else:
+                    buf.append(cmd[i:nl + 1]); i = nl + 1
+                    heredoc_end = m.group(1)
+                continue
+        if depth == 0 and (c == "\n" or c == ";" or cmd.startswith("&&", i) or cmd.startswith("||", i) or c == "|"):
+            segs.append("".join(buf)); buf = []
+            i += 2 if cmd.startswith(("&&", "||"), i) else 1
+            continue
+        buf.append(c); i += 1
+    if buf:
+        segs.append("".join(buf))
+    return [s for s in segs if s.strip()]
+
+
+VAR_IN_PATH = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?")
+
+
+def resolve_path(path: str, cmd: str) -> str:
+    """Expand $VAR / ${VAR} anywhere in a path from assignments earlier in the
+    same command (or the environment). Returns "" if any reference is unknown
+    or itself indirect."""
+    assigned = {}
+    for am in ASSIGN.finditer(cmd):
+        assigned[am.group(1)] = am.group(2).strip("'\"")
+    unresolved = False
+
+    def sub(m):
+        nonlocal unresolved
+        name = m.group(1)
+        val = assigned.get(name, os.environ.get(name, ""))
+        if not val or VAR_IN_PATH.search(val):
+            unresolved = True
+            return ""
+        return val
+
+    resolved = VAR_IN_PATH.sub(sub, path)
+    return "" if unresolved else os.path.expanduser(resolved)
+
+
+def body_from_file(path: str, cmd: str, ctx: str) -> str:
+    if path == "-":
+        block(f"{ctx}: body comes from stdin, cannot verify the signature.")
+    resolved = resolve_path(path, cmd)
+    if not resolved:
+        block(f"{ctx}: body file path {path!r} could not be resolved; use a literal path or assign the variable in the same command.")
+    if not os.path.isfile(resolved):
+        block(f"{ctx}: body file {resolved!r} does not exist yet. Write it in a separate, earlier command so the signature can be checked.")
+    with open(resolved, encoding="utf-8", errors="replace") as fh:
+        return fh.read()
+
+
+def flag_value(args: list[str], names: tuple[str, ...]) -> str | None:
+    for i, a in enumerate(args):
+        for nme in names:
+            if a == nme and i + 1 < len(args):
+                return args[i + 1]
+            if nme.startswith("--") and a.startswith(nme + "="):
+                return a[len(nme) + 1:]
+    return None
+
+
+def check_gh_comment(args: list[str], cmd: str, ctx: str) -> None:
+    body = flag_value(args, ("--body", "-b"))
+    if body is None:
+        path = flag_value(args, ("--body-file", "-F"))
+        if path is None:
+            if ctx == "gh pr review":
+                return  # approve / request-changes without text is not a comment
+            block(f"{ctx}: no --body given, cannot verify the signature.")
+        body = body_from_file(path, cmd, ctx)
+    if not signed(body):
+        block(f"{ctx}: body does not end with a {SIGNATURE!r} line.")
+
+
+def check_gh_api(args: list[str], cmd: str) -> None:
+    positionals, skip = [], False
+    for a in args[1:]:
+        if skip:
+            skip = False; continue
+        if a.startswith("-"):
+            if "=" not in a and a not in ("--paginate", "--silent", "--include", "-i", "--verbose"):
+                skip = True
+            continue
+        positionals.append(a)
+    path = positionals[0] if positionals else ""
+    if not path or path == "graphql" or not COMMENT_PATH.search(path.split("?")[0]):
+        return
+    method = (flag_value(args, ("--method", "-X")) or "").upper()
+    has_fields = any(a in ("-f", "-F", "--field", "--raw-field", "--input") for a in args)
+    if not method and has_fields:
+        method = "POST"
+    if method not in ("POST", "PATCH", "PUT"):
+        return
+    ctx = f"gh api {method} {path}"
+    body = None
+    for i, a in enumerate(args):
+        if a in ("-f", "-F", "--field", "--raw-field") and i + 1 < len(args):
+            kv = args[i + 1]
+            if kv.startswith("body="):
+                val = kv[len("body="):]
+                body = body_from_file(val[1:], cmd, ctx) if (a in ("-F", "--field") and val.startswith("@")) else val
+        elif a == "--input" and i + 1 < len(args):
+            raw = body_from_file(args[i + 1], cmd, ctx)
+            try:
+                body = json.loads(raw).get("body")
+            except (json.JSONDecodeError, AttributeError):
+                block(f"{ctx}: --input file is not a JSON object with a body.")
+    if body is None:
+        if has_fields or method == "PATCH":
+            block(f"{ctx}: could not find the comment body (expected -f body=... or --input).")
+        return
+    if not signed(body):
+        block(f"{ctx}: body does not end with a {SIGNATURE!r} line.")
+
+
+def main() -> None:
+    if os.environ.get("CLAUDE_SIGN_COMMENTS", "1") == "0":
+        return
+    try:
+        payload = json.load(sys.stdin)
+    except json.JSONDecodeError:
+        return
+    if payload.get("tool_name") != "Bash":
+        return
+    cmd = (payload.get("tool_input") or {}).get("command") or ""
+    if "gh" not in cmd:
+        return
+    for seg in split_segments(cmd):
+        if not GH_COMMENT_HEAD.match(seg):
+            continue
+        if "<<" in seg:
+            block("comment command carries a heredoc body; pass the body with --body '...' or a body file written in an earlier command.")
+        try:
+            tokens = shlex.split(seg, comments=False, posix=True)
+        except ValueError:
+            block("comment command could not be parsed (unbalanced quotes); pass the body with --body '...' or a body file written in an earlier command.")
+        # drop leading VAR=value assignments
+        while tokens and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[0]):
+            tokens.pop(0)
+        if not tokens or tokens[0] != "gh":
+            continue
+        a = tokens[1:]
+        if len(a) >= 2 and a[0] == "pr" and a[1] == "comment":
+            check_gh_comment(a[2:], cmd, "gh pr comment")
+        elif len(a) >= 2 and a[0] == "issue" and a[1] == "comment":
+            check_gh_comment(a[2:], cmd, "gh issue comment")
+        elif len(a) >= 2 and a[0] == "pr" and a[1] == "review":
+            check_gh_comment(a[2:], cmd, "gh pr review")
+        elif a and a[0] == "api":
+            check_gh_api(a, cmd)
+
+
+if __name__ == "__main__":
+    main()
