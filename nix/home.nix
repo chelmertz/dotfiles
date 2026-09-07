@@ -16,6 +16,7 @@ in
     ./spotify.nix
     ./mediabox.nix
     ./fonts.nix
+    ./p-launcher.nix
   ];
 
   xsession.windowManager.i3 = {
