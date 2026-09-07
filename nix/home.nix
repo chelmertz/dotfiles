@@ -783,7 +783,9 @@ in
         offset = "(16, 52)";
         scale = 0;
         notification_limit = 0;
-        gap_size = 10;
+        gap_size = 0;
+        separator_height = 1;
+        separator_color = "#2f2f2f";
         progress_bar = true;
         progress_bar_height = 6;
         progress_bar_frame_width = 0;
@@ -848,11 +850,11 @@ in
         timeout = 8;
       };
       urgency_critical = {
-        background = "#2c1618";
+        background = "#6b1f24";
         foreground = "#f7eeee";
-        frame_color = "#7a2f33";
+        frame_color = "#a8383e";
         highlight = "#e5484d";
-        format = "<span size='small' foreground='#ff8a8a'>%a</span>\\n<b>%s</b>\\n<span alpha='80%%'>%b</span>";
+        format = "<span size='small' foreground='#ffb3b3'>%a</span>\\n<b>%s</b>\\n<span alpha='80%%'>%b</span>";
         timeout = 0;
       };
     };
