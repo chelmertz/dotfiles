@@ -32,16 +32,38 @@ func decide(treeJSON []byte, tag string) (action, int64, error) {
 	return actLaunch, 0, nil
 }
 
+// projectDir resolves path ("m/dependabot") to its directory under root and
+// the Found record UpsertProjects needs to register it. Pure (no store, no
+// i3) so it's cheap to test directly.
+func projectDir(root, path string) (dir string, f Found, err error) {
+	dir = filepath.Join(root, path)
+	info, statErr := os.Stat(dir)
+	if statErr != nil {
+		return "", Found{}, fmt.Errorf("no project directory %s: %v", dir, statErr)
+	}
+	if !info.IsDir() {
+		return "", Found{}, fmt.Errorf("no project directory %s: not a directory", dir)
+	}
+	ns, name, ok := strings.Cut(path, "/")
+	if !ok {
+		return "", Found{}, fmt.Errorf("project path must be <namespace>/<name>, got %q", path)
+	}
+	return dir, Found{Namespace: ns, Name: name, Path: path}, nil
+}
+
 // Open focuses the project's terminal if one exists, otherwise launches one,
 // and records the activity. root is ~/p.
 func Open(s *Store, root, path string) error {
-	dir := filepath.Join(root, path)
-	info, err := os.Stat(dir)
+	dir, f, err := projectDir(root, path)
 	if err != nil {
-		return fmt.Errorf("no project directory %s: %w", dir, err)
+		return err
 	}
-	if !info.IsDir() {
-		return fmt.Errorf("no project directory %s: %w", dir, errors.New("not a directory"))
+	// Registers the project before doing anything with side effects, so a
+	// directory `list`/`menu` has never seen (never upserted into the
+	// project table) still gets a working `open`, not a launched ghostty
+	// followed by a RecordActivity failure below.
+	if err := s.UpsertProjects([]Found{f}); err != nil {
+		return err
 	}
 	tag := tagFor(path)
 	tree, err := getTree()
@@ -96,10 +118,11 @@ func launch(dir, tag string) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
-// scrubEnv strips every Claude Code session variable from env. Without
+// scrubEnv strips every env var whose key starts with "CLAUDE". Without
 // this, a ghostty launched from inside a Claude Code session hands its
-// nested `claude` invocation CLAUDE_CODE_CHILD_SESSION (among others),
-// which disables transcript saving for that child.
+// nested `claude` invocation CLAUDE_CODE_CHILD_SESSION (among others);
+// observed 2026-09-07, that nested claude reported "Transcript saving is
+// off — inherited CLAUDE_CODE_CHILD_SESSION marker".
 func scrubEnv(env []string) []string {
 	out := make([]string, 0, len(env))
 	for _, kv := range env {
@@ -135,6 +158,14 @@ func waitForTagged(tag string, timeout time.Duration, exited <-chan error) error
 		default:
 		}
 		time.Sleep(100 * time.Millisecond)
+	}
+	// The deadline can fire in the same instant ghostty exits during the
+	// last sleep; drain exited once more so that's reported by exit code,
+	// not folded into the generic timeout below.
+	select {
+	case exitErr := <-exited:
+		return ghostExitedErr(exitErr, tag)
+	default:
 	}
 	return &hintError{
 		msg:  fmt.Sprintf("ghostty started but no window tagged %q appeared within %s", tag, timeout),
