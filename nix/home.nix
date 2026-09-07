@@ -783,6 +783,10 @@ in
     shadowExclude = [ "!(class_g = 'Rofi')" ];
     settings = {
       shadow-radius = 24;
+      # Same radius as the rofi theme, so picom clips the shadow to the curve;
+      # otherwise the rectangular shadow shows through the transparent corners.
+      corner-radius = 14;
+      rounded-corners-exclude = [ "!(class_g = 'Rofi')" ];
       unredir-if-possible = true;
       use-damage = true;
       detect-client-opacity = true;
