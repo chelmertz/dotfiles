@@ -22,7 +22,7 @@ func TestWriteList(t *testing.T) {
 
 func TestRofiArgs(t *testing.T) {
 	plain := strings.Join(rofiArgs("project", ""), " ")
-	if strings.Contains(plain, "-kb-cancel") || !strings.Contains(plain, "-markup-rows") || !strings.Contains(plain, "-show-icons") {
+	if strings.Contains(plain, "-kb-cancel") || !strings.Contains(plain, "-markup-rows") || !strings.Contains(plain, "-show-icons") || !strings.Contains(plain, "-sync") {
 		t.Fatalf("got %q", plain)
 	}
 	withKey := strings.Join(rofiArgs("project", "F5"), " ")

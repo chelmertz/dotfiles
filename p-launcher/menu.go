@@ -68,7 +68,9 @@ func writeList(w io.Writer, ps []Project, open map[string]bool) error {
 // rofi's cancel binding so the same hotkey that opened the menu closes it
 // (rofi grabs the keyboard, so i3 never sees the second press).
 func rofiArgs(prompt, toggleKey string) []string {
-	args := []string{"-dmenu", "-i", "-p", prompt, "-format", "i|f", "-matching", "fuzzy", "-markup-rows", "-show-icons"}
+	// -sync: read all rows before painting, so the window never shows a frame
+	// without rows while the pipe drains (it did, intermittently).
+	args := []string{"-dmenu", "-sync", "-i", "-p", prompt, "-format", "i|f", "-matching", "fuzzy", "-markup-rows", "-show-icons"}
 	if toggleKey != "" {
 		args = append(args, "-kb-cancel", "Escape,Control+g,Control+bracketleft,"+toggleKey)
 	}
