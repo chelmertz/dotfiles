@@ -32,16 +32,21 @@ type ellyPR struct {
 	ReviewStatus      string
 	ThreadsActionable int
 	Author            string
+	LastCommenter     string
+	IsDraft           bool
 	LastUpdated       time.Time
 }
 
-// linkDeps are the two remote readers, injected so tests need no network.
-// gh returns the HTTP status (200 or 304) and the new ETag.
+// linkDeps are the remote readers, injected so tests need no network.
+// gh returns the HTTP status (200 or 304) and the new ETag. checks folds the
+// PR's CI into success|failure|pending and the latest completion time; it is
+// optional (nil skips it) and best effort.
 type linkDeps struct {
-	gh   func(url, etag string) (ghPR, int, string, error)
-	elly func() (map[string]ellyPR, time.Time, error)
-	me   string
-	now  time.Time
+	gh     func(url, etag string) (ghPR, int, string, error)
+	elly   func() (map[string]ellyPR, time.Time, error)
+	checks func(url string) (string, time.Time, error)
+	me     string
+	now    time.Time
 }
 
 type refreshResult struct {
@@ -88,6 +93,7 @@ func refreshLinks(s *Store, d linkDeps) (refreshResult, error) {
 	nowS := d.now.UTC().Format(time.RFC3339)
 	lastErr := ""
 	stillOpen := map[string]int64{}
+	mine := map[string]bool{} // open links authored by the user: CI checks matter
 	for _, o := range opens {
 		pr, status, etag, err := d.gh(o.url, o.etag)
 		switch {
@@ -101,6 +107,10 @@ func refreshLinks(s *Store, d linkDeps) (refreshResult, error) {
 				return res, err
 			}
 			stillOpen[o.url] = o.id
+			var author string
+			if err := s.db.QueryRow(`select author from link where id = ?`, o.id).Scan(&author); err == nil && author == d.me {
+				mine[o.url] = true
+			}
 		default:
 			res.Refreshed++
 			merged := 0
@@ -114,6 +124,21 @@ func refreshLinks(s *Store, d linkDeps) (refreshResult, error) {
 			}
 			if !pr.Merged && pr.ClosedAt.IsZero() {
 				stillOpen[o.url] = o.id
+				if pr.Author == d.me {
+					mine[o.url] = true
+				}
+			}
+		}
+	}
+	if d.checks != nil {
+		for url := range mine {
+			state, at, err := d.checks(url)
+			if err != nil {
+				lastErr = "checks: " + err.Error()
+				continue
+			}
+			if _, err := s.db.Exec(`update link set check_state = ?, check_at = nullif(?, '') where id = ?`, state, rfcOrEmpty(at), stillOpen[url]); err != nil {
+				return res, err
 			}
 		}
 	}
@@ -142,8 +167,12 @@ func refreshLinks(s *Store, d linkDeps) (refreshResult, error) {
 				need, detail = 1, dt
 			}
 		}
-		if _, err := s.db.Exec(`update link set action_needed = ?, detail = ?, review_status = ?, threads_actionable = ? where id = ?`,
-			need, detail, pr.ReviewStatus, pr.ThreadsActionable, id); err != nil {
+		draft := 0
+		if pr.IsDraft {
+			draft = 1
+		}
+		if _, err := s.db.Exec(`update link set action_needed = ?, detail = ?, review_status = ?, threads_actionable = ?, last_commenter = ?, is_draft = ? where id = ?`,
+			need, detail, pr.ReviewStatus, pr.ThreadsActionable, pr.LastCommenter, draft, id); err != nil {
 			return res, err
 		}
 	}
@@ -282,7 +311,8 @@ func ellyRead() (map[string]ellyPR, time.Time, error) {
 		return nil, time.Time{}, err
 	}
 	defer db.Close()
-	rows, err := db.Query(`select url, coalesce(review_status,''), coalesce(threads_actionable,0), coalesce(author,''), coalesce(last_updated,'') from prs`)
+	rows, err := db.Query(`select url, coalesce(review_status,''), coalesce(threads_actionable,0), coalesce(author,''), coalesce(last_updated,''),
+		coalesce(last_pr_commenter,''), coalesce(is_draft,0) from prs`)
 	if err != nil {
 		return nil, time.Time{}, err
 	}
@@ -290,11 +320,13 @@ func ellyRead() (map[string]ellyPR, time.Time, error) {
 	out := map[string]ellyPR{}
 	for rows.Next() {
 		var u, lu string
+		var draft int
 		var pr ellyPR
-		if err := rows.Scan(&u, &pr.ReviewStatus, &pr.ThreadsActionable, &pr.Author, &lu); err != nil {
+		if err := rows.Scan(&u, &pr.ReviewStatus, &pr.ThreadsActionable, &pr.Author, &lu, &pr.LastCommenter, &draft); err != nil {
 			return nil, time.Time{}, err
 		}
-		pr.LastUpdated = parseTime(lu)
+		pr.LastUpdated = parseAnyTime(lu)
+		pr.IsDraft = draft != 0
 		out[u] = pr
 	}
 	var lf string
@@ -316,7 +348,51 @@ func parseAnyTime(s string) time.Time {
 	return time.Time{}
 }
 
+// ghChecks folds a PR's CI status via gh: failure if any run failed, pending
+// if any is still running, success otherwise; at is the latest completion.
+func ghChecks(url string) (string, time.Time, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	out, err := runCmd(ctx, "gh", "pr", "view", url, "--json", "statusCheckRollup", "-q", ".statusCheckRollup")
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	state, at := foldChecks(out)
+	return state, at, nil
+}
+
+// foldChecks reduces gh's statusCheckRollup array. Check runs carry
+// conclusion/status/completedAt; commit statuses carry state.
+func foldChecks(raw []byte) (string, time.Time) {
+	var runs []struct {
+		Conclusion, Status, State, CompletedAt string
+	}
+	if err := json.Unmarshal(raw, &runs); err != nil || len(runs) == 0 {
+		return "", time.Time{}
+	}
+	state := "success"
+	var at time.Time
+	for _, r := range runs {
+		c := strings.ToUpper(r.Conclusion)
+		if c == "" {
+			c = strings.ToUpper(r.State)
+		}
+		switch c {
+		case "FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE":
+			state = "failure"
+		case "", "PENDING", "EXPECTED":
+			if state != "failure" && (strings.ToUpper(r.Status) == "IN_PROGRESS" || strings.ToUpper(r.Status) == "QUEUED" || strings.ToUpper(r.Status) == "PENDING" || c != "") {
+				state = "pending"
+			}
+		}
+		if t := parseTime(r.CompletedAt); t.After(at) {
+			at = t
+		}
+	}
+	return state, at
+}
+
 // realLinkDeps wires the CLI adapters.
 func realLinkDeps() linkDeps {
-	return linkDeps{gh: ghFetch, elly: ellyRead, me: ghLogin(), now: time.Now()}
+	return linkDeps{gh: ghFetch, elly: ellyRead, checks: ghChecks, me: ghLogin(), now: time.Now()}
 }

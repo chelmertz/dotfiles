@@ -14,6 +14,21 @@ var migrations = []func(*sql.Tx) error{
 	migrate003,
 	migrate004,
 	migrate005,
+	migrate006,
+}
+
+// migrate006 adds what `tend` decides on: who commented last, draft state,
+// CI check state, and the bookkeeping of automatic rounds.
+func migrate006(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+alter table link add column last_commenter text not null default '';
+alter table link add column is_draft integer not null default 0;
+alter table link add column check_state text not null default '';
+alter table link add column check_at text;
+alter table link add column tended_at text;
+alter table link add column tend_rounds integer not null default 0;
+alter table link add column notified_at text;`)
+	return err
 }
 
 // migrate005 adds what `links refresh` needs: conditional-request ETags and
