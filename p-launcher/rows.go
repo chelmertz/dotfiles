@@ -9,37 +9,38 @@ import (
 type Row struct {
 	Text string
 	Path string
+	Icon string // state icon name (see iconPaths), "" for a closed project
 }
 
-// Rows renders projects (already sorted) into rofi lines: a glyph column
-// (see glyph), the folder name, then the namespace label in a muted span.
-// rofi cannot make rows unselectable or skip them while navigating, so
-// grouping lives inside each row instead of in heading rows. The three
-// columns are tab-separated and aligned by the tab-stops on element-text in
-// rofi/cards.rasinc, so the font need not be monospace. Rows are Pango markup
+// Rows renders projects (already sorted) into rofi lines: the folder name,
+// then the namespace label in a muted span; the state is a row icon (see
+// stateIcon), not text. rofi cannot make rows unselectable or skip them while
+// navigating, so grouping lives inside each row instead of in heading rows.
+// The two columns are tab-separated and aligned by the tab-stop on
+// element-text in rofi/cards.rasinc, so the font need not be monospace. Rows are Pango markup
 // (rofi runs with -markup-rows), so names and labels are escaped.
 func Rows(ps []Project, open map[string]bool) []Row {
 	var out []Row
 	for _, p := range ps {
-		text := glyph(p, open[tagFor(p.Path)]) + "\t" + html.EscapeString(p.Name) + "\t" +
+		text := html.EscapeString(p.Name) + "\t" +
 			`<span alpha="45%">` + html.EscapeString(p.Label) + `</span>`
-		out = append(out, Row{Text: text, Path: p.Path})
+		out = append(out, Row{Text: text, Path: p.Path, Icon: stateIcon(p, open[tagFor(p.Path)])})
 	}
 	return out
 }
 
-// glyph is the row prefix: whose turn it is for an open project. "■" needs
-// you, "●" Claude working, "○" open window without a live Claude session,
-// empty for closed. A ball state without an open window is a stale session
-// row, so the window gates and the state only refines.
-func glyph(p Project, isOpen bool) string {
+// stateIcon names the row's state icon: "you" needs you, "claude" Claude
+// working, "idle" open window without a live Claude session, "" closed. A
+// ball state without an open window is a stale session row, so the window
+// gates and the state only refines. The same icons appear in the report.
+func stateIcon(p Project, isOpen bool) string {
 	switch {
 	case !isOpen:
 		return ""
 	case p.Ball == "you":
-		return "■"
+		return "you"
 	case p.Ball == "claude":
-		return "●"
+		return "claude"
 	}
-	return "○"
+	return "idle"
 }

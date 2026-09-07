@@ -22,7 +22,7 @@ func TestWriteList(t *testing.T) {
 
 func TestRofiArgs(t *testing.T) {
 	plain := strings.Join(rofiArgs(""), " ")
-	if strings.Contains(plain, "-kb-cancel") || !strings.Contains(plain, "-markup-rows") {
+	if strings.Contains(plain, "-kb-cancel") || !strings.Contains(plain, "-markup-rows") || !strings.Contains(plain, "-show-icons") {
 		t.Fatalf("got %q", plain)
 	}
 	withKey := strings.Join(rofiArgs("F5"), " ")
@@ -66,5 +66,19 @@ func TestSelectRow(t *testing.T) {
 		if path != c.wantPath || ok != c.wantOk {
 			t.Errorf("idx %d: got (%q,%v) want (%q,%v)", c.idx, path, ok, c.wantPath, c.wantOk)
 		}
+	}
+}
+
+func TestRofiInput(t *testing.T) {
+	rows := []Row{{Text: "a", Path: "m/a", Icon: "you"}, {Text: "b", Path: "m/b"}}
+	icons := map[string]string{"you": "/x/you.svg", "blank": "/x/blank.svg"}
+	got := string(rofiInput(rows, icons))
+	want := "a\x00icon\x1f/x/you.svg\nb\x00icon\x1f/x/blank.svg\n"
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+	// no icon files: plain rows, rofi ignores a missing option
+	if got := string(rofiInput(rows, nil)); got != "a\nb\n" {
+		t.Fatalf("got %q", got)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -65,14 +66,33 @@ func writeList(w io.Writer, ps []Project, open map[string]bool) error {
 // rofi's cancel binding so the same hotkey that opened the menu closes it
 // (rofi grabs the keyboard, so i3 never sees the second press).
 func rofiArgs(toggleKey string) []string {
-	args := []string{"-dmenu", "-i", "-p", "project", "-format", "i", "-matching", "fuzzy", "-markup-rows"}
+	args := []string{"-dmenu", "-i", "-p", "project", "-format", "i", "-matching", "fuzzy", "-markup-rows", "-show-icons"}
 	if toggleKey != "" {
 		args = append(args, "-kb-cancel", "Escape,Control+g,Control+bracketleft,"+toggleKey)
 	}
 	return args
 }
 
-func menu(s *Store, root, toggleKey string) error {
+// rofiInput renders rows for rofi: the text, then the dmenu row option
+// "\0icon\x1f<path>" so every row has an icon cell (a transparent blank for
+// closed projects keeps the column uniform). With no icon files, plain rows.
+func rofiInput(rows []Row, icons map[string]string) []byte {
+	var b bytes.Buffer
+	for _, r := range rows {
+		b.WriteString(r.Text)
+		if icons != nil {
+			p, ok := icons[r.Icon]
+			if !ok {
+				p = icons["blank"]
+			}
+			b.WriteString("\x00icon\x1f" + p)
+		}
+		b.WriteByte('\n')
+	}
+	return b.Bytes()
+}
+
+func menu(s *Store, root, toggleKey, iconDir string) error {
 	ps, open, err := load(s, root)
 	if err != nil {
 		return err
@@ -81,14 +101,17 @@ func menu(s *Store, root, toggleKey string) error {
 	if len(rows) == 0 {
 		return errors.New("no projects under " + root)
 	}
-	var in bytes.Buffer
-	for _, r := range rows {
-		in.WriteString(r.Text + "\n")
+	// Icons are a nicety: failing to write them is logged, not fatal.
+	icons, err := writeIcons(iconDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "p-launcher: icons unavailable:", err)
+		icons = nil
 	}
+	in := bytes.NewReader(rofiInput(rows, icons))
 	// -format i prints the selected row index; -1 when the typed text matched
 	// no row (the future create-project hook). No timeout: rofi waits for the user.
 	cmd := exec.Command("rofi", rofiArgs(toggleKey)...)
-	cmd.Stdin = &in
+	cmd.Stdin = in
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

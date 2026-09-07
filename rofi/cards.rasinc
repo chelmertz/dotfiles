@@ -24,8 +24,8 @@ mainbox {
 }
 inputbar {
     children:         [ prompt, entry ];
-    /* Left padding = element padding + first tab stop, so the prompt lines up
-       with the name column rather than the glyph gutter. */
+    /* Left padding = element padding + icon (1.2em) + element spacing, so
+       the prompt lines up with the name column rather than the icon gutter. */
     padding:          10px 14px 10px 44px;
     spacing:          10px;
     background-color: @field;
@@ -61,8 +61,9 @@ element {
 element-text {
     text-color: inherit;
     cursor:     inherit;
-    /* Column stops for tab-separated rows (p-launcher/rows.go): glyph, name, label. */
-    tab-stops:  [ 30px, 300px ];
+    /* Column stop for tab-separated rows (p-launcher/rows.go): name, label.
+       The state is the row icon (p-launcher writes them, -show-icons). */
+    tab-stops:  [ 270px ];
 }
 element-icon {
     size:   1.2em;

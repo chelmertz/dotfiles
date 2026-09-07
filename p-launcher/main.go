@@ -91,7 +91,7 @@ func run(args []string) error {
 	case "open":
 		return Open(s, root, args[1])
 	case "menu":
-		return menu(s, root, toggleKey)
+		return menu(s, root, toggleKey, filepath.Join(filepath.Dir(dbPath), "icons"))
 	case "hook":
 		// Claude Code runs this on every hook event with JSON on stdin. It
 		// must never slow or fail a session: log to stderr and exit 0. Nothing
