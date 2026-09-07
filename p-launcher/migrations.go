@@ -11,6 +11,7 @@ import (
 var migrations = []func(*sql.Tx) error{
 	migrate001,
 	migrate002,
+	migrate003,
 }
 
 func migrate001(tx *sql.Tx) error {
@@ -65,6 +66,50 @@ create table session_event (
 );
 create index session_event_project_time on session_event (project_id, occurred_at);
 create index session_event_session on session_event (session_id, occurred_at);`)
+	return err
+}
+
+// migrate003 adds the tables the report reads and later commands fill:
+// project lifecycle (create/archive/reopen with a reason), permission asks
+// with their allowlist rule, and PR links refreshed from elly.
+func migrate003(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+create table project_event (
+  id          integer primary key,
+  project_id  integer not null references project(id),
+  kind        text not null check (kind in ('created', 'archived', 'reopened')),
+  detail      text not null default '',
+  occurred_at text not null
+);
+create index project_event_project_time on project_event (project_id, occurred_at);
+
+create table permission_request (
+  id          integer primary key,
+  session_id  text not null,
+  project_id  integer references project(id),
+  tool_name   text not null,
+  rule        text not null,
+  occurred_at text not null
+);
+create index permission_request_project_time on permission_request (project_id, occurred_at);
+
+create table link (
+  id            integer primary key,
+  project_id    integer not null references project(id),
+  url           text not null unique,
+  kind          text not null default 'github_pr',
+  author        text not null default '',
+  title         text not null default '',
+  body          text not null default '',
+  additions     integer,
+  deletions     integer,
+  opened_at     text,
+  closed_at     text,
+  merged        integer not null default 0,
+  action_needed integer not null default 0,
+  refreshed_at  text
+);
+create index link_project on link (project_id);`)
 	return err
 }
 

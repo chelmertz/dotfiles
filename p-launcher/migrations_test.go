@@ -92,3 +92,22 @@ func TestMigrate002Tables(t *testing.T) {
 		t.Fatal("bogus state accepted")
 	}
 }
+
+func TestMigrate003Tables(t *testing.T) {
+	db := openTestDB(t)
+	if err := migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	for _, tbl := range []string{"project_event", "permission_request", "link"} {
+		var n int
+		if err := db.QueryRow(`select count(*) from sqlite_master where type='table' and name=?`, tbl).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n != 1 {
+			t.Fatalf("table %s missing", tbl)
+		}
+	}
+	if _, err := db.Exec(`insert into project_event (project_id, kind, occurred_at) values (1, 'bogus', 'x')`); err == nil {
+		t.Fatal("bogus project_event kind accepted")
+	}
+}
