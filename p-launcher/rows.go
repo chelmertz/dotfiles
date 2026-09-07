@@ -43,10 +43,13 @@ func Rows(ps []Project, open map[string]bool, withTail bool) []Row {
 // gates and the state only refines. The same icons appear in the report.
 func stateIcon(p Project, isOpen bool) string {
 	switch {
+	case isOpen && p.Ball == "you":
+		return "you"
+	case p.Review:
+		// a reviewer waits on the user; needs no window to be true
+		return "review"
 	case !isOpen:
 		return ""
-	case p.Ball == "you":
-		return "you"
 	case p.Ball == "claude":
 		return "claude"
 	}

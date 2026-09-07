@@ -11,10 +11,11 @@ func TestWriteList(t *testing.T) {
 		{Path: "m/dependabot", Name: "dependabot", Label: "matchi", LastActive: "2026-09-01T10:00:00Z", Ball: "you"},
 		{Path: "personal/health", Name: "health", Label: "personal"},
 	}
+	ps[1].Review = true
 	var buf bytes.Buffer
 	writeList(&buf, ps, map[string]bool{"p:m/dependabot": true})
-	want := "m/dependabot\tdependabot\tmatchi\t1\t2026-09-01T10:00:00Z\tyou\t0\n" +
-		"personal/health\thealth\tpersonal\t0\t\t\t0\n"
+	want := "m/dependabot\tdependabot\tmatchi\t1\t2026-09-01T10:00:00Z\tyou\t0\t0\n" +
+		"personal/health\thealth\tpersonal\t0\t\t\t0\t1\n"
 	if buf.String() != want {
 		t.Fatalf("got %q", buf.String())
 	}

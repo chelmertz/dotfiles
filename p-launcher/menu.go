@@ -37,7 +37,8 @@ func load(s *Store, root string, all bool) ([]Project, map[string]bool, error) {
 }
 
 // list prints TSV rows for other front ends: path, name, label, open,
-// last_active, ball ("you", "claude" or empty), archived (0/1).
+// last_active, ball ("you", "claude" or empty), archived (0/1), review (0/1:
+// a fresh verdict says a linked PR waits on the user).
 func list(s *Store, root string, w io.Writer, all bool) error {
 	ps, open, err := load(s, root, all)
 	if err != nil {
@@ -48,14 +49,17 @@ func list(s *Store, root string, w io.Writer, all bool) error {
 
 func writeList(w io.Writer, ps []Project, open map[string]bool) error {
 	for _, p := range ps {
-		o, a := "0", "0"
+		o, a, r := "0", "0", "0"
 		if open[tagFor(p.Path)] {
 			o = "1"
 		}
 		if p.Archived {
 			a = "1"
 		}
-		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p.Path, p.Name, p.Label, o, p.LastActive, p.Ball, a); err != nil {
+		if p.Review {
+			r = "1"
+		}
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p.Path, p.Name, p.Label, o, p.LastActive, p.Ball, a, r); err != nil {
 			return err
 		}
 	}

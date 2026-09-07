@@ -20,6 +20,7 @@ type Project struct {
 	LastActive string // RFC3339 UTC or "" when never selected
 	Ball       string // "you" (a Claude session waits on the user), "claude" (working), or ""
 	Archived   bool   // latest project_event is "archived"
+	Review     bool   // a fresh elly verdict says a linked PR waits on the user
 }
 
 var errNoRows = sql.ErrNoRows
@@ -92,14 +93,25 @@ const archivedExpr = `coalesce((select pe.kind from project_event pe where pe.pr
 
 func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 	cutoff := at.Add(-staleSession).UTC().Format(time.RFC3339)
+	// Review verdicts come from elly; they only count while elly's data is
+	// fresh, otherwise a dead elly would pin projects at the top forever.
+	lf, err := s.kvGet("elly.last_fetched")
+	if err != nil {
+		return nil, err
+	}
+	fresh := false
+	if t := parseTime(lf); !t.IsZero() && at.Sub(t) <= ellyStaleAfter {
+		fresh = true
+	}
 	rows, err := s.db.Query(`
 		select p.path, p.name, n.label,
 		       coalesce((select max(occurred_at) from activity a where a.project_id = p.id), '') as last_active,
 		       coalesce((select max(state) from session_state ss where ss.project_id = p.id and ss.since > ?), '') as ball,
-		       `+archivedExpr+` as archived
+		       `+archivedExpr+` as archived,
+		       (? and exists(select 1 from link l where l.project_id = p.id and l.action_needed = 1)) as review
 		from project p join namespace n on n.id = p.namespace_id
 		where ? or not (`+archivedExpr+`)
-		order by n.sort_order, ball = 'you' desc, last_active = '', last_active desc, p.name`, cutoff, all)
+		order by n.sort_order, (ball = 'you' or review) desc, last_active = '', last_active desc, p.name`, cutoff, fresh, all)
 	if err != nil {
 		return nil, fmt.Errorf("list projects: %w", err)
 	}
@@ -107,7 +119,7 @@ func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 	var out []Project
 	for rows.Next() {
 		var p Project
-		if err := rows.Scan(&p.Path, &p.Name, &p.Label, &p.LastActive, &p.Ball, &p.Archived); err != nil {
+		if err := rows.Scan(&p.Path, &p.Name, &p.Label, &p.LastActive, &p.Ball, &p.Archived, &p.Review); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
