@@ -141,7 +141,7 @@ const (
 
 func mainMenuExtra() []string {
 	return []string{"-kb-custom-1", "Alt+a", "-kb-custom-2", "Alt+r",
-		"-mesg", `<span alpha="60%">Alt+a archived · Alt+r report · type ns/name to create</span>`}
+		"-mesg", `<span alpha="60%">Alt+a archived · Alt+r report · ns/name creates</span>`}
 }
 
 // parseRofiOut splits rofi's "i|f" output: index (-1 for a typed non-match)
