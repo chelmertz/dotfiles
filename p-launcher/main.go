@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -22,7 +23,9 @@ func usage() error {
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
-			report(fmt.Errorf("panic: %v\n%s", r, debug.Stack()))
+			msg := fmt.Sprintf("panic: %v", r)
+			fmt.Fprintf(os.Stderr, "p-launcher: %s\n%s", msg, debug.Stack())
+			notify(msg)
 			os.Exit(2)
 		}
 	}()
@@ -36,6 +39,22 @@ func run(args []string) error {
 	if len(args) == 0 {
 		return usage()
 	}
+	cmd := args[0]
+	// Validate the subcommand and its arity before touching the store, so a
+	// typo'd subcommand never opens (and possibly migrates) the DB.
+	switch cmd {
+	case "list", "menu":
+		if len(args) != 1 {
+			return usage()
+		}
+	case "open":
+		if len(args) != 2 {
+			return usage()
+		}
+	default:
+		return usage()
+	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -49,19 +68,15 @@ func run(args []string) error {
 	}
 	defer s.Close()
 
-	switch args[0] {
+	switch cmd {
 	case "list":
 		return list(s, root, os.Stdout)
 	case "open":
-		if len(args) != 2 {
-			return usage()
-		}
 		return Open(s, root, args[1])
 	case "menu":
 		return menu(s, root)
-	default:
-		return usage()
 	}
+	panic("unreachable: cmd validated above")
 }
 
 func dataDir(home string) string {
@@ -71,14 +86,20 @@ func dataDir(home string) string {
 	return filepath.Join(home, ".local", "share")
 }
 
-// report writes the error to stderr (the journal, via systemd-cat) and raises
-// a desktop notification. A notify-send failure is logged next to the
-// original error, never instead of it.
+// report writes the error to stderr (the journal, via systemd-cat) and
+// raises a desktop notification.
 func report(err error) {
 	fmt.Fprintln(os.Stderr, "p-launcher:", err)
+	notify(err.Error())
+}
+
+// notify raises a desktop notification with body. dunst renders the body as
+// Pango markup, so it is HTML-escaped first. A notify-send failure is
+// logged next to the original error, never instead of it.
+func notify(body string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if _, nerr := runCmd(ctx, "notify-send", "-u", "critical", "-a", "p-launcher", "p-launcher failed", err.Error()); nerr != nil {
+	if _, nerr := runCmd(ctx, "notify-send", "-u", "critical", "-a", "p-launcher", "p-launcher failed", html.EscapeString(body)); nerr != nil {
 		fmt.Fprintln(os.Stderr, "p-launcher: notify-send also failed:", nerr)
 	}
 }

@@ -57,13 +57,18 @@ func writeList(w io.Writer, ps []Project, open map[string]bool) error {
 	return nil
 }
 
-// menu shows rofi and opens the selection. Esc (rofi exit 1) is a quiet exit.
+// menu shows rofi and opens the selection. Esc (rofi exit 1, empty stderr)
+// is a quiet exit; a nonzero exit with stderr output is a fatal rofi
+// startup failure (display, "already running", a bad theme), not a cancel.
 func menu(s *Store, root string) error {
 	ps, open, err := load(s, root)
 	if err != nil {
 		return err
 	}
 	rows := Rows(ps, open)
+	if len(rows) == 0 {
+		return errors.New("no projects under " + root)
+	}
 	var in bytes.Buffer
 	for _, r := range rows {
 		in.WriteString(r.Text + "\n")
@@ -77,7 +82,7 @@ func menu(s *Store, root string) error {
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		code := exitCode(err)
-		if code == 1 {
+		if code == 1 && strings.TrimSpace(stderr.String()) == "" {
 			return nil // cancelled with Esc
 		}
 		return &CmdError{Cmd: "rofi -dmenu", ExitCode: code, Stderr: clip(stderr.String())}
@@ -86,10 +91,20 @@ func menu(s *Store, root string) error {
 	if !ok {
 		return fmt.Errorf("rofi returned unexpected output %q", stdout.String())
 	}
-	if idx < 0 || idx >= len(rows) || rows[idx].Path == "" {
+	path, ok := selectRow(rows, idx)
+	if !ok {
 		return nil // typed non-match or divider: no-op for now
 	}
-	return Open(s, root, rows[idx].Path)
+	return Open(s, root, path)
+}
+
+// selectRow resolves a rofi row index to a project path, isolated from I/O
+// for testing. ok is false for an out-of-range index or a divider row.
+func selectRow(rows []Row, idx int) (string, bool) {
+	if idx < 0 || idx >= len(rows) || rows[idx].Path == "" {
+		return "", false
+	}
+	return rows[idx].Path, true
 }
 
 func parseRofiIndex(out string) (int, bool) {

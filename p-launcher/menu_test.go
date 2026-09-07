@@ -31,3 +31,28 @@ func TestParseRofiIndex(t *testing.T) {
 		}
 	}
 }
+
+func TestSelectRow(t *testing.T) {
+	rows := []Row{
+		{Text: "  dependabot", Path: "m/dependabot"},
+		{Text: divider},
+		{Text: "  health", Path: "personal/health"},
+	}
+	cases := []struct {
+		idx      int
+		wantPath string
+		wantOk   bool
+	}{
+		{0, "m/dependabot", true},
+		{1, "", false}, // divider
+		{2, "personal/health", true},
+		{-1, "", false},
+		{3, "", false},
+	}
+	for _, c := range cases {
+		path, ok := selectRow(rows, c.idx)
+		if path != c.wantPath || ok != c.wantOk {
+			t.Errorf("idx %d: got (%q,%v) want (%q,%v)", c.idx, path, ok, c.wantPath, c.wantOk)
+		}
+	}
+}
