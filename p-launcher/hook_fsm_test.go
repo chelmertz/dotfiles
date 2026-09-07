@@ -128,6 +128,16 @@ func TestFSMApprovalRoundTrip(t *testing.T) {
 	if got := permRules(t, s, "m/a"); len(got) != 1 {
 		t.Fatalf("rules %v", got)
 	}
+	// AskUserQuestion is announced with the same permission_prompt notification,
+	// but it is a question to the user, not a permission: no rule, ball returns
+	feed(t, s, root, `{"session_id":"s1","cwd":"`+cwd+`","hook_event_name":"Notification","notification_type":"permission_prompt"}`)
+	feed(t, s, root, `{"session_id":"s1","cwd":"`+cwd+`","hook_event_name":"PostToolUse","tool_name":"AskUserQuestion","tool_input":{"questions":[]},"tool_response":{}}`)
+	if got := permRules(t, s, "m/a"); len(got) != 1 {
+		t.Fatalf("question recorded as a permission rule: %v", got)
+	}
+	if b := ball(t, s, "m/a"); b != "claude" {
+		t.Fatalf("answered question must return the ball, got %q", b)
+	}
 	feed(t, s, root, `{"session_id":"s1","cwd":"`+cwd+`","hook_event_name":"Stop"}`)
 	if st, why := stateReason(t, s, "s1"); st != "you" || why != "stop" {
 		t.Fatalf("stop → you/stop, got %s/%s", st, why)
@@ -148,9 +158,9 @@ func TestFSMApprovalRoundTrip(t *testing.T) {
 	if b := ball(t, s, "m/a"); b != "" {
 		t.Fatalf("end must clear, got %q", b)
 	}
-	// PostToolUse is not logged as an event; the other six are
-	if n := countEvents(t, s, "s1"); n != 6 {
-		t.Fatalf("events = %d, want 6", n)
+	// PostToolUse is not logged as an event; the other seven are
+	if n := countEvents(t, s, "s1"); n != 7 {
+		t.Fatalf("events = %d, want 7", n)
 	}
 }
 

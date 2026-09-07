@@ -158,7 +158,9 @@ func postToolUse(s *Store, path string, in HookInput) error {
 		return err
 	}
 	if state == "you" {
-		if reason == "permission_prompt" {
+		// AskUserQuestion dialogs arrive as permission_prompt notifications too;
+		// answering one is not granting a permission, so no allowlist rule.
+		if reason == "permission_prompt" && in.ToolName != "AskUserQuestion" {
 			if err := s.RecordPermission(in.SessionID, path, in.ToolName, ruleFor(in.ToolName, in.ToolInput)); err != nil {
 				return err
 			}
