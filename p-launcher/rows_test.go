@@ -7,12 +7,13 @@ import (
 
 func TestRows(t *testing.T) {
 	ps := []Project{
-		{Path: "m/reputation", Name: "reputation", Label: "matchi"},
-		{Path: "m/dependabot", Name: "dependabot", Label: "matchi"},
+		{Path: "m/reputation", Name: "reputation", Label: "matchi", Ball: "you"},
+		{Path: "m/dependabot", Name: "dependabot", Label: "matchi", Ball: "claude"},
+		{Path: "m/stale", Name: "stale", Label: "matchi", Ball: "you"}, // no window: stale state, shown closed
 		{Path: "personal/health", Name: "health", Label: "personal"},
 		{Path: "oss/a&b", Name: "a&b", Label: "oss"},
 	}
-	open := map[string]bool{"p:m/dependabot": true}
+	open := map[string]bool{"p:m/dependabot": true, "p:m/reputation": true, "p:personal/health": true}
 	rows := Rows(ps, open)
 	var lines []string
 	var paths []string
@@ -23,12 +24,13 @@ func TestRows(t *testing.T) {
 	// Longest name is 10 runes; every label starts at the same column.
 	muted := func(l string) string { return `<span alpha="45%">` + l + `</span>` }
 	wantLines := []string{
-		"  reputation    " + muted("matchi"),
+		"■ reputation    " + muted("matchi"),
 		"● dependabot    " + muted("matchi"),
-		"  health        " + muted("personal"),
+		"  stale         " + muted("matchi"),
+		"○ health        " + muted("personal"),
 		"  a&amp;b           " + muted("oss"),
 	}
-	wantPaths := []string{"m/reputation", "m/dependabot", "personal/health", "oss/a&b"}
+	wantPaths := []string{"m/reputation", "m/dependabot", "m/stale", "personal/health", "oss/a&b"}
 	if !reflect.DeepEqual(lines, wantLines) {
 		t.Fatalf("lines %q", lines)
 	}

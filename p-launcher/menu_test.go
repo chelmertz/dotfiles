@@ -8,13 +8,13 @@ import (
 
 func TestWriteList(t *testing.T) {
 	ps := []Project{
-		{Path: "m/dependabot", Name: "dependabot", Label: "matchi", LastActive: "2026-09-01T10:00:00Z"},
+		{Path: "m/dependabot", Name: "dependabot", Label: "matchi", LastActive: "2026-09-01T10:00:00Z", Ball: "you"},
 		{Path: "personal/health", Name: "health", Label: "personal"},
 	}
 	var buf bytes.Buffer
 	writeList(&buf, ps, map[string]bool{"p:m/dependabot": true})
-	want := "m/dependabot\tdependabot\tmatchi\t1\t2026-09-01T10:00:00Z\n" +
-		"personal/health\thealth\tpersonal\t0\t\n"
+	want := "m/dependabot\tdependabot\tmatchi\t1\t2026-09-01T10:00:00Z\tyou\n" +
+		"personal/health\thealth\tpersonal\t0\t\t\n"
 	if buf.String() != want {
 		t.Fatalf("got %q", buf.String())
 	}
