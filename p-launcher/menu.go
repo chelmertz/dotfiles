@@ -62,13 +62,34 @@ func writeList(w io.Writer, ps []Project, open map[string]bool) error {
 // startup failure (display, "already running", a bad theme), not a cancel.
 // rofiArgs builds the dmenu invocation. toggleKey, when set, is added to
 // rofi's cancel binding so the same hotkey that opened the menu closes it
-// (rofi grabs the keyboard, so i3 never sees the second press).
-func rofiArgs(toggleKey string) []string {
-	args := []string{"-dmenu", "-i", "-p", "project", "-format", "i", "-matching", "fuzzy", "-markup-rows"}
+// (rofi grabs the keyboard, so i3 never sees the second press). headings are
+// row indices styled as "active" (theme colour) so they read as labels even
+// though the cursor can still pass over them; the cursor starts on the first
+// project row.
+func rofiArgs(toggleKey string, headings []int) []string {
+	args := []string{"-dmenu", "-i", "-p", "project", "-format", "i", "-matching", "fuzzy", "-markup-rows", "-selected-row", "1"}
 	if toggleKey != "" {
 		args = append(args, "-kb-cancel", "Escape,Control+g,Control+bracketleft,"+toggleKey)
 	}
+	if len(headings) > 0 {
+		idx := make([]string, len(headings))
+		for i, h := range headings {
+			idx[i] = strconv.Itoa(h)
+		}
+		args = append(args, "-a", strings.Join(idx, ","))
+	}
 	return args
+}
+
+// headingRows returns the indices of heading rows (empty Path).
+func headingRows(rows []Row) []int {
+	var out []int
+	for i, r := range rows {
+		if r.Path == "" {
+			out = append(out, i)
+		}
+	}
+	return out
 }
 
 func menu(s *Store, root, toggleKey string) error {
@@ -86,7 +107,7 @@ func menu(s *Store, root, toggleKey string) error {
 	}
 	// -format i prints the selected row index; -1 when the typed text matched
 	// no row (the future create-project hook). No timeout: rofi waits for the user.
-	cmd := exec.Command("rofi", rofiArgs(toggleKey)...)
+	cmd := exec.Command("rofi", rofiArgs(toggleKey, headingRows(rows))...)
 	cmd.Stdin = &in
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
