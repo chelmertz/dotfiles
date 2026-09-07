@@ -97,7 +97,7 @@ func TestHookEndToEnd(t *testing.T) {
 		t.Fatalf("%+v", ps)
 	}
 	// a subagent's Stop is logged but does not hand the ball over
-	if err := s.SetSessionState("s3", "m/new", "claude"); err != nil {
+	if err := s.SetSessionState("s3", "m/new", "claude", ""); err != nil {
 		t.Fatal(err)
 	}
 	in = `{"session_id":"s3","agent_id":"sub1","cwd":"` + root + `/m/new","hook_event_name":"Stop"}`

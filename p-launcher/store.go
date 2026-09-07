@@ -122,16 +122,17 @@ func (s *Store) recordAt(path, kind string, at time.Time) error {
 }
 
 // SetSessionState records whose turn it is in one Claude Code session.
-// state is "claude" or "you"; the project must be known.
-func (s *Store) SetSessionState(sessionID, path, state string) error {
-	return s.setStateAt(sessionID, path, state, time.Now())
+// state is "claude" or "you"; reason says why it is "you" (permission_prompt,
+// idle_prompt, stop) and is "" for "claude". The project must be known.
+func (s *Store) SetSessionState(sessionID, path, state, reason string) error {
+	return s.setStateAt(sessionID, path, state, reason, time.Now())
 }
 
-func (s *Store) setStateAt(sessionID, path, state string, at time.Time) error {
-	res, err := s.db.Exec(`insert into session_state (session_id, project_id, state, since)
-		select ?, id, ?, ? from project where path = ?
-		on conflict(session_id) do update set project_id = excluded.project_id, state = excluded.state, since = excluded.since`,
-		sessionID, state, at.UTC().Format(time.RFC3339), path)
+func (s *Store) setStateAt(sessionID, path, state, reason string, at time.Time) error {
+	res, err := s.db.Exec(`insert into session_state (session_id, project_id, state, reason, since)
+		select ?, id, ?, ?, ? from project where path = ?
+		on conflict(session_id) do update set project_id = excluded.project_id, state = excluded.state, reason = excluded.reason, since = excluded.since`,
+		sessionID, state, reason, at.UTC().Format(time.RFC3339), path)
 	if err != nil {
 		return fmt.Errorf("set state %s for %s: %w", state, path, err)
 	}
@@ -142,6 +143,15 @@ func (s *Store) setStateAt(sessionID, path, state string, at time.Time) error {
 		return fmt.Errorf("set state: unknown project %q", path)
 	}
 	return nil
+}
+
+// SessionBall reads a session's current state and reason; "" for unknown.
+func (s *Store) SessionBall(sessionID string) (state, reason string, err error) {
+	err = s.db.QueryRow(`select state, reason from session_state where session_id = ?`, sessionID).Scan(&state, &reason)
+	if err == sql.ErrNoRows {
+		return "", "", nil
+	}
+	return state, reason, err
 }
 
 // ClearSession forgets a session's ball state (SessionEnd). Unknown

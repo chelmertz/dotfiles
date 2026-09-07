@@ -12,6 +12,7 @@ var migrations = []func(*sql.Tx) error{
 	migrate001,
 	migrate002,
 	migrate003,
+	migrate004,
 }
 
 func migrate001(tx *sql.Tx) error {
@@ -110,6 +111,14 @@ create table link (
   refreshed_at  text
 );
 create index link_project on link (project_id);`)
+	return err
+}
+
+// migrate004 records why the ball is with the user (permission_prompt,
+// idle_prompt, stop), so an approved tool run can hand it back and the live
+// view can say what it waits for.
+func migrate004(tx *sql.Tx) error {
+	_, err := tx.Exec(`alter table session_state add column reason text not null default ''`)
 	return err
 }
 

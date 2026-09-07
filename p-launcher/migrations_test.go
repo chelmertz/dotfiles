@@ -111,3 +111,31 @@ func TestMigrate003Tables(t *testing.T) {
 		t.Fatal("bogus project_event kind accepted")
 	}
 }
+
+func TestMigrate004Reason(t *testing.T) {
+	db := openTestDB(t)
+	if err := migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := db.Query(`pragma table_info(session_state)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	found := false
+	for rows.Next() {
+		var cid int
+		var name, typ string
+		var notnull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk); err != nil {
+			t.Fatal(err)
+		}
+		if name == "reason" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("session_state.reason missing")
+	}
+}

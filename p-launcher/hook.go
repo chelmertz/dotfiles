@@ -121,7 +121,14 @@ func hook(s *Store, root string, r io.Reader) error {
 	case state == "clear":
 		return s.ClearSession(in.SessionID)
 	case state != "" && path != "":
-		return s.SetSessionState(in.SessionID, path, state)
+		reason := ""
+		if state == "you" {
+			reason = detail // notification type
+			if in.Event == "Stop" {
+				reason = "stop"
+			}
+		}
+		return s.SetSessionState(in.SessionID, path, state, reason)
 	}
 	return nil
 }

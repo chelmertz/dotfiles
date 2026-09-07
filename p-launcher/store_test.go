@@ -125,25 +125,25 @@ func TestSessionStateAggregate(t *testing.T) {
 	if err := s.recordAt("m/a", "launch", t0.Add(3*time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.setStateAt("s1", "m/a", "claude", t0); err != nil {
+	if err := s.setStateAt("s1", "m/a", "claude", "", t0); err != nil {
 		t.Fatal(err)
 	}
 	// m/b: older activity, two sessions, one needs you → project needs you and sorts first
 	if err := s.recordAt("m/b", "launch", t0.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.setStateAt("s2", "m/b", "claude", t0); err != nil {
+	if err := s.setStateAt("s2", "m/b", "claude", "", t0); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.setStateAt("s3", "m/b", "you", t0); err != nil {
+	if err := s.setStateAt("s3", "m/b", "you", "", t0); err != nil {
 		t.Fatal(err)
 	}
 	// m/c: stale needs-you (older than 24h) → ignored
-	if err := s.setStateAt("s4", "m/c", "you", t0.Add(-25*time.Hour)); err != nil {
+	if err := s.setStateAt("s4", "m/c", "you", "", t0.Add(-25*time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	// personal/d: needs you, but a different namespace → still after all of m
-	if err := s.setStateAt("s5", "personal/d", "you", t0); err != nil {
+	if err := s.setStateAt("s5", "personal/d", "you", "", t0); err != nil {
 		t.Fatal(err)
 	}
 	ps, err := s.listProjectsAt(t0.Add(4 * time.Hour))
@@ -159,7 +159,7 @@ func TestSessionStateAggregate(t *testing.T) {
 		t.Fatalf("got %q want %q", got, want)
 	}
 	// transitions overwrite, SessionEnd clears
-	if err := s.setStateAt("s3", "m/b", "claude", t0.Add(time.Minute)); err != nil {
+	if err := s.setStateAt("s3", "m/b", "claude", "", t0.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.ClearSession("s2"); err != nil {
@@ -179,7 +179,7 @@ func TestSessionStateAggregate(t *testing.T) {
 
 func TestSessionStateUnknownProject(t *testing.T) {
 	s := openTestStore(t)
-	if err := s.SetSessionState("s1", "m/nope", "claude"); err == nil {
+	if err := s.SetSessionState("s1", "m/nope", "claude", ""); err == nil {
 		t.Fatal("unknown project accepted")
 	}
 }
@@ -213,5 +213,28 @@ func TestRecordSessionEvent(t *testing.T) {
 	// unknown project path is an error, not a silent NULL
 	if err := s.RecordSessionEvent(SessionEvent{SessionID: "s3", Path: "m/nope", Cwd: "/x", Kind: "stop"}); err == nil {
 		t.Fatal("unknown project accepted")
+	}
+}
+
+func TestSessionBallReason(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.UpsertProjects(found("m/a")); err != nil {
+		t.Fatal(err)
+	}
+	if st, why, err := s.SessionBall("nope"); err != nil || st != "" || why != "" {
+		t.Fatalf("%q %q %v", st, why, err)
+	}
+	if err := s.SetSessionState("s1", "m/a", "you", "permission_prompt"); err != nil {
+		t.Fatal(err)
+	}
+	st, why, err := s.SessionBall("s1")
+	if err != nil || st != "you" || why != "permission_prompt" {
+		t.Fatalf("%q %q %v", st, why, err)
+	}
+	if err := s.SetSessionState("s1", "m/a", "claude", ""); err != nil {
+		t.Fatal(err)
+	}
+	if st, why, _ := s.SessionBall("s1"); st != "claude" || why != "" {
+		t.Fatalf("%q %q", st, why)
 	}
 }

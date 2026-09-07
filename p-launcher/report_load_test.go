@@ -22,7 +22,7 @@ func TestLoadReportDataEmptyAndSmoke(t *testing.T) {
 	if err := s.RecordSessionEvent(SessionEvent{SessionID: "s1", Path: "m/a", Cwd: "/x", Kind: "prompt"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SetSessionState("s1", "m/a", "claude"); err != nil {
+	if err := s.SetSessionState("s1", "m/a", "claude", ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.db.Exec(`insert into link (project_id, url, author, opened_at, closed_at, merged) select id, 'https://github.com/o/r/pull/1', 'me', ?, ?, 1 from project where path = 'm/a'`, rfc(now.Add(-2*time.Hour)), rfc(now.Add(-time.Hour))); err != nil {
