@@ -775,8 +775,14 @@ in
     backend = "xrender";
     vSync = true;
     fade = false;
-    shadow = false;
+    # Shadow on rofi alone, so the launcher lifts off busy windows. Everything
+    # else, dunst included, is excluded by class.
+    shadow = true;
+    shadowOpacity = 0.5;
+    shadowOffsets = [ (-24) (-14) ];
+    shadowExclude = [ "!(class_g = 'Rofi')" ];
     settings = {
+      shadow-radius = 24;
       unredir-if-possible = true;
       use-damage = true;
       detect-client-opacity = true;
