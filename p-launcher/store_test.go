@@ -2,6 +2,7 @@ package main
 
 import (
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -111,5 +112,106 @@ func TestRecordActivityRejectsUnknownPathAndKind(t *testing.T) {
 	}
 	if err := s.RecordActivity("m/x", "launch"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSessionStateAggregate(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.UpsertProjects(found("m/a", "m/b", "m/c", "personal/d")); err != nil {
+		t.Fatal(err)
+	}
+	t0 := time.Date(2026, 9, 7, 10, 0, 0, 0, time.UTC)
+	// m/a: newest activity, one session working
+	if err := s.recordAt("m/a", "launch", t0.Add(3*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.setStateAt("s1", "m/a", "claude", t0); err != nil {
+		t.Fatal(err)
+	}
+	// m/b: older activity, two sessions, one needs you → project needs you and sorts first
+	if err := s.recordAt("m/b", "launch", t0.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.setStateAt("s2", "m/b", "claude", t0); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.setStateAt("s3", "m/b", "you", t0); err != nil {
+		t.Fatal(err)
+	}
+	// m/c: stale needs-you (older than 24h) → ignored
+	if err := s.setStateAt("s4", "m/c", "you", t0.Add(-25*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	// personal/d: needs you, but a different namespace → still after all of m
+	if err := s.setStateAt("s5", "personal/d", "you", t0); err != nil {
+		t.Fatal(err)
+	}
+	ps, err := s.listProjectsAt(t0.Add(4 * time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, p := range ps {
+		got = append(got, p.Path+":"+p.Ball)
+	}
+	want := []string{"m/b:you", "m/a:claude", "m/c:", "personal/d:you"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %q want %q", got, want)
+	}
+	// transitions overwrite, SessionEnd clears
+	if err := s.setStateAt("s3", "m/b", "claude", t0.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ClearSession("s2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ClearSession("never-seen"); err != nil {
+		t.Fatal(err)
+	}
+	ps, err = s.listProjectsAt(t0.Add(4 * time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ps[0].Path != "m/a" || ps[1].Path != "m/b" || ps[1].Ball != "claude" {
+		t.Fatalf("after transition: %+v", ps[:2])
+	}
+}
+
+func TestSessionStateUnknownProject(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.SetSessionState("s1", "m/nope", "claude"); err == nil {
+		t.Fatal("unknown project accepted")
+	}
+}
+
+func TestRecordSessionEvent(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.UpsertProjects(found("m/a")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RecordSessionEvent(SessionEvent{SessionID: "s1", Path: "m/a", Cwd: "/home/x/p/m/a/sub", Kind: "prompt"}); err != nil {
+		t.Fatal(err)
+	}
+	// outside ~/p: no project, still recorded
+	if err := s.RecordSessionEvent(SessionEvent{SessionID: "s2", Cwd: "/home/x/code", Kind: "notification", Detail: "permission_prompt"}); err != nil {
+		t.Fatal(err)
+	}
+	var n, nulls int
+	if err := s.db.QueryRow(`select count(*), sum(project_id is null) from session_event`).Scan(&n, &nulls); err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 || nulls != 1 {
+		t.Fatalf("rows=%d nulls=%d", n, nulls)
+	}
+	var detail string
+	if err := s.db.QueryRow(`select detail from session_event where session_id='s2'`).Scan(&detail); err != nil {
+		t.Fatal(err)
+	}
+	if detail != "permission_prompt" {
+		t.Fatalf("detail %q", detail)
+	}
+	// unknown project path is an error, not a silent NULL
+	if err := s.RecordSessionEvent(SessionEvent{SessionID: "s3", Path: "m/nope", Cwd: "/x", Kind: "stop"}); err == nil {
+		t.Fatal("unknown project accepted")
 	}
 }

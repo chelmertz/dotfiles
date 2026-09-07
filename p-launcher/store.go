@@ -18,6 +18,7 @@ type Project struct {
 	Name       string // "dependabot"
 	Label      string // namespace label, "matchi"
 	LastActive string // RFC3339 UTC or "" when never selected
+	Ball       string // "you" (a Claude session waits on the user), "claude" (working), or ""
 }
 
 // OpenStore opens (creating dirs and file as needed) and migrates the DB.
@@ -66,14 +67,25 @@ func (s *Store) UpsertProjects(found []Found) error {
 	return tx.Commit()
 }
 
+// staleSession is how long a session_state row counts without a new hook
+// event. Sessions that die without SessionEnd (closed terminal, kill -9)
+// leave a row behind; after this it is ignored.
+const staleSession = 24 * time.Hour
+
 // ListProjects returns projects sorted for display: namespace order, then
-// most recent activity, then never-active alphabetically.
-func (s *Store) ListProjects() ([]Project, error) {
+// needs-you first, then most recent activity, then never-active
+// alphabetically. Ball aggregates live sessions: any "you" wins over
+// "claude" (max() works because 'you' > 'claude'); no live session is "".
+func (s *Store) ListProjects() ([]Project, error) { return s.listProjectsAt(time.Now()) }
+
+func (s *Store) listProjectsAt(at time.Time) ([]Project, error) {
+	cutoff := at.Add(-staleSession).UTC().Format(time.RFC3339)
 	rows, err := s.db.Query(`
 		select p.path, p.name, n.label,
-		       coalesce((select max(occurred_at) from activity a where a.project_id = p.id), '') as last_active
+		       coalesce((select max(occurred_at) from activity a where a.project_id = p.id), '') as last_active,
+		       coalesce((select max(state) from session_state ss where ss.project_id = p.id and ss.since > ?), '') as ball
 		from project p join namespace n on n.id = p.namespace_id
-		order by n.sort_order, last_active = '', last_active desc, p.name`)
+		order by n.sort_order, ball = 'you' desc, last_active = '', last_active desc, p.name`, cutoff)
 	if err != nil {
 		return nil, fmt.Errorf("list projects: %w", err)
 	}
@@ -81,7 +93,7 @@ func (s *Store) ListProjects() ([]Project, error) {
 	var out []Project
 	for rows.Next() {
 		var p Project
-		if err := rows.Scan(&p.Path, &p.Name, &p.Label, &p.LastActive); err != nil {
+		if err := rows.Scan(&p.Path, &p.Name, &p.Label, &p.LastActive, &p.Ball); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -105,6 +117,70 @@ func (s *Store) recordAt(path, kind string, at time.Time) error {
 			return fmt.Errorf("record %s for %s: %w", kind, path, err)
 		}
 		return fmt.Errorf("record %s: unknown project %q", kind, path)
+	}
+	return nil
+}
+
+// SetSessionState records whose turn it is in one Claude Code session.
+// state is "claude" or "you"; the project must be known.
+func (s *Store) SetSessionState(sessionID, path, state string) error {
+	return s.setStateAt(sessionID, path, state, time.Now())
+}
+
+func (s *Store) setStateAt(sessionID, path, state string, at time.Time) error {
+	res, err := s.db.Exec(`insert into session_state (session_id, project_id, state, since)
+		select ?, id, ?, ? from project where path = ?
+		on conflict(session_id) do update set project_id = excluded.project_id, state = excluded.state, since = excluded.since`,
+		sessionID, state, at.UTC().Format(time.RFC3339), path)
+	if err != nil {
+		return fmt.Errorf("set state %s for %s: %w", state, path, err)
+	}
+	if n, err := res.RowsAffected(); err != nil || n == 0 {
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("set state: unknown project %q", path)
+	}
+	return nil
+}
+
+// ClearSession forgets a session's ball state (SessionEnd). Unknown
+// sessions are a no-op.
+func (s *Store) ClearSession(sessionID string) error {
+	_, err := s.db.Exec(`delete from session_state where session_id = ?`, sessionID)
+	return err
+}
+
+// SessionEvent is one Claude Code hook invocation. Path is "" when cwd is
+// outside the project root; the event is still recorded with a NULL project.
+type SessionEvent struct {
+	SessionID, Path, Cwd, Kind, Detail string
+}
+
+// RecordSessionEvent appends to the analytics log.
+func (s *Store) RecordSessionEvent(e SessionEvent) error {
+	return s.recordEventAt(e, time.Now())
+}
+
+func (s *Store) recordEventAt(e SessionEvent, at time.Time) error {
+	ts := at.UTC().Format(time.RFC3339)
+	if e.Path == "" {
+		if _, err := s.db.Exec(`insert into session_event (session_id, project_id, cwd, kind, detail, occurred_at)
+			values (?, null, ?, ?, ?, ?)`, e.SessionID, e.Cwd, e.Kind, e.Detail, ts); err != nil {
+			return fmt.Errorf("record event %s: %w", e.Kind, err)
+		}
+		return nil
+	}
+	res, err := s.db.Exec(`insert into session_event (session_id, project_id, cwd, kind, detail, occurred_at)
+		select ?, id, ?, ?, ?, ? from project where path = ?`, e.SessionID, e.Cwd, e.Kind, e.Detail, ts, e.Path)
+	if err != nil {
+		return fmt.Errorf("record event %s for %s: %w", e.Kind, e.Path, err)
+	}
+	if n, err := res.RowsAffected(); err != nil || n == 0 {
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("record event: unknown project %q", e.Path)
 	}
 	return nil
 }
