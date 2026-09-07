@@ -142,6 +142,9 @@ func TestRename(t *testing.T) {
 
 func gitInit(t *testing.T, dir string) {
 	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not on PATH (the Nix build sandbox); dirty-clone detection is skipped")
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

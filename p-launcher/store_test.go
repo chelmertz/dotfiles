@@ -146,7 +146,7 @@ func TestSessionStateAggregate(t *testing.T) {
 	if err := s.setStateAt("s5", "personal/d", "you", "", t0); err != nil {
 		t.Fatal(err)
 	}
-	ps, err := s.listProjectsAt(true, t0.Add(4 * time.Hour))
+	ps, err := s.listProjectsAt(true, t0.Add(4*time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +168,7 @@ func TestSessionStateAggregate(t *testing.T) {
 	if err := s.ClearSession("never-seen"); err != nil {
 		t.Fatal(err)
 	}
-	ps, err = s.listProjectsAt(true, t0.Add(4 * time.Hour))
+	ps, err = s.listProjectsAt(true, t0.Add(4*time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
