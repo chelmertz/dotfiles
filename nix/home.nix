@@ -766,6 +766,12 @@ in
     set hlsearch
   '';
 
+  # rofi themes matching the dunst cards. bin/color-scheme picks dark or light by
+  # writing @theme into ~/.config/rofi/config.rasi, which stays unmanaged for that.
+  xdg.dataFile."rofi/themes/cards.rasinc".source = ../rofi/cards.rasinc;
+  xdg.dataFile."rofi/themes/cards-dark.rasi".source = ../rofi/cards-dark.rasi;
+  xdg.dataFile."rofi/themes/cards-light.rasi".source = ../rofi/cards-light.rasi;
+
   # Icon theme for notifications only; GTK keeps its own. Linked into
   # ~/.local/share/icons so dunst finds it without relying on XDG_DATA_DIRS.
   xdg.dataFile."icons/WhiteSur-dark".source =

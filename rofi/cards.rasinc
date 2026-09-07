@@ -1,0 +1,90 @@
+/* Shared layout for the cards themes. Colours come from the importing file:
+   bg fg muted border field selected accent red. Matches the dunst cards. */
+* {
+    font:             "Inter 18";
+    background-color: transparent;
+    text-color:       @fg;
+    spacing:          0;
+}
+window {
+    location:         center;
+    anchor:           center;
+    y-offset:         -140px;
+    width:            640px;
+    background-color: @bg;
+    border:           1px;
+    border-color:     @border;
+    border-radius:    14px;
+    padding:          8px;
+}
+mainbox {
+    children: [ inputbar, message, listview, mode-switcher ];
+    spacing:  6px;
+}
+inputbar {
+    children:         [ prompt, entry ];
+    padding:          10px 14px;
+    spacing:          10px;
+    background-color: @field;
+    border-radius:    10px;
+}
+prompt {
+    text-color: @muted;
+}
+entry {
+    placeholder:       "Search";
+    placeholder-color: @muted;
+    cursor:            text;
+}
+message {
+    padding: 6px 14px;
+}
+textbox {
+    text-color: @muted;
+}
+listview {
+    lines:        8;
+    fixed-height: false;
+    scrollbar:    true;
+    spacing:      2px;
+    padding:      4px 0 0 0;
+}
+element {
+    padding:       10px 14px;
+    spacing:       12px;
+    border-radius: 10px;
+    cursor:        pointer;
+}
+element-text {
+    text-color: inherit;
+    cursor:     inherit;
+}
+element-icon {
+    size:   1.2em;
+    cursor: inherit;
+}
+element normal.normal, element alternate.normal { text-color: @fg; }
+element selected.normal { background-color: @selected; text-color: @fg; }
+element normal.urgent, element alternate.urgent { text-color: @red; }
+element selected.urgent { background-color: @red; text-color: @bg; }
+element normal.active, element alternate.active { text-color: @accent; }
+element selected.active { background-color: @selected; text-color: @accent; }
+scrollbar {
+    handle-width: 4px;
+    handle-color: @border;
+    padding:      0 0 0 6px;
+}
+mode-switcher {
+    spacing: 4px;
+    padding: 4px 0 0 0;
+}
+button {
+    padding:       8px 12px;
+    border-radius: 8px;
+    text-color:    @muted;
+    cursor:        pointer;
+}
+button selected {
+    background-color: @selected;
+    text-color:       @fg;
+}

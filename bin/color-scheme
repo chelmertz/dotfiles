@@ -20,8 +20,8 @@ fi
 rofi_config="$HOME/.config/rofi/config.rasi"
 mkdir -p "$(dirname "$rofi_config")"
 case "$new_color_scheme" in
-	prefer-dark) rofi_theme="solarized" ;;
-	*)           rofi_theme="default"   ;;
+	prefer-dark) rofi_theme="cards-dark" ;;
+	*)           rofi_theme="cards-light" ;;
 esac
 printf '@theme "%s"\n' "$rofi_theme" > "$rofi_config"
 
