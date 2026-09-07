@@ -26,7 +26,7 @@
           },
           {
             "type": "command",
-            "command": "/home/ch/.claude/hooks/claude-sign-comments-hook"
+            "command": "claude-sign-comments-hook"
           }
         ]
       }
