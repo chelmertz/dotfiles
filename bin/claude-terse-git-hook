@@ -49,8 +49,16 @@ else
 fi
 
 # Extract the message. Three shapes, in order of how often Claude emits them.
+# Only a heredoc attached to the git/gh command line itself is the message; a
+# heredoc feeding some other program earlier in the same Bash command (a Python
+# script, say) is unrelated and must not be counted as body lines.
 BODY=""
-MARKER=$(printf '%s\n' "$CMD" | grep -oE "<<-?'?\"?[A-Za-z_][A-Za-z0-9_]*'?\"?" | head -1 |
+if [ "$KIND" = pr ]; then
+    CMD_LINE=$(printf '%s\n' "$CMD" | grep -E 'gh +pr +(create|edit)\b' | head -1 || true)
+else
+    CMD_LINE=$(printf '%s\n' "$CMD" | grep -E '(^|[;&|] *)git +(-[^ ]+ +| *)*commit\b' | head -1 || true)
+fi
+MARKER=$(printf '%s\n' "$CMD_LINE" | grep -oE "<<-?'?\"?[A-Za-z_][A-Za-z0-9_]*'?\"?" | head -1 |
     sed -E "s/^<<-?['\"]?//; s/['\"]?$//" || true)
 if [ -n "$MARKER" ]; then
     # heredoc: git commit -F - <<'EOF', gh pr create --body "$(cat <<'EOF' ...)"
@@ -63,16 +71,25 @@ else
     if [ -n "$FILE" ] && [ "$FILE" != "-" ] && [ -r "$FILE" ]; then
         BODY=$(cat "$FILE")
     else
-        # --body "..." / -m '...'; single argument, may span lines
-        BODY=$(printf '%s\n' "$CMD" | awk '
-            { buf = buf $0 "\n" }
+        # --body "..." / -m '...'; single argument, may span lines. Start
+        # scanning at the git/gh command line so flags of earlier commands in
+        # the same Bash call are not mistaken for the message.
+        # Every -m / --body argument counts: git joins repeated -m into
+        # subject + body paragraphs, so they are collected in order.
+        BODY=$(printf '%s\n' "$CMD" | awk -v start="$CMD_LINE" '
+            index($0, start) == 1 { on = 1 }
+            on { buf = buf $0 "\n" }
             END {
-                if (!match(buf, /(--body|-m) +["'"'"']/)) exit
-                q = substr(buf, RSTART + RLENGTH - 1, 1)
-                rest = substr(buf, RSTART + RLENGTH)
-                end = index(rest, q)
-                if (end == 0) exit
-                printf "%s", substr(rest, 1, end - 1)
+                out = ""
+                while (match(buf, /(--body|-m) +["'"'"']/)) {
+                    q = substr(buf, RSTART + RLENGTH - 1, 1)
+                    rest = substr(buf, RSTART + RLENGTH)
+                    end = index(rest, q)
+                    if (end == 0) break
+                    out = out (out == "" ? "" : "\n") substr(rest, 1, end - 1)
+                    buf = substr(rest, end + 1)
+                }
+                printf "%s", out
             }')
     fi
 fi
