@@ -248,39 +248,28 @@ let
     verboseLogging = false;
   };
 
+  # Schema data_version 2 (Templater >= 2.25). "Trigger on file creation" is
+  # device-local in Templater's localStorage and cannot be set from here; an
+  # old-schema data.json makes Templater re-migrate and toast a warning on
+  # every switch.
   templaterSettingsJson = builtins.toJSON {
+    data_version = 2;
     command_timeout = 5;
     templates_folder = "";
-    templates_pairs = [
-      [
-        ""
-        ""
-      ]
-    ];
-    trigger_on_file_creation = true;
+    templates_pairs = [ ];
+    trigger_on_file_creation_mode = "folder";
     auto_jump_to_cursor = false;
-    enable_system_commands = false;
+    jump_to_cursor_after_file_name = false;
     shell_path = "";
     user_scripts_folder = "";
-    enable_folder_templates = true;
-    folder_templates = [
-      {
-        folder = "";
-        template = "";
-      }
-    ];
-    enable_file_templates = false;
-    file_templates = [
-      {
-        regex = ".*";
-        template = "";
-      }
-    ];
+    folder_templates = [ ];
+    file_templates = [ ];
     syntax_highlighting = true;
     syntax_highlighting_mobile = false;
-    enabled_templates_hotkeys = [ "" ];
-    startup_templates = [ "" ];
-    intellisense_render = 1;
+    enabled_templates_hotkeys = [ ];
+    startup_templates = [ ];
+    intellisense_render = "1";
+    ignore_folders_on_creation = [ ];
   };
 
   # ── Read-only files tracked in dotfiles (no personal data) ─────
