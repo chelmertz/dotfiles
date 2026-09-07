@@ -15,6 +15,27 @@ var migrations = []func(*sql.Tx) error{
 	migrate004,
 	migrate005,
 	migrate006,
+	migrate007,
+}
+
+// migrate007 widens project_event.kind with snoozed (detail = wake time,
+// RFC3339) and woken. SQLite cannot alter a check constraint, so the table is
+// rebuilt and the rows copied.
+func migrate007(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+create table project_event_new (
+  id          integer primary key,
+  project_id  integer not null references project(id),
+  kind        text not null check (kind in ('created', 'archived', 'reopened', 'snoozed', 'woken')),
+  detail      text not null default '',
+  occurred_at text not null
+);
+insert into project_event_new (id, project_id, kind, detail, occurred_at)
+  select id, project_id, kind, detail, occurred_at from project_event;
+drop table project_event;
+alter table project_event_new rename to project_event;
+create index project_event_project_time on project_event (project_id, occurred_at);`)
+	return err
 }
 
 // migrate006 adds what `tend` decides on: who commented last, draft state,

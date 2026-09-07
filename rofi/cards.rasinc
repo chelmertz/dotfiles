@@ -48,7 +48,8 @@ textbox {
     text-color: @muted;
 }
 listview {
-    lines:        12; /* projects + the two docked rows must fit without scrolling */
+    lines:        15; /* projects + the two docked rows should fit without scrolling;
+                         Alt+a / Alt+r reach them regardless */
     fixed-height: false;
     scrollbar:    true;
     spacing:      2px;

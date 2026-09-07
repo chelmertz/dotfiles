@@ -59,7 +59,10 @@ func TestRowsArchivedTail(t *testing.T) {
 
 func TestVerbRows(t *testing.T) {
 	ongoing := verbRows(Project{Path: "m/a", Name: "a"})
-	if got := verbTexts(ongoing); !reflect.DeepEqual(got, []string{"open", "archive", "rename", "add link", "context"}) {
+	if got := verbTexts(postponeRows()); !reflect.DeepEqual(got, []string{"1 day", "3 days", "10 days"}) || postponeRows()[2].arg != "10" {
+		t.Fatalf("%v", got)
+	}
+	if got := verbTexts(ongoing); !reflect.DeepEqual(got, []string{"open", "archive", "postpone", "rename", "add link", "context"}) {
 		t.Fatalf("%v", got)
 	}
 	archived := verbRows(Project{Path: "m/a", Name: "a", Archived: true})
@@ -79,7 +82,7 @@ func TestVerbRows(t *testing.T) {
 		t.Fatalf("%+v", reasonRows()[3])
 	}
 	// every verb row has an icon that exists in the set
-	for _, vs := range [][]verbRow{ongoing, archived, createRows("m/x"), reasonRows()} {
+	for _, vs := range [][]verbRow{ongoing, archived, createRows("m/x"), reasonRows(), postponeRows()} {
 		for _, v := range vs {
 			if _, ok := iconPaths[v.icon]; !ok {
 				t.Errorf("verb %q has no icon %q", v.text, v.icon)

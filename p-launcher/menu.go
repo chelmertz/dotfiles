@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // load discovers projects, upserts them, and returns the display list plus
@@ -106,25 +107,41 @@ func rofiInput(rows []Row, icons map[string]string) []byte {
 // Esc or the toggle key (rofi exit 1 with empty stderr); a nonzero exit with
 // stderr output is a fatal rofi startup failure (display, "already running",
 // a bad theme), not a cancel. No timeout: rofi waits for the user.
-func runRofi(prompt, toggleKey string, input []byte) (out string, cancelled bool, err error) {
-	cmd := exec.Command("rofi", rofiArgs(prompt, toggleKey)...)
+// A custom key chord (-kb-custom-N) makes rofi exit with code 9+N; the
+// returned key is N (1-based) or 0 for a plain selection.
+func runRofi(prompt, toggleKey string, input []byte, extra ...string) (out string, key int, cancelled bool, err error) {
+	cmd := exec.Command("rofi", append(rofiArgs(prompt, toggleKey), extra...)...)
 	cmd.Stdin = bytes.NewReader(input)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		code := exitCode(err)
+		if code >= 10 && code <= 28 {
+			return stdout.String(), code - 9, false, nil
+		}
 		// Fragile if rofi ever warns on a normal Esc; revisit then.
 		if code == 1 && strings.TrimSpace(stderr.String()) == "" {
-			return "", true, nil
+			return "", 0, true, nil
 		}
 		detail := clip(stderr.String())
 		if code == -1 && detail == "" {
 			detail = err.Error() // never started: the start error is the trace
 		}
-		return "", false, &CmdError{Cmd: "rofi -dmenu", ExitCode: code, Stderr: detail}
+		return "", 0, false, &CmdError{Cmd: "rofi -dmenu", ExitCode: code, Stderr: detail}
 	}
-	return stdout.String(), false, nil
+	return stdout.String(), 0, false, nil
+}
+
+// Chords for the docked actions, so they work however long the list is.
+const (
+	chordArchived = 1
+	chordReport   = 2
+)
+
+func mainMenuExtra() []string {
+	return []string{"-kb-custom-1", "Alt+a", "-kb-custom-2", "Alt+r",
+		"-mesg", `<span alpha="60%">Alt+a archived · Alt+r report · type ns/name to create</span>`}
 }
 
 // parseRofiOut splits rofi's "i|f" output: index (-1 for a typed non-match)
@@ -157,12 +174,12 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 		return err
 	}
 	if archived {
-		ps = onlyArchived(ps)
+		ps = onlyParked(ps)
 	}
 	rows := Rows(ps, open, !archived)
 	if len(rows) == 0 || (archived && len(ps) == 0) {
 		if archived {
-			notifyInfo("no archived projects")
+			notifyInfo("no archived or postponed projects")
 			return nil
 		}
 		return errors.New("no projects under " + root)
@@ -173,11 +190,11 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 		fmt.Fprintln(os.Stderr, "p-launcher: icons unavailable:", err)
 		icons = nil
 	}
-	prompt := "project"
+	prompt, extra := "project", mainMenuExtra()
 	if archived {
-		prompt = "archived"
+		prompt, extra = "archived / postponed", nil
 	}
-	out, cancelled, err := runRofi(prompt, toggleKey, rofiInput(rows, icons))
+	out, key, cancelled, err := runRofi(prompt, toggleKey, rofiInput(rows, icons), extra...)
 	if err != nil || cancelled {
 		return err
 	}
@@ -185,7 +202,14 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 	if !ok {
 		return fmt.Errorf("rofi returned unexpected output %q", out)
 	}
-	switch tailOf(rows, idx) {
+	action := tailOf(rows, idx)
+	switch key {
+	case chordArchived:
+		action = "archived"
+	case chordReport:
+		action = "report"
+	}
+	switch action {
 	case "archived":
 		return menuMode(s, root, toggleKey, iconDir, true)
 	case "report":
@@ -213,10 +237,11 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 	return nil
 }
 
-func onlyArchived(ps []Project) []Project {
+// onlyParked keeps archived and postponed projects: the second list.
+func onlyParked(ps []Project) []Project {
 	var out []Project
 	for _, p := range ps {
-		if p.Archived {
+		if p.Archived || p.Snoozed {
 			out = append(out, p)
 		}
 	}
@@ -261,6 +286,7 @@ type verb int
 const (
 	verbOpen verb = iota
 	verbArchive
+	verbPostpone
 	verbRename
 	verbAddLink
 	verbContext
@@ -278,7 +304,12 @@ func verbRows(p Project) []verbRow {
 	if p.Archived {
 		return []verbRow{{"open (reopen)", verbOpen, "", "reopened"}, {"context", verbContext, "", "context"}}
 	}
-	return []verbRow{{"open", verbOpen, "", "open"}, {"archive", verbArchive, "", "archived"}, {"rename", verbRename, "", "rename"}, {"add link", verbAddLink, "", "link"}, {"context", verbContext, "", "context"}}
+	return []verbRow{{"open", verbOpen, "", "open"}, {"archive", verbArchive, "", "archived"}, {"postpone", verbPostpone, "", "snoozed"}, {"rename", verbRename, "", "rename"}, {"add link", verbAddLink, "", "link"}, {"context", verbContext, "", "context"}}
+}
+
+// postponeRows are the snooze lengths; arg is the number of days.
+func postponeRows() []verbRow {
+	return []verbRow{{"1 day", verbPostpone, "1", "snoozed"}, {"3 days", verbPostpone, "3", "snoozed"}, {"10 days", verbPostpone, "10", "snoozed"}}
 }
 
 func createRows(path string) []verbRow {
@@ -302,7 +333,7 @@ func verbInput(vs []verbRow, icons map[string]string) []byte {
 // pickVerb shows verb rows and returns the chosen one; ok is false on cancel
 // or a typed non-match.
 func pickVerb(prompt, toggleKey string, vs []verbRow, icons map[string]string) (verbRow, bool, error) {
-	out, cancelled, err := runRofi(prompt, toggleKey, verbInput(vs, icons))
+	out, _, cancelled, err := runRofi(prompt, toggleKey, verbInput(vs, icons))
 	if err != nil || cancelled {
 		return verbRow{}, false, err
 	}
@@ -338,8 +369,20 @@ func verbMenu(s *Store, root, toggleKey string, p Project, vs []verbRow, icons m
 		}
 		notifyInfo(cl.Text())
 		return nil
+	case verbPostpone:
+		d, ok, err := pickVerb("postpone "+p.Name+" for", toggleKey, postponeRows(), icons)
+		if err != nil || !ok {
+			return err
+		}
+		days, _ := strconv.Atoi(d.arg)
+		until, err := Postpone(s, p.Path, days, time.Now())
+		if err != nil {
+			return err
+		}
+		notifyInfo("postponed " + p.Path + " until " + until.Format("Mon Jan 02"))
+		return nil
 	case verbRename:
-		out, cancelled, err := runRofi("rename "+p.Name+" to", toggleKey, nil)
+		out, _, cancelled, err := runRofi("rename "+p.Name+" to", toggleKey, nil)
 		if err != nil || cancelled {
 			return err
 		}
@@ -360,7 +403,7 @@ func verbMenu(s *Store, root, toggleKey string, p Project, vs []verbRow, icons m
 		notifyInfo(msg)
 		return nil
 	case verbAddLink:
-		out, cancelled, err := runRofi("url", toggleKey, nil)
+		out, _, cancelled, err := runRofi("url", toggleKey, nil)
 		if err != nil || cancelled {
 			return err
 		}

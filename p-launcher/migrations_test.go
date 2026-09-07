@@ -140,6 +140,24 @@ func TestMigrate004Reason(t *testing.T) {
 	}
 }
 
+func TestMigrate007SnoozeKinds(t *testing.T) {
+	db := openTestDB(t)
+	if err := migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`insert into project (namespace_id, path, name, first_seen_at) values (1, 'm/a', 'a', 'now')`); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"created", "archived", "reopened", "snoozed", "woken"} {
+		if _, err := db.Exec(`insert into project_event (project_id, kind, detail, occurred_at) values (1, ?, '', 'now')`, k); err != nil {
+			t.Fatalf("%s rejected: %v", k, err)
+		}
+	}
+	if _, err := db.Exec(`insert into project_event (project_id, kind, occurred_at) values (1, 'bogus', 'now')`); err == nil {
+		t.Fatal("bogus kind accepted")
+	}
+}
+
 func TestMigrate005LinksAndKV(t *testing.T) {
 	db := openTestDB(t)
 	if err := migrate(db); err != nil {

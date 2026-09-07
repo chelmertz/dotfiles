@@ -20,6 +20,7 @@ type Project struct {
 	LastActive string // RFC3339 UTC or "" when never selected
 	Ball       string // "you" (a Claude session waits on the user), "claude" (working), or ""
 	Archived   bool   // latest project_event is "archived"
+	Snoozed    bool   // latest project_event is "snoozed" with a wake time still ahead
 	Review     bool   // a fresh elly verdict says a linked PR waits on the user
 }
 
@@ -82,14 +83,16 @@ const staleSession = 24 * time.Hour
 // over "claude" (max() works because 'you' > 'claude'); no live session is "".
 func (s *Store) ListProjects() ([]Project, error) { return s.listProjectsAt(true, time.Now()) }
 
-// ListProjectsFiltered hides archived projects unless all is set; the menu
-// and `list` use it, hooks and the report use ListProjects.
+// ListProjectsFiltered hides archived and postponed projects unless all is
+// set; a postponed project still shows while Claude or a reviewer waits on
+// the user. The menu and `list` use it, hooks and the report use ListProjects.
 func (s *Store) ListProjectsFiltered(all bool) ([]Project, error) {
 	return s.listProjectsAt(all, time.Now())
 }
 
-// archivedExpr is true when the project's latest lifecycle event is archived.
-const archivedExpr = `coalesce((select pe.kind from project_event pe where pe.project_id = p.id order by pe.occurred_at desc, pe.id desc limit 1), '') = 'archived'`
+// latestKindExpr / latestDetailExpr read the project's newest lifecycle event.
+const latestKindExpr = `coalesce((select pe.kind from project_event pe where pe.project_id = p.id order by pe.occurred_at desc, pe.id desc limit 1), '')`
+const latestDetailExpr = `coalesce((select pe.detail from project_event pe where pe.project_id = p.id order by pe.occurred_at desc, pe.id desc limit 1), '')`
 
 func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 	cutoff := at.Add(-staleSession).UTC().Format(time.RFC3339)
@@ -107,11 +110,10 @@ func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 		select p.path, p.name, n.label,
 		       coalesce((select max(occurred_at) from activity a where a.project_id = p.id), '') as last_active,
 		       coalesce((select max(state) from session_state ss where ss.project_id = p.id and ss.since > ?), '') as ball,
-		       `+archivedExpr+` as archived,
+		       `+latestKindExpr+` as kind, `+latestDetailExpr+` as detail,
 		       (? and exists(select 1 from link l where l.project_id = p.id and l.action_needed = 1)) as review
 		from project p join namespace n on n.id = p.namespace_id
-		where ? or not (`+archivedExpr+`)
-		order by n.sort_order, (ball = 'you' or review) desc, last_active = '', last_active desc, p.name`, cutoff, fresh, all)
+		order by n.sort_order, (ball = 'you' or review) desc, last_active = '', last_active desc, p.name`, cutoff, fresh)
 	if err != nil {
 		return nil, fmt.Errorf("list projects: %w", err)
 	}
@@ -119,8 +121,15 @@ func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 	var out []Project
 	for rows.Next() {
 		var p Project
-		if err := rows.Scan(&p.Path, &p.Name, &p.Label, &p.LastActive, &p.Ball, &p.Archived, &p.Review); err != nil {
+		var kind, detail string
+		if err := rows.Scan(&p.Path, &p.Name, &p.Label, &p.LastActive, &p.Ball, &kind, &detail, &p.Review); err != nil {
 			return nil, err
+		}
+		p.Archived = kind == "archived"
+		p.Snoozed = kind == "snoozed" && parseTime(detail).After(at)
+		needsYou := p.Ball == "you" || p.Review
+		if !all && (p.Archived || (p.Snoozed && !needsYou)) {
+			continue
 		}
 		out = append(out, p)
 	}
@@ -131,7 +140,7 @@ func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 // reopened) for a known project.
 func (s *Store) ProjectEvent(path, kind, detail string) error {
 	switch kind {
-	case "created", "archived", "reopened":
+	case "created", "archived", "reopened", "snoozed", "woken":
 	default:
 		return fmt.Errorf("project event: unknown kind %q", kind)
 	}

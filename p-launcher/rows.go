@@ -52,6 +52,8 @@ func stateIcon(p Project, isOpen bool) string {
 	case p.Review:
 		// a reviewer waits on the user; needs no window to be true
 		return "review"
+	case p.Snoozed:
+		return "snoozed"
 	case !isOpen:
 		return ""
 	case p.Ball == "claude":

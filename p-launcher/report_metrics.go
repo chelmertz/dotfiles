@@ -471,11 +471,18 @@ func projectRows(paths []string, evs []rawEvent, links []rawLink, pe []rawProjec
 			}
 		}
 		end := now
-		if n := len(pes); n > 0 && pes[n-1].Kind != "created" {
-			r.Status = pes[n-1].Kind
-			if r.Status == "archived" {
-				end = pes[n-1].At
+		if n := len(pes); n > 0 {
+			switch last := pes[n-1]; last.Kind {
+			case "archived":
+				r.Status = "archived"
+				end = last.At
 				archivedAt[p] = end
+			case "reopened":
+				r.Status = "reopened"
+			case "snoozed":
+				if parseTime(last.Detail).After(now) {
+					r.Status = "snoozed"
+				}
 			}
 		}
 		if !start.IsZero() {

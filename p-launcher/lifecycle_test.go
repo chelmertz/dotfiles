@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func listPaths(t *testing.T, s *Store, all bool) map[string]bool {
@@ -137,6 +138,60 @@ func TestRename(t *testing.T) {
 	}
 	if err := s.db.QueryRow(`select count(*) from project_event pe join project p on p.id = pe.project_id where p.path = 'm/b'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("project events lost: %d %v", n, err)
+	}
+}
+
+func TestPostpone(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.UpsertProjects(found("m/a", "m/b")); err != nil {
+		t.Fatal(err)
+	}
+	now := ts("2026-09-08T09:00:00Z")
+	if _, err := Postpone(s, "m/a", 0, now); err == nil {
+		t.Fatal("zero days accepted")
+	}
+	until, err := Postpone(s, "m/a", 3, now)
+	if err != nil || !until.Equal(now.AddDate(0, 0, 3)) {
+		t.Fatalf("%v %v", until, err)
+	}
+	ps, _ := s.listProjectsAt(false, now.Add(time.Hour))
+	if len(ps) != 1 || ps[0].Path != "m/b" {
+		t.Fatalf("postponed project still listed: %+v", ps)
+	}
+	ps, _ = s.listProjectsAt(true, now.Add(time.Hour))
+	if len(ps) != 2 || !(ps[0].Snoozed || ps[1].Snoozed) {
+		t.Fatalf("all must include it as snoozed: %+v", ps)
+	}
+	// Claude waiting on the user overrides the snooze
+	if err := s.setStateAt("s1", "m/a", "you", "stop", now); err != nil {
+		t.Fatal(err)
+	}
+	ps, _ = s.listProjectsAt(false, now.Add(time.Hour))
+	if len(ps) != 2 || ps[0].Path != "m/a" || !ps[0].Snoozed {
+		t.Fatalf("needs-you must surface a postponed project first: %+v", ps)
+	}
+	if err := s.ClearSession("s1"); err != nil {
+		t.Fatal(err)
+	}
+	// the wake time passes: back by itself
+	ps, _ = s.listProjectsAt(false, until.Add(time.Minute))
+	if len(ps) != 2 || ps[0].Snoozed || ps[1].Snoozed {
+		t.Fatalf("expired snooze must lift: %+v", ps)
+	}
+	// opening a postponed project wakes it explicitly
+	if _, err := Postpone(s, "m/a", 10, now); err != nil {
+		t.Fatal(err)
+	}
+	woke, err := reopenIfArchived(s, "m/a")
+	if err != nil || !woke {
+		t.Fatalf("%v %v", woke, err)
+	}
+	var kind string
+	if err := s.db.QueryRow(`select kind from project_event order by id desc limit 1`).Scan(&kind); err != nil || kind != "woken" {
+		t.Fatalf("%q %v", kind, err)
+	}
+	if ps, _ = s.listProjectsAt(false, now.Add(time.Hour)); len(ps) != 2 {
+		t.Fatalf("woken project hidden: %+v", ps)
 	}
 }
 

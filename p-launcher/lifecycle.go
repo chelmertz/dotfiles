@@ -303,8 +303,23 @@ func reopenIfArchived(s *Store, path string) (bool, error) {
 		}
 		return false, err
 	}
-	if kind != "archived" {
-		return false, nil
+	switch kind {
+	case "archived":
+		return true, s.ProjectEvent(path, "reopened", "")
+	case "snoozed":
+		// opening a postponed project wakes it, expired or not
+		return true, s.ProjectEvent(path, "woken", "")
 	}
-	return true, s.ProjectEvent(path, "reopened", "")
+	return false, nil
+}
+
+// Postpone hides a project from the menu for days days (a "snoozed" event
+// with the wake time as detail). It comes back by itself, or earlier when
+// Claude or a reviewer waits on the user, or when it is opened.
+func Postpone(s *Store, path string, days int, now time.Time) (time.Time, error) {
+	if days <= 0 {
+		return time.Time{}, fmt.Errorf("postpone: days must be positive, got %d", days)
+	}
+	until := now.AddDate(0, 0, days)
+	return until, s.ProjectEvent(path, "snoozed", until.UTC().Format(time.RFC3339))
 }
