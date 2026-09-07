@@ -21,14 +21,14 @@ func TestRows(t *testing.T) {
 		lines = append(lines, r.Text)
 		paths = append(paths, r.Path)
 	}
-	// Longest name is 10 runes; every label starts at the same column.
+	// Columns are tab-separated; the rofi theme's tab-stops align them.
 	muted := func(l string) string { return `<span alpha="45%">` + l + `</span>` }
 	wantLines := []string{
-		"■ reputation    " + muted("matchi"),
-		"● dependabot    " + muted("matchi"),
-		"  stale         " + muted("matchi"),
-		"○ health        " + muted("personal"),
-		"  a&amp;b           " + muted("oss"),
+		"■\treputation\t" + muted("matchi"),
+		"●\tdependabot\t" + muted("matchi"),
+		"\tstale\t" + muted("matchi"),
+		"○\thealth\t" + muted("personal"),
+		"\ta&amp;b\t" + muted("oss"),
 	}
 	wantPaths := []string{"m/reputation", "m/dependabot", "m/stale", "personal/health", "oss/a&b"}
 	if !reflect.DeepEqual(lines, wantLines) {

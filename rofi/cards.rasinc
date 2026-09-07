@@ -59,6 +59,8 @@ element {
 element-text {
     text-color: inherit;
     cursor:     inherit;
+    /* Column stops for tab-separated rows (p-launcher/rows.go): glyph, name, label. */
+    tab-stops:  [ 30px, 300px ];
 }
 element-icon {
     size:   1.2em;
