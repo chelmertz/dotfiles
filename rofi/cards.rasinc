@@ -1,5 +1,6 @@
 /* Shared layout for the cards themes. Colours come from the importing file:
-   bg fg muted border field selected accent red. Matches the dunst cards. */
+   bg fg muted border field selected accent red. Matches the dunst cards.
+   The window radius is substituted from cardRadius in nix/home.nix. */
 * {
     font:             "Inter 18";
     background-color: transparent;
@@ -14,7 +15,7 @@ window {
     background-color: @bg;
     border:           1px;
     border-color:     @border;
-    border-radius:    14px;
+    border-radius:    @radius@; /* cardRadius in nix/home.nix */
     padding:          8px;
 }
 mainbox {

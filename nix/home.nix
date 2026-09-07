@@ -2,6 +2,9 @@
 let
   # toggle off during vacation; flip back to true to re-enable the elly service
   ellyEnabled = true;
+  # Outer corner radius shared by the dunst cards, the rofi window and picom,
+  # which clips the rofi shadow to the same curve.
+  cardRadius = 14;
 in
 {
   imports = [
@@ -785,7 +788,7 @@ in
       shadow-radius = 24;
       # Same radius as the rofi theme, so picom clips the shadow to the curve;
       # otherwise the rectangular shadow shows through the transparent corners.
-      corner-radius = 14;
+      corner-radius = cardRadius;
       rounded-corners-exclude = [ "!(class_g = 'Rofi')" ];
       unredir-if-possible = true;
       use-damage = true;
@@ -796,7 +799,9 @@ in
 
   # rofi themes matching the dunst cards. bin/color-scheme picks dark or light by
   # writing @theme into ~/.config/rofi/config.rasi, which stays unmanaged for that.
-  xdg.dataFile."rofi/themes/cards.rasinc".source = ../rofi/cards.rasinc;
+  xdg.dataFile."rofi/themes/cards.rasinc".text = builtins.replaceStrings
+    [ "@radius@" ] [ "${toString cardRadius}px" ]
+    (builtins.readFile ../rofi/cards.rasinc);
   xdg.dataFile."rofi/themes/cards-dark.rasi".source = ../rofi/cards-dark.rasi;
   xdg.dataFile."rofi/themes/cards-light.rasi".source = ../rofi/cards-light.rasi;
 
@@ -858,7 +863,7 @@ in
         always_run_script = true;
         title = "Dunst";
         class = "Dunst";
-        corner_radius = 14;
+        corner_radius = cardRadius;
         ignore_dbusclose = false;
         force_xwayland = false;
         force_xinerama = false;
