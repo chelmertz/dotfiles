@@ -231,6 +231,22 @@ func (s *Store) recordEventAt(e SessionEvent, at time.Time) error {
 	return nil
 }
 
+// RenameProject changes a project's path and name in place; its id, and so
+// every row pointing at it, stays.
+func (s *Store) RenameProject(oldPath, newPath, newName string) error {
+	res, err := s.db.Exec(`update project set path = ?, name = ? where path = ?`, newPath, newName, oldPath)
+	if err != nil {
+		return fmt.Errorf("rename %s: %w", oldPath, err)
+	}
+	if n, err := res.RowsAffected(); err != nil || n == 0 {
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("rename: unknown project %q", oldPath)
+	}
+	return nil
+}
+
 // RecordPermission logs which tool the user approved and the allowlist rule
 // that would have avoided the ask. path may be "" (no project).
 func (s *Store) RecordPermission(sessionID, path, tool, rule string) error {

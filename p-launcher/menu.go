@@ -243,6 +243,7 @@ type verb int
 const (
 	verbOpen verb = iota
 	verbArchive
+	verbRename
 	verbAddLink
 	verbContext
 	verbCreate
@@ -258,7 +259,7 @@ func verbRows(p Project) []verbRow {
 	if p.Archived {
 		return []verbRow{{"open (reopen)", verbOpen, ""}, {"context", verbContext, ""}}
 	}
-	return []verbRow{{"open", verbOpen, ""}, {"archive", verbArchive, ""}, {"add link", verbAddLink, ""}, {"context", verbContext, ""}}
+	return []verbRow{{"open", verbOpen, ""}, {"archive", verbArchive, ""}, {"rename", verbRename, ""}, {"add link", verbAddLink, ""}, {"context", verbContext, ""}}
 }
 
 func createRows(path string) []verbRow { return []verbRow{{"create " + path, verbCreate, path}} }
@@ -313,6 +314,27 @@ func verbMenu(s *Store, root, toggleKey string, p Project, vs []verbRow) error {
 			return err
 		}
 		notifyInfo(cl.Text())
+		return nil
+	case verbRename:
+		out, cancelled, err := runRofi("rename "+p.Name+" to", toggleKey, nil)
+		if err != nil || cancelled {
+			return err
+		}
+		_, typed, ok := parseRofiOut(out)
+		if !ok || typed == "" {
+			return nil
+		}
+		newPath, err := Rename(s, root, p.Path, typed)
+		if err != nil {
+			return err
+		}
+		msg := "renamed " + p.Path + " → " + newPath
+		if tree, err := getTree(); err == nil {
+			if wins, err := FindTagged(tree, tagFor(p.Path)); err == nil && len(wins) > 0 {
+				msg += fmt.Sprintf("; %d open window(s) keep the old tag until relaunched", len(wins))
+			}
+		}
+		notifyInfo(msg)
 		return nil
 	case verbAddLink:
 		out, cancelled, err := runRofi("url", toggleKey, nil)

@@ -45,7 +45,7 @@ func TestRowsArchivedTail(t *testing.T) {
 
 func TestVerbRows(t *testing.T) {
 	ongoing := verbRows(Project{Path: "m/a", Name: "a"})
-	if got := verbTexts(ongoing); !reflect.DeepEqual(got, []string{"open", "archive", "add link", "context"}) {
+	if got := verbTexts(ongoing); !reflect.DeepEqual(got, []string{"open", "archive", "rename", "add link", "context"}) {
 		t.Fatalf("%v", got)
 	}
 	archived := verbRows(Project{Path: "m/a", Name: "a", Archived: true})

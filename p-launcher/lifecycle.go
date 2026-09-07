@@ -201,6 +201,36 @@ func copyqCopy(text string) error {
 	return nil
 }
 
+// Rename moves ~/p/<ns>/<old> to ~/p/<ns>/<new> and updates the project row
+// in place, so sessions, events, links and lifecycle history follow. Open
+// windows keep the old tag until relaunched; the caller warns about that.
+func Rename(s *Store, root, path, newName string) (string, error) {
+	seg := strings.Split(path, "/")
+	if len(seg) != 2 || !cleanSegment(seg[0]) || !cleanSegment(seg[1]) {
+		return "", fmt.Errorf("project path must be <namespace>/<name>, got %q", path)
+	}
+	if !cleanSegment(newName) || strings.ContainsAny(newName, "/ \t") {
+		return "", fmt.Errorf("new name must be a single clean directory name, got %q", newName)
+	}
+	src, dst := filepath.Join(root, path), filepath.Join(root, seg[0], newName)
+	if !isDir(src) {
+		return "", fmt.Errorf("no project directory %s", src)
+	}
+	if _, err := os.Stat(dst); err == nil {
+		return "", fmt.Errorf("%s already exists", dst)
+	}
+	newPath := seg[0] + "/" + newName
+	if err := s.RenameProject(path, newPath, newName); err != nil {
+		return "", err
+	}
+	if err := os.Rename(src, dst); err != nil {
+		// keep DB and disk consistent: undo the row
+		_ = s.RenameProject(newPath, path, seg[1])
+		return "", fmt.Errorf("rename %s: %w", src, err)
+	}
+	return newPath, nil
+}
+
 // contextText summarises one project for the "context" verb: status, ball,
 // links with their state, live sessions, last activity.
 func contextText(s *Store, path string) (string, error) {

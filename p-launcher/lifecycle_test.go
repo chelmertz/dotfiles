@@ -91,6 +91,55 @@ func TestCreate(t *testing.T) {
 	}
 }
 
+func TestRename(t *testing.T) {
+	s := openTestStore(t)
+	root := t.TempDir()
+	mk(t, root, "m/a")
+	mk(t, root, "m/taken")
+	if err := s.UpsertProjects(found("m/a", "m/taken")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RecordSessionEvent(SessionEvent{SessionID: "s1", Path: "m/a", Cwd: "/x", Kind: "prompt"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ProjectEvent("m/a", "created", ""); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"", "x/y", "a b", "..", "taken"} {
+		if _, err := Rename(s, root, "m/a", bad); err == nil {
+			t.Fatalf("rename to %q accepted", bad)
+		}
+	}
+	if _, err := Rename(s, root, "m/nope", "b"); err == nil {
+		t.Fatal("unknown project accepted")
+	}
+	newPath, err := Rename(s, root, "m/a", "b")
+	if err != nil || newPath != "m/b" {
+		t.Fatalf("%q %v", newPath, err)
+	}
+	if !isDir(filepath.Join(root, "m", "b")) || isDir(filepath.Join(root, "m", "a")) {
+		t.Fatal("directory not moved")
+	}
+	got := listPaths(t, s, true)
+	if _, old := got["m/a"]; old || len(got) != 2 {
+		t.Fatalf("%v", got)
+	}
+	ps, _ := s.ListProjects()
+	for _, p := range ps {
+		if p.Path == "m/b" && p.Name != "b" {
+			t.Fatalf("name not updated: %+v", p)
+		}
+	}
+	// history follows the row: events and lifecycle stay attached
+	var n int
+	if err := s.db.QueryRow(`select count(*) from session_event e join project p on p.id = e.project_id where p.path = 'm/b'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("events lost: %d %v", n, err)
+	}
+	if err := s.db.QueryRow(`select count(*) from project_event pe join project p on p.id = pe.project_id where p.path = 'm/b'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("project events lost: %d %v", n, err)
+	}
+}
+
 func gitInit(t *testing.T, dir string) {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
