@@ -14,3 +14,5 @@ nvim/spell
 !*jar
 gitit/gitit.log
 nix/result
+# go build output in the module dir
+p-launcher/p-launcher

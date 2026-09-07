@@ -56,6 +56,9 @@ func TestRunCmdMissingBinary(t *testing.T) {
 	if !errors.As(err, &ce) || ce.ExitCode != -1 {
 		t.Fatalf("want CmdError exit -1, got %v", err)
 	}
+	if !strings.Contains(ce.Error(), "executable file not found") {
+		t.Fatalf("start error must be surfaced, got %q", ce.Error())
+	}
 }
 
 func TestClipRuneBoundary(t *testing.T) {

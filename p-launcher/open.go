@@ -36,6 +36,12 @@ func decide(treeJSON []byte, tag string) (action, int64, error) {
 // the Found record UpsertProjects needs to register it. Pure (no store, no
 // i3) so it's cheap to test directly.
 func projectDir(root, path string) (dir string, f Found, err error) {
+	// Exactly <namespace>/<name>, no empty or dot segments: the path is the
+	// project's identity in the DB, so junk must not get registered.
+	seg := strings.Split(path, "/")
+	if len(seg) != 2 || !cleanSegment(seg[0]) || !cleanSegment(seg[1]) {
+		return "", Found{}, fmt.Errorf("project path must be <namespace>/<name>, got %q", path)
+	}
 	dir = filepath.Join(root, path)
 	info, statErr := os.Stat(dir)
 	if statErr != nil {
@@ -44,12 +50,10 @@ func projectDir(root, path string) (dir string, f Found, err error) {
 	if !info.IsDir() {
 		return "", Found{}, fmt.Errorf("no project directory %s: not a directory", dir)
 	}
-	ns, name, ok := strings.Cut(path, "/")
-	if !ok {
-		return "", Found{}, fmt.Errorf("project path must be <namespace>/<name>, got %q", path)
-	}
-	return dir, Found{Namespace: ns, Name: name, Path: path}, nil
+	return dir, Found{Namespace: seg[0], Name: seg[1], Path: path}, nil
 }
+
+func cleanSegment(s string) bool { return s != "" && s != "." && s != ".." }
 
 // Open focuses the project's terminal if one exists, otherwise launches one,
 // and records the activity. root is ~/p.

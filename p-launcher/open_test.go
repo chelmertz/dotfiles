@@ -62,6 +62,11 @@ func TestProjectDir(t *testing.T) {
 	if _, _, err := projectDir(root, "dependabot"); err == nil {
 		t.Fatal("want error for a path with no namespace/name slash")
 	}
+	for _, bad := range []string{"m/dependabot/x", "../m", "m/..", "m/", "/dependabot", "./m"} {
+		if _, _, err := projectDir(root, bad); err == nil {
+			t.Fatalf("want error for %q", bad)
+		}
+	}
 }
 
 func TestGhostExitedErr(t *testing.T) {

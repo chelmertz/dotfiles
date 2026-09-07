@@ -82,10 +82,17 @@ func menu(s *Store, root string) error {
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		code := exitCode(err)
+		// rofi exits 1 both for Esc and for startup failures (no display,
+		// already running, theme error); only the latter write to stderr.
+		// Fragile if rofi ever warns on a normal Esc; revisit then.
 		if code == 1 && strings.TrimSpace(stderr.String()) == "" {
 			return nil // cancelled with Esc
 		}
-		return &CmdError{Cmd: "rofi -dmenu", ExitCode: code, Stderr: clip(stderr.String())}
+		detail := clip(stderr.String())
+		if code == -1 && detail == "" {
+			detail = err.Error() // never started: the start error is the trace
+		}
+		return &CmdError{Cmd: "rofi -dmenu", ExitCode: code, Stderr: detail}
 	}
 	idx, ok := parseRofiIndex(stdout.String())
 	if !ok {

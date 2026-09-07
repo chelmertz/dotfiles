@@ -54,6 +54,10 @@ func runCmd(ctx context.Context, name string, args ...string) ([]byte, error) {
 	var ee *exec.ExitError
 	if errors.As(err, &ee) {
 		ce.ExitCode = ee.ExitCode()
+	} else if ce.Stderr == "" {
+		// The process never ran (binary missing, not executable, ...): the
+		// only trace is the start error itself.
+		ce.Stderr = err.Error()
 	}
 	// A process that exits with code N exactly as the deadline fires is
 	// reported as exit N, not as a timeout; only an unattributed exit
