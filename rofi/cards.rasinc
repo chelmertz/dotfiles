@@ -24,9 +24,11 @@ mainbox {
 }
 inputbar {
     children:         [ prompt, entry ];
-    /* Left padding = element padding + icon (1.2em) + element spacing, so
-       the prompt lines up with the name column rather than the icon gutter. */
-    padding:          10px 14px 10px 44px;
+    /* Left padding = element padding (14) + icon (24) + element spacing (12),
+       so the prompt lines up with the name column rather than the icon
+       gutter. All three are pixels on purpose: an em-sized icon moved with
+       the font and the columns drifted apart. */
+    padding:          10px 14px 10px 50px;
     spacing:          10px;
     background-color: @field;
     border-radius:    10px;
@@ -40,7 +42,7 @@ entry {
     cursor:            text;
 }
 message {
-    padding: 6px 14px 6px 44px;
+    padding: 6px 14px 6px 50px;
 }
 textbox {
     text-color: @muted;
@@ -66,7 +68,7 @@ element-text {
     tab-stops:  [ 270px ];
 }
 element-icon {
-    size:   1.2em;
+    size:   24px; /* matches the inputbar/message left padding above */
     cursor: inherit;
 }
 element normal.normal, element alternate.normal { text-color: @fg; }
