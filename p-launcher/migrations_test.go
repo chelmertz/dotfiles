@@ -139,3 +139,18 @@ func TestMigrate004Reason(t *testing.T) {
 		t.Fatal("session_state.reason missing")
 	}
 }
+
+func TestMigrate005LinksAndKV(t *testing.T) {
+	db := openTestDB(t)
+	if err := migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`insert into kv (key, value) values ('a', 'b')`); err != nil {
+		t.Fatal(err)
+	}
+	for _, col := range []string{"etag", "review_status", "threads_actionable", "detail", "github_state"} {
+		if _, err := db.Exec(`select ` + col + ` from link limit 1`); err != nil {
+			t.Fatalf("link.%s missing: %v", col, err)
+		}
+	}
+}

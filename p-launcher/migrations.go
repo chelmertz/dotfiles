@@ -13,6 +13,21 @@ var migrations = []func(*sql.Tx) error{
 	migrate002,
 	migrate003,
 	migrate004,
+	migrate005,
+}
+
+// migrate005 adds what `links refresh` needs: conditional-request ETags and
+// GitHub state per link, elly's verdict details, and a kv table for refresh
+// times and the last remote error.
+func migrate005(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+create table kv (key text primary key, value text not null);
+alter table link add column etag text not null default '';
+alter table link add column review_status text not null default '';
+alter table link add column threads_actionable integer not null default 0;
+alter table link add column detail text not null default '';
+alter table link add column github_state text not null default '';`)
+	return err
 }
 
 func migrate001(tx *sql.Tx) error {

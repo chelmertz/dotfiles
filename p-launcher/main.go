@@ -21,7 +21,7 @@ func (e *hintError) Error() string { return e.msg + ". " + e.hint }
 func (e *hintError) Unwrap() error { return e.cause }
 
 func usage() error {
-	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | menu [--toggle-key KEY] | hook | desktop lock|unlock | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
+	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | menu [--toggle-key KEY] | hook | desktop lock|unlock | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
 }
 
 func main() {
@@ -71,6 +71,10 @@ func run(args []string) error {
 		}
 	case "link":
 		if len(args) != 4 || args[1] != "add" {
+			return usage()
+		}
+	case "links":
+		if len(args) != 2 || args[1] != "refresh" {
 			return usage()
 		}
 	case "desktop":
@@ -136,6 +140,14 @@ func run(args []string) error {
 		return nil
 	case "link":
 		return s.AddLink(args[2], args[3])
+	case "links":
+		// Remote failures are counted, not fatal: the timer retries.
+		res, err := refreshLinks(s, realLinkDeps())
+		if err != nil {
+			return err
+		}
+		fmt.Println(res)
+		return nil
 	case "desktop":
 		// Screen lock/unlock from the i3 xss-lock wrapper; the report's away
 		// detection reads these (session_id "desktop", no project).

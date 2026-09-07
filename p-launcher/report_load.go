@@ -14,6 +14,25 @@ import (
 // history via the same rows. Best-effort inputs (i3 tree, GitHub login) turn
 // into Notes instead of errors.
 func loadReportData(s *Store, from, now time.Time) (rawData, error) {
+	raw, err := loadReportDataAt(s, from, now)
+	if err != nil {
+		return raw, err
+	}
+	if tree, err := getTree(); err == nil {
+		if open, err := OpenTags(tree); err == nil {
+			raw.Open = open
+		}
+	}
+	raw.Me = ghLogin()
+	if raw.Me == "" {
+		raw.Notes = append(raw.Notes, "gh login unknown: PR authorship not marked")
+	}
+	return raw, nil
+}
+
+// loadReportDataAt is the DB-only part (no i3, no gh), testable with a clock.
+// elly verdicts older than ellyStaleAfter are gated off with a note.
+func loadReportDataAt(s *Store, from, now time.Time) (rawData, error) {
 	var raw rawData
 	priorFrom := from.Add(-now.Sub(from))
 	rows, err := s.db.Query(`
@@ -140,14 +159,26 @@ func loadReportData(s *Store, from, now time.Time) (rawData, error) {
 		raw.Projects = append(raw.Projects, p.Path)
 	}
 
-	if tree, err := getTree(); err == nil {
-		if open, err := OpenTags(tree); err == nil {
-			raw.Open = open
-		}
+	// freshness gate: a verdict from a stale or absent elly is not shown
+	lf, err := s.kvGet("elly.last_fetched")
+	if err != nil {
+		return raw, err
 	}
-	raw.Me = ghLogin()
-	if raw.Me == "" {
-		raw.Notes = append(raw.Notes, "gh login unknown: PR authorship not marked")
+	if t := parseTime(lf); t.IsZero() || now.Sub(t) > ellyStaleAfter {
+		hidden := 0
+		for i := range raw.Links {
+			if raw.Links[i].ActionNeeded {
+				raw.Links[i].ActionNeeded = false
+				hidden++
+			}
+		}
+		if hidden > 0 {
+			if t.IsZero() {
+				raw.Notes = append(raw.Notes, fmt.Sprintf("%d review verdicts hidden: no elly data", hidden))
+			} else {
+				raw.Notes = append(raw.Notes, fmt.Sprintf("%d review verdicts hidden: elly data stale since %s", hidden, t.In(now.Location()).Format("15:04")))
+			}
+		}
 	}
 	return raw, nil
 }
