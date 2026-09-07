@@ -766,6 +766,11 @@ in
     set hlsearch
   '';
 
+  # Icon theme for notifications only; GTK keeps its own. Linked into
+  # ~/.local/share/icons so dunst finds it without relying on XDG_DATA_DIRS.
+  xdg.dataFile."icons/WhiteSur-dark".source =
+    "${pkgs.whitesur-icon-theme}/share/icons/WhiteSur-dark";
+
   services.dunst = {
     enable = true;
     settings = {
@@ -775,10 +780,10 @@ in
         width = 360;
         height = "(0, 240)";
         origin = "top-right";
-        offset = "(12, 48)";
+        offset = "(16, 52)";
         scale = 0;
         notification_limit = 0;
-        gap_size = 8;
+        gap_size = 10;
         progress_bar = true;
         progress_bar_height = 6;
         progress_bar_frame_width = 0;
@@ -787,11 +792,11 @@ in
         progress_bar_max_width = 320;
         indicate_hidden = true;
         transparency = 0;
-        padding = 14;
-        horizontal_padding = 16;
-        text_icon_padding = 14;
+        padding = 16;
+        horizontal_padding = 18;
+        text_icon_padding = 16;
         frame_width = 1;
-        frame_color = "#2e2e2e";
+        frame_color = "#292929";
         sort = true;
         font = "Inter 16";
         line_height = 2;
@@ -808,6 +813,8 @@ in
         icon_position = "left";
         min_icon_size = 40;
         max_icon_size = 40;
+        enable_recursive_icon_lookup = true;
+        icon_theme = "WhiteSur-dark";
         sticky_history = true;
         history_length = 20;
         dmenu = "rofi -dmenu -p dunst";
@@ -815,7 +822,7 @@ in
         always_run_script = true;
         title = "Dunst";
         class = "Dunst";
-        corner_radius = 12;
+        corner_radius = 14;
         ignore_dbusclose = false;
         force_xwayland = false;
         force_xinerama = false;
@@ -829,14 +836,14 @@ in
       urgency_low = {
         background = "#1e1e1e";
         foreground = "#c0c0c0";
-        frame_color = "#2e2e2e";
+        frame_color = "#292929";
         highlight = "#4a8fe7";
         timeout = 6;
       };
       urgency_normal = {
         background = "#1e1e1e";
         foreground = "#f2f2f2";
-        frame_color = "#2e2e2e";
+        frame_color = "#292929";
         highlight = "#4a8fe7";
         timeout = 8;
       };
