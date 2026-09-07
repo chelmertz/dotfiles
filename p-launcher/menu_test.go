@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 )
 
@@ -16,6 +17,17 @@ func TestWriteList(t *testing.T) {
 		"personal/health\thealth\tpersonal\t0\t\n"
 	if buf.String() != want {
 		t.Fatalf("got %q", buf.String())
+	}
+}
+
+func TestRofiArgs(t *testing.T) {
+	plain := strings.Join(rofiArgs(""), " ")
+	if strings.Contains(plain, "-kb-cancel") || !strings.Contains(plain, "-markup-rows") {
+		t.Fatalf("got %q", plain)
+	}
+	withKey := strings.Join(rofiArgs("F5"), " ")
+	if !strings.Contains(withKey, "-kb-cancel Escape,Control+g,Control+bracketleft,F5") {
+		t.Fatalf("got %q", withKey)
 	}
 }
 
@@ -35,7 +47,7 @@ func TestParseRofiIndex(t *testing.T) {
 func TestSelectRow(t *testing.T) {
 	rows := []Row{
 		{Text: "  dependabot", Path: "m/dependabot"},
-		{Text: divider},
+		{Text: "<b>ns</b>" + heading},
 		{Text: "  health", Path: "personal/health"},
 	}
 	cases := []struct {
@@ -44,7 +56,7 @@ func TestSelectRow(t *testing.T) {
 		wantOk   bool
 	}{
 		{0, "m/dependabot", true},
-		{1, "", false}, // divider
+		{1, "", false}, // heading
 		{2, "personal/health", true},
 		{-1, "", false},
 		{3, "", false},

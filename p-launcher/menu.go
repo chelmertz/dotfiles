@@ -60,7 +60,18 @@ func writeList(w io.Writer, ps []Project, open map[string]bool) error {
 // menu shows rofi and opens the selection. Esc (rofi exit 1, empty stderr)
 // is a quiet exit; a nonzero exit with stderr output is a fatal rofi
 // startup failure (display, "already running", a bad theme), not a cancel.
-func menu(s *Store, root string) error {
+// rofiArgs builds the dmenu invocation. toggleKey, when set, is added to
+// rofi's cancel binding so the same hotkey that opened the menu closes it
+// (rofi grabs the keyboard, so i3 never sees the second press).
+func rofiArgs(toggleKey string) []string {
+	args := []string{"-dmenu", "-i", "-p", "project", "-format", "i", "-matching", "fuzzy", "-markup-rows"}
+	if toggleKey != "" {
+		args = append(args, "-kb-cancel", "Escape,Control+g,Control+bracketleft,"+toggleKey)
+	}
+	return args
+}
+
+func menu(s *Store, root, toggleKey string) error {
 	ps, open, err := load(s, root)
 	if err != nil {
 		return err
@@ -75,7 +86,7 @@ func menu(s *Store, root string) error {
 	}
 	// -format i prints the selected row index; -1 when the typed text matched
 	// no row (the future create-project hook). No timeout: rofi waits for the user.
-	cmd := exec.Command("rofi", "-dmenu", "-i", "-p", "project", "-format", "i", "-matching", "fuzzy")
+	cmd := exec.Command("rofi", rofiArgs(toggleKey)...)
 	cmd.Stdin = &in
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -105,13 +116,13 @@ func menu(s *Store, root string) error {
 			// notification can't name what was typed.
 			notifyInfo("no matching project; creating projects is not implemented yet")
 		}
-		return nil // typed non-match or divider: no-op for now
+		return nil // typed non-match or heading: no-op for now
 	}
 	return Open(s, root, path)
 }
 
 // selectRow resolves a rofi row index to a project path, isolated from I/O
-// for testing. ok is false for an out-of-range index or a divider row.
+// for testing. ok is false for an out-of-range index or a heading row.
 func selectRow(rows []Row, idx int) (string, bool) {
 	if idx < 0 || idx >= len(rows) || rows[idx].Path == "" {
 		return "", false

@@ -10,7 +10,7 @@ func TestRows(t *testing.T) {
 		{Path: "m/reputation", Name: "reputation", Label: "matchi"},
 		{Path: "m/dependabot", Name: "dependabot", Label: "matchi"},
 		{Path: "personal/health", Name: "health", Label: "personal"},
-		{Path: "oss/thing", Name: "thing", Label: "oss"},
+		{Path: "oss/a&b", Name: "a&b", Label: "oss"},
 	}
 	open := map[string]bool{"p:m/dependabot": true}
 	rows := Rows(ps, open)
@@ -20,8 +20,12 @@ func TestRows(t *testing.T) {
 		lines = append(lines, r.Text)
 		paths = append(paths, r.Path)
 	}
-	wantLines := []string{"  reputation", "● dependabot", divider, "  health", divider, "  thing"}
-	wantPaths := []string{"m/reputation", "m/dependabot", "", "personal/health", "", "oss/thing"}
+	wantLines := []string{
+		"<b>matchi</b>" + heading, "  reputation", "● dependabot",
+		"<b>personal</b>" + heading, "  health",
+		"<b>oss</b>" + heading, "  a&amp;b",
+	}
+	wantPaths := []string{"", "m/reputation", "m/dependabot", "", "personal/health", "", "oss/a&b"}
 	if !reflect.DeepEqual(lines, wantLines) {
 		t.Fatalf("lines %q", lines)
 	}

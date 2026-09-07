@@ -21,7 +21,7 @@ func (e *hintError) Error() string { return e.msg + ". " + e.hint }
 func (e *hintError) Unwrap() error { return e.cause }
 
 func usage() error {
-	return errors.New("usage: p-launcher list | open <namespace/name> | menu")
+	return errors.New("usage: p-launcher list | open <namespace/name> | menu [--toggle-key KEY]")
 }
 
 func main() {
@@ -46,9 +46,18 @@ func run(args []string) error {
 	cmd := args[0]
 	// Validate the subcommand and its arity before touching the store, so a
 	// typo'd subcommand never opens (and possibly migrates) the DB.
+	toggleKey := ""
 	switch cmd {
-	case "list", "menu":
+	case "list":
 		if len(args) != 1 {
+			return usage()
+		}
+	case "menu":
+		switch {
+		case len(args) == 1:
+		case len(args) == 3 && args[1] == "--toggle-key" && args[2] != "":
+			toggleKey = args[2]
+		default:
 			return usage()
 		}
 	case "open":
@@ -78,7 +87,7 @@ func run(args []string) error {
 	case "open":
 		return Open(s, root, args[1])
 	case "menu":
-		return menu(s, root)
+		return menu(s, root, toggleKey)
 	}
 	panic("unreachable: cmd validated above")
 }

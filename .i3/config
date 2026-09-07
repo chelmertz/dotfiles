@@ -205,9 +205,11 @@ bindsym F1 exec --no-startup-id i3-project switch 1
 bindsym F2 exec /home/ch/.local/bin/ror.py Firefox --workspace $ws2 firefox; workspace number $ws2
 bindsym F3 exec --no-startup-id i3-project switch 3
 bindsym F4 exec --no-startup-id i3-project switch 4
-# F5: ~/p project launcher. Slot 5 is still reachable via $mod+5. stderr goes
-# to the user journal: journalctl --user -t p-launcher
-bindsym F5 exec --no-startup-id systemd-cat -t p-launcher p-launcher menu
+# ~/p project launcher. One variable so the key and rofi's cancel binding
+# (pressing it again closes the menu) cannot drift apart. Slot 5 is still
+# reachable via $mod+5. stderr goes to the journal: journalctl --user -t p-launcher
+set $p_launcher_key F5
+bindsym $p_launcher_key exec --no-startup-id systemd-cat -t p-launcher p-launcher menu --toggle-key $p_launcher_key
 bindsym F6 exec --no-startup-id i3-project switch 6
 bindsym F7 exec /home/ch/.local/bin/ror.py steam /usr/bin/steam; workspace number $ws7
 bindsym F8 exec --no-startup-id i3-project switch 8
