@@ -106,6 +106,15 @@ func verbTexts(vs []verbRow) []string {
 	return out
 }
 
+func TestRowHeightArgs(t *testing.T) {
+	if got := rowHeightArgs([]Project{{Path: "m/a"}, {Path: "m/b"}}); got != nil {
+		t.Fatalf("no descriptions must keep single-line rows: %v", got)
+	}
+	if got := rowHeightArgs([]Project{{Path: "m/a"}, {Path: "m/b", Description: "x"}}); !reflect.DeepEqual(got, []string{"-eh", "2"}) {
+		t.Fatalf("%v", got)
+	}
+}
+
 func TestCreatePathFromTyped(t *testing.T) {
 	cases := map[string]string{
 		"m/new":        "m/new",

@@ -148,6 +148,18 @@ func mainMenuExtra() []string {
 		"-mesg", `<span alpha="60%">Alt+a archived · Alt+r report · ns/name creates</span>`}
 }
 
+// rowHeightArgs makes rows two lines tall when any project carries a
+// description: rofi renders a row's second line only with -eh 2, and the
+// taller rows are not worth it when nothing would fill them.
+func rowHeightArgs(ps []Project) []string {
+	for _, p := range ps {
+		if p.Description != "" {
+			return []string{"-eh", "2"}
+		}
+	}
+	return nil
+}
+
 // parseRofiOut splits rofi's "i|f" output: index (-1 for a typed non-match)
 // and the typed text. Only the first separator splits, so typed text may
 // contain "|".
@@ -198,6 +210,7 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 	if archived {
 		prompt, extra = "archived / postponed", nil
 	}
+	extra = append(extra, rowHeightArgs(ps)...)
 	out, key, cancelled, err := runRofi(prompt, toggleKey, rofiInput(rows, icons), extra...)
 	if err != nil || cancelled {
 		return err
