@@ -158,7 +158,8 @@ func TestGoldenRofiMenu(t *testing.T) {
 	}
 	open := map[string]bool{"p:m/reputation": true, "p:m/dependabot": true, "p:m/nginx-ingress": true}
 	rows := Rows(ps, open, true)
-	cmd := exec.Command("rofi", rofiArgs("project", "F5")...)
+	// the same arguments menuMode uses for the main list, hint line included
+	cmd := exec.Command("rofi", append(rofiArgs("project", "F5"), mainMenuExtra()...)...)
 	cmd.Env = append(os.Environ(), "DISPLAY="+display)
 	cmd.Stdin = bytes.NewReader(rofiInput(rows, icons))
 	if err := cmd.Start(); err != nil {
