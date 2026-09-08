@@ -857,18 +857,15 @@ in
     backend = "xrender";
     vSync = true;
     fade = false;
-    # Shadow on rofi, so the launcher lifts off busy windows, and on the bar,
-    # where the upward offset leaves a thin falloff under its bottom edge.
-    # picom has one radius and offset for every shadow, so the bar cannot get
-    # a smaller one than rofi. Everything else, dunst included, is excluded.
+    # Shadow on rofi alone, so the launcher lifts off busy windows. Everything
+    # else, dunst included, is excluded by class. i3bar cannot have one: i3
+    # stacks the dockarea below the tiling frames, so picom paints its shadow
+    # underneath the windows and nothing reaches the screen.
     shadow = true;
     shadowOpacity = 0.5;
     shadowOffsets = [ (-24) (-14) ];
-    shadowExclude = [ "!(class_g = 'Rofi' || class_g = 'i3bar')" ];
+    shadowExclude = [ "!(class_g = 'Rofi')" ];
     settings = {
-      # picom's built-in default for dock windows is no shadow, which would
-      # silently override the i3bar class in shadow-exclude above.
-      wintypes = { dock = { shadow = true; }; };
       shadow-radius = 24;
       # Same radius as the rofi theme, so picom clips the shadow to the curve;
       # otherwise the rectangular shadow shows through the transparent corners.
