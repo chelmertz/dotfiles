@@ -34,12 +34,26 @@ in
   };
   # Nightly dated copy of the database into ~/p/personal/p-launcher/backup
   # (7 kept); the live DB stays out of ~/p so a syncing client never touches
-  # a WAL database.
+  # a WAL database. When ~/.config/p-launcher/restic.env exists (hand-placed,
+  # never versioned: RESTIC_REPOSITORY, RESTIC_PASSWORD, AWS_ACCESS_KEY_ID,
+  # AWS_SECRET_ACCESS_KEY, the same values the vps repo keeps in sops), the
+  # copy also goes to the shared restic repo on Backblaze B2, tagged and
+  # host-scoped so forget/prune never touches the vps snapshots.
   systemd.user.services.p-launcher-backup = {
     Unit.Description = "p-launcher: nightly database backup";
     Service = {
       Type = "oneshot";
-      ExecStart = "${p-launcher}/bin/p-launcher backup";
+      EnvironmentFile = "-%h/.config/p-launcher/restic.env";
+      Environment = "PATH=${lib.makeBinPath [ pkgs.restic pkgs.coreutils pkgs.hostname ]}";
+      ExecStart = pkgs.writeShellScript "p-launcher-backup" ''
+        set -euo pipefail
+        dir=$(${p-launcher}/bin/p-launcher backup)
+        [ -n "''${RESTIC_REPOSITORY:-}" ] || exit 0
+        export RESTIC_CACHE_DIR="''${XDG_CACHE_HOME:-$HOME/.cache}/restic"
+        restic cat config >/dev/null 2>&1 || restic init
+        restic backup --tag p-launcher --host "$(hostname)" "$(dirname "$dir")"
+        restic forget --tag p-launcher --host "$(hostname)" --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
+      '';
     };
   };
   systemd.user.timers.p-launcher-backup = {
