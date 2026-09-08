@@ -30,14 +30,15 @@ func TestParseRofiOut(t *testing.T) {
 func TestRowsArchivedTail(t *testing.T) {
 	ps := []Project{{Path: "m/a", Name: "a", Label: "matchi"}}
 	rows := Rows(ps, nil, true)
-	if len(rows) != 3 || rows[1].Text != "archived…" || rows[1].Action != "archived" || rows[1].Path != "" || !rows[1].Permanent ||
-		rows[2].Text != "report…" || rows[2].Action != "report" || rows[2].Path != "" || !rows[2].Permanent {
+	if len(rows) != 3 || rows[1].Text != "archived…" || rows[1].Action != "archived" || rows[1].Path != "" ||
+		rows[2].Text != "report…" || rows[2].Action != "report" || rows[2].Path != "" {
 		t.Fatalf("%+v", rows)
 	}
-	// encoding: options joined by \x1f after a NUL
-	in := string(rofiInput(append(rows, Row{Text: "x", Unselectable: true, Permanent: true}), map[string]string{"archived": "/i/a.svg", "blank": "/i/b.svg"}))
-	if !strings.Contains(in, "x\x00icon\x1f/i/b.svg\x1fnonselectable\x1ftrue\x1fpermanent\x1ftrue\x1e") ||
-		!strings.Contains(in, "archived…\x00icon\x1f/i/a.svg\x1fpermanent\x1ftrue\x1e") {
+	// no row may be "permanent": with the filter matching nothing, rofi
+	// selects a permanent row on Enter instead of returning the typed text,
+	// and typed ns/name creation never fires (seen 2026-09-08)
+	in := string(rofiInput(rows, map[string]string{"archived": "/i/a.svg", "blank": "/i/b.svg"}))
+	if strings.Contains(in, "permanent") || strings.Contains(in, "nonselectable") || !strings.Contains(in, "archived…\x00icon\x1f/i/a.svg\x1e") {
 		t.Fatalf("%q", in)
 	}
 	if plain := string(rofiInput(rows[:1], nil)); strings.Contains(plain, "\x00") {

@@ -8,21 +8,21 @@ import (
 // Row is one rofi line. Path is "" for rows that must not open anything
 // (docked action rows, the separator); selectRow guards it.
 type Row struct {
-	Text         string
-	Path         string // project path; "" for docked action rows
-	Icon         string // icon name (see iconPaths), presentation only
-	Action       string // docked row action: archived | report | clip-open | clip-create; "" for projects
-	Arg          string // action argument: project path for clip-open, URL for clip-create
-	Unselectable bool   // rofi ignores Enter on the row (dmenu "nonselectable")
-	Permanent    bool   // rofi keeps the row visible whatever the filter (dmenu "permanent")
+	Text   string
+	Path   string // project path; "" for docked action rows
+	Icon   string // icon name (see iconPaths), presentation only
+	Action string // docked row action: archived | report | clip-open | clip-create; "" for projects
+	Arg    string // action argument: project path for clip-open, URL for clip-create
 }
 
 // Rows renders projects (already sorted) into rofi lines: the folder name,
 // then the namespace label in a muted span; the state is a row icon (see
-// stateIcon), not text. rofi's dmenu can make a row unselectable
-// (Row.Unselectable) but every row costs a full row height and the cursor
-// still lands on it, so grouping lives inside each row instead of in heading
-// or separator rows (a separator was tried and removed on 2026-09-08).
+// stateIcon), not text. rofi's dmenu can make a row unselectable but every
+// row costs a full row height and the cursor still lands on it, so grouping
+// lives inside each row instead of in heading or separator rows (a separator
+// was tried and removed on 2026-09-08). Rows are never "permanent" either:
+// a permanent row is what Enter selects when the filter matches nothing,
+// which is exactly the typed-ns/name-creates path.
 // The two columns are tab-separated and aligned by the tab-stop on
 // element-text in rofi/cards.rasinc, so the font need not be monospace. Rows are Pango markup
 // (rofi runs with -markup-rows), so names and labels are escaped.
@@ -52,11 +52,11 @@ func rowsAt(ps []Project, open map[string]bool, withTail bool, now time.Time) []
 	}
 	if withTail {
 		// Docked rows: switch to the archived list, open the report. Path ""
-		// so they never open a project; the Icon names the action. Permanent,
-		// so filtering the projects never hides them.
+		// so they never open a project; the Icon names the action. Filtering
+		// hides them like any row; Alt+a / Alt+r reach them regardless.
 		out = append(out,
-			Row{Text: "archived…", Icon: "archived", Action: "archived", Permanent: true},
-			Row{Text: "report…", Icon: "report", Action: "report", Permanent: true})
+			Row{Text: "archived…", Icon: "archived", Action: "archived"},
+			Row{Text: "report…", Icon: "report", Action: "report"})
 	}
 	return out
 }

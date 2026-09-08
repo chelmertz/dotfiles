@@ -95,24 +95,15 @@ func rofiInput(rows []Row, icons map[string]string) []byte {
 	var b bytes.Buffer
 	for _, r := range rows {
 		b.WriteString(r.Text)
-		// dmenu row options: text\0key\x1fvalue[\x1fkey\x1fvalue…]
-		var opts []string
+		// dmenu row options: text\0key\x1fvalue. Only the icon; "permanent"
+		// rows swallow Enter when nothing matches and break typed creation.
 		if icons != nil {
 			p, ok := icons[r.Icon]
 			if !ok {
 				p = icons["blank"]
 			}
-			opts = append(opts, "icon", p)
-		}
-		if r.Unselectable {
-			opts = append(opts, "nonselectable", "true")
-		}
-		if r.Permanent {
-			opts = append(opts, "permanent", "true")
-		}
-		if len(opts) > 0 {
-			b.WriteString("\x00")
-			b.WriteString(strings.Join(opts, "\x1f"))
+			b.WriteString("\x00icon\x1f")
+			b.WriteString(p)
 		}
 		b.WriteString(rowSep)
 	}
