@@ -290,6 +290,40 @@ func (s *Store) RenameProject(oldPath, newPath, newName string) error {
 	return nil
 }
 
+// LinkOwner returns the project a URL is linked to.
+func (s *Store) LinkOwner(url string) (string, bool) {
+	var path string
+	err := s.db.QueryRow(`select p.path from link l join project p on p.id = l.project_id where l.url = ?`, url).Scan(&path)
+	return path, err == nil
+}
+
+// NamespaceFor returns the namespace dir remembered for a GitHub owner ("" if
+// none); SetNamespaceFor remembers one. Stored in kv as ns.owner.<owner>.
+func (s *Store) NamespaceFor(owner string) string {
+	v, _ := s.kvGet("ns.owner." + owner)
+	return v
+}
+
+func (s *Store) SetNamespaceFor(owner, ns string) error { return s.kvSet("ns.owner."+owner, ns) }
+
+// Namespaces lists namespace dirs in display order.
+func (s *Store) Namespaces() ([]string, error) {
+	rows, err := s.db.Query(`select dir from namespace order by sort_order, dir`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var d string
+		if err := rows.Scan(&d); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
 // RecordPermission logs which tool the user approved and the allowlist rule
 // that would have avoided the ask. path may be "" (no project).
 func (s *Store) RecordPermission(sessionID, path, tool, rule string) error {
@@ -310,9 +344,12 @@ func (s *Store) RecordPermission(sessionID, path, tool, rule string) error {
 // AddLink attaches a pull-request URL to a project; a known URL is a no-op.
 // opened_at is provisional until `links refresh` replaces it with GitHub's
 // created_at.
-func (s *Store) AddLink(path, url string) error {
-	res, err := s.db.Exec(`insert or ignore into link (project_id, url, opened_at)
-		select id, ?, ? from project where path = ?`, url, now(), path)
+func (s *Store) AddLink(path, url string) error { return s.AddLinkKind(path, url, "github_pr") }
+
+// AddLinkKind is AddLink with an explicit kind (github_pr, github_issue).
+func (s *Store) AddLinkKind(path, url, kind string) error {
+	res, err := s.db.Exec(`insert or ignore into link (project_id, url, kind, opened_at)
+		select id, ?, ?, ? from project where path = ?`, url, kind, now(), path)
 	if err != nil {
 		return fmt.Errorf("add link %s: %w", url, err)
 	}

@@ -216,6 +216,39 @@ func TestRecordSessionEvent(t *testing.T) {
 	}
 }
 
+func TestLinkKindsOwnerAndNamespaces(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.UpsertProjects(found("m/a")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddLinkKind("m/a", "https://github.com/o/r/issues/3", "github_issue"); err != nil {
+		t.Fatal(err)
+	}
+	var kind string
+	if err := s.db.QueryRow(`select kind from link`).Scan(&kind); err != nil || kind != "github_issue" {
+		t.Fatalf("%q %v", kind, err)
+	}
+	if p, ok := s.LinkOwner("https://github.com/o/r/issues/3"); !ok || p != "m/a" {
+		t.Fatalf("%q %v", p, ok)
+	}
+	if _, ok := s.LinkOwner("https://github.com/o/r/issues/4"); ok {
+		t.Fatal("unknown url owned")
+	}
+	if s.NamespaceFor("matchiapp") != "" {
+		t.Fatal("unmapped owner must be empty")
+	}
+	if err := s.SetNamespaceFor("matchiapp", "m"); err != nil {
+		t.Fatal(err)
+	}
+	if s.NamespaceFor("matchiapp") != "m" {
+		t.Fatal("mapping not stored")
+	}
+	ns, err := s.Namespaces()
+	if err != nil || len(ns) != 2 || ns[0] != "m" || ns[1] != "personal" {
+		t.Fatalf("%v %v", ns, err)
+	}
+}
+
 func TestSetDescription(t *testing.T) {
 	s := openTestStore(t)
 	if err := s.UpsertProjects(found("m/a")); err != nil {
