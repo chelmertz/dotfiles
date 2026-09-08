@@ -100,17 +100,20 @@ Settings shared by both variants:
 bar {
     status_command i3blocks
     position top
-    font pango:Inter, Font Awesome 7 Free Solid, Font Awesome 7 Brands 16
+    font pango:Inter, Font Awesome 7 Free, Font Awesome 7 Free Solid, Font Awesome 7 Brands 15
+    tray_output eDP-1
+    tray_output primary
     tray_padding 4
     workspace_min_width 40
-    separator_symbol "│"
+    padding 2 14 2 10
     colors { … }
 }
 ```
 
 `font` inside the bar block affects the bar only; window titles keep the
-current title font. Size 16 matches today's bar size at the configured
-`Xft.dpi`; adjust on the real bar if Inter sets visibly larger.
+current title font. `padding` exists because i3bar insets the statusline from
+the screen edge only when a tray shares that output, and the tray now lives on
+the laptop screen.
 
 Colours, dark shown, light by substitution:
 
@@ -119,17 +122,22 @@ colors {
     background         #1e1e1e
     statusline         #8a8a8a        # muted: default block colour
     separator          #292929        # border: thin rule between groups
-    focused_workspace  #4a8fe7 #4a8fe7 #ffffff   # accent fill (option C)
+    focused_workspace  #8a8a8a #1e1e1e #f2f2f2   # muted hairline, no fill
     active_workspace   #1e1e1e #1e1e1e #f2f2f2   # visible on the other output
     inactive_workspace #1e1e1e #1e1e1e #8a8a8a
-    urgent_workspace   #e5484d #e5484d #ffffff
+    urgent_workspace   #e5484d #1e1e1e #f2f2f2   # red hairline
     binding_mode       #2a2a2a #2a2a2a #f2f2f2   # field: resize / fkey mode
 }
 ```
 
-After the critique the quiet variant is the default: `focused_workspace` is
-`bg bg fg`, the bar font is Inter 15, and the accent is left to the focused
-window border. Going back to the accent fill is the same one line.
+The accent fill went first to the quiet variant (`bg bg fg`) and then, after a
+second critique measured it, to a hairline. Marking focus by text colour alone
+put `fg` against `muted`, which is 2.27:1 in light and 3.08:1 in dark, so the
+focused workspace was not identifiable. Every calm fill is under 1.4:1 against
+`bg`, so the 1px border is the only lever left that is a shape difference
+rather than a colour one; `muted` against `bg` clears 3:1 in both schemes.
+Urgent follows the same language, because white on the dark red fill was
+3.91:1 and failed AA text. The accent now marks the focused window only.
 
 ### Block colour by role
 
@@ -154,7 +162,11 @@ belongs to one thing):
   window only.
 
 No rules between groups, only air: `separator=false` globally,
-`separator_block_width` 14 inside a group and 24 after its last block. Glyphs
+`separator_block_width` 14 inside a group and 24 after its last block. Inside
+a block the unit is one space, from either the label's trailing space or the
+script, never both. The clock is three blocks (`date`, `week`, `clock`) so the
+gaps within it are the bar's 14px unit; the two literal spaces it used before
+were a third rhythm between the 5px label unit and the 14px block unit. Glyphs
 come from Font Awesome 7 Regular where a regular variant exists, Solid
 otherwise. The tray sits on the laptop output. Groups, left to right:
 
@@ -164,7 +176,7 @@ otherwise. The tray sits on the laptop output. Groups, left to right:
 | work | project-urls, recording, keylog, elly, prometheus |
 | environment | wttr, battery |
 | media | mediaplayer |
-| clock | time |
+| clock | date, week, clock |
 | toggles | redshift, bluetooth, screenlayout, colorscheme |
 
 ### Per-block changes
@@ -182,7 +194,7 @@ All glyphs Font Awesome 7. `color=` lines in `.i3blocks.conf` are removed.
 | wttr | `.i3blocks.conf` | `format=%t` with label `f2c9`; drop `color=#ffffff`. Condition dropped: wttr's plain-text `%x` came back as `mmm` |
 | battery | `bin/battery` | ⚡ label → level glyph `f244`…`f240` by quarter, `f0e7` when charging; drop the colour gradient; `red` below 15 %, `urgent` kept |
 | mediaplayer | `bin/i3blocks_spotify.sh` | keep `f28b` / `f004`; `fg` when playing, no colour when paused |
-| time | `bin/i3blocks_date.sh` | `fg` always |
+| date, week, clock | `bin/i3blocks_date.sh` | one block per part, no icons: `tis 8 sep`, `W37`, `14:53` |
 | redshift | `bin/i3blocks_redshift.sh` | keep `f0eb`; on → `accent`, off → no colour |
 | bluetooth | `bin/i3blocks_bluetooth.sh` | keep `f293`; connected → `accent`, else no colour |
 | screenlayout | `.i3blocks.conf` | 🖵 → `f108` |
