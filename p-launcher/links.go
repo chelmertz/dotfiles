@@ -36,6 +36,7 @@ type ellyPR struct {
 	LastCommenter     string
 	IsDraft           bool
 	LastUpdated       time.Time
+	RereviewFrom      string // reviewers to ask again, comma-separated (elly ADR-0007)
 }
 
 // linkDeps are the remote readers, injected so tests need no network.
@@ -206,8 +207,22 @@ func ellyVerdict(pr ellyPR, me string) (bool, string) {
 		return true, fmt.Sprintf("%d unresolved threads", pr.ThreadsActionable)
 	case pr.ReviewStatus == "CHANGES_REQUESTED" && me != "" && pr.Author == me:
 		return true, "changes requested"
+	case pr.RereviewFrom != "":
+		// the reviewer spoke, we moved, github told them nothing: the PR
+		// sits until they are asked again (elly's rereview_from)
+		return true, "ask " + firstLogin(pr.RereviewFrom) + " to re-review"
 	}
 	return false, ""
+}
+
+// firstLogin names one reviewer to ask, "N reviewers" when elly lists more:
+// the row has one column and one name is what the user acts on.
+func firstLogin(csv string) string {
+	logins := strings.Split(csv, ",")
+	if len(logins) > 1 {
+		return fmt.Sprintf("%d reviewers", len(logins))
+	}
+	return logins[0]
 }
 
 // kvGet/kvSet are the small settings store (migration 5): refresh times and
@@ -336,8 +351,15 @@ func ellyRead() (map[string]ellyPR, time.Time, error) {
 		return nil, time.Time{}, err
 	}
 	defer db.Close()
+	// rereview_from is newer than the column set elly shipped with, so a
+	// launcher running against an older elly must still work: the column is
+	// probed before it is selected.
+	rereview := "''"
+	if hasColumn(db, "prs", "rereview_from") {
+		rereview = "coalesce(rereview_from,'')"
+	}
 	rows, err := db.Query(`select url, coalesce(review_status,''), coalesce(threads_actionable,0), coalesce(author,''), coalesce(last_updated,''),
-		coalesce(last_pr_commenter,''), coalesce(is_draft,0) from prs`)
+		coalesce(last_pr_commenter,''), coalesce(is_draft,0), ` + rereview + ` from prs`)
 	if err != nil {
 		return nil, time.Time{}, err
 	}
@@ -347,7 +369,7 @@ func ellyRead() (map[string]ellyPR, time.Time, error) {
 		var u, lu string
 		var draft int
 		var pr ellyPR
-		if err := rows.Scan(&u, &pr.ReviewStatus, &pr.ThreadsActionable, &pr.Author, &lu, &pr.LastCommenter, &draft); err != nil {
+		if err := rows.Scan(&u, &pr.ReviewStatus, &pr.ThreadsActionable, &pr.Author, &lu, &pr.LastCommenter, &draft, &pr.RereviewFrom); err != nil {
 			return nil, time.Time{}, err
 		}
 		pr.LastUpdated = parseAnyTime(lu)
@@ -360,6 +382,17 @@ func ellyRead() (map[string]ellyPR, time.Time, error) {
 		return out, time.Time{}, err
 	}
 	return out, parseAnyTime(lf), nil
+}
+
+// hasColumn reports whether a table has a column, so a query can adapt to an
+// older elly schema instead of failing the whole refresh.
+func hasColumn(db *sql.DB, table, column string) bool {
+	rows, err := db.Query(`select 1 from pragma_table_info(?) where name = ?`, table, column)
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+	return rows.Next()
 }
 
 // parseAnyTime accepts RFC3339 or unix seconds.

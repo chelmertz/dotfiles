@@ -80,6 +80,11 @@ func stateText(p Project, isOpen bool, now time.Time) string {
 		}
 		return "finished, waiting for you" + dur
 	case p.Review:
+		// the verdict itself is the useful text: who to ask, or what is
+		// unanswered. Older rows without one keep the generic wording.
+		if p.ReviewWhy != "" {
+			return p.ReviewWhy
+		}
 		return "reviewer waiting for your reply"
 	case p.Snoozed:
 		return "postponed"

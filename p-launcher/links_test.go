@@ -1,8 +1,10 @@
 package main
 
 import (
+	"database/sql"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -262,5 +264,69 @@ func TestFreshnessGateInLoad(t *testing.T) {
 	raw, _ = loadReportDataAt(s, now.AddDate(0, 0, -30), now)
 	if !raw.Links[0].ActionNeeded {
 		t.Fatal("fresh verdict hidden")
+	}
+}
+
+func TestEllyVerdictRereview(t *testing.T) {
+	// nothing unanswered, but the reviewer was never asked to look again
+	need, why := ellyVerdict(ellyPR{Author: "me", ReviewStatus: "REVIEW_REQUIRED", RereviewFrom: "adam"}, "me")
+	if !need || why != "ask adam to re-review" {
+		t.Fatalf("%v %q", need, why)
+	}
+	// several reviewers: the row has one column, so count them
+	if _, why := ellyVerdict(ellyPR{RereviewFrom: "adam,eve"}, "me"); why != "2 reviewers to re-review" && why != "ask 2 reviewers to re-review" {
+		t.Fatalf("%q", why)
+	}
+	// unanswered threads outrank the nudge: answer first, then ask
+	if _, why := ellyVerdict(ellyPR{ThreadsActionable: 2, RereviewFrom: "adam"}, "me"); why != "2 unresolved threads" {
+		t.Fatalf("%q", why)
+	}
+	if need, _ := ellyVerdict(ellyPR{RereviewFrom: ""}, "me"); need {
+		t.Fatal("no signal must not need action")
+	}
+}
+
+// The launcher must keep working against an elly that predates the
+// rereview_from column: the column is probed, not assumed.
+func TestEllyReadOlderSchema(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", dir)
+	if err := os.MkdirAll(filepath.Join(dir, "elly"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", filepath.Join(dir, "elly", "elly.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`create table prs (url text primary key, review_status text, threads_actionable integer, author text, last_updated text, last_pr_commenter text, is_draft integer);
+		create table meta (key text, value text);
+		insert into prs values ('https://github.com/o/r/pull/1', 'REVIEW_REQUIRED', 2, 'me', '2026-09-08T10:00:00Z', 'adam', 0);
+		insert into meta values ('last_fetched', '2026-09-08T10:05:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	prs, fetched, err := ellyRead()
+	if err != nil {
+		t.Fatalf("an elly without rereview_from must still be read: %v", err)
+	}
+	pr := prs["https://github.com/o/r/pull/1"]
+	if len(prs) != 1 || pr.ThreadsActionable != 2 || pr.RereviewFrom != "" || fetched.IsZero() {
+		t.Fatalf("%+v %v", prs, fetched)
+	}
+	// and with the column present it is read
+	db, err = sql.Open("sqlite", filepath.Join(dir, "elly", "elly.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`alter table prs add column rereview_from text not null default ''; update prs set rereview_from = 'adam'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if prs, _, err = ellyRead(); err != nil || prs["https://github.com/o/r/pull/1"].RereviewFrom != "adam" {
+		t.Fatalf("%+v %v", prs, err)
 	}
 }

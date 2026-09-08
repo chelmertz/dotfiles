@@ -24,6 +24,7 @@ type Project struct {
 	Archived    bool      // latest project_event is "archived"
 	Snoozed     bool      // latest project_event is "snoozed" with a wake time still ahead
 	Review      bool      // a fresh elly verdict says a linked PR waits on the user
+	ReviewWhy   string    // the verdict in words: "2 unresolved threads", "ask adam to re-review"
 	Description string    // one sentence of intent, "" when unset
 	Reason      string    // why the ball is where it is: stop, idle_prompt, question, permission_prompt, …
 	Since       time.Time // when the ball state started; zero without a live session
@@ -200,6 +201,7 @@ func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 		       `+latestKindExpr+` as kind, `+latestDetailExpr+` as detail,
 		       (? and exists(select 1 from link l where l.project_id = p.id and l.action_needed = 1)) as review,
 		       coalesce((select min(coalesce(l.elly_updated_at, l.github_updated_at, l.opened_at)) from link l where l.project_id = p.id and l.action_needed = 1), '') as review_since,
+		       coalesce((select l.detail from link l where l.project_id = p.id and l.action_needed = 1 order by coalesce(l.elly_updated_at, l.github_updated_at, l.opened_at) limit 1), '') as review_why,
 		       n.sort_order
 		from project p join namespace n on n.id = p.namespace_id
 		order by p.path`, cutoff, cutoff, cutoff, fresh)
@@ -211,7 +213,7 @@ func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 	for rows.Next() {
 		var p Project
 		var kind, detail, since, reviewSince string
-		if err := rows.Scan(&p.Path, &p.Name, &p.Label, &p.Description, &p.LastActive, &p.Ball, &p.Reason, &since, &kind, &detail, &p.Review, &reviewSince, &p.nsOrder); err != nil {
+		if err := rows.Scan(&p.Path, &p.Name, &p.Label, &p.Description, &p.LastActive, &p.Ball, &p.Reason, &since, &kind, &detail, &p.Review, &reviewSince, &p.ReviewWhy, &p.nsOrder); err != nil {
 			return nil, err
 		}
 		p.Since, p.ReviewSince = parseTime(since), parseTime(reviewSince)
