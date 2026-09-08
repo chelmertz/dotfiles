@@ -163,7 +163,9 @@ func TestGoldenRofiMenu(t *testing.T) {
 		rows = append([]Row{offer}, rows...) // an unknown issue in the clipboard
 	}
 	// the same arguments menuMode uses for the main list, hint line included
-	cmd := exec.Command("rofi", append(append(rofiArgs("project", "F5"), mainMenuExtra()...), rowHeightArgs(ps)...)...)
+	// -theme pins the dark variant: the live config follows the system color
+	// scheme (bin/color-scheme), and a golden must not depend on the time of day
+	cmd := exec.Command("rofi", append(append(append(rofiArgs("project", "F5"), mainMenuExtra()...), rowHeightArgs(ps)...), "-theme", "cards-dark")...)
 	cmd.Env = append(os.Environ(), "DISPLAY="+display)
 	cmd.Stdin = bytes.NewReader(rofiInput(rows, icons))
 	if err := cmd.Start(); err != nil {
@@ -186,7 +188,7 @@ func TestGoldenRofiVerbs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command("rofi", rofiArgs("m/reputation", "F5")...)
+	cmd := exec.Command("rofi", append(rofiArgs("m/reputation", "F5"), "-theme", "cards-dark")...)
 	cmd.Env = append(os.Environ(), "DISPLAY="+display)
 	cmd.Stdin = bytes.NewReader(verbInput(verbRows(Project{Path: "m/reputation", Name: "reputation"}), icons))
 	if err := cmd.Start(); err != nil {
