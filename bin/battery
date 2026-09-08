@@ -9,12 +9,13 @@
 # command (often provided by a package of the same name) to read the status of
 # the battery, and eventually its remaining time (to full charge or discharge).
 #
-# The color will gradually change for a percentage below 85%, and the urgency
+# The text turns red below 15% (through i3blocks-color), and the urgency
 # (exit code 33) is set if there is less that 5% remaining.
 
 use strict;
 use warnings;
 use utf8;
+binmode(STDOUT, ':encoding(UTF-8)');
 
 my $acpi;
 my $status;
@@ -35,13 +36,17 @@ if ($acpi !~ /: (\w+), (\d+)%/) {
 
 $status = $1;
 $percent = $2;
-$full_text = "$percent%";
 
-if ($status eq 'Discharging') {
-	$full_text .= ' DIS';
-} elsif ($status eq 'Charging') {
-	$full_text .= ' CHR';
-} elsif ($status eq 'Full') {
+# font awesome battery glyphs by quarter: f244 empty .. f240 full; f0e7 bolt
+my $glyph = $percent > 87 ? "\x{f240}"
+          : $percent > 62 ? "\x{f241}"
+          : $percent > 37 ? "\x{f242}"
+          : $percent > 12 ? "\x{f243}"
+          :                 "\x{f244}";
+$glyph = "\x{f0e7}" if $status eq 'Charging';
+$full_text = "$glyph $percent%";
+
+if ($status eq 'Full') {
 	# don't print anything when full, the status quo when laptop is "stationary"
 	exit(0);
 }
@@ -58,15 +63,8 @@ print "$short_text\n";
 
 # consider color and urgent flag only on discharge
 if ($status eq 'Discharging') {
-
-	if ($percent < 20) {
-		print "#FF0000\n";
-	} elsif ($percent < 40) {
-		print "#FFAE00\n";
-	} elsif ($percent < 60) {
-		print "#FFF600\n";
-	} elsif ($percent < 85) {
-		print "#A8FF00\n";
+	if ($percent < 15) {
+		system('i3blocks-color', 'red');
 	}
 
 	if ($percent < 5) {

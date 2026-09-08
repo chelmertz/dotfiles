@@ -66,6 +66,11 @@
       executable = true;
     };
 
+    ".local/bin/i3blocks_wttr.sh" = {
+      source = ../bin/i3blocks_wttr.sh;
+      executable = true;
+    };
+
     ".local/bin/i3blocks_colorscheme.sh" = {
       source = ../bin/i3blocks_colorscheme.sh;
       executable = true;

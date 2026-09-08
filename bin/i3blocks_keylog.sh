@@ -23,11 +23,12 @@ if [ -n "$BLOCK_BUTTON" ]; then
     fi
 fi
 
+# font awesome: f11c keyboard
 if $capturing; then
-    echo "⌨ REC"
-    echo "⌨"
-    echo "#ff0000"
+    printf '\uf11c REC\n'
+    printf '\uf11c\n'
+    i3blocks-color red
 else
-    echo "⌨"
-    echo "⌨"
+    printf '\uf11c\n'
+    printf '\uf11c\n'
 fi

@@ -18,8 +18,5 @@ fi
 # i3blocks: line 1 = full_text, line 2 = short_text, line 3 = color
 printf '\n'
 printf '\n'
-if connected; then
-	echo "#3399ff"
-else
-	echo "#888888"
-fi
+connected && i3blocks-color accent
+exit 0

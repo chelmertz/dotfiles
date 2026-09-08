@@ -15,11 +15,9 @@ case "$current" in
 	*dark*)
 		printf '\uf186\n'
 		printf '\uf186\n'
-		echo "#b0c4de"
 		;;
 	*)
 		printf '\uf185\n'
 		printf '\uf185\n'
-		echo "#ffcc00"
 		;;
 esac

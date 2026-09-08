@@ -21,11 +21,12 @@ if [ -n "$BLOCK_BUTTON" ]; then
     fi
 fi
 
+# font awesome: f111 circle, f192 circle-dot
 if $recording; then
-    echo "🔴 REC"
-    echo "🔴"
-    echo "#ff0000"
+    printf '\uf111 REC\n'
+    printf '\uf111\n'
+    i3blocks-color red
 else
-    echo "⚪ REC"
-    echo "⚪"
+    printf '\uf192 REC\n'
+    printf '\uf192\n'
 fi

@@ -255,15 +255,10 @@ mode "resize" {
 
 bindsym $mod+r mode "resize"
 
-# Start i3bar to display a workspace bar (plus the system information i3status
-# finds out, if available)
-bar {
-        #status_command 2>/tmp/blocks.err i3blocks -vvv | tee /tmp/blocks.out
-        status_command i3blocks
-        position top
-        tray_padding 1
-        separator_symbol " "
-}
+# The bar block lives in ~/.config/i3/bar-{dark,light}.conf, generated from the
+# cards palette in nix/home.nix. bar.conf is a symlink that bin/color-scheme
+# repoints before reloading, so the bar follows the colour scheme like rofi.
+include ~/.config/i3/bar.conf
 
 hide_edge_borders smart
 

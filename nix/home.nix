@@ -5,6 +5,69 @@ let
   # Outer corner radius shared by the dunst cards, the rofi window and picom,
   # which clips the rofi shadow to the same curve.
   cardRadius = 14;
+  # Colours shared by the rofi themes, the i3 bar and the i3blocks scripts
+  # (through i3blocks-color). Dunst still spells out its dark values until it
+  # gets a light variant.
+  cards = {
+    dark = {
+      bg = "#1e1e1e"; fg = "#f2f2f2"; muted = "#8a8a8a"; border = "#292929";
+      field = "#2a2a2a"; selected = "#333333"; accent = "#4a8fe7"; red = "#e5484d";
+    };
+    light = {
+      bg = "#f5f5f7"; fg = "#1d1d1f"; muted = "#55555a"; border = "#d5d5da";
+      field = "#e9e9ee"; selected = "#dcdce2"; accent = "#0a7aff"; red = "#d70015";
+    };
+  };
+  # rofi colour theme for one scheme: the template's @name@ placeholders
+  # filled from `cards`. attrNames and attrValues sort the same way.
+  rofiCards = c: builtins.replaceStrings
+    (map (k: "@${k}@") (builtins.attrNames c))
+    (builtins.attrValues c)
+    (builtins.readFile ../rofi/cards-colors.rasi);
+  # Complete i3 bar block for one scheme. .i3/config includes
+  # ~/.config/i3/bar.conf, a symlink bin/color-scheme points at bar-dark.conf or
+  # bar-light.conf before reloading i3. Font Awesome is named explicitly: the
+  # Nerd Font file claims the same private-use codepoints, so fontconfig
+  # fallback could pick either. Quiet variant: focused_workspace bg bg fg.
+  i3bar = c: ''
+    bar {
+        status_command i3blocks
+        position top
+        font pango:Inter, Font Awesome 7 Free Solid, Font Awesome 7 Brands 16
+        tray_padding 4
+        workspace_min_width 40
+        separator_symbol "│"
+        colors {
+            background         ${c.bg}
+            statusline         ${c.muted}
+            separator          ${c.border}
+            focused_workspace  ${c.accent} ${c.accent} #ffffff
+            active_workspace   ${c.bg} ${c.bg} ${c.fg}
+            inactive_workspace ${c.bg} ${c.bg} ${c.muted}
+            urgent_workspace   ${c.red} ${c.red} #ffffff
+            binding_mode       ${c.field} ${c.field} ${c.fg}
+        }
+    }
+  '';
+  # i3blocks-color fg|muted|accent|red: the hex for that role in the current
+  # scheme, so block scripts never carry palette values of their own.
+  i3blocksColor = let
+    cases = lib.concatStringsSep "\n" (lib.flatten (lib.mapAttrsToList
+      (scheme: c: lib.mapAttrsToList (role: hex: "  ${scheme}/${role}) echo '${hex}' ;;") c)
+      cards));
+  in ''
+    #!/bin/sh
+    # Generated from `cards` in nix/home.nix. Prints the palette hex for a role
+    # (fg, muted, accent, red) in the current colour scheme, for i3blocks scripts.
+    case "$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null)" in
+      *prefer-light*) scheme=light ;;
+      *) scheme=dark ;;
+    esac
+    case "$scheme/$1" in
+    ${cases}
+      *) echo "i3blocks-color: unknown role '$1'" >&2; exit 1 ;;
+    esac
+  '';
 in
 {
   imports = [
@@ -28,6 +91,9 @@ in
     config = null;
     extraConfig = builtins.readFile ../.i3/config;
   };
+  # i3blocks reads it at startup only; after a change, i3 must restart in
+  # place (mod+shift+r) so i3bar respawns i3blocks.
+  home.file.".i3blocks.conf".source = ../.i3blocks.conf;
 
   home.username = "ch";
   home.homeDirectory = "/home/ch";
@@ -808,8 +874,23 @@ in
   xdg.dataFile."rofi/themes/cards.rasinc".text = builtins.replaceStrings
     [ "@radius@" ] [ "${toString cardRadius}px" ]
     (builtins.readFile ../rofi/cards.rasinc);
-  xdg.dataFile."rofi/themes/cards-dark.rasi".source = ../rofi/cards-dark.rasi;
-  xdg.dataFile."rofi/themes/cards-light.rasi".source = ../rofi/cards-light.rasi;
+  xdg.dataFile."rofi/themes/cards-dark.rasi".text = rofiCards cards.dark;
+  xdg.dataFile."rofi/themes/cards-light.rasi".text = rofiCards cards.light;
+
+  # i3 bar in the same palette; see i3bar above and the include in .i3/config.
+  xdg.configFile."i3/bar-dark.conf".text = i3bar cards.dark;
+  xdg.configFile."i3/bar-light.conf".text = i3bar cards.light;
+  home.file.".local/bin/i3blocks-color" = { text = i3blocksColor; executable = true; };
+  # First switch only: i3 silently drops an include of a missing file, which
+  # would mean no bar. Pick the scheme rofi is on; bin/color-scheme repoints
+  # the link on every toggle after this.
+  home.activation.i3BarScheme = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    if [ ! -e "$HOME/.config/i3/bar.conf" ]; then
+      scheme=dark
+      grep -qs cards-light "$HOME/.config/rofi/config.rasi" && scheme=light
+      run ln -sfn "bar-$scheme.conf" "$HOME/.config/i3/bar.conf"
+    fi
+  '';
 
   # Icon theme for notifications only; GTK keeps its own. Linked into
   # ~/.local/share/icons so dunst finds it without relying on XDG_DATA_DIRS.

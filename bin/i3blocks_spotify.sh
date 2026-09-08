@@ -19,10 +19,15 @@ elif [[ "$BLOCK_BUTTON" -eq 5 ]]; then
 	rofi_spotify_rate.sh &
 fi
 
+prefix=""
 # font awesome: f28b = pause
-[ "Paused" = "$status" ] && printf "\uf28b "
-
+[ "Paused" = "$status" ] && prefix+=$(printf '\uf28b ')
 # font awesome: f004 = heart (liked)
-[ "$(spotify-like check 2>/dev/null)" = "1" ] && printf "\uf004 "
+[ "$(spotify-like check 2>/dev/null)" = "1" ] && prefix+=$(printf '\uf004 ')
 
-playerctl --player spotify metadata --format '{{artist}} - {{title}}'
+text="$prefix$(playerctl --player spotify metadata --format '{{artist}} - {{title}}')"
+echo "$text"
+echo "$text"
+# a playing track is a live value; paused stays in the bar's muted colour
+[ "Playing" = "$status" ] && i3blocks-color fg
+exit 0

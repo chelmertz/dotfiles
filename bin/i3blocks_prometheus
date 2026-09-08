@@ -13,5 +13,7 @@ fi
 alert_count=$(echo "$out" | jq '[.data.alerts[] | select(.state=="firing")] | length')
 if [[ "$alert_count" != "0" ]]; then
 	echo "prometheus alerts: $alert_count"
+	echo "prometheus alerts: $alert_count"
+	i3blocks-color red
 	exit 33
 fi

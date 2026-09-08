@@ -58,7 +58,7 @@ Font Awesome faces explicitly; fontconfig fallback would be arbitrary.
 cards = {
   dark  = { bg = "#1e1e1e"; fg = "#f2f2f2"; muted = "#8a8a8a"; border = "#292929";
             field = "#2a2a2a"; selected = "#333333"; accent = "#4a8fe7"; red = "#e5484d"; };
-  light = { bg = "#f5f5f7"; fg = "#1d1d1f"; muted = "#6e6e73"; border = "#d5d5da";
+  light = { bg = "#f5f5f7"; fg = "#1d1d1f"; muted = "#55555a"; border = "#d5d5da";
             field = "#e9e9ee"; selected = "#dcdce2"; accent = "#0a7aff"; red = "#d70015"; };
 };
 ```

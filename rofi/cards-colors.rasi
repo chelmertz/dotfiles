@@ -1,0 +1,17 @@
+/* Colour half of the cards themes. nix/home.nix fills the @name@ placeholders
+   from `cards`, once per scheme, into cards-dark.rasi and cards-light.rasi.
+   The layout lives in cards.rasinc. */
+@import "cards.rasinc"
+* {
+    bg:       @bg@;
+    fg:       @fg@;
+    muted:    @muted@;
+    border:   @border@;
+    field:    @field@;
+    selected: @selected@;
+    accent:   @accent@;
+    red:      @red@;
+}
+element-text {
+    highlight: bold @accent@;
+}
