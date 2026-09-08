@@ -124,8 +124,6 @@ for_window [class="ripdrag"] floating enable, sticky enable
 
 for_window [class=".*"] title_format " %title"
 for_window [class=".*"] border pixel 3
-# from https://www.youtube.com/watch?v=dFWd0honbbw
-client.focused #000000 #285577 #ffffff #44eda7 #44eda7
 
 # Define names for default workspaces for which we configure key bindings later on.
 # We use variables to avoid repeating the names in multiple places.
@@ -255,10 +253,11 @@ mode "resize" {
 
 bindsym $mod+r mode "resize"
 
-# The bar block lives in ~/.config/i3/bar-{dark,light}.conf, generated from the
-# cards palette in nix/home.nix. bar.conf is a symlink that bin/color-scheme
-# repoints before reloading, so the bar follows the colour scheme like rofi.
-include ~/.config/i3/bar.conf
+# Window colours and the bar block live in ~/.config/i3/scheme-{dark,light}.conf,
+# generated from the cards palette in nix/home.nix. scheme.conf is a symlink
+# that bin/color-scheme repoints before reloading, so i3 follows the colour
+# scheme like rofi.
+include ~/.config/i3/scheme.conf
 
 hide_edge_borders smart
 

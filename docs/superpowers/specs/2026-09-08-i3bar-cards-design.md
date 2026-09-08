@@ -26,7 +26,7 @@ alternatives: https://claude.ai/code/artifact/daf2e59a-ff7d-418c-a5e3-d350091589
 
 ## Non-goals
 
-Dunst light variant. Window frame and title colours. Rounded bar or workspace
+Dunst light variant. Title font. Rounded bar or workspace
 pills (i3bar cannot round; picom rounding was tried and reverted on
 2026-09-07). Polybar. Changing the elly block, which lives in the elly repo.
 
@@ -70,17 +70,24 @@ per scheme, the same way `cards.rasinc` already receives `@radius@`. The
 generated files keep their names and install paths, so `bin/color-scheme` and
 the p-launcher goldens are unaffected. Dunst keeps its literal values for now.
 
-### Bar block, swappable per scheme
+### Scheme file, swappable per scheme
+
+Added after the first live round: the focused window border uses the same
+accent as the focused workspace button, so the generated file also carries
+the `client.*` colours (focused = accent, focused_inactive = field,
+unfocused = bg with muted text, urgent = red) and replaces the mint
+`client.focused` line in `.i3/config`.
+
 
 Home-manager generates two complete bar blocks from one nix function,
-`~/.config/i3/bar-dark.conf` and `~/.config/i3/bar-light.conf`. `.i3/config`
+`~/.config/i3/scheme-dark.conf` and `~/.config/i3/scheme-light.conf`. `.i3/config`
 loses its inline `bar { … }` and gains:
 
 ```
-include ~/.config/i3/bar.conf
+include ~/.config/i3/scheme.conf
 ```
 
-`~/.config/i3/bar.conf` is an unmanaged symlink, the counterpart of the
+`~/.config/i3/scheme.conf` is an unmanaged symlink, the counterpart of the
 unmanaged `~/.config/rofi/config.rasi`. `bin/color-scheme` repoints it with
 `ln -sfn` after writing the rofi theme, then runs `i3-msg reload`, ignoring
 failure (no i3 running). A `home.activation` step creates the symlink when it
@@ -179,7 +186,7 @@ All glyphs Font Awesome 7. `color=` lines in `.i3blocks.conf` are removed.
 - gsettings unavailable: `i3blocks-color` prints the dark value.
 - `i3-msg reload` fails (no i3, or a config error): `color-scheme` reports it on
   stderr and still exits 0, so the rofi and gsettings half of the toggle stands.
-- `bar.conf` missing: activation step recreates it; `i3 -C` cannot catch this
+- `scheme.conf` missing: activation step recreates it; `i3 -C` cannot catch this
   because a missing include passes, so the activation step is the guard.
 - A generated bar file that fails to parse: `i3 -C -c ~/.config/i3/config` after
   `home-manager switch` is the check, and `i3-msg reload` refuses a broken
@@ -193,7 +200,7 @@ All glyphs Font Awesome 7. `color=` lines in `.i3blocks.conf` are removed.
 3. `~/.local/bin/i3blocks-color accent` prints `#0a7aff` under prefer-light and
    `#4a8fe7` after the toggle.
 4. Click the colorscheme block twice: bar, rofi and block colours flip together
-   both ways, and `readlink ~/.config/i3/bar.conf` follows.
+   both ways, and `readlink ~/.config/i3/scheme.conf` follows.
 5. `go test ./p-launcher/...` passes: the rofi goldens render against the
    installed theme, so they confirm the generated rasi files match the
    hand-written ones they replace.

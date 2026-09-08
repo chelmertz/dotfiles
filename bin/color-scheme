@@ -25,10 +25,10 @@ case "$new_color_scheme" in
 esac
 printf '@theme "%s"\n' "$rofi_theme" > "$rofi_config"
 
-# The i3 bar block lives in ~/.config/i3/bar-{dark,light}.conf (nix/home.nix)
-# and the i3 config includes this symlink. Reload keeps every window open. A
-# failed reload (no i3 running) must not undo the toggle above.
-ln -sfn "bar-${rofi_theme#cards-}.conf" "$HOME/.config/i3/bar.conf"
-i3-msg -q reload || echo "i3 reload failed; the bar keeps its previous scheme" >&2
+# i3's window colours and bar block live in ~/.config/i3/scheme-{dark,light}.conf
+# (nix/home.nix) and the i3 config includes this symlink. Reload keeps every
+# window open. A failed reload (no i3 running) must not undo the toggle above.
+ln -sfn "scheme-${rofi_theme#cards-}.conf" "$HOME/.config/i3/scheme.conf"
+i3-msg -q reload || echo "i3 reload failed; i3 keeps its previous scheme" >&2
 
 "$HOME/.local/bin/set-wallpaper"

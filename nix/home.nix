@@ -24,12 +24,21 @@ let
     (map (k: "@${k}@") (builtins.attrNames c))
     (builtins.attrValues c)
     (builtins.readFile ../rofi/cards-colors.rasi);
-  # Complete i3 bar block for one scheme. .i3/config includes
-  # ~/.config/i3/bar.conf, a symlink bin/color-scheme points at bar-dark.conf or
-  # bar-light.conf before reloading i3. Font Awesome is named explicitly: the
-  # Nerd Font file claims the same private-use codepoints, so fontconfig
-  # fallback could pick either. Quiet variant: focused_workspace bg bg fg.
-  i3bar = c: ''
+  # The scheme-dependent half of the i3 config: window colours and the whole
+  # bar block. .i3/config includes ~/.config/i3/scheme.conf, a symlink
+  # bin/color-scheme points at scheme-dark.conf or scheme-light.conf before
+  # reloading i3. The focused border is the same accent as the focused
+  # workspace button. Font Awesome is named explicitly: the Nerd Font file
+  # claims the same private-use codepoints, so fontconfig fallback could pick
+  # either. Quiet variant: focused_workspace bg bg fg.
+  i3scheme = c: ''
+    # class                 border      background  text     indicator   child_border
+    client.focused          ${c.accent} ${c.accent} #ffffff  ${c.accent} ${c.accent}
+    client.focused_inactive ${c.field}  ${c.field}  ${c.fg}  ${c.field}  ${c.field}
+    client.unfocused        ${c.bg}     ${c.bg}     ${c.muted} ${c.bg}   ${c.bg}
+    client.urgent           ${c.red}    ${c.red}    #ffffff  ${c.red}    ${c.red}
+    client.background       ${c.bg}
+
     bar {
         status_command i3blocks
         position top
@@ -877,18 +886,19 @@ in
   xdg.dataFile."rofi/themes/cards-dark.rasi".text = rofiCards cards.dark;
   xdg.dataFile."rofi/themes/cards-light.rasi".text = rofiCards cards.light;
 
-  # i3 bar in the same palette; see i3bar above and the include in .i3/config.
-  xdg.configFile."i3/bar-dark.conf".text = i3bar cards.dark;
-  xdg.configFile."i3/bar-light.conf".text = i3bar cards.light;
+  # i3 windows and bar in the same palette; see i3scheme above and the
+  # include in .i3/config.
+  xdg.configFile."i3/scheme-dark.conf".text = i3scheme cards.dark;
+  xdg.configFile."i3/scheme-light.conf".text = i3scheme cards.light;
   home.file.".local/bin/i3blocks-color" = { text = i3blocksColor; executable = true; };
   # First switch only: i3 silently drops an include of a missing file, which
-  # would mean no bar. Pick the scheme rofi is on; bin/color-scheme repoints
+  # would mean stock colours and no bar. Pick the scheme rofi is on; bin/color-scheme repoints
   # the link on every toggle after this.
   home.activation.i3BarScheme = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    if [ ! -e "$HOME/.config/i3/bar.conf" ]; then
+    if [ ! -e "$HOME/.config/i3/scheme.conf" ]; then
       scheme=dark
       grep -qs cards-light "$HOME/.config/rofi/config.rasi" && scheme=light
-      run ln -sfn "bar-$scheme.conf" "$HOME/.config/i3/bar.conf"
+      run ln -sfn "scheme-$scheme.conf" "$HOME/.config/i3/scheme.conf"
     fi
   '';
 
