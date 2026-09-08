@@ -47,6 +47,11 @@ func projectPathFor(root, cwd string) string {
 
 // waitsOnUser lists the notification types that mean Claude is blocked until
 // the user acts. auth/quota/agent_completed and elicitation results are not.
+// originEnv names who launched the session; launchArgs sets it, the
+// SessionStart hook records it. Its counterpart is the "tend" literal in
+// main.go's tend launcher.
+const originEnv = "P_LAUNCHER_ORIGIN"
+
 var waitsOnUser = map[string]bool{
 	"permission_prompt":      true,
 	"idle_prompt":            true,
@@ -62,6 +67,12 @@ var waitsOnUser = map[string]bool{
 func transition(in HookInput) (kind, detail, state string) {
 	switch in.Event {
 	case "SessionStart":
+		// detail is the origin when p-launcher launched this session for
+		// its own purposes (tend), else Claude Code's source (startup,
+		// resume, …). See launchArgs.
+		if o := os.Getenv(originEnv); o != "" {
+			return "session_start", o, ""
+		}
 		return "session_start", in.Source, ""
 	case "UserPromptSubmit":
 		return "prompt", "", "claude"

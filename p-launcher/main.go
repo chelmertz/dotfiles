@@ -220,7 +220,7 @@ func run(args []string) error {
 		return s.RecordSessionEvent(SessionEvent{SessionID: desktopSession, Kind: args[1]})
 	case "tend":
 		deps := tendDeps{now: time.Now(), notify: notifyInfo, launch: func(dir, tag, prompt string) error {
-			cmd, err := launch(dir, tag, prompt)
+			cmd, err := launch(dir, tag, prompt, "tend")
 			if err != nil {
 				return err
 			}

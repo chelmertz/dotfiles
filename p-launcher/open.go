@@ -93,7 +93,7 @@ func openWith(s *Store, root, path, prompt string) error {
 			return err
 		}
 	case actLaunch:
-		cmd, err := launch(dir, tag, prompt)
+		cmd, err := launch(dir, tag, prompt, "")
 		if err != nil {
 			return err
 		}
@@ -115,8 +115,8 @@ func openWith(s *Store, root, path, prompt string) error {
 // launch starts a detached ghostty tagged with the project. Its stdio is
 // inherited so ghostty's own output lands in the same journal stream. The
 // caller is responsible for waiting on the returned *exec.Cmd.
-func launch(dir, tag, prompt string) (*exec.Cmd, error) {
-	argv, env := launchArgs(dir, tag, prompt)
+func launch(dir, tag, prompt, origin string) (*exec.Cmd, error) {
+	argv, env := launchArgs(dir, tag, prompt, origin)
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
@@ -130,13 +130,19 @@ func launch(dir, tag, prompt string) (*exec.Cmd, error) {
 
 // launchArgs builds the ghostty command line and environment. A non-empty
 // prompt becomes Claude's first message; it travels in an environment
-// variable so no shell quoting of user-visible text is needed.
-func launchArgs(dir, tag, prompt string) (argv, env []string) {
+// variable so no shell quoting of user-visible text is needed. A non-empty
+// origin ("tend") is exported as P_LAUNCHER_ORIGIN, which the hooks inherit
+// through claude and record on the session's session_start event, so the
+// report can tell automatic sessions from the user's own.
+func launchArgs(dir, tag, prompt, origin string) (argv, env []string) {
 	shell := "claude; exec zsh"
 	env = scrubEnv(os.Environ())
 	if prompt != "" {
 		shell = `claude "$P_LAUNCHER_PROMPT"; exec zsh`
 		env = append(env, "P_LAUNCHER_PROMPT="+prompt)
+	}
+	if origin != "" {
+		env = append(env, originEnv+"="+origin)
 	}
 	argv = []string{"ghostty", "--x11-instance-name=" + tag, "--working-directory=" + dir, "-e", "zsh", "-ic", shell}
 	return argv, env

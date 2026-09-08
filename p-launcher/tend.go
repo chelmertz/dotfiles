@@ -84,13 +84,15 @@ func tendDecide(links []tendLink, cfg tendCfg, live map[string]bool, dirExists f
 			}
 			d.Reason += "check failed"
 		}
+		// A draft is not a gate: it only means "not ready for approval", and
+		// unresolved threads or a red check are work regardless (user's
+		// call, 2026-09-08). The "no feedback" gate below still skips a
+		// quiet draft.
 		switch {
 		case !l.Open:
 			d.Why = "not open"
 		case l.Author != cfg.Me:
 			d.Why = "not my PR"
-		case l.IsDraft:
-			d.Why = "draft"
 		case !l.ActionNeeded && !failedCheck:
 			d.Why = "no feedback"
 		case !l.TendedAt.IsZero() && !latestActivity(l, failedCheck).After(l.TendedAt):

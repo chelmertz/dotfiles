@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -28,7 +29,8 @@ func TestTendDecide(t *testing.T) {
 		{"disabled", base, tendCfg{Enabled: false, DailyCap: 4, Me: "me"}, nil, dirs, "skip", "disabled", ""},
 		{"daily cap", base, tendCfg{Enabled: true, DailyCap: 4, UsedToday: 4, Me: "me"}, nil, dirs, "notify", "daily cap", ""},
 		{"not mine", with(base, func(l *tendLink) { l.Author = "jd" }), cfg, nil, dirs, "skip", "not my PR", ""},
-		{"draft", with(base, func(l *tendLink) { l.IsDraft = true }), cfg, nil, dirs, "skip", "draft", ""},
+		{"draft with feedback acts", with(base, func(l *tendLink) { l.IsDraft = true }), cfg, nil, dirs, "act", "", "2 unresolved threads"},
+		{"quiet draft", with(base, func(l *tendLink) { l.IsDraft, l.ActionNeeded = true, false }), cfg, nil, dirs, "skip", "no feedback", ""},
 		{"closed", with(base, func(l *tendLink) { l.Open = false }), cfg, nil, dirs, "skip", "not open", ""},
 		{"nothing to do", with(base, func(l *tendLink) { l.ActionNeeded = false }), cfg, nil, dirs, "skip", "no feedback", ""},
 		{"no new activity", with(base, func(l *tendLink) { l.TendedAt = now.Add(-5 * time.Minute) }), cfg, nil, dirs, "skip", "no new activity", ""},
@@ -88,16 +90,16 @@ func TestTendPrompt(t *testing.T) {
 }
 
 func TestLaunchArgs(t *testing.T) {
-	argv, env := launchArgs("/home/x/p/m/a", "p:m/a", "")
+	argv, env := launchArgs("/home/x/p/m/a", "p:m/a", "", "")
 	if strings.Join(argv, " ") != "ghostty --x11-instance-name=p:m/a --working-directory=/home/x/p/m/a -e zsh -ic claude; exec zsh" {
 		t.Fatalf("%q", argv)
 	}
 	for _, e := range env {
-		if strings.HasPrefix(e, "P_LAUNCHER_PROMPT=") {
-			t.Fatal("prompt env set without a prompt")
+		if strings.HasPrefix(e, "P_LAUNCHER_PROMPT=") || strings.HasPrefix(e, originEnv+"=") {
+			t.Fatal("prompt or origin env set without one")
 		}
 	}
-	argv, env = launchArgs("/home/x/p/m/a", "p:m/a", "fix it \"now\"")
+	argv, env = launchArgs("/home/x/p/m/a", "p:m/a", "fix it \"now\"", "tend")
 	if argv[len(argv)-1] != `claude "$P_LAUNCHER_PROMPT"; exec zsh` {
 		t.Fatalf("%q", argv)
 	}
@@ -109,6 +111,28 @@ func TestLaunchArgs(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("prompt not in env: %v", env)
+	}
+	if !slices.Contains(env, "P_LAUNCHER_ORIGIN=tend") {
+		t.Fatalf("origin not in env: %v", env)
+	}
+}
+
+// A session launched by tend records "tend" as its session_start detail
+// through the inherited environment; the user's own sessions keep Claude
+// Code's source.
+func TestHookSessionStartOrigin(t *testing.T) {
+	s := openTestStore(t)
+	root := t.TempDir()
+	dir := mk(t, root, "m/a")
+	feed(t, s, root, `{"session_id":"u1","hook_event_name":"SessionStart","source":"startup","cwd":"`+dir+`"}`)
+	t.Setenv(originEnv, "tend")
+	feed(t, s, root, `{"session_id":"t1","hook_event_name":"SessionStart","source":"startup","cwd":"`+dir+`"}`)
+	var user, tend string
+	if err := s.db.QueryRow(`select detail from session_event where session_id = 'u1'`).Scan(&user); err != nil || user != "startup" {
+		t.Fatalf("user session detail %q %v", user, err)
+	}
+	if err := s.db.QueryRow(`select detail from session_event where session_id = 't1'`).Scan(&tend); err != nil || tend != "tend" {
+		t.Fatalf("tend session detail %q %v", tend, err)
 	}
 }
 
