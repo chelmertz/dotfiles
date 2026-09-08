@@ -7,15 +7,20 @@ let
   cardRadius = 14;
   # Colours shared by the rofi themes, the i3 bar and the i3blocks scripts
   # (through i3blocks-color). Dunst still spells out its dark values until it
-  # gets a light variant.
+  # gets a light variant. `dim` is the bar's own: muted was darkened for the
+  # block glyphs, which left an inactive workspace nearly as dark as the
+  # focused one, so the workspace ramp needs a lighter grey of its own. The
+  # rofi template does not use it.
   cards = {
     dark = {
       bg = "#1e1e1e"; fg = "#f2f2f2"; muted = "#8a8a8a"; border = "#292929";
       field = "#2a2a2a"; selected = "#333333"; accent = "#4a8fe7"; red = "#e5484d";
+      dim = "#6a6a6a";
     };
     light = {
       bg = "#f5f5f7"; fg = "#1d1d1f"; muted = "#55555a"; border = "#d5d5da";
       field = "#e9e9ee"; selected = "#dcdce2"; accent = "#0a7aff"; red = "#d70015";
+      dim = "#a0a0a6";
     };
   };
   # rofi colour theme for one scheme: the template's @name@ placeholders
@@ -33,13 +38,13 @@ let
   # fallback could pick either. Groups of blocks are separated by width, not
   # rules (.i3blocks.conf). The tray goes to the laptop screen so the wide bar
   # stays monochrome; the second tray_output is the fallback when eDP-1 is off.
-  # The focused workspace is marked by a full-height fill, the way Safari
-  # marks its active tab: fg against muted is only 2.27:1 in light, so text
-  # colour alone could not say which workspace was focused, and a 1px hairline
-  # reintroduced the borders the rest of the bar had just dropped. A fill is a
-  # large hard-edged area, so it reads far above its 1.25:1 ratio. It needs no
-  # vertical padding: i3bar's button is shorter than the bar, so any padding
-  # leaves the block floating (measured 1px above, 4px below at padding 2).
+  # Workspaces are a three-step ramp of text, no box: focused fg, visible on
+  # another output muted, everything else dim. Neither a hairline nor a fill
+  # works here, because i3bar draws the button 1px from the bar top and 4px
+  # from the bottom whatever the padding (padding grows the button instead of
+  # shifting it), so any edge floats off-centre. Text alone was failing only
+  # because fg against muted is 2.27:1 in light; against dim it is 6.4:1.
+  # Urgent keeps a fill, being the one alarm on the bar.
   i3scheme = c: ''
     # class                 border      background  text     indicator   child_border
     client.focused          ${c.accent} ${c.accent} #ffffff  ${c.accent} ${c.accent}
@@ -63,9 +68,9 @@ let
         colors {
             background         ${c.bg}
             statusline         ${c.fg}
-            focused_workspace  ${c.selected} ${c.selected} ${c.fg}
-            active_workspace   ${c.bg} ${c.bg} ${c.fg}
-            inactive_workspace ${c.bg} ${c.bg} ${c.muted}
+            focused_workspace  ${c.bg} ${c.bg} ${c.fg}
+            active_workspace   ${c.bg} ${c.bg} ${c.muted}
+            inactive_workspace ${c.bg} ${c.bg} ${c.dim}
             urgent_workspace   ${c.red} ${c.red} ${c.bg}
             binding_mode       ${c.field} ${c.field} ${c.fg}
         }
