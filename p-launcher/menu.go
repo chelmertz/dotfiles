@@ -285,6 +285,10 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 	case "report":
 		// render all three ranges and open the 30d one; output stays quiet
 		return runReport(reportOpts{rng: "30d", theme: "dark", open: true}, s, filepath.Dir(iconDir), io.Discard)
+	case "brief":
+		// the stored brief, rendered this morning by the timer; a missing one
+		// says so rather than spending a Claude run inside the menu
+		return openBrief(s, filepath.Dir(iconDir))
 	case "clip-open":
 		return Open(s, root, arg)
 	case "clip-create":
@@ -327,6 +331,31 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 		}
 	}
 	return nil
+}
+
+// openBrief opens today's brief page in the browser. The page is written by
+// `p-launcher brief`, so the menu never waits for a model.
+func openBrief(s *Store, dataDir string) error {
+	out, at, err := s.LatestBrief()
+	if err != nil {
+		notifyInfo("no brief yet; it is written each morning (p-launcher brief)")
+		return nil
+	}
+	path := filepath.Join(dataDir, "brief.html")
+	if _, statErr := os.Stat(path); statErr != nil {
+		f, cerr := os.Create(path)
+		if cerr != nil {
+			return cerr
+		}
+		if rerr := renderBrief(f, out, at, themes[briefTheme(s)]); rerr != nil {
+			f.Close()
+			return rerr
+		}
+		if cerr := f.Close(); cerr != nil {
+			return cerr
+		}
+	}
+	return openInBrowser(path)
 }
 
 // linkClipboard (Alt+l) attaches the clipboard's GitHub URL to the highlighted

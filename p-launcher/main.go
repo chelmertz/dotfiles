@@ -30,7 +30,7 @@ func (e *hintError) Error() string { return e.msg + ". " + e.hint }
 func (e *hintError) Unwrap() error { return e.cause }
 
 func usage() error {
-	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> [--no-open] | describe <ns/name> <text> | adopt <ns/name> <cwd-prefix> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | menu [--toggle-key KEY] | hook | desktop lock|unlock | tend [--dry-run] [--max N] | kv get <key> | kv set <key> <value> | backup [DIR] | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
+	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> [--no-open] | describe <ns/name> <text> | adopt <ns/name> <cwd-prefix> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | menu [--toggle-key KEY] | hook | desktop lock|unlock | tend [--dry-run] [--max N] | kv get <key> | kv set <key> <value> | backup [DIR] | brief [--dry-run] [--force] [--show] | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
 }
 
 func main() {
@@ -59,6 +59,7 @@ func run(args []string) error {
 	var ro reportOpts
 	var archiveReason string
 	listAll, tendDry, tendMax, createNoOpen := false, false, 2, false
+	briefDry, briefForce, briefShow := false, false, false
 	switch cmd {
 	case "list":
 		listAll = len(args) == 2 && args[1] == "--all"
@@ -122,6 +123,19 @@ func run(args []string) error {
 	case "backup":
 		if len(args) > 2 {
 			return usage()
+		}
+	case "brief":
+		for i := 1; i < len(args); i++ {
+			switch args[i] {
+			case "--dry-run":
+				briefDry = true
+			case "--force":
+				briefForce = true
+			case "--show":
+				briefShow = true
+			default:
+				return usage()
+			}
 		}
 	case "menu":
 		switch {
@@ -241,6 +255,34 @@ func run(args []string) error {
 		}
 		fmt.Println(path)
 		return nil
+	case "brief":
+		if briefShow {
+			out, at, err := s.LatestBrief()
+			if err != nil {
+				return err
+			}
+			fmt.Print(briefText(out, at))
+			return nil
+		}
+		// one run a day: the timer fires in the morning, a second call is a
+		// no-op unless forced
+		last, err := s.kvGet("brief.last_run")
+		if err != nil {
+			return err
+		}
+		now := time.Now()
+		if !briefDry && !briefForce && !briefDue(last, now) {
+			fmt.Println("brief already run today; --force to run again, --show to read it")
+			return nil
+		}
+		deps := briefDeps{now: now, me: ghLogin(), elly: ellyRead, ask: askClaude, notify: notifyInfo}
+		if err := runBrief(s, deps, briefDry, filepath.Dir(dbPath), os.Stdout); err != nil {
+			return err
+		}
+		if briefDry {
+			return nil
+		}
+		return s.kvSet("brief.last_run", now.UTC().Format(time.RFC3339))
 	case "kv":
 		if args[1] == "get" {
 			v, err := s.kvGet(args[2])

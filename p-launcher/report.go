@@ -114,11 +114,15 @@ func runReport(o reportOpts, s *Store, dataDir string, stdout io.Writer) error {
 	}
 	fmt.Fprintln(stdout, chosen)
 	if o.open {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if _, err := runCmd(ctx, "xdg-open", chosen); err != nil {
-			return err
-		}
+		return openInBrowser(chosen)
 	}
 	return nil
+}
+
+// openInBrowser hands a rendered file to the desktop's default handler.
+func openInBrowser(path string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := runCmd(ctx, "xdg-open", path)
+	return err
 }

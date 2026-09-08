@@ -55,6 +55,7 @@ func rowsAt(ps []Project, open map[string]bool, withTail bool, now time.Time) []
 		// so they never open a project; the Icon names the action. Filtering
 		// hides them like any row; Alt+a / Alt+r reach them regardless.
 		out = append(out,
+			Row{Text: "brief…", Icon: "brief", Action: "brief"},
 			Row{Text: "archived…", Icon: "archived", Action: "archived"},
 			Row{Text: "report…", Icon: "report", Action: "report"})
 	}

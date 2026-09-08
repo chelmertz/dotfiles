@@ -20,6 +20,32 @@ var migrations = []func(*sql.Tx) error{
 	migrate009,
 	migrate010,
 	migrate011,
+	migrate012,
+}
+
+// migrate012 stores the daily brief and its recommended actions, so the
+// next brief knows what it already said (repeats) and the report can measure
+// how long a recommendation waits before the user acts.
+func migrate012(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+create table brief (
+  id         integer primary key,
+  created_at text not null,
+  summary    text not null default '',
+  skip       text not null default '',
+  raw        text not null default ''
+);
+create table brief_item (
+  id       integer primary key,
+  brief_id integer not null references brief(id),
+  rank     integer not null,
+  url      text not null,
+  action   text not null,
+  why      text not null default '',
+  repeats  integer not null default 1
+);
+create index brief_item_brief on brief_item (brief_id, rank);`)
+	return err
 }
 
 // migrate011 records the claude process behind each session, so a session

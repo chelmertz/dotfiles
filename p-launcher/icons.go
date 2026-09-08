@@ -23,11 +23,13 @@ var iconPaths = map[string]string{
 	"describe":  `<path d="M17 6.1H3"></path><path d="M21 12.1H3"></path><path d="M15.1 18H3"></path>`,
 	"clipboard": `<rect width="8" height="4" x="8" y="2" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>`,
 	// verb submenu
-	"open":          `<polygon points="6 3 20 12 6 21 6 3"></polygon>`,
-	"rename":        `<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path>`,
-	"link":          `<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>`,
-	"context":       `<circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path>`,
-	"create":        `<path d="M5 12h14"></path><path d="M12 5v14"></path>`,
+	"open":    `<polygon points="6 3 20 12 6 21 6 3"></polygon>`,
+	"rename":  `<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path>`,
+	"link":    `<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>`,
+	"context": `<circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path>`,
+	"create":  `<path d="M5 12h14"></path><path d="M12 5v14"></path>`,
+	// brief: a page with lines, the morning read
+	"brief":         `<path d="M4 3h11l5 5v13H4z"></path><path d="M15 3v5h5"></path><path d="M8 13h8"></path><path d="M8 17h5"></path>`,
 	"done":          `<path d="M20 6 9 17l-5-5"></path>`,
 	"scrapped":      `<path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>`,
 	"deprioritized": `<path d="M12 5v14"></path><path d="m19 12-7 7-7-7"></path>`,
@@ -48,7 +50,7 @@ func iconSVG(name, color string, size int) template.HTML {
 var rofiIconColors = map[string]string{
 	"you": "#d95926", "claude": "#3987e5", "idle": "#8a9199", "review": "#d95926", "archived": "#8a9199", "report": "#8a9199", "snoozed": "#8a9199", "clipboard": "#3987e5",
 	// verbs: neutral, except the default action and the "done" reason
-	"open": "#3987e5", "reopened": "#3987e5", "rename": "#9aa1a9", "describe": "#9aa1a9", "link": "#9aa1a9", "context": "#9aa1a9", "create": "#199e70",
+	"open": "#3987e5", "reopened": "#3987e5", "rename": "#9aa1a9", "describe": "#9aa1a9", "link": "#9aa1a9", "context": "#9aa1a9", "create": "#199e70", "brief": "#9aa1a9",
 	"done": "#199e70", "scrapped": "#d95926", "deprioritized": "#9aa1a9", "elsewhere": "#9aa1a9",
 }
 

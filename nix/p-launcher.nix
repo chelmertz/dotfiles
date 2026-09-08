@@ -32,6 +32,29 @@ in
       Environment = "PATH=${lib.makeBinPath [ pkgs.gh ]}";
     };
   };
+  # Daily brief: one read-only headless Claude run over the PR queue, stored
+  # and rendered to brief.html. Needs claude and gh on PATH; it is skipped
+  # silently when the machine has no elly data yet. The `brief…` row in the
+  # F5 menu opens whatever this last wrote.
+  systemd.user.services.p-launcher-brief = {
+    Unit.Description = "p-launcher: daily PR brief";
+    Service = {
+      Type = "oneshot";
+      Environment = "PATH=${lib.makeBinPath [ pkgs.gh pkgs.git pkgs.coreutils ]}:%h/.nix-profile/bin";
+      ExecStart = "${p-launcher}/bin/p-launcher brief";
+    };
+  };
+  systemd.user.timers.p-launcher-brief = {
+    Unit.Description = "p-launcher: daily PR brief";
+    Timer = {
+      # a workday morning read; Persistent catches a machine that was asleep
+      OnCalendar = "Mon..Fri 08:30";
+      Persistent = true;
+      RandomizedDelaySec = "5m";
+    };
+    Install.WantedBy = [ "timers.target" ];
+  };
+
   # Nightly dated copy of the database into ~/p/personal/p-launcher/backup
   # (7 kept); the live DB stays out of ~/p so a syncing client never touches
   # a WAL database. When ~/.config/p-launcher/restic.env exists (hand-placed,

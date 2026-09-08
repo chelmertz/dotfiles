@@ -309,7 +309,7 @@ func TestEllyReadOlderSchema(t *testing.T) {
 	}
 	prs, fetched, err := ellyRead()
 	if err != nil {
-		t.Fatalf("an elly without rereview_from must still be read: %v", err)
+		t.Fatalf("an elly missing the newer columns must still be read: %v", err)
 	}
 	pr := prs["https://github.com/o/r/pull/1"]
 	if len(prs) != 1 || pr.ThreadsActionable != 2 || pr.RereviewFrom != "" || fetched.IsZero() {
