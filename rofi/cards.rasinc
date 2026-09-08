@@ -11,7 +11,7 @@ window {
     location:         center;
     anchor:           center;
     y-offset:         -140px;
-    width:            640px;
+    width:            900px; /* name, namespace and state text columns */
     background-color: @bg;
     border:           1px;
     border-color:     @border;
