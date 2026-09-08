@@ -866,6 +866,9 @@ in
     shadowOffsets = [ (-24) (-14) ];
     shadowExclude = [ "!(class_g = 'Rofi' || class_g = 'i3bar')" ];
     settings = {
+      # picom's built-in default for dock windows is no shadow, which would
+      # silently override the i3bar class in shadow-exclude above.
+      wintypes = { dock = { shadow = true; }; };
       shadow-radius = 24;
       # Same radius as the rofi theme, so picom clips the shadow to the curve;
       # otherwise the rectangular shadow shows through the transparent corners.
