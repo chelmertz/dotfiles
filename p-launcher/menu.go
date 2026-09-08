@@ -151,7 +151,7 @@ const (
 func mainMenuExtra(clip string) []string {
 	mesg := `<span alpha="60%">Alt+a archived · Alt+r report · ns/name creates</span>`
 	if ref, ok := parseGitHubURL(clip); ok {
-		mesg += "\n" + `<span alpha="60%">Alt+l links ` + html.EscapeString(truncate(strings.TrimPrefix(ref.URL, "https://"), 60)) + ` to the highlighted project</span>`
+		mesg += "\n" + `<span alpha="60%">Alt+l links ` + html.EscapeString(truncate(strings.TrimPrefix(ref.URL, "https://"), 40)) + ` to the highlighted project</span>`
 	}
 	return []string{"-kb-custom-1", "Alt+a", "-kb-custom-2", "Alt+r", "-kb-custom-3", "Alt+l", "-mesg", mesg}
 }
@@ -190,7 +190,9 @@ func clipboardOffer(clip string, owner func(url string) (string, bool)) (Row, bo
 func rowHeightArgs(ps []Project) []string {
 	for _, p := range ps {
 		if p.Description != "" {
-			return []string{"-eh", "2"}
+			// two-line rows make the window tall; the theme's upward offset
+			// would then push its top off the screen
+			return []string{"-eh", "2", "-theme-str", "window { y-offset: 0px; }"}
 		}
 	}
 	return nil

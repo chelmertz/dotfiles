@@ -154,8 +154,8 @@ func TestMainMenuExtraHint(t *testing.T) {
 		t.Fatal("protocol must be dropped")
 	}
 	long := "https://github.com/" + strings.Repeat("a", 80) + "/r/issues/1"
-	if got := strings.Join(mainMenuExtra(long), "\x00"); !strings.Contains(got, "…") {
-		t.Fatalf("long URL not truncated: %q", got)
+	if got := strings.Join(mainMenuExtra(long), "\x00"); !strings.Contains(got, "…") || strings.Contains(got, strings.Repeat("a", 41)) {
+		t.Fatalf("long URL not truncated to 40: %q", got)
 	}
 	if got := truncate("abcdef", 4); got != "abc…" {
 		t.Fatalf("%q", got)
@@ -166,7 +166,7 @@ func TestRowHeightArgs(t *testing.T) {
 	if got := rowHeightArgs([]Project{{Path: "m/a"}, {Path: "m/b"}}); got != nil {
 		t.Fatalf("no descriptions must keep single-line rows: %v", got)
 	}
-	if got := rowHeightArgs([]Project{{Path: "m/a"}, {Path: "m/b", Description: "x"}}); !reflect.DeepEqual(got, []string{"-eh", "2"}) {
+	if got := rowHeightArgs([]Project{{Path: "m/a"}, {Path: "m/b", Description: "x"}}); !reflect.DeepEqual(got, []string{"-eh", "2", "-theme-str", "window { y-offset: 0px; }"}) {
 		t.Fatalf("%v", got)
 	}
 }
