@@ -9,6 +9,8 @@
       # XSendEvent (fast inject) is dropped by terminals (ghostty) and nvim inside
       # them; XTestFakeKeyEvent looks like real input so it lands everywhere.
       disable_x11_fast_inject = true;
+      # no "configuration reloaded" toast; espanso reloads on every i3 reload
+      show_notifications = false;
     };
 
     matches.default.matches = [
