@@ -172,3 +172,38 @@ func TestMigrate005LinksAndKV(t *testing.T) {
 		}
 	}
 }
+
+// TestMigratePopulated applies the migrations that predate the link column
+// additions, fills a link, then runs the rest: a fresh empty DB never
+// exercises the row-touching statements (migration 10 once set a NOT NULL
+// column to null and only failed on the live DB).
+func TestMigratePopulated(t *testing.T) {
+	db := openTestDB(t)
+	apply := func(from, to int) {
+		for i := from; i < to; i++ {
+			tx, err := db.Begin()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := migrations[i](tx); err != nil {
+				t.Fatalf("migration %d on populated db: %v", i+1, err)
+			}
+			if err := tx.Commit(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	apply(0, 9)
+	if _, err := db.Exec(`insert into project (namespace_id, path, name, first_seen_at) values (1, 'm/a', 'a', '2026-09-01T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`insert into link (project_id, url, kind, etag) values (1, 'https://github.com/o/r/pull/1', 'github_pr', '"e1"')`); err != nil {
+		t.Fatal(err)
+	}
+	apply(9, len(migrations))
+	var etag string
+	var updated sql.NullString
+	if err := db.QueryRow(`select etag, github_updated_at from link`).Scan(&etag, &updated); err != nil || etag != "" || updated.Valid {
+		t.Fatalf("etag=%q updated=%v %v", etag, updated, err)
+	}
+}

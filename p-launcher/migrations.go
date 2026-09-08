@@ -30,7 +30,7 @@ func migrate010(tx *sql.Tx) error {
 		return err
 	}
 	// drop the ETags so the next refresh re-fetches and fills the column
-	_, err := tx.Exec(`update link set etag = null`)
+	_, err := tx.Exec(`update link set etag = ''`)
 	return err
 }
 
