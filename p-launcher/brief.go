@@ -60,11 +60,13 @@ type briefInput struct {
 	EllyAge   string          `json:"pr_data_age,omitempty"`
 }
 
-// briefItem is one recommended action.
+// briefItem is one recommended action. Also carries the other PRs the same
+// action covers, so the action itself stays a short verb phrase.
 type briefItem struct {
-	URL    string `json:"url"`
-	Action string `json:"action"`
-	Why    string `json:"why"`
+	URL    string   `json:"url"`
+	Action string   `json:"action"`
+	Why    string   `json:"why"`
+	Also   []string `json:"also_urls,omitempty"`
 }
 
 // briefOut is what the model returns. Anything it adds is ignored; a body
@@ -89,6 +91,7 @@ Rules:
 - Read only. Do not comment, edit, merge, close, approve or push anything. You may run "gh pr view", "gh pr checks" or "gh api" to verify or enrich a fact, at most for the PRs you actually recommend acting on.
 - Recommend at most 8 actions, most valuable first. Group PRs that share one action into one item.
 - An action is a verb the engineer can do today: answer threads, fix a failed check, ask <name> to re-review, add a reviewer, merge, rebase, close as superseded, split, mark ready.
+- Keep "action" a short verb phrase, at most 8 words, with no URL in it. When one action covers several PRs, put the first in "url" and the others in "also_urls".
 - Never invent facts. If the input is not enough for an item, leave it out.
 - previous_recommendations are what you said last time. Drop what is done. Say "still" in the why when an item repeats, and prefer a different, more forceful action if it has repeated more than twice.
 - postponed_projects are decided: do not recommend anything for their PRs.
@@ -96,7 +99,7 @@ Rules:
 
 Answer with exactly one JSON object, no prose around it, no code fence:
 {"summary": "at most 3 sentences: state of the queue and the one thing that matters today",
- "items": [{"url": "...", "action": "ping adam", "why": "half a sentence"}],
+ "items": [{"url": "...", "action": "ask adam to re-review", "why": "half a sentence", "also_urls": ["..."]}],
  "waiting_on_others": [{"url": "...", "reviewer": "name", "days": 3}],
  "skip": "one line naming what needs nothing today"}
 
@@ -234,8 +237,8 @@ func (s *Store) storeBrief(out briefOut, raw string, at time.Time) (int64, error
 		return 0, err
 	}
 	for i, it := range out.Items {
-		if _, err := s.db.Exec(`insert into brief_item (brief_id, rank, url, action, why, repeats) values (?, ?, ?, ?, ?, ?)`,
-			id, i, it.URL, it.Action, it.Why, prev[it.URL]+1); err != nil {
+		if _, err := s.db.Exec(`insert into brief_item (brief_id, rank, url, action, why, repeats, also) values (?, ?, ?, ?, ?, ?, ?)`,
+			id, i, it.URL, it.Action, it.Why, prev[it.URL]+1, strings.Join(it.Also, ",")); err != nil {
 			return 0, fmt.Errorf("store brief item %s: %w", it.URL, err)
 		}
 	}
@@ -250,15 +253,19 @@ func (s *Store) LatestBrief() (briefOut, time.Time, error) {
 		return briefOut{}, time.Time{}, err
 	}
 	out := briefOut{Summary: summary, Skip: skip}
-	rows, err := s.db.Query(`select url, action, why from brief_item where brief_id = (select max(id) from brief) order by rank`)
+	rows, err := s.db.Query(`select url, action, why, coalesce(also,'') from brief_item where brief_id = (select max(id) from brief) order by rank`)
 	if err != nil {
 		return out, parseTime(at), err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var it briefItem
-		if err := rows.Scan(&it.URL, &it.Action, &it.Why); err != nil {
+		var also string
+		if err := rows.Scan(&it.URL, &it.Action, &it.Why, &also); err != nil {
 			return out, parseTime(at), err
+		}
+		if also != "" {
+			it.Also = strings.Split(also, ",")
 		}
 		out.Items = append(out.Items, it)
 	}
@@ -329,14 +336,16 @@ func runBrief(s *Store, d briefDeps, dry bool, outDir string, stdout io.Writer) 
 }
 
 // briefHeadline is the notification text: how many actions, and the first.
+// The first action is clipped: a model that ignores the length rule must not
+// produce a notification the size of a paragraph.
 func briefHeadline(out briefOut) string {
 	switch len(out.Items) {
 	case 0:
 		return "brief: nothing to act on today"
 	case 1:
-		return "brief: 1 action · " + out.Items[0].Action
+		return "brief: 1 action · " + truncate(out.Items[0].Action, 60)
 	}
-	return fmt.Sprintf("brief: %d actions · first: %s", len(out.Items), out.Items[0].Action)
+	return fmt.Sprintf("brief: %d actions · first: %s", len(out.Items), truncate(out.Items[0].Action, 60))
 }
 
 // briefTheme follows the system colour scheme like the menu does.

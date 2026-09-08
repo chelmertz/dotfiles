@@ -57,7 +57,7 @@ th { color: {{css .T.Ink3}}; font-size: 12px; }
 <ol>
 {{range .Out.Items}}<li><div><div class="action">{{.Action}}</div>
 <div class="why">{{.Why}}</div>
-<a href="{{.URL}}">{{short .URL}}</a></div></li>
+<a href="{{.URL}}">{{short .URL}}</a>{{range .Also}} · <a href="{{.}}">{{short .}}</a>{{end}}</div></li>
 {{end}}</ol>
 {{else}}<p class="empty">Nothing to act on today.</p>{{end}}
 {{if .Out.Waiting}}
@@ -90,6 +90,9 @@ func briefText(out briefOut, at time.Time) string {
 	fmt.Fprintf(&b, "brief %s\n\n%s\n", at.Format("2006-01-02 15:04"), out.Summary)
 	for i, it := range out.Items {
 		fmt.Fprintf(&b, "\n%d. %s\n   %s\n   %s", i+1, it.Action, it.Why, it.URL)
+		for _, u := range it.Also {
+			fmt.Fprintf(&b, "\n   %s", u)
+		}
 	}
 	if len(out.Items) > 0 {
 		b.WriteString("\n")

@@ -77,10 +77,17 @@ func TestBuildBriefInput(t *testing.T) {
 }
 
 func TestParseBriefOut(t *testing.T) {
-	good := `{"summary":"s","items":[{"url":"https://github.com/o/r/pull/1","action":"merge","why":"green"}],"skip":"rest"}`
+	good := `{"summary":"s","items":[{"url":"https://github.com/o/r/pull/1","action":"merge","why":"green","also_urls":["https://github.com/o/r/pull/4"]}],"skip":"rest"}`
 	out, err := parseBriefOut(good)
 	if err != nil || out.Summary != "s" || len(out.Items) != 1 || out.Items[0].Action != "merge" {
 		t.Fatalf("%+v %v", out, err)
+	}
+	if len(out.Items[0].Also) != 1 || out.Items[0].Also[0] != "https://github.com/o/r/pull/4" {
+		t.Fatalf("grouped URLs: %+v", out.Items[0])
+	}
+	// the prompt must ask for that shape rather than URLs inside the action
+	if p := briefPrompt("x"); !strings.Contains(p, "also_urls") || !strings.Contains(p, "no URL in it") {
+		t.Error("prompt does not constrain the action shape")
 	}
 	// a fence or a sentence around the object must not break it
 	if _, err := parseBriefOut("Here you go:\n```json\n" + good + "\n```\n"); err != nil {
@@ -96,7 +103,7 @@ func TestParseBriefOut(t *testing.T) {
 func TestStoreBriefCountsRepeats(t *testing.T) {
 	s, prs, now := briefFixture(t)
 	first := briefOut{Summary: "day one", Items: []briefItem{
-		{URL: "https://github.com/o/r/pull/1", Action: "answer adam", Why: "2 threads"},
+		{URL: "https://github.com/o/r/pull/1", Action: "answer adam", Why: "2 threads", Also: []string{"https://github.com/o/r/pull/7"}},
 		{URL: "https://github.com/o/r/pull/2", Action: "ask adam to re-review", Why: "9 days"},
 	}}
 	if _, err := s.storeBrief(first, "raw1", now); err != nil {
@@ -143,6 +150,13 @@ func TestStoreBriefCountsRepeats(t *testing.T) {
 	out, at, err := s.LatestBrief()
 	if err != nil || out.Summary != "day two" || len(out.Items) != 2 || !at.Equal(now.AddDate(0, 0, 1)) {
 		t.Fatalf("%+v %v %v", out, at, err)
+	}
+	// grouped URLs survive the round trip
+	if _, err := s.storeBrief(first, "raw3", now.AddDate(0, 0, 2)); err != nil {
+		t.Fatal(err)
+	}
+	if got, _, err := s.LatestBrief(); err != nil || len(got.Items[0].Also) != 1 || got.Items[0].Also[0] != "https://github.com/o/r/pull/7" {
+		t.Fatalf("%+v %v", got.Items, err)
 	}
 	if txt := briefText(out, at); !strings.Contains(txt, "1. answer adam") || !strings.Contains(txt, "https://github.com/o/r/pull/3") {
 		t.Fatalf("%q", txt)
@@ -243,5 +257,9 @@ func TestBriefHeadline(t *testing.T) {
 	two := briefOut{Items: []briefItem{{Action: "merge"}, {Action: "ping"}}}
 	if got := briefHeadline(two); got != "brief: 2 actions · first: merge" {
 		t.Errorf("%q", got)
+	}
+	long := briefOut{Items: []briefItem{{Action: strings.Repeat("verbose ", 20)}}}
+	if got := briefHeadline(long); len(got) > 100 || !strings.HasSuffix(got, "…") {
+		t.Errorf("a long action must be clipped: %q", got)
 	}
 }

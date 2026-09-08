@@ -21,6 +21,14 @@ var migrations = []func(*sql.Tx) error{
 	migrate010,
 	migrate011,
 	migrate012,
+	migrate013,
+}
+
+// migrate013 holds the other PRs one brief item covers, so the action stays
+// a short verb phrase instead of carrying a list of URLs.
+func migrate013(tx *sql.Tx) error {
+	_, err := tx.Exec(`alter table brief_item add column also text not null default ''`)
+	return err
 }
 
 // migrate012 stores the daily brief and its recommended actions, so the
