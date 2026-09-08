@@ -158,7 +158,7 @@ func TestMainMenuExtraHint(t *testing.T) {
 		t.Fatalf("without a URL the chord stays registered but is not advertised: %q", plain)
 	}
 	withURL := strings.Join(mainMenuExtra("https://github.com/o/r/pull/7\n"), "\x00")
-	if !strings.Contains(withURL, "\nAlt+l links github.com/o/r/pull/7 to the highlighted project") && !strings.Contains(withURL, `">Alt+l links github.com/o/r/pull/7 to`) {
+	if !strings.Contains(withURL, "\nAlt+l links github.com/o/r/pull/7 to highlighted") && !strings.Contains(withURL, `">Alt+l links github.com/o/r/pull/7 to`) {
 		t.Fatalf("%q", withURL)
 	}
 	if strings.Contains(withURL, "https://") {

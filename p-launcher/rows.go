@@ -21,7 +21,7 @@ type Row struct {
 // separator is the dim rule between the project list and the docked rows.
 // Never selectable, never filtered away, so the docked rows below it keep
 // their place while typing.
-var separator = Row{Text: `<span alpha="25%">` + strings.Repeat("─", 60) + `</span>`, Action: "separator", Unselectable: true, Permanent: true}
+var separator = Row{Text: `<span alpha="25%">` + strings.Repeat("─", 38) + `</span>`, Action: "separator", Unselectable: true, Permanent: true}
 
 // Rows renders projects (already sorted) into rofi lines: the folder name,
 // then the namespace label in a muted span; the state is a row icon (see

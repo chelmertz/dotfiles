@@ -162,7 +162,7 @@ const (
 func mainMenuExtra(clip string) []string {
 	mesg := `<span alpha="60%">Alt+a archived · Alt+r report · ns/name creates</span>`
 	if ref, ok := parseGitHubURL(clip); ok {
-		mesg += "\n" + `<span alpha="60%">Alt+l links ` + html.EscapeString(truncate(strings.TrimPrefix(ref.URL, "https://"), 40)) + ` to the highlighted project</span>`
+		mesg += "\n" + `<span alpha="60%">Alt+l links ` + html.EscapeString(truncate(strings.TrimPrefix(ref.URL, "https://"), 40)) + ` to highlighted</span>`
 	}
 	return []string{"-kb-custom-1", "Alt+a", "-kb-custom-2", "Alt+r", "-kb-custom-3", "Alt+l", "-mesg", mesg}
 }
