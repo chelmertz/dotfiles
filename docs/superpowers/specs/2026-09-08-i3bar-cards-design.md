@@ -131,12 +131,16 @@ colors {
 ```
 
 The accent fill went first to a quiet `bg bg fg`, which turned out to be
-unidentifiable: `fg` against `muted` is 2.27:1 in light. A hairline and a fill
-were both tried and both rejected, because i3bar draws the workspace button
-1px from the bar top and 4px from the bottom whatever the padding is set to
-(padding grows the button rather than shifting it), so any edge floats
-off-centre; a border also reintroduced the borders the rest of the bar had
-just dropped.
+unidentifiable: `fg` against `muted` is 2.27:1 in light. A 1px hairline was
+tried next and dropped for reintroducing the borders the rest of the bar had
+just given up.
+
+An earlier revision of this section claimed the button could not be boxed at
+all, because i3bar insets it 1px from the bar top and 4px from the bottom.
+That was measured against a bar height read off a screenshot, and the height
+was wrong: `xwininfo` reports the bar at 25px, where the button occupies rows
+1..23 and is centred. A fill is therefore available if the ramp ever proves
+too quiet.
 
 The cause was the palette, not the lever. `muted` had been darkened to
 `#55555a` for the block glyphs, which left an inactive workspace nearly as

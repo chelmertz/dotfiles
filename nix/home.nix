@@ -39,11 +39,12 @@ let
   # rules (.i3blocks.conf). The tray goes to the laptop screen so the wide bar
   # stays monochrome; the second tray_output is the fallback when eDP-1 is off.
   # Workspaces are a three-step ramp of text, no box: focused fg, visible on
-  # another output muted, everything else dim. Neither a hairline nor a fill
-  # works here, because i3bar draws the button 1px from the bar top and 4px
-  # from the bottom whatever the padding (padding grows the button instead of
-  # shifting it), so any edge floats off-centre. Text alone was failing only
-  # because fg against muted is 2.27:1 in light; against dim it is 6.4:1.
+  # another output muted, everything else dim. Text alone had been failing
+  # only because fg against muted is 2.27:1 in light, muted having been
+  # darkened for the block glyphs; against dim it is 6.4:1. A 1px hairline was
+  # tried first and dropped for reintroducing the borders the rest of the bar
+  # had just given up. A fill would work too and is centred (i3bar insets the
+  # button 1px top and bottom of a 25px bar); the ramp is simply quieter.
   # Urgent keeps a fill, being the one alarm on the bar.
   i3scheme = c: ''
     # class                 border      background  text     indicator   child_border
