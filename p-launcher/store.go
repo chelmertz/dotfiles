@@ -15,15 +15,17 @@ type Store struct{ db *sql.DB }
 
 // Project is one row of the launcher list, already sorted for display.
 type Project struct {
-	Path        string // "m/dependabot"
-	Name        string // "dependabot"
-	Label       string // namespace label, "matchi"
-	LastActive  string // RFC3339 UTC or "" when never selected
-	Ball        string // "you" (a Claude session waits on the user), "claude" (working), or ""
-	Archived    bool   // latest project_event is "archived"
-	Snoozed     bool   // latest project_event is "snoozed" with a wake time still ahead
-	Review      bool   // a fresh elly verdict says a linked PR waits on the user
-	Description string // one sentence of intent, "" when unset
+	Path        string    // "m/dependabot"
+	Name        string    // "dependabot"
+	Label       string    // namespace label, "matchi"
+	LastActive  string    // RFC3339 UTC or "" when never selected
+	Ball        string    // "you" (a Claude session waits on the user), "claude" (working), or ""
+	Archived    bool      // latest project_event is "archived"
+	Snoozed     bool      // latest project_event is "snoozed" with a wake time still ahead
+	Review      bool      // a fresh elly verdict says a linked PR waits on the user
+	Description string    // one sentence of intent, "" when unset
+	Reason      string    // why the ball is where it is: stop, idle_prompt, question, permission_prompt, …
+	Since       time.Time // when the ball state started; zero without a live session
 }
 
 // SetDescription stores the project's one-sentence intent ("" clears it).
@@ -127,10 +129,12 @@ func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 		select p.path, p.name, n.label, p.description,
 		       coalesce((select max(occurred_at) from activity a where a.project_id = p.id), '') as last_active,
 		       coalesce((select max(state) from session_state ss where ss.project_id = p.id and ss.since > ?), '') as ball,
+		       coalesce((select reason from session_state ss where ss.project_id = p.id and ss.since > ? order by (state = 'you') desc, since desc limit 1), '') as reason,
+		       coalesce((select since from session_state ss where ss.project_id = p.id and ss.since > ? order by (state = 'you') desc, since desc limit 1), '') as since,
 		       `+latestKindExpr+` as kind, `+latestDetailExpr+` as detail,
 		       (? and exists(select 1 from link l where l.project_id = p.id and l.action_needed = 1)) as review
 		from project p join namespace n on n.id = p.namespace_id
-		order by n.sort_order, (ball = 'you' or review) desc, last_active = '', last_active desc, p.name`, cutoff, fresh)
+		order by n.sort_order, (ball = 'you' or review) desc, last_active = '', last_active desc, p.name`, cutoff, cutoff, cutoff, fresh)
 	if err != nil {
 		return nil, fmt.Errorf("list projects: %w", err)
 	}
@@ -138,10 +142,11 @@ func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 	var out []Project
 	for rows.Next() {
 		var p Project
-		var kind, detail string
-		if err := rows.Scan(&p.Path, &p.Name, &p.Label, &p.Description, &p.LastActive, &p.Ball, &kind, &detail, &p.Review); err != nil {
+		var kind, detail, since string
+		if err := rows.Scan(&p.Path, &p.Name, &p.Label, &p.Description, &p.LastActive, &p.Ball, &p.Reason, &since, &kind, &detail, &p.Review); err != nil {
 			return nil, err
 		}
+		p.Since = parseTime(since)
 		p.Archived = kind == "archived"
 		p.Snoozed = kind == "snoozed" && parseTime(detail).After(at)
 		needsYou := p.Ball == "you" || p.Review

@@ -29,6 +29,17 @@
             "command": "claude-sign-comments-hook"
           }
         ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "p-launcher hook",
+            "async": true,
+            "timeout": 10
+          }
+        ]
       }
     ],
     "Notification": [

@@ -67,9 +67,9 @@ element-text {
     /* two-line rows (-eh 2, description subtitle): keep single-line text
        centred next to the icon instead of hugging the top */
     vertical-align: 0.5;
-    /* Column stop for tab-separated rows (p-launcher/rows.go): name, label.
-       The state is the row icon (p-launcher writes them, -show-icons). */
-    tab-stops:  [ 270px ];
+    /* Column stops for tab-separated rows (p-launcher/rows.go): name, label,
+       state text. The state icon is the row icon (-show-icons). */
+    tab-stops:  [ 270px, 420px ];
 }
 element-icon {
     size:   24px; /* matches the inputbar/message left padding above */

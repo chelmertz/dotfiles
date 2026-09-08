@@ -149,15 +149,16 @@ func TestGoldenRofiMenu(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	now := time.Now()
 	ps := []Project{
-		{Path: "m/reputation", Name: "reputation", Label: "matchi", Ball: "you"},
-		{Path: "m/dependabot", Name: "dependabot", Label: "matchi", Ball: "claude", Description: "keep every service's dependencies current without breaking deploys"},
+		{Path: "m/reputation", Name: "reputation", Label: "matchi", Ball: "you", Reason: "question", Since: now.Add(-3 * time.Minute)},
+		{Path: "m/dependabot", Name: "dependabot", Label: "matchi", Ball: "claude", Since: now.Add(-42 * time.Second), Description: "keep every service's dependencies current without breaking deploys"},
 		{Path: "m/nginx-ingress", Name: "nginx-ingress", Label: "matchi"},
 		{Path: "personal/p-launcher", Name: "p-launcher", Label: "personal"},
 		{Path: "personal/health", Name: "health", Label: "personal"},
 	}
 	open := map[string]bool{"p:m/reputation": true, "p:m/dependabot": true, "p:m/nginx-ingress": true}
-	rows := Rows(ps, open, true)
+	rows := rowsAt(ps, open, true, now) // fixed clock: stable durations in the golden
 	// the same arguments menuMode uses for the main list, hint line included
 	cmd := exec.Command("rofi", append(append(rofiArgs("project", "F5"), mainMenuExtra()...), rowHeightArgs(ps)...)...)
 	cmd.Env = append(os.Environ(), "DISPLAY="+display)

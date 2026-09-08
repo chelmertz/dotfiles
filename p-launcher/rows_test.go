@@ -3,6 +3,7 @@ package main
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestRows(t *testing.T) {
@@ -40,6 +41,37 @@ func TestRows(t *testing.T) {
 	}
 	if !reflect.DeepEqual(icons, wantIcons) {
 		t.Fatalf("icons %q", icons)
+	}
+}
+
+func TestStateText(t *testing.T) {
+	now := ts("2026-09-08T10:00:00Z")
+	since := now.Add(-2*time.Hour - 14*time.Minute)
+	cases := []struct {
+		p    Project
+		open bool
+		want string
+	}{
+		{Project{Ball: "you", Reason: "stop", Since: since}, true, "finished, waiting for you · 2h 14m"},
+		{Project{Ball: "you", Reason: "idle_prompt", Since: since}, true, "finished, waiting for you · 2h 14m"},
+		{Project{Ball: "you", Reason: "question", Since: since}, true, "asked you a question · 2h 14m"},
+		{Project{Ball: "you", Reason: "permission_prompt", Since: since}, true, "needs your permission · 2h 14m"},
+		{Project{Ball: "you", Reason: "elicitation_dialog", Since: since}, true, "asked you for input · 2h 14m"},
+		{Project{Ball: "claude", Since: now.Add(-37 * time.Second)}, true, "working · 37s"},
+		{Project{Review: true}, false, "reviewer waiting for your reply"},
+		{Project{Snoozed: true}, false, "postponed"},
+		{Project{}, true, "terminal open, no Claude"},
+		{Project{}, false, ""},
+		{Project{Ball: "you", Reason: "stop", Since: since}, false, ""}, // stale state, no window
+	}
+	for _, c := range cases {
+		if got := stateText(c.p, c.open, now); got != c.want {
+			t.Errorf("%+v open=%v: got %q want %q", c.p, c.open, got, c.want)
+		}
+	}
+	rows := rowsAt([]Project{{Path: "m/a", Name: "a", Label: "matchi", Ball: "claude", Since: now.Add(-time.Minute)}}, map[string]bool{"p:m/a": true}, false, now)
+	if want := "a\t" + `<span alpha="45%">matchi</span>` + "\t" + `<span alpha="60%">working · 1m 00s</span>`; rows[0].Text != want {
+		t.Fatalf("got %q", rows[0].Text)
 	}
 }
 

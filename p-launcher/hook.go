@@ -120,6 +120,22 @@ func hook(s *Store, root string, r io.Reader) error {
 		// it only hands the ball back after an approval and captures links.
 		return postToolUse(s, path, in)
 	}
+	if in.Event == "PreToolUse" {
+		// Registered for AskUserQuestion only: the dialog is about to show, so
+		// the ball is with the user for a question. Claude Code announces the
+		// dialog with the same permission_prompt notification as a real
+		// permission ask, so this is the only place the two can be told apart.
+		if in.ToolName != "AskUserQuestion" || in.AgentID != "" {
+			return nil
+		}
+		if err := s.RecordSessionEvent(SessionEvent{SessionID: in.SessionID, Path: path, Cwd: in.Cwd, Kind: "question"}); err != nil {
+			return err
+		}
+		if path == "" {
+			return nil
+		}
+		return s.SetSessionState(in.SessionID, path, "you", "question")
+	}
 	kind, detail, state := transition(in)
 	if in.AgentID != "" {
 		state = "" // a subagent's Stop is not the session's turn ending
@@ -136,6 +152,11 @@ func hook(s *Store, root string, r io.Reader) error {
 			reason = detail // notification type
 			if in.Event == "Stop" {
 				reason = "stop"
+			}
+			// a pending question outranks the permission/idle notifications
+			// Claude Code sends while its dialog is open
+			if cur, why, err := s.SessionBall(in.SessionID); err == nil && cur == "you" && why == "question" {
+				return nil
 			}
 		}
 		return s.SetSessionState(in.SessionID, path, state, reason)

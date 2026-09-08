@@ -2,6 +2,7 @@ package main
 
 import (
 	"html"
+	"time"
 )
 
 // Row is one rofi line. Path is "" only for rows that must not open anything
@@ -21,10 +22,18 @@ type Row struct {
 // element-text in rofi/cards.rasinc, so the font need not be monospace. Rows are Pango markup
 // (rofi runs with -markup-rows), so names and labels are escaped.
 func Rows(ps []Project, open map[string]bool, withTail bool) []Row {
+	return rowsAt(ps, open, withTail, time.Now())
+}
+
+func rowsAt(ps []Project, open map[string]bool, withTail bool, now time.Time) []Row {
 	var out []Row
 	for _, p := range ps {
 		text := html.EscapeString(p.Name) + "\t" +
 			`<span alpha="45%">` + html.EscapeString(p.Label) + `</span>`
+		if st := stateText(p, open[tagFor(p.Path)], now); st != "" {
+			// third column: what the icon means, in words
+			text += "\t" + `<span alpha="60%">` + html.EscapeString(st) + `</span>`
+		}
 		if p.Description != "" {
 			// second line of the same row (rows are separated by \x1e, not
 			// \n), so the cursor never lands on it: decoration only
@@ -44,6 +53,36 @@ func Rows(ps []Project, open map[string]bool, withTail bool) []Row {
 			Row{Text: "report…", Icon: "report", Action: "report"})
 	}
 	return out
+}
+
+// stateText spells out the state the icon stands for, with how long it has
+// been so. "" for a closed project with nothing pending.
+func stateText(p Project, isOpen bool, now time.Time) string {
+	dur := ""
+	if !p.Since.IsZero() && now.After(p.Since) {
+		dur = " · " + fmtDur(int(now.Sub(p.Since)/time.Second))
+	}
+	switch {
+	case isOpen && p.Ball == "you":
+		switch p.Reason {
+		case "question":
+			return "asked you a question" + dur
+		case "permission_prompt":
+			return "needs your permission" + dur
+		case "elicitation_dialog", "elicitation_url_dialog", "agent_needs_input":
+			return "asked you for input" + dur
+		}
+		return "finished, waiting for you" + dur
+	case p.Review:
+		return "reviewer waiting for your reply"
+	case p.Snoozed:
+		return "postponed"
+	case !isOpen:
+		return ""
+	case p.Ball == "claude":
+		return "working" + dur
+	}
+	return "terminal open, no Claude"
 }
 
 // stateIcon names the row's state icon: "you" needs you, "claude" Claude
