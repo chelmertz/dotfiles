@@ -33,13 +33,13 @@ let
   # fallback could pick either. Groups of blocks are separated by width, not
   # rules (.i3blocks.conf). The tray goes to the laptop screen so the wide bar
   # stays monochrome; the second tray_output is the fallback when eDP-1 is off.
-  # The focused workspace is marked by a 1px hairline, not by colour: fg
-  # against muted is only 2.27:1 in light and 3.08:1 in dark, so text colour
-  # alone failed to say which workspace was focused. Outline present versus
-  # absent is a shape difference, and muted against bg clears 3:1 in both
-  # schemes. Every calm fill (field, selected, border) is under 1.4:1 against
-  # bg and could not carry it either. Urgent is a red hairline with fg text
-  # rather than white on a red fill, which fails AA text in dark at 3.91:1.
+  # The focused workspace is marked by a full-height fill, the way Safari
+  # marks its active tab: fg against muted is only 2.27:1 in light, so text
+  # colour alone could not say which workspace was focused, and a 1px hairline
+  # reintroduced the borders the rest of the bar had just dropped. A fill is a
+  # large hard-edged area, so it reads far above its 1.25:1 ratio. It needs no
+  # vertical padding: i3bar's button is shorter than the bar, so any padding
+  # leaves the block floating (measured 1px above, 4px below at padding 2).
   i3scheme = c: ''
     # class                 border      background  text     indicator   child_border
     client.focused          ${c.accent} ${c.accent} #ffffff  ${c.accent} ${c.accent}
@@ -57,16 +57,16 @@ let
         tray_padding 4
         workspace_min_width 40
         # 14 right so the last block clears the screen edge (i3bar only insets
-        # the statusline when a tray shares the output), 10 left plus the
-        # button's own 4 to match, 2 vertical so the hairline has air.
-        padding 2 14 2 10
+        # the statusline when a tray shares the output), 10 left to match.
+        # Vertical stays 0 so the focused workspace fill runs the bar's height.
+        padding 0 14 0 10
         colors {
             background         ${c.bg}
             statusline         ${c.fg}
-            focused_workspace  ${c.muted} ${c.bg} ${c.fg}
+            focused_workspace  ${c.selected} ${c.selected} ${c.fg}
             active_workspace   ${c.bg} ${c.bg} ${c.fg}
             inactive_workspace ${c.bg} ${c.bg} ${c.muted}
-            urgent_workspace   ${c.red} ${c.bg} ${c.fg}
+            urgent_workspace   ${c.red} ${c.red} ${c.bg}
             binding_mode       ${c.field} ${c.field} ${c.fg}
         }
     }
