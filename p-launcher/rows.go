@@ -2,23 +2,32 @@ package main
 
 import (
 	"html"
+	"strings"
 	"time"
 )
 
-// Row is one rofi line. Path is "" only for rows that must not open anything
-// (none are produced today; selectRow still guards it).
+// Row is one rofi line. Path is "" for rows that must not open anything
+// (docked action rows, the separator); selectRow guards it.
 type Row struct {
-	Text   string
-	Path   string // project path; "" for docked action rows
-	Icon   string // icon name (see iconPaths), presentation only
-	Action string // docked row action: archived | report | clip-open | clip-create; "" for projects
-	Arg    string // action argument: project path for clip-open, URL for clip-create
+	Text         string
+	Path         string // project path; "" for docked action rows
+	Icon         string // icon name (see iconPaths), presentation only
+	Action       string // docked row action: archived | report | clip-open | clip-create | separator; "" for projects
+	Arg          string // action argument: project path for clip-open, URL for clip-create
+	Unselectable bool   // rofi ignores Enter on the row (dmenu "nonselectable")
+	Permanent    bool   // rofi keeps the row visible whatever the filter (dmenu "permanent")
 }
+
+// separator is the dim rule between the project list and the docked rows.
+// Never selectable, never filtered away, so the docked rows below it keep
+// their place while typing.
+var separator = Row{Text: `<span alpha="25%">` + strings.Repeat("─", 60) + `</span>`, Action: "separator", Unselectable: true, Permanent: true}
 
 // Rows renders projects (already sorted) into rofi lines: the folder name,
 // then the namespace label in a muted span; the state is a row icon (see
-// stateIcon), not text. rofi cannot make rows unselectable or skip them while
-// navigating, so grouping lives inside each row instead of in heading rows.
+// stateIcon), not text. rofi's dmenu can make a row unselectable but the
+// cursor still lands on it, so grouping lives inside each row instead of in
+// heading rows; the one exception is the separator above the docked rows.
 // The two columns are tab-separated and aligned by the tab-stop on
 // element-text in rofi/cards.rasinc, so the font need not be monospace. Rows are Pango markup
 // (rofi runs with -markup-rows), so names and labels are escaped.
@@ -48,10 +57,11 @@ func rowsAt(ps []Project, open map[string]bool, withTail bool, now time.Time) []
 	}
 	if withTail {
 		// Docked rows: switch to the archived list, open the report. Path ""
-		// so they never open a project; the Icon names the action.
-		out = append(out,
-			Row{Text: "archived…", Icon: "archived", Action: "archived"},
-			Row{Text: "report…", Icon: "report", Action: "report"})
+		// so they never open a project; the Icon names the action. Permanent,
+		// so filtering the projects never hides them.
+		out = append(out, separator,
+			Row{Text: "archived…", Icon: "archived", Action: "archived", Permanent: true},
+			Row{Text: "report…", Icon: "report", Action: "report", Permanent: true})
 	}
 	return out
 }
