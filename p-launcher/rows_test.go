@@ -24,11 +24,12 @@ func TestRows(t *testing.T) {
 	}
 	// Columns are tab-separated; the rofi theme's tab-stops align them.
 	muted := func(l string) string { return `<span alpha="45%">` + l + `</span>` }
+	state := func(s string) string { return "\t" + `<span alpha="60%">` + s + `</span>` }
 	wantLines := []string{
-		"reputation\t" + muted("matchi"),
-		"dependabot\t" + muted("matchi"),
-		"stale\t" + muted("matchi"),
-		"health\t" + muted("personal"),
+		"reputation\t" + muted("matchi") + state("finished, waiting for you"),
+		"dependabot\t" + muted("matchi") + state("working"),
+		"stale\t" + muted("matchi"), // closed: no state text either
+		"health\t" + muted("personal") + state("terminal open, no Claude"),
 		"a&amp;b\t" + muted("oss"),
 	}
 	wantIcons := []string{"you", "claude", "", "idle", ""}
