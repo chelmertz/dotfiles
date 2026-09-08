@@ -32,6 +32,25 @@ in
       Environment = "PATH=${lib.makeBinPath [ pkgs.gh ]}";
     };
   };
+  # Nightly dated copy of the database into ~/p/personal/p-launcher/backup
+  # (7 kept); the live DB stays out of ~/p so a syncing client never touches
+  # a WAL database.
+  systemd.user.services.p-launcher-backup = {
+    Unit.Description = "p-launcher: nightly database backup";
+    Service = {
+      Type = "oneshot";
+      ExecStart = "${p-launcher}/bin/p-launcher backup";
+    };
+  };
+  systemd.user.timers.p-launcher-backup = {
+    Unit.Description = "p-launcher: nightly database backup";
+    Timer = {
+      OnCalendar = "03:30";
+      Persistent = true; # runs at next boot if the laptop was off
+    };
+    Install.WantedBy = [ "timers.target" ];
+  };
+
   systemd.user.timers.p-launcher-links = {
     Unit.Description = "p-launcher: refresh PR links every 10 min";
     Timer = {

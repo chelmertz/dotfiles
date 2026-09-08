@@ -29,7 +29,7 @@ func (e *hintError) Error() string { return e.msg + ". " + e.hint }
 func (e *hintError) Unwrap() error { return e.cause }
 
 func usage() error {
-	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | menu [--toggle-key KEY] | hook | desktop lock|unlock | tend [--dry-run] [--max N] | kv get <key> | kv set <key> <value> | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
+	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | menu [--toggle-key KEY] | hook | desktop lock|unlock | tend [--dry-run] [--max N] | kv get <key> | kv set <key> <value> | backup [DIR] | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
 }
 
 func main() {
@@ -107,6 +107,10 @@ func run(args []string) error {
 		}
 	case "kv":
 		if !(len(args) == 3 && args[1] == "get") && !(len(args) == 4 && args[1] == "set") {
+			return usage()
+		}
+	case "backup":
+		if len(args) > 2 {
 			return usage()
 		}
 	case "menu":
@@ -190,6 +194,19 @@ func run(args []string) error {
 			return nil
 		}}
 		return runTend(s, root, tendDry, tendMax, deps, ghLastComment, os.Stdout)
+	case "backup":
+		// nightly from the systemd timer; the dated copies live under ~/p so
+		// the Drive sync carries them, the live DB never does
+		dir := filepath.Join(root, "personal", "p-launcher", "backup")
+		if len(args) == 2 {
+			dir = args[1]
+		}
+		path, err := Backup(s, dir, 7, time.Now())
+		if err != nil {
+			return err
+		}
+		fmt.Println(path)
+		return nil
 	case "kv":
 		if args[1] == "get" {
 			v, err := s.kvGet(args[2])

@@ -186,13 +186,21 @@ func TestFriction(t *testing.T) {
 		ev("b", "m/y", "prompt", "", "2026-09-02T10:00:00Z"),
 		ev("b", "m/y", "prompt", "", "2026-09-02T10:05:00Z"),
 		ev("c", "", "prompt", "", "2026-09-02T10:00:00Z"),
-		// prior window: one approval → delta 0
+		// a question dialog: Claude Code also sends permission_prompt and idle
+		// notifications while it is open; they must not count as approvals or
+		// extra waits. The next prompt closes it; a later permission counts.
+		ev("a", "m/x", "question", "", "2026-09-01T10:10:00Z"),
+		ev("a", "m/x", "notification", "permission_prompt", "2026-09-01T10:10:01Z"),
+		ev("a", "m/x", "notification", "idle_prompt", "2026-09-01T10:11:00Z"),
+		ev("a", "m/x", "prompt", "", "2026-09-01T10:12:00Z"),
+		ev("a", "m/x", "notification", "permission_prompt", "2026-09-01T10:13:00Z"),
+		// prior window: one approval → delta 1 (two approvals now)
 		ev("z", "m/x", "notification", "permission_prompt", "2026-07-20T10:00:00Z"),
 	}
 	links := []rawLink{{Project: "m/x", OpenedAt: ts("2026-09-03T10:00:00Z")}}
 	perms := []rawPerm{{"a", "m/x", "Bash", "Bash(go test *)", ts("2026-09-01T10:01:00Z")}}
 	f := friction(from, now, evs, links, perms)
-	if f.Approvals != 1 || f.UserWaits != 1 || f.ApprovalDelta != 0 || f.CompTotal != 2 || f.CompAuto != 1 || f.CompManual != 1 {
+	if f.Approvals != 2 || f.UserWaits != 2 || f.ApprovalDelta != 1 || f.CompTotal != 2 || f.CompAuto != 1 || f.CompManual != 1 {
 		t.Fatalf("%+v", f)
 	}
 	if f.NoPRSessions != 1 || f.SessionsTotal != 2 || f.NoPRMedianPrompts != 2 {

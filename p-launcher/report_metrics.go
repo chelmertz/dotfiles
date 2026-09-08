@@ -156,6 +156,8 @@ func waitKind(e rawEvent) string {
 	switch {
 	case e.Kind == "stop":
 		return "stop"
+	case e.Kind == "question":
+		return "user"
 	case e.Kind == "notification" && e.Detail == "permission_prompt":
 		return "permission"
 	case e.Kind == "notification" && waitsOnUser[e.Detail]:
@@ -573,7 +575,8 @@ func friction(from, now time.Time, evs []rawEvent, links []rawLink, perms []rawP
 		prompts int
 	}
 	sessions := map[string]*sess{}
-	comp := map[string]*[2]int{} // project → auto, manual
+	questionOpen := map[string]bool{} // session → a question dialog is up
+	comp := map[string]*[2]int{}      // project → auto, manual
 	sessBy := map[string]map[string]bool{}
 	nWeeks := len(weeks(from, now, nil, nil, nil, nil))
 	f.ApprovalTrend = make([]int, nWeeks)
@@ -594,7 +597,16 @@ func friction(from, now time.Time, evs []rawEvent, links []rawLink, perms []rawP
 			sessBy[e.Project][e.SessionID] = true
 		}
 		switch e.Kind {
+		case "question":
+			// AskUserQuestion: one user wait; the permission_prompt and idle
+			// notifications Claude Code sends while its dialog is open are the
+			// same wait, not approvals
+			f.UserWaits++
+			questionOpen[e.SessionID] = true
 		case "notification":
+			if questionOpen[e.SessionID] && (e.Detail == "permission_prompt" || e.Detail == "idle_prompt") {
+				continue
+			}
 			if e.Detail == "permission_prompt" {
 				f.Approvals++
 				if wi := weekIndex(e.At, from, now); wi >= 0 && wi < nWeeks {
@@ -615,8 +627,9 @@ func friction(from, now time.Time, evs []rawEvent, links []rawLink, perms []rawP
 				f.CompAuto++
 				comp[e.Project][0]++
 			}
-		case "prompt":
-			if e.Project == "" {
+		case "prompt", "stop", "session_end":
+			delete(questionOpen, e.SessionID) // the dialog is gone either way
+			if e.Kind != "prompt" || e.Project == "" {
 				continue
 			}
 			s := sessions[e.SessionID]
