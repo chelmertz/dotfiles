@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -26,6 +27,70 @@ type Project struct {
 	Description string    // one sentence of intent, "" when unset
 	Reason      string    // why the ball is where it is: stop, idle_prompt, question, permission_prompt, …
 	Since       time.Time // when the ball state started; zero without a live session
+	ReviewSince time.Time // when the reviewer's last activity landed; zero without a review verdict
+	nsOrder     int       // namespace.sort_order, the last tiebreak
+}
+
+// asksInput are the "you" reasons where Claude is blocked on an answer, as
+// opposed to having finished its turn.
+var asksInput = map[string]bool{
+	"question":               true,
+	"permission_prompt":      true,
+	"elicitation_dialog":     true,
+	"elicitation_url_dialog": true,
+	"agent_needs_input":      true,
+}
+
+// bucket ranks a project by urgency for the menu and `list`: what blocks
+// Claude on you, what finished and waits, what a reviewer waits on, what
+// Claude is working on, then everything idle; postponed and archived last.
+func (p Project) bucket() int {
+	switch {
+	case p.Archived || (p.Snoozed && p.Ball != "you" && !p.Review):
+		return 5
+	case p.Ball == "you" && asksInput[p.Reason]:
+		return 0
+	case p.Ball == "you":
+		return 1
+	case p.Review:
+		return 2
+	case p.Ball == "claude":
+		return 3
+	}
+	return 4
+}
+
+// less orders within and across buckets. Waits are FIFO (the one you have
+// kept waiting longest first); work and idleness are newest first; the
+// namespace and name only break ties, so urgency never hides behind a
+// namespace block.
+func less(a, b Project) bool {
+	if ab, bb := a.bucket(), b.bucket(); ab != bb {
+		return ab < bb
+	}
+	switch a.bucket() {
+	case 0, 1:
+		if !a.Since.Equal(b.Since) {
+			return a.Since.Before(b.Since)
+		}
+	case 2:
+		// zero (no timestamp) sorts last
+		if !a.ReviewSince.Equal(b.ReviewSince) {
+			return b.ReviewSince.IsZero() || (!a.ReviewSince.IsZero() && a.ReviewSince.Before(b.ReviewSince))
+		}
+	case 3:
+		if !a.Since.Equal(b.Since) {
+			return a.Since.After(b.Since)
+		}
+	default:
+		if a.LastActive != b.LastActive {
+			return b.LastActive == "" || (a.LastActive != "" && a.LastActive > b.LastActive)
+		}
+	}
+	if a.nsOrder != b.nsOrder {
+		return a.nsOrder < b.nsOrder
+	}
+	return a.Name < b.Name
 }
 
 // SetDescription stores the project's one-sentence intent ("" clears it).
@@ -96,10 +161,11 @@ func (s *Store) UpsertProjects(found []Found) error {
 // leave a row behind; after this it is ignored.
 const staleSession = 24 * time.Hour
 
-// ListProjects returns every project (archived included) sorted for display:
-// namespace order, then needs-you first, then most recent activity, then
-// never-active alphabetically. Ball aggregates live sessions: any "you" wins
-// over "claude" (max() works because 'you' > 'claude'); no live session is "".
+// ListProjects returns every project (archived included) sorted for display
+// by urgency bucket (see Project.bucket and less). Ball aggregates live
+// sessions: any "you" wins over "claude" (max() works because 'you' >
+// 'claude'); no live session is "". Reason and Since come from the oldest
+// waiting session, else the newest working one.
 func (s *Store) ListProjects() ([]Project, error) { return s.listProjectsAt(true, time.Now()) }
 
 // ListProjectsFiltered hides archived and postponed projects unless all is
@@ -129,12 +195,14 @@ func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 		select p.path, p.name, n.label, p.description,
 		       coalesce((select max(occurred_at) from activity a where a.project_id = p.id), '') as last_active,
 		       coalesce((select max(state) from session_state ss where ss.project_id = p.id and ss.since > ?), '') as ball,
-		       coalesce((select reason from session_state ss where ss.project_id = p.id and ss.since > ? order by (state = 'you') desc, since desc limit 1), '') as reason,
-		       coalesce((select since from session_state ss where ss.project_id = p.id and ss.since > ? order by (state = 'you') desc, since desc limit 1), '') as since,
+		       coalesce((select reason from session_state ss where ss.project_id = p.id and ss.since > ? order by (state = 'you') desc, case when state = 'you' then since end asc, since desc limit 1), '') as reason,
+		       coalesce((select since from session_state ss where ss.project_id = p.id and ss.since > ? order by (state = 'you') desc, case when state = 'you' then since end asc, since desc limit 1), '') as since,
 		       `+latestKindExpr+` as kind, `+latestDetailExpr+` as detail,
-		       (? and exists(select 1 from link l where l.project_id = p.id and l.action_needed = 1)) as review
+		       (? and exists(select 1 from link l where l.project_id = p.id and l.action_needed = 1)) as review,
+		       coalesce((select min(coalesce(l.elly_updated_at, l.github_updated_at, l.opened_at)) from link l where l.project_id = p.id and l.action_needed = 1), '') as review_since,
+		       n.sort_order
 		from project p join namespace n on n.id = p.namespace_id
-		order by n.sort_order, (ball = 'you' or review) desc, last_active = '', last_active desc, p.name`, cutoff, cutoff, cutoff, fresh)
+		order by p.path`, cutoff, cutoff, cutoff, fresh)
 	if err != nil {
 		return nil, fmt.Errorf("list projects: %w", err)
 	}
@@ -142,11 +210,11 @@ func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 	var out []Project
 	for rows.Next() {
 		var p Project
-		var kind, detail, since string
-		if err := rows.Scan(&p.Path, &p.Name, &p.Label, &p.Description, &p.LastActive, &p.Ball, &p.Reason, &since, &kind, &detail, &p.Review); err != nil {
+		var kind, detail, since, reviewSince string
+		if err := rows.Scan(&p.Path, &p.Name, &p.Label, &p.Description, &p.LastActive, &p.Ball, &p.Reason, &since, &kind, &detail, &p.Review, &reviewSince, &p.nsOrder); err != nil {
 			return nil, err
 		}
-		p.Since = parseTime(since)
+		p.Since, p.ReviewSince = parseTime(since), parseTime(reviewSince)
 		p.Archived = kind == "archived"
 		p.Snoozed = kind == "snoozed" && parseTime(detail).After(at)
 		needsYou := p.Ball == "you" || p.Review
@@ -155,7 +223,11 @@ func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 		}
 		out = append(out, p)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	sort.SliceStable(out, func(i, j int) bool { return less(out[i], out[j]) })
+	return out, nil
 }
 
 // ProjectEvent appends a lifecycle event (created, archived with a reason,

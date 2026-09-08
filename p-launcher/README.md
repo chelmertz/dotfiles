@@ -4,7 +4,8 @@ One hotkey opens any `~/p` project in a Claude Code terminal, shows whose turn
 it is per project (you, Claude, a reviewer), and reports weekly on how many
 things to run at once.
 
-- `menu` is bound to F5 (rofi): projects sorted needs-you first, a verb
+- `menu` is bound to F5 (rofi): projects sorted by urgency (asks, finished
+  waits, reviewer waits, working, idle; oldest wait first), a verb
   submenu per project (open, archive, postpone, rename, add link, context),
   docked `archived…` and `report…` rows.
 - Claude Code hooks call `hook` on every event; the ball state and an event

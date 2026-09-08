@@ -142,7 +142,8 @@ func TestSessionStateAggregate(t *testing.T) {
 	if err := s.setStateAt("s4", "m/c", "you", "", t0.Add(-25*time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	// personal/d: needs you, but a different namespace → still after all of m
+	// personal/d: needs you at the same time as m/b → namespace breaks the tie,
+	// and both outrank every idle or working matchi project
 	if err := s.setStateAt("s5", "personal/d", "you", "", t0); err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +155,7 @@ func TestSessionStateAggregate(t *testing.T) {
 	for _, p := range ps {
 		got = append(got, p.Path+":"+p.Ball)
 	}
-	want := []string{"m/b:you", "m/a:claude", "m/c:", "personal/d:you"}
+	want := []string{"m/b:you", "personal/d:you", "m/a:claude", "m/c:"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %q want %q", got, want)
 	}
@@ -172,8 +173,66 @@ func TestSessionStateAggregate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ps[0].Path != "m/a" || ps[1].Path != "m/b" || ps[1].Ball != "claude" {
-		t.Fatalf("after transition: %+v", ps[:2])
+	// personal/d still waits; both matchi projects work: newest prompt first
+	// (m/b at t0+1m, m/a at t0)
+	if ps[0].Path != "personal/d" || ps[1].Path != "m/b" || ps[2].Path != "m/a" || ps[1].Ball != "claude" {
+		t.Fatalf("after transition: %+v", ps[:3])
+	}
+}
+
+// The menu order is urgency first: asks, finished waits, reviewer waits,
+// working, idle, postponed; FIFO inside a wait bucket, recency elsewhere,
+// namespace and name only as tiebreaks.
+func TestListOrderBuckets(t *testing.T) {
+	s := openTestStore(t)
+	paths := []string{"m/ask-new", "personal/ask-old", "m/stop", "m/review-old", "m/review-new", "m/work-old", "m/work-new", "m/idle-old", "personal/idle-new", "m/never", "m/snoozed"}
+	if err := s.UpsertProjects(found(paths...)); err != nil {
+		t.Fatal(err)
+	}
+	t0 := time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC)
+	must := func(err error) {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(s.setStateAt("a1", "m/ask-new", "you", "permission_prompt", t0.Add(-time.Minute)))
+	must(s.setStateAt("a2", "personal/ask-old", "you", "question", t0.Add(-time.Hour)))
+	must(s.setStateAt("a3", "m/stop", "you", "stop", t0.Add(-2*time.Hour))) // longest wait, but not blocking
+	must(s.setStateAt("a4", "m/work-old", "claude", "", t0.Add(-time.Hour)))
+	must(s.setStateAt("a5", "m/work-new", "claude", "", t0.Add(-time.Minute)))
+	must(s.recordAt("m/idle-old", "launch", t0.Add(-48*time.Hour)))
+	must(s.recordAt("personal/idle-new", "launch", t0.Add(-3*time.Hour)))
+	must(s.recordAt("m/snoozed", "launch", t0.Add(-time.Hour)))
+	must(s.ProjectEvent("m/snoozed", "snoozed", t0.Add(24*time.Hour).Format(time.RFC3339)))
+	must(s.kvSet("elly.last_fetched", t0.Format(time.RFC3339)))
+	for _, r := range []struct{ path, url, at string }{
+		{"m/review-old", "https://github.com/o/r/pull/1", "2026-09-07T10:00:00Z"},
+		{"m/review-new", "https://github.com/o/r/pull/2", "2026-09-08T09:00:00Z"},
+	} {
+		must(s.AddLink(r.path, r.url))
+		if _, err := s.db.Exec(`update link set action_needed = 1, elly_updated_at = ? where url = ?`, r.at, r.url); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ps, err := s.listProjectsAt(true, t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, p := range ps {
+		got = append(got, p.Path)
+	}
+	want := []string{"personal/ask-old", "m/ask-new", "m/stop", "m/review-old", "m/review-new", "m/work-new", "m/work-old", "personal/idle-new", "m/idle-old", "m/never", "m/snoozed"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got  %q\nwant %q", got, want)
+	}
+	if !ps[3].ReviewSince.Equal(time.Date(2026, 9, 7, 10, 0, 0, 0, time.UTC)) {
+		t.Fatalf("review since %v", ps[3].ReviewSince)
+	}
+	// a postponed project that needs you ranks by its need, not as postponed
+	must(s.setStateAt("a6", "m/snoozed", "you", "question", t0.Add(-3*time.Hour)))
+	if ps, err = s.listProjectsAt(false, t0); err != nil || ps[0].Path != "m/snoozed" {
+		t.Fatalf("%v %+v", err, ps[0])
 	}
 }
 
