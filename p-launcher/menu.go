@@ -309,7 +309,13 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 			notifyInfo(typedCreateHint(typed))
 			return nil
 		}
-		return verbMenu(s, root, toggleKey, Project{Path: path}, createRows(path), icons)
+		// no confirm step: typing a path, or picking a namespace for a bare
+		// name, is the decision. A one-row "create m/foo" menu asked the user
+		// to press Enter twice for nothing.
+		if _, err := Create(s, root, path); err != nil {
+			return err
+		}
+		return Open(s, root, path)
 	}
 	path, ok := selectRow(rows, idx)
 	if !ok {
@@ -484,7 +490,7 @@ const (
 	verbDescribe
 	verbAddLink
 	verbContext
-	verbCreate
+	verbCreate // namespace rows in the create pickers; never executed as a verb
 )
 
 type verbRow struct {
@@ -504,10 +510,6 @@ func verbRows(p Project) []verbRow {
 // postponeRows are the snooze lengths; arg is the number of days.
 func postponeRows() []verbRow {
 	return []verbRow{{"1 day", verbPostpone, "1", "snoozed"}, {"3 days", verbPostpone, "3", "snoozed"}, {"10 days", verbPostpone, "10", "snoozed"}}
-}
-
-func createRows(path string) []verbRow {
-	return []verbRow{{"create " + path, verbCreate, path, "create"}}
 }
 
 func reasonRows() []verbRow {
@@ -547,11 +549,6 @@ func verbMenu(s *Store, root, toggleKey string, p Project, vs []verbRow, icons m
 	switch v.verb {
 	case verbOpen:
 		return Open(s, root, p.Path)
-	case verbCreate:
-		if _, err := Create(s, root, v.arg); err != nil {
-			return err
-		}
-		return Open(s, root, v.arg)
 	case verbArchive:
 		r, ok, err := pickVerb("reason", toggleKey, reasonRows(), icons)
 		if err != nil || !ok {

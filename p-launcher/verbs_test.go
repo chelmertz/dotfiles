@@ -83,9 +83,6 @@ func TestVerbRows(t *testing.T) {
 	if archived[0].verb != verbOpen || archived[1].verb != verbContext {
 		t.Fatalf("%+v", archived)
 	}
-	if got := verbTexts(createRows("m/new")); !reflect.DeepEqual(got, []string{"create m/new"}) {
-		t.Fatalf("%v", got)
-	}
 	if got := verbTexts(reasonRows()); !reflect.DeepEqual(got, []string{"done", "scrapped", "deprioritized", "solved elsewhere"}) {
 		t.Fatalf("%v", got)
 	}
@@ -93,7 +90,7 @@ func TestVerbRows(t *testing.T) {
 		t.Fatalf("%+v", reasonRows()[3])
 	}
 	// every verb row has an icon that exists in the set
-	for _, vs := range [][]verbRow{ongoing, archived, createRows("m/x"), reasonRows(), postponeRows()} {
+	for _, vs := range [][]verbRow{ongoing, archived, reasonRows(), postponeRows()} {
 		for _, v := range vs {
 			if _, ok := iconPaths[v.icon]; !ok {
 				t.Errorf("verb %q has no icon %q", v.text, v.icon)
