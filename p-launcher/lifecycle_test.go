@@ -259,6 +259,14 @@ func TestArchive(t *testing.T) {
 	if err := s.AddLink("m/a", "https://github.com/o/r/pull/1"); err != nil {
 		t.Fatal(err)
 	}
+	for _, u := range []string{"https://github.com/o/r/issues/2", "https://github.com/o/r/issues/3"} {
+		if err := s.AddLinkKind("m/a", u, "github_issue"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.db.Exec(`update link set closed_at = '2026-09-01T00:00:00Z' where url like '%/issues/2'`); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.SetSessionState("s1", "m/a", "claude", ""); err != nil {
 		t.Fatal(err)
 	}
@@ -279,8 +287,11 @@ func TestArchive(t *testing.T) {
 	if !reflect.DeepEqual(cl.Rules, []RuleCount{{"Bash(go test *)", 2}, {"Bash(ls *)", 1}}) {
 		t.Fatalf("rules %+v", cl.Rules)
 	}
-	if !reflect.DeepEqual(cl.OpenLinks, []string{"https://github.com/o/r/pull/1"}) || cl.LiveSessions != 1 {
+	if !reflect.DeepEqual(cl.OpenLinks, []string{"https://github.com/o/r/pull/1", "https://github.com/o/r/issues/3"}) || cl.LiveSessions != 1 {
 		t.Fatalf("%+v", cl)
+	}
+	if cl.OpenIssues != 1 || cl.ClosedIssues != 1 || !strings.Contains(cl.Text(), "1 of 2 linked issue(s) still open") {
+		t.Fatalf("%+v\n%s", cl, cl.Text())
 	}
 	if !reflect.DeepEqual(cl.DirtyClones, []string{"repo"}) {
 		t.Fatalf("dirty %v", cl.DirtyClones)

@@ -55,11 +55,12 @@ type RuleCount struct {
 
 // Checklist is what archiving found; nothing in it blocks the archive.
 type Checklist struct {
-	Path, Reason string
-	Rules        []RuleCount
-	OpenLinks    []string
-	LiveSessions int
-	DirtyClones  []string // clone dir names with uncommitted or unpushed work
+	Path, Reason             string
+	Rules                    []RuleCount
+	OpenLinks                []string
+	OpenIssues, ClosedIssues int
+	LiveSessions             int
+	DirtyClones              []string // clone dir names with uncommitted or unpushed work
 }
 
 // Text renders the checklist for stdout and the notification body.
@@ -79,6 +80,12 @@ func (c Checklist) Text() string {
 		for _, u := range c.OpenLinks {
 			b.WriteString("  " + u + "\n")
 		}
+	}
+	switch total := c.OpenIssues + c.ClosedIssues; {
+	case total > 0 && c.OpenIssues == 0:
+		fmt.Fprintf(&b, "all %d linked issue(s) are closed\n", total)
+	case total > 0:
+		fmt.Fprintf(&b, "%d of %d linked issue(s) still open\n", c.OpenIssues, total)
 	}
 	if c.LiveSessions > 0 {
 		fmt.Fprintf(&b, "%d live session(s) still running\n", c.LiveSessions)
@@ -128,6 +135,10 @@ func Archive(s *Store, root, path, reason string, clip func(string) error) (Chec
 		c.OpenLinks = append(c.OpenLinks, u)
 	}
 	rows.Close()
+	if err := s.db.QueryRow(`select coalesce(sum(l.closed_at is null), 0), coalesce(sum(l.closed_at is not null), 0)
+		from link l join project p on p.id = l.project_id where p.path = ? and l.kind = 'github_issue'`, path).Scan(&c.OpenIssues, &c.ClosedIssues); err != nil {
+		return c, err
+	}
 	cutoff := time.Now().Add(-staleSession).UTC().Format(time.RFC3339)
 	if err := s.db.QueryRow(`select count(*) from session_state ss join project p on p.id = ss.project_id
 		where p.path = ? and ss.since > ?`, path, cutoff).Scan(&c.LiveSessions); err != nil {
