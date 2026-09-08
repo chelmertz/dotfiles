@@ -30,14 +30,13 @@ func TestParseRofiOut(t *testing.T) {
 func TestRowsArchivedTail(t *testing.T) {
 	ps := []Project{{Path: "m/a", Name: "a", Label: "matchi"}}
 	rows := Rows(ps, nil, true)
-	if len(rows) != 4 || rows[1].Action != "separator" || !rows[1].Unselectable || !rows[1].Permanent || rows[1].Path != "" ||
-		rows[2].Text != "archived…" || rows[2].Action != "archived" || rows[2].Path != "" || !rows[2].Permanent ||
-		rows[3].Text != "report…" || rows[3].Action != "report" || rows[3].Path != "" || !rows[3].Permanent {
+	if len(rows) != 3 || rows[1].Text != "archived…" || rows[1].Action != "archived" || rows[1].Path != "" || !rows[1].Permanent ||
+		rows[2].Text != "report…" || rows[2].Action != "report" || rows[2].Path != "" || !rows[2].Permanent {
 		t.Fatalf("%+v", rows)
 	}
-	// encoding: options joined by \x1f after a NUL, separator carries both flags
-	in := string(rofiInput(rows, map[string]string{"archived": "/i/a.svg", "blank": "/i/b.svg"}))
-	if !strings.Contains(in, "\x00icon\x1f/i/b.svg\x1fnonselectable\x1ftrue\x1fpermanent\x1ftrue\x1e") ||
+	// encoding: options joined by \x1f after a NUL
+	in := string(rofiInput(append(rows, Row{Text: "x", Unselectable: true, Permanent: true}), map[string]string{"archived": "/i/a.svg", "blank": "/i/b.svg"}))
+	if !strings.Contains(in, "x\x00icon\x1f/i/b.svg\x1fnonselectable\x1ftrue\x1fpermanent\x1ftrue\x1e") ||
 		!strings.Contains(in, "archived…\x00icon\x1f/i/a.svg\x1fpermanent\x1ftrue\x1e") {
 		t.Fatalf("%q", in)
 	}
@@ -52,15 +51,15 @@ func TestRowsArchivedTail(t *testing.T) {
 	if arch[0].Icon != "archived" || tailOf(arch, 0) != "" {
 		t.Fatalf("%+v", arch[0])
 	}
-	for _, i := range []int{1, 2, 3} {
+	for _, i := range []int{1, 2} {
 		if _, ok := selectRow(rows, i); ok {
 			t.Fatal("tail row must not open anything")
 		}
 	}
-	if tailOf(rows, 1) != "separator" || tailOf(rows, 2) != "archived" || tailOf(rows, 3) != "report" || tailOf(rows, 0) != "" || tailOf(rows, 5) != "" || tailOf(rows, -1) != "" {
+	if tailOf(rows, 1) != "archived" || tailOf(rows, 2) != "report" || tailOf(rows, 0) != "" || tailOf(rows, 5) != "" || tailOf(rows, -1) != "" {
 		t.Fatal("tail detection")
 	}
-	if !isArchivedTail(rows, 2) || isArchivedTail(rows, 3) {
+	if !isArchivedTail(rows, 1) || isArchivedTail(rows, 2) {
 		t.Fatal("archived tail detection")
 	}
 	if got := Rows(ps, nil, false); len(got) != 1 {
