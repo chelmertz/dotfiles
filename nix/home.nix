@@ -63,7 +63,7 @@ let
         workspace_min_width 40
         # 14 right so the last block clears the screen edge (i3bar only insets
         # the statusline when a tray shares the output), 10 left to match.
-        # Vertical stays 0 so the focused workspace fill runs the bar's height.
+        # Vertical stays 0: nothing on the bar has an edge to give air to.
         padding 0 14 0 10
         colors {
             background         ${c.bg}
