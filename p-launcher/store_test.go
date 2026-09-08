@@ -249,6 +249,34 @@ func TestLinkKindsOwnerAndNamespaces(t *testing.T) {
 	}
 }
 
+func TestAdoptEvents(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.UpsertProjects(found("m/a")); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range []SessionEvent{
+		{SessionID: "old", Cwd: "/home/x/code/repo", Kind: "prompt"},
+		{SessionID: "old", Cwd: "/home/x/code/repo/sub", Kind: "stop"},
+		{SessionID: "other", Cwd: "/home/x/code/repo-two", Kind: "prompt"}, // prefix trap
+		{SessionID: "mine", Path: "m/a", Cwd: "/home/x/p/m/a", Kind: "prompt"},
+	} {
+		if err := s.RecordSessionEvent(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	n, err := s.AdoptEvents("m/a", "/home/x/code/repo/")
+	if err != nil || n != 2 {
+		t.Fatalf("%d %v", n, err)
+	}
+	var orphans, mine int
+	if err := s.db.QueryRow(`select sum(project_id is null), sum(project_id is not null) from session_event`).Scan(&orphans, &mine); err != nil || orphans != 1 || mine != 3 {
+		t.Fatalf("orphans=%d mine=%d %v", orphans, mine, err)
+	}
+	if _, err := s.AdoptEvents("m/nope", "/x"); err == nil {
+		t.Fatal("unknown project accepted")
+	}
+}
+
 func TestSetDescription(t *testing.T) {
 	s := openTestStore(t)
 	if err := s.UpsertProjects(found("m/a")); err != nil {

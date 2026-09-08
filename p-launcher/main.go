@@ -29,7 +29,7 @@ func (e *hintError) Error() string { return e.msg + ". " + e.hint }
 func (e *hintError) Unwrap() error { return e.cause }
 
 func usage() error {
-	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | menu [--toggle-key KEY] | hook | desktop lock|unlock | tend [--dry-run] [--max N] | kv get <key> | kv set <key> <value> | backup [DIR] | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
+	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> [--no-open] | describe <ns/name> <text> | adopt <ns/name> <cwd-prefix> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | menu [--toggle-key KEY] | hook | desktop lock|unlock | tend [--dry-run] [--max N] | kv get <key> | kv set <key> <value> | backup [DIR] | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
 }
 
 func main() {
@@ -57,7 +57,7 @@ func run(args []string) error {
 	toggleKey := ""
 	var ro reportOpts
 	var archiveReason string
-	listAll, tendDry, tendMax := false, false, 2
+	listAll, tendDry, tendMax, createNoOpen := false, false, 2, false
 	switch cmd {
 	case "list":
 		listAll = len(args) == 2 && args[1] == "--all"
@@ -65,7 +65,16 @@ func run(args []string) error {
 			return usage()
 		}
 	case "create":
-		if len(args) != 2 {
+		createNoOpen = len(args) == 3 && args[2] == "--no-open"
+		if len(args) != 2 && !createNoOpen {
+			return usage()
+		}
+	case "describe":
+		if len(args) != 3 {
+			return usage()
+		}
+	case "adopt":
+		if len(args) != 3 {
 			return usage()
 		}
 	case "archive":
@@ -158,10 +167,26 @@ func run(args []string) error {
 	case "list":
 		return list(s, root, os.Stdout, listAll)
 	case "create":
-		if _, err := Create(s, root, args[1]); err != nil {
+		dir, err := Create(s, root, args[1])
+		if err != nil {
 			return err
 		}
+		if createNoOpen {
+			fmt.Println(dir)
+			return nil
+		}
 		return Open(s, root, args[1])
+	case "describe":
+		return s.SetDescription(args[1], args[2])
+	case "adopt":
+		// attribute events a session recorded before its folder was a project
+		// (cwd outside ~/p) to that project; prints how many moved
+		n, err := s.AdoptEvents(args[1], args[2])
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%d events attributed to %s\n", n, args[1])
+		return nil
 	case "archive":
 		cl, err := Archive(s, root, args[1], archiveReason, copyqCopy)
 		if err != nil {

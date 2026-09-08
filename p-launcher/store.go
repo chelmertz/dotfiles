@@ -290,6 +290,24 @@ func (s *Store) RenameProject(oldPath, newPath, newName string) error {
 	return nil
 }
 
+// AdoptEvents attributes session events recorded with no project and a cwd
+// under prefix to the project at path: the onboarding of a session that
+// predates its project folder. Returns the number of rows moved.
+func (s *Store) AdoptEvents(path, prefix string) (int64, error) {
+	prefix = strings.TrimRight(prefix, "/")
+	res, err := s.db.Exec(`update session_event set project_id = (select id from project where path = ?)
+		where project_id is null and (cwd = ? or cwd like ? escape '\')`,
+		path, prefix, strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(prefix)+"/%")
+	if err != nil {
+		return 0, fmt.Errorf("adopt %s: %w", path, err)
+	}
+	var known int
+	if err := s.db.QueryRow(`select count(*) from project where path = ?`, path).Scan(&known); err != nil || known == 0 {
+		return 0, fmt.Errorf("adopt: unknown project %q", path)
+	}
+	return res.RowsAffected()
+}
+
 // LinkOwner returns the project a URL is linked to.
 func (s *Store) LinkOwner(url string) (string, bool) {
 	var path string
