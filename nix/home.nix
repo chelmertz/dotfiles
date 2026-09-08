@@ -857,12 +857,14 @@ in
     backend = "xrender";
     vSync = true;
     fade = false;
-    # Shadow on rofi alone, so the launcher lifts off busy windows. Everything
-    # else, dunst included, is excluded by class.
+    # Shadow on rofi, so the launcher lifts off busy windows, and on the bar,
+    # where the upward offset leaves a thin falloff under its bottom edge.
+    # picom has one radius and offset for every shadow, so the bar cannot get
+    # a smaller one than rofi. Everything else, dunst included, is excluded.
     shadow = true;
     shadowOpacity = 0.5;
     shadowOffsets = [ (-24) (-14) ];
-    shadowExclude = [ "!(class_g = 'Rofi')" ];
+    shadowExclude = [ "!(class_g = 'Rofi' || class_g = 'i3bar')" ];
     settings = {
       shadow-radius = 24;
       # Same radius as the rofi theme, so picom clips the shadow to the curve;
