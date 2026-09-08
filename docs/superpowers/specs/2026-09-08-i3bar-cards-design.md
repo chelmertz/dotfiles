@@ -127,8 +127,9 @@ colors {
 }
 ```
 
-Tuning down to option A later is one line: `focused_workspace` becomes
-`bg bg fg`. Light `focused_workspace` text stays `#ffffff` on `#0a7aff`.
+After the critique the quiet variant is the default: `focused_workspace` is
+`bg bg fg`, the bar font is Inter 15, and the accent is left to the focused
+window border. Going back to the accent fill is the same one line.
 
 ### Block colour by role
 

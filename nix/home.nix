@@ -34,7 +34,10 @@ let
   # fallback could pick either. Groups of blocks are separated by width, not
   # rules (.i3blocks.conf). The tray goes to the laptop screen so the wide bar
   # stays monochrome; the second tray_output is the fallback when eDP-1 is off.
-  # Quiet variant: focused_workspace bg bg fg.
+  # The focused workspace is marked by text colour alone, like the bold app
+  # name in the macOS menu bar; a neutral fill (field field fg) is the middle
+  # option if it proves hard to find, the accent fill (accent accent #ffffff)
+  # the loud one.
   i3scheme = c: ''
     # class                 border      background  text     indicator   child_border
     client.focused          ${c.accent} ${c.accent} #ffffff  ${c.accent} ${c.accent}
@@ -46,7 +49,7 @@ let
     bar {
         status_command i3blocks
         position top
-        font pango:Inter, Font Awesome 7 Free, Font Awesome 7 Free Solid, Font Awesome 7 Brands 16
+        font pango:Inter, Font Awesome 7 Free, Font Awesome 7 Free Solid, Font Awesome 7 Brands 15
         tray_output eDP-1
         tray_output primary
         tray_padding 4
@@ -54,7 +57,7 @@ let
         colors {
             background         ${c.bg}
             statusline         ${c.fg}
-            focused_workspace  ${c.accent} ${c.accent} #ffffff
+            focused_workspace  ${c.bg} ${c.bg} ${c.fg}
             active_workspace   ${c.bg} ${c.bg} ${c.fg}
             inactive_workspace ${c.bg} ${c.bg} ${c.muted}
             urgent_workspace   ${c.red} ${c.red} #ffffff
