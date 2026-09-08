@@ -18,6 +18,20 @@ var migrations = []func(*sql.Tx) error{
 	migrate007,
 	migrate008,
 	migrate009,
+	migrate010,
+}
+
+// migrate010 stores GitHub's updated_at per link. It is the activity time for
+// links elly does not list (issues, repos elly ignores); before it, those fell
+// back to our own refresh time, which advances every timer round and made tend
+// see "new activity" on every run.
+func migrate010(tx *sql.Tx) error {
+	if _, err := tx.Exec(`alter table link add column github_updated_at text`); err != nil {
+		return err
+	}
+	// drop the ETags so the next refresh re-fetches and fills the column
+	_, err := tx.Exec(`update link set etag = null`)
+	return err
 }
 
 // migrate009 adds the one-sentence project description shown as a subtitle

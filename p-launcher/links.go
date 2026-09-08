@@ -26,6 +26,7 @@ type ghPR struct {
 	Merged                        bool
 	Add, Del                      int
 	CreatedAt, ClosedAt, MergedAt time.Time
+	UpdatedAt                     time.Time // GitHub's updated_at: any activity on the item
 }
 
 type ellyPR struct {
@@ -118,8 +119,9 @@ func refreshLinks(s *Store, d linkDeps) (refreshResult, error) {
 				merged = 1
 			}
 			if _, err := s.db.Exec(`update link set author = ?, title = ?, body = ?, additions = ?, deletions = ?,
-				opened_at = coalesce(nullif(?, ''), opened_at), closed_at = nullif(?, ''), merged = ?, github_state = ?, etag = ?, refreshed_at = ?
-				where id = ?`, pr.Author, pr.Title, pr.Body, pr.Add, pr.Del, rfcOrEmpty(pr.CreatedAt), rfcOrEmpty(pr.ClosedAt), merged, pr.State, etag, nowS, o.id); err != nil {
+				opened_at = coalesce(nullif(?, ''), opened_at), closed_at = nullif(?, ''), merged = ?, github_state = ?, etag = ?, refreshed_at = ?,
+				github_updated_at = coalesce(nullif(?, ''), github_updated_at)
+				where id = ?`, pr.Author, pr.Title, pr.Body, pr.Add, pr.Del, rfcOrEmpty(pr.CreatedAt), rfcOrEmpty(pr.ClosedAt), merged, pr.State, etag, nowS, rfcOrEmpty(pr.UpdatedAt), o.id); err != nil {
 				return res, err
 			}
 			if o.kind == "github_issue" && pr.Title != "" {
@@ -255,12 +257,13 @@ func ghFetch(url, etag string) (ghPR, int, string, error) {
 			CreatedAt            string `json:"created_at"`
 			ClosedAt             string `json:"closed_at"`
 			MergedAt             string `json:"merged_at"`
+			UpdatedAt            string `json:"updated_at"`
 		}
 		if err := json.Unmarshal([]byte(body), &raw); err != nil {
 			return ghPR{}, 0, "", fmt.Errorf("gh api %s: %w", url, err)
 		}
 		return ghPR{State: raw.State, Merged: raw.Merged, Title: raw.Title, Body: raw.Body, Author: raw.User.Login,
-			Add: raw.Additions, Del: raw.Deletions, CreatedAt: parseTime(raw.CreatedAt), ClosedAt: parseTime(raw.ClosedAt), MergedAt: parseTime(raw.MergedAt)}, 200, newEtag, nil
+			Add: raw.Additions, Del: raw.Deletions, CreatedAt: parseTime(raw.CreatedAt), ClosedAt: parseTime(raw.ClosedAt), MergedAt: parseTime(raw.MergedAt), UpdatedAt: parseTime(raw.UpdatedAt)}, 200, newEtag, nil
 	}
 	if runErr != nil {
 		return ghPR{}, status, "", fmt.Errorf("gh api %s: %s", url, clip(stderr.String()+" "+strconv.Itoa(status)))

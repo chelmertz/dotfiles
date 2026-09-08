@@ -52,7 +52,7 @@ func TestRefreshLinksHappy(t *testing.T) {
 			calls++
 			if strings.HasSuffix(url, "/1") {
 				return ghPR{State: "closed", Merged: true, Title: "One", Body: "body", Author: "me", Add: 10, Del: 2,
-					CreatedAt: ts("2026-09-01T10:00:00Z"), ClosedAt: ts("2026-09-03T10:00:00Z"), MergedAt: ts("2026-09-03T10:00:00Z")}, 200, `"e1"`, nil
+					CreatedAt: ts("2026-09-01T10:00:00Z"), ClosedAt: ts("2026-09-03T10:00:00Z"), MergedAt: ts("2026-09-03T10:00:00Z"), UpdatedAt: ts("2026-09-03T11:00:00Z")}, 200, `"e1"`, nil
 			}
 			return ghPR{State: "open", Title: "Two", Author: "jd", CreatedAt: ts("2026-09-04T10:00:00Z")}, 200, `"e2"`, nil
 		},
@@ -70,6 +70,8 @@ func TestRefreshLinksHappy(t *testing.T) {
 	}
 	if links, err := loadTendLinks(s); err != nil || len(links) != 2 || !links[1].LastUpdated.Equal(now.Add(-40*time.Minute)) {
 		t.Fatalf("tend must see elly's time: %+v %v", links, err)
+	} else if !links[0].LastUpdated.Equal(ts("2026-09-03T11:00:00Z")) {
+		t.Fatalf("a link elly does not list must carry GitHub's updated_at, never our refresh time: %+v", links[0])
 	}
 	if calls != 2 || res.Refreshed != 2 || res.Failed != 0 || res.EllyStale || res.EllyMissing {
 		t.Fatalf("calls=%d %+v", calls, res)

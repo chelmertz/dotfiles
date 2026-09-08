@@ -187,7 +187,7 @@ func tendApply(s *Store, root string, ds []decision, d tendDeps) error {
 // GitHub state columns.
 func loadTendLinks(s *Store) ([]tendLink, error) {
 	rows, err := s.db.Query(`select l.id, l.url, p.path, l.author, l.last_commenter, l.check_state, l.detail,
-		l.action_needed, l.is_draft, l.merged, coalesce(l.closed_at,''), coalesce(l.elly_updated_at, l.refreshed_at, ''), coalesce(l.check_at,''), coalesce(l.tended_at,''), l.tend_rounds
+		l.action_needed, l.is_draft, l.merged, coalesce(l.closed_at,''), coalesce(l.elly_updated_at, l.github_updated_at, ''), coalesce(l.check_at,''), coalesce(l.tended_at,''), l.tend_rounds
 		from link l join project p on p.id = l.project_id`)
 	if err != nil {
 		return nil, err
@@ -204,8 +204,9 @@ func loadTendLinks(s *Store) ([]tendLink, error) {
 		}
 		l.ActionNeeded, l.IsDraft = action == 1, draft == 1
 		l.Open = merged == 0 && closed == ""
-		// elly's last_updated when known, else our refresh time (links elly
-		// never listed as open)
+		// elly's last_updated when known, else GitHub's updated_at (links
+		// elly never listed); zero when never fetched, so nothing counts as
+		// new activity until it is
 		l.LastUpdated = parseTime(refreshed)
 		l.CheckAt, l.TendedAt = parseTime(checkAt), parseTime(tended)
 		out = append(out, l)
