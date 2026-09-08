@@ -235,6 +235,53 @@ func (s *Store) SessionBall(sessionID string) (state, reason string, err error) 
 
 // ClearSession forgets a session's ball state (SessionEnd). Unknown
 // sessions are a no-op.
+// SetSessionPID remembers the claude process behind a session; 0 (not found)
+// leaves the column alone so an earlier value survives.
+func (s *Store) SetSessionPID(sessionID string, pid int) error {
+	if pid == 0 {
+		return nil
+	}
+	_, err := s.db.Exec(`update session_state set pid = ? where session_id = ?`, pid, sessionID)
+	return err
+}
+
+// ReapDead removes session_state rows whose recorded claude process is gone
+// and logs a session_end (detail "reaped") for each, so the report sees the
+// session close. Rows without a pid keep the staleSession rule.
+func (s *Store) ReapDead(alive func(pid int) bool) (int, error) {
+	rows, err := s.db.Query(`select ss.session_id, ss.pid, coalesce(p.path, '') from session_state ss
+		left join project p on p.id = ss.project_id where ss.pid is not null`)
+	if err != nil {
+		return 0, err
+	}
+	type dead struct{ sid, path string }
+	var gone []dead
+	for rows.Next() {
+		var d dead
+		var pid int
+		if err := rows.Scan(&d.sid, &pid, &d.path); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		if !alive(pid) {
+			gone = append(gone, d)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	for _, d := range gone {
+		if err := s.RecordSessionEvent(SessionEvent{SessionID: d.sid, Path: d.path, Kind: "session_end", Detail: "reaped"}); err != nil {
+			return 0, err
+		}
+		if err := s.ClearSession(d.sid); err != nil {
+			return 0, err
+		}
+	}
+	return len(gone), nil
+}
+
 func (s *Store) ClearSession(sessionID string) error {
 	_, err := s.db.Exec(`delete from session_state where session_id = ?`, sessionID)
 	return err

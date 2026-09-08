@@ -322,3 +322,37 @@ func TestSessionBallReason(t *testing.T) {
 		t.Fatalf("%q %q", st, why)
 	}
 }
+
+func TestReapDead(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.UpsertProjects(found("m/a")); err != nil {
+		t.Fatal(err)
+	}
+	for sid, pid := range map[string]int{"dead": 41, "alive": 42, "legacy": 0} {
+		if err := s.SetSessionState(sid, "m/a", "you", "stop"); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.SetSessionPID(sid, pid); err != nil {
+			t.Fatal(err)
+		}
+	}
+	n, err := s.ReapDead(func(pid int) bool { return pid == 42 })
+	if err != nil || n != 1 {
+		t.Fatalf("%d %v", n, err)
+	}
+	var left int
+	if err := s.db.QueryRow(`select count(*) from session_state`).Scan(&left); err != nil || left != 2 {
+		t.Fatalf("left=%d %v: the pid-less row must survive, the dead one must go", left, err)
+	}
+	if st, _, err := s.SessionBall("dead"); err == nil && st != "" {
+		t.Fatalf("dead session still has state %q", st)
+	}
+	var kind, detail string
+	if err := s.db.QueryRow(`select kind, detail from session_event where session_id = 'dead'`).Scan(&kind, &detail); err != nil || kind != "session_end" || detail != "reaped" {
+		t.Fatalf("%s %s %v", kind, detail, err)
+	}
+	// a second pass is a no-op
+	if n, err := s.ReapDead(func(int) bool { return false }); err != nil || n != 1 {
+		t.Fatalf("second pass reaped %d (only 'alive' carried a pid) %v", n, err)
+	}
+}

@@ -19,6 +19,15 @@ var migrations = []func(*sql.Tx) error{
 	migrate008,
 	migrate009,
 	migrate010,
+	migrate011,
+}
+
+// migrate011 records the claude process behind each session, so a session
+// whose terminal died without SessionEnd is dropped as soon as any command
+// looks, instead of counting as live for staleSession.
+func migrate011(tx *sql.Tx) error {
+	_, err := tx.Exec(`alter table session_state add column pid integer`)
+	return err
 }
 
 // migrate010 stores GitHub's updated_at per link. It is the activity time for

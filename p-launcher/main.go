@@ -164,6 +164,14 @@ func run(args []string) error {
 	}
 	defer s.Close()
 
+	if cmd != "hook" && cmd != "desktop" {
+		// sessions whose claude process is gone stop counting as live; the
+		// hook path skips this to stay cheap and single-purpose
+		if _, err := s.ReapDead(func(pid int) bool { return isClaude(procRoot, pid) }); err != nil {
+			return err
+		}
+	}
+
 	switch cmd {
 	case "list":
 		return list(s, root, os.Stdout, listAll)

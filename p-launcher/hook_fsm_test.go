@@ -257,3 +257,25 @@ func TestRuleFor(t *testing.T) {
 		}
 	}
 }
+
+// A hook stores the claude PID behind the session, and a later reap with
+// that process gone drops the ball while a live one keeps it.
+func TestHookRecordsPIDAndReap(t *testing.T) {
+	s := openTestStore(t)
+	root := t.TempDir()
+	dir := mk(t, root, "m/a")
+	old := claudePIDFor
+	claudePIDFor = func() int { return 4242 }
+	t.Cleanup(func() { claudePIDFor = old })
+	feed(t, s, root, `{"session_id":"s1","hook_event_name":"UserPromptSubmit","cwd":"`+dir+`"}`)
+	var pid int
+	if err := s.db.QueryRow(`select pid from session_state where session_id = 's1'`).Scan(&pid); err != nil || pid != 4242 {
+		t.Fatalf("pid=%d %v", pid, err)
+	}
+	if n, err := s.ReapDead(func(pid int) bool { return pid == 4242 }); err != nil || n != 0 || ball(t, s, "m/a") != "claude" {
+		t.Fatalf("live process must keep the ball: n=%d %v", n, err)
+	}
+	if n, err := s.ReapDead(func(int) bool { return false }); err != nil || n != 1 || ball(t, s, "m/a") != "" {
+		t.Fatalf("dead process must drop the ball: n=%d ball=%q %v", n, ball(t, s, "m/a"), err)
+	}
+}

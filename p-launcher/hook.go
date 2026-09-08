@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -134,7 +135,7 @@ func hook(s *Store, root string, r io.Reader) error {
 		if path == "" {
 			return nil
 		}
-		return s.SetSessionState(in.SessionID, path, "you", "question")
+		return setState(s, in.SessionID, path, "you", "question")
 	}
 	kind, detail, state := transition(in)
 	if in.AgentID != "" {
@@ -159,9 +160,20 @@ func hook(s *Store, root string, r io.Reader) error {
 				return nil
 			}
 		}
-		return s.SetSessionState(in.SessionID, path, state, reason)
+		return setState(s, in.SessionID, path, state, reason)
 	}
 	return nil
+}
+
+// claudePIDFor is the ancestor lookup, swapped in tests.
+var claudePIDFor = func() int { return claudePID(procRoot, os.Getpid()) }
+
+// setState writes the ball state and the claude PID behind the session.
+func setState(s *Store, sessionID, path, state, reason string) error {
+	if err := s.SetSessionState(sessionID, path, state, reason); err != nil {
+		return err
+	}
+	return s.SetSessionPID(sessionID, claudePIDFor())
 }
 
 // postToolUse runs after every tool call. A tool running means Claude is
