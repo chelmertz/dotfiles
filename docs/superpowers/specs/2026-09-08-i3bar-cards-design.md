@@ -1,0 +1,208 @@
+# i3bar in the cards palette
+
+Date: 2026-09-08
+Status: approved
+
+## Problem
+
+Rofi, dunst and picom share one visual language since 2026-09-07: `cardRadius`
+14, `#1e1e1e` / `#f5f5f7` cards with a 1px hairline, `#4a8fe7` / `#0a7aff`
+accent, Inter. i3bar still renders with stock colours: bordered grey workspace
+buttons, `#285577` focus, the window-title font, and blocks that each pick their
+own colour (gold quote, lime PR count, orange redshift, blue bluetooth, pure
+white weather). Emoji (🖵 ⌨ ⚪ 🔴 ⚡) sit next to Font Awesome glyphs. The bar
+also ignores the dark/light scheme that rofi follows.
+
+Preview of the chosen direction, option C ("Accent fill"), next to the two
+alternatives: https://claude.ai/code/artifact/daf2e59a-ff7d-418c-a5e3-d350091589c9
+
+## Goals
+
+1. Bar colours from the same palette values rofi uses, in both schemes.
+2. The bar follows the colour-scheme toggle together with rofi.
+3. One glyph font for every block; no emoji.
+4. Block colour by role, not by hex in each script.
+5. Tuning the focused workspace down to the quiet variant is a one-line change.
+
+## Non-goals
+
+Dunst light variant. Window frame and title colours. Rounded bar or workspace
+pills (i3bar cannot round; picom rounding was tried and reverted on
+2026-09-07). Polybar. Changing the elly block, which lives in the elly repo.
+
+## Verified constraints
+
+Checked with `i3 -C -c <file>` on i3 4.25.1:
+
+- `include` of a file holding a complete `bar { … }` block at top level: passes.
+- `include` inside a `bar { }` block: `ERROR: CONFIG`. The whole bar block must
+  therefore live in the included file.
+- `include` of a missing file: passes silently, and the bar is simply absent.
+  Hence the activation step below.
+
+`gsettings get org.gnome.desktop.interface color-scheme` takes 4 ms, cheap
+enough for every block run.
+
+Every glyph named below exists in the installed Font Awesome 7 Free Solid face,
+except bluetooth (`f293`) which is in Font Awesome 7 Brands. `NFM.ttf` (Nerd
+Font) also claims the `f0xx`–`f2xx` range, so the bar font must name the
+Font Awesome faces explicitly; fontconfig fallback would be arbitrary.
+
+## Design
+
+### Palette as one source
+
+`nix/home.nix` gains, next to `cardRadius`, one attrset with both schemes:
+
+```nix
+cards = {
+  dark  = { bg = "#1e1e1e"; fg = "#f2f2f2"; muted = "#8a8a8a"; border = "#292929";
+            field = "#2a2a2a"; selected = "#333333"; accent = "#4a8fe7"; red = "#e5484d"; };
+  light = { bg = "#f5f5f7"; fg = "#1d1d1f"; muted = "#6e6e73"; border = "#d5d5da";
+            field = "#e9e9ee"; selected = "#dcdce2"; accent = "#0a7aff"; red = "#d70015"; };
+};
+```
+
+These are the values currently hand-written in `rofi/cards-dark.rasi` and
+`rofi/cards-light.rasi`. Those two files are replaced by a single template,
+`rofi/cards-colors.rasi`, with `@bg@`-style placeholders that nix substitutes
+per scheme, the same way `cards.rasinc` already receives `@radius@`. The
+generated files keep their names and install paths, so `bin/color-scheme` and
+the p-launcher goldens are unaffected. Dunst keeps its literal values for now.
+
+### Bar block, swappable per scheme
+
+Home-manager generates two complete bar blocks from one nix function,
+`~/.config/i3/bar-dark.conf` and `~/.config/i3/bar-light.conf`. `.i3/config`
+loses its inline `bar { … }` and gains:
+
+```
+include ~/.config/i3/bar.conf
+```
+
+`~/.config/i3/bar.conf` is an unmanaged symlink, the counterpart of the
+unmanaged `~/.config/rofi/config.rasi`. `bin/color-scheme` repoints it with
+`ln -sfn` after writing the rofi theme, then runs `i3-msg reload`, ignoring
+failure (no i3 running). A `home.activation` step creates the symlink when it
+is missing, choosing the variant matching the current gsettings scheme and
+defaulting to dark, so a fresh switch never leaves the bar absent.
+
+Settings shared by both variants:
+
+```
+bar {
+    status_command i3blocks
+    position top
+    font pango:Inter, Font Awesome 7 Free Solid, Font Awesome 7 Brands 16
+    tray_padding 4
+    workspace_min_width 40
+    separator_symbol "│"
+    colors { … }
+}
+```
+
+`font` inside the bar block affects the bar only; window titles keep the
+current title font. Size 16 matches today's bar size at the configured
+`Xft.dpi`; adjust on the real bar if Inter sets visibly larger.
+
+Colours, dark shown, light by substitution:
+
+```
+colors {
+    background         #1e1e1e
+    statusline         #8a8a8a        # muted: default block colour
+    separator          #292929        # border: thin rule between groups
+    focused_workspace  #4a8fe7 #4a8fe7 #ffffff   # accent fill (option C)
+    active_workspace   #1e1e1e #1e1e1e #f2f2f2   # visible on the other output
+    inactive_workspace #1e1e1e #1e1e1e #8a8a8a
+    urgent_workspace   #e5484d #e5484d #ffffff
+    binding_mode       #2a2a2a #2a2a2a #f2f2f2   # field: resize / fkey mode
+}
+```
+
+Tuning down to option A later is one line: `focused_workspace` becomes
+`bg bg fg`. Light `focused_workspace` text stays `#ffffff` on `#0a7aff`.
+
+### Block colour by role
+
+A generated script `~/.local/bin/i3blocks-color <role>` prints the hex for
+`fg`, `muted`, `accent` or `red` in the scheme gsettings reports, dark when
+gsettings fails or reports anything but `prefer-light`. It is emitted from the
+same `cards` attrset, so the bar, rofi and the blocks cannot drift.
+
+Policy, applied in every block script in this repo:
+
+- Nothing to say: print no colour line. i3bar paints it with `statusline`
+  (muted).
+- A live value worth reading (clock, playing track, PR count, project link
+  count above zero): `fg`.
+- A toggle that is on (redshift, bluetooth connected): `accent`.
+- An alarm (recording, keylog capturing, prometheus firing, battery low):
+  `red`.
+
+Thin rules only between groups. Blocks inside a group get `separator=false` in
+`.i3blocks.conf`; the last block of each group keeps the default. Groups, left
+to right:
+
+| group | blocks |
+| --- | --- |
+| quote | quote |
+| work | project-urls, recording, keylog, elly, prometheus |
+| environment | wttr, battery |
+| media | mediaplayer |
+| clock | time |
+| toggles | redshift, bluetooth, screenlayout, colorscheme |
+
+### Per-block changes
+
+All glyphs Font Awesome 7. `color=` lines in `.i3blocks.conf` are removed.
+
+| block | file | change |
+| --- | --- | --- |
+| quote | `.i3blocks.conf` | keep label `f10e`; drop `color=#ffcc00` |
+| project-urls | `bin/i3-project` | keep `f0c1`; drop `#8fabc7`; `fg` when count > 0 |
+| recording | `bin/i3blocks_recording.sh` | 🔴 REC → `f111` REC in `red`; ⚪ → `f192`, no colour |
+| keylog | `bin/i3blocks_keylog.sh` | ⌨ → `f11c`; capturing → `red` |
+| elly | elly repo | unchanged here; prints `#00ff00` until the elly repo adopts `i3blocks-color fg` |
+| prometheus | `bin/i3blocks_prometheus` | firing count in `red` |
+| wttr | `.i3blocks.conf` | `format=%t` with label `f2c9`; drop `color=#ffffff`. Condition dropped: wttr's plain-text `%x` came back as `mmm` |
+| battery | `bin/battery` | ⚡ label → level glyph `f244`…`f240` by quarter, `f0e7` when charging; drop the colour gradient; `red` below 15 %, `urgent` kept |
+| mediaplayer | `bin/i3blocks_spotify.sh` | keep `f28b` / `f004`; `fg` when playing, no colour when paused |
+| time | `bin/i3blocks_date.sh` | `fg` always |
+| redshift | `bin/i3blocks_redshift.sh` | keep `f0eb`; on → `accent`, off → no colour |
+| bluetooth | `bin/i3blocks_bluetooth.sh` | keep `f293`; connected → `accent`, else no colour |
+| screenlayout | `.i3blocks.conf` | 🖵 → `f108` |
+| colorscheme | `bin/i3blocks_colorscheme.sh` | keep `f186` / `f185`; drop `#b0c4de` / `#ffcc00` |
+
+### Error handling
+
+- gsettings unavailable: `i3blocks-color` prints the dark value.
+- `i3-msg reload` fails (no i3, or a config error): `color-scheme` reports it on
+  stderr and still exits 0, so the rofi and gsettings half of the toggle stands.
+- `bar.conf` missing: activation step recreates it; `i3 -C` cannot catch this
+  because a missing include passes, so the activation step is the guard.
+- A generated bar file that fails to parse: `i3 -C -c ~/.config/i3/config` after
+  `home-manager switch` is the check, and `i3-msg reload` refuses a broken
+  config and keeps the running one.
+
+## Verification
+
+1. `home-manager --option warn-dirty false switch --flake ./nix#ch` from the
+   worktree.
+2. `i3 -C -c ~/.config/i3/config` exits 0.
+3. `~/.local/bin/i3blocks-color accent` prints `#0a7aff` under prefer-light and
+   `#4a8fe7` after the toggle.
+4. Click the colorscheme block twice: bar, rofi and block colours flip together
+   both ways, and `readlink ~/.config/i3/bar.conf` follows.
+5. `go test ./p-launcher/...` passes: the rofi goldens render against the
+   installed theme, so they confirm the generated rasi files match the
+   hand-written ones they replace.
+6. Screenshot both schemes for the PR.
+
+## Follow-ups (separate PRs)
+
+- elly repo: `contrib/elly_i3blocks.sh` uses `i3blocks-color fg`.
+- Dunst light variant, driven from the same `cards` attrset and swapped by
+  `bin/color-scheme` via `dunstctl reload`.
+- Window frames and titles: `client.*` colours from `cards`, Inter titles.
+- Terminal palette: neutral dark/light pair matching `cards.bg`.
