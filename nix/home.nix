@@ -27,17 +27,19 @@ let
   # The scheme-dependent half of the i3 config: window colours and the whole
   # bar block. .i3/config includes ~/.config/i3/scheme.conf, a symlink
   # bin/color-scheme points at scheme-dark.conf or scheme-light.conf before
-  # reloading i3. The focused border is the same accent as the focused
-  # workspace button. Font Awesome Regular comes before Solid so glyphs are
+  # reloading i3. Font Awesome Regular comes before Solid so glyphs are
   # outlines where one exists, like SF Symbols; both faces are named because
   # the Nerd Font file claims the same private-use codepoints and fontconfig
   # fallback could pick either. Groups of blocks are separated by width, not
   # rules (.i3blocks.conf). The tray goes to the laptop screen so the wide bar
   # stays monochrome; the second tray_output is the fallback when eDP-1 is off.
-  # The focused workspace is marked by text colour alone, like the bold app
-  # name in the macOS menu bar; a neutral fill (field field fg) is the middle
-  # option if it proves hard to find, the accent fill (accent accent #ffffff)
-  # the loud one.
+  # The focused workspace is marked by a 1px hairline, not by colour: fg
+  # against muted is only 2.27:1 in light and 3.08:1 in dark, so text colour
+  # alone failed to say which workspace was focused. Outline present versus
+  # absent is a shape difference, and muted against bg clears 3:1 in both
+  # schemes. Every calm fill (field, selected, border) is under 1.4:1 against
+  # bg and could not carry it either. Urgent is a red hairline with fg text
+  # rather than white on a red fill, which fails AA text in dark at 3.91:1.
   i3scheme = c: ''
     # class                 border      background  text     indicator   child_border
     client.focused          ${c.accent} ${c.accent} #ffffff  ${c.accent} ${c.accent}
@@ -54,13 +56,17 @@ let
         tray_output primary
         tray_padding 4
         workspace_min_width 40
+        # 14 right so the last block clears the screen edge (i3bar only insets
+        # the statusline when a tray shares the output), 10 left plus the
+        # button's own 4 to match, 2 vertical so the hairline has air.
+        padding 2 14 2 10
         colors {
             background         ${c.bg}
             statusline         ${c.fg}
-            focused_workspace  ${c.bg} ${c.bg} ${c.fg}
+            focused_workspace  ${c.muted} ${c.bg} ${c.fg}
             active_workspace   ${c.bg} ${c.bg} ${c.fg}
             inactive_workspace ${c.bg} ${c.bg} ${c.muted}
-            urgent_workspace   ${c.red} ${c.red} #ffffff
+            urgent_workspace   ${c.red} ${c.bg} ${c.fg}
             binding_mode       ${c.field} ${c.field} ${c.fg}
         }
     }
