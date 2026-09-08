@@ -139,17 +139,23 @@ same `cards` attrset, so the bar, rofi and the blocks cannot drift.
 
 Policy, applied in every block script in this repo:
 
-- Nothing to say: print no colour line. i3bar paints it with `statusline`
-  (muted).
-- A live value worth reading (clock, playing track, PR count, project link
-  count above zero): `fg`.
-- A toggle that is on (redshift, bluetooth connected): `accent`.
+Revised after the design critique of the first live round (macOS renders every
+menu-bar extra in one label colour and shows state by glyph shape; the accent
+belongs to one thing):
+
+- Default: print no colour line. i3bar paints it with `statusline`, which is
+  `fg`.
+- A toggle that is off (redshift, bluetooth disconnected) or a paused track:
+  `muted`.
 - An alarm (recording, keylog capturing, prometheus firing, battery low):
   `red`.
+- `accent` is never printed by a block; it marks the focused workspace and
+  window only.
 
-Thin rules only between groups. Blocks inside a group get `separator=false` in
-`.i3blocks.conf`; the last block of each group keeps the default. Groups, left
-to right:
+No rules between groups, only air: `separator=false` globally,
+`separator_block_width` 14 inside a group and 24 after its last block. Glyphs
+come from Font Awesome 7 Regular where a regular variant exists, Solid
+otherwise. The tray sits on the laptop output. Groups, left to right:
 
 | group | blocks |
 | --- | --- |

@@ -379,7 +379,6 @@ cmd_i3blocks() {
     if [[ "$count" -gt 0 ]]; then
         echo "$icon $count"
         echo "$icon $count"
-        i3blocks-color fg
     else
         echo "$icon"
         echo "$icon"

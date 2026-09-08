@@ -18,5 +18,5 @@ fi
 # i3blocks: line 1 = full_text, line 2 = short_text, line 3 = color
 printf '\n'
 printf '\n'
-connected && i3blocks-color accent
+connected || i3blocks-color muted
 exit 0

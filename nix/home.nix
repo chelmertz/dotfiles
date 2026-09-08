@@ -28,9 +28,13 @@ let
   # bar block. .i3/config includes ~/.config/i3/scheme.conf, a symlink
   # bin/color-scheme points at scheme-dark.conf or scheme-light.conf before
   # reloading i3. The focused border is the same accent as the focused
-  # workspace button. Font Awesome is named explicitly: the Nerd Font file
-  # claims the same private-use codepoints, so fontconfig fallback could pick
-  # either. Quiet variant: focused_workspace bg bg fg.
+  # workspace button. Font Awesome Regular comes before Solid so glyphs are
+  # outlines where one exists, like SF Symbols; both faces are named because
+  # the Nerd Font file claims the same private-use codepoints and fontconfig
+  # fallback could pick either. Groups of blocks are separated by width, not
+  # rules (.i3blocks.conf). The tray goes to the laptop screen so the wide bar
+  # stays monochrome; the second tray_output is the fallback when eDP-1 is off.
+  # Quiet variant: focused_workspace bg bg fg.
   i3scheme = c: ''
     # class                 border      background  text     indicator   child_border
     client.focused          ${c.accent} ${c.accent} #ffffff  ${c.accent} ${c.accent}
@@ -42,14 +46,14 @@ let
     bar {
         status_command i3blocks
         position top
-        font pango:Inter, Font Awesome 7 Free Solid, Font Awesome 7 Brands 16
+        font pango:Inter, Font Awesome 7 Free, Font Awesome 7 Free Solid, Font Awesome 7 Brands 16
+        tray_output eDP-1
+        tray_output primary
         tray_padding 4
         workspace_min_width 40
-        separator_symbol "│"
         colors {
             background         ${c.bg}
-            statusline         ${c.muted}
-            separator          ${c.border}
+            statusline         ${c.fg}
             focused_workspace  ${c.accent} ${c.accent} #ffffff
             active_workspace   ${c.bg} ${c.bg} ${c.fg}
             inactive_workspace ${c.bg} ${c.bg} ${c.muted}
@@ -59,7 +63,10 @@ let
     }
   '';
   # i3blocks-color fg|muted|accent|red: the hex for that role in the current
-  # scheme, so block scripts never carry palette values of their own.
+  # scheme, so block scripts never carry palette values of their own. Blocks
+  # print no colour by default (the bar's statusline, fg); muted marks a toggle
+  # that is off or a paused track, red an alarm. The accent stays with the
+  # focused workspace and window.
   i3blocksColor = let
     cases = lib.concatStringsSep "\n" (lib.flatten (lib.mapAttrsToList
       (scheme: c: lib.mapAttrsToList (role: hex: "  ${scheme}/${role}) echo '${hex}' ;;") c)

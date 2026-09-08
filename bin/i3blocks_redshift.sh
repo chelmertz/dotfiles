@@ -31,5 +31,5 @@ toggle() {
 # i3blocks: line 1 = full_text, line 2 = short_text, line 3 = color
 printf '\uf0eb\n'
 printf '\uf0eb\n'
-[[ "$state" = "on" ]] && i3blocks-color accent
+[[ "$state" = "off" ]] && i3blocks-color muted
 exit 0

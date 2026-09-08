@@ -28,6 +28,6 @@ prefix=""
 text="$prefix$(playerctl --player spotify metadata --format '{{artist}} - {{title}}')"
 echo "$text"
 echo "$text"
-# a playing track is a live value; paused stays in the bar's muted colour
-[ "Playing" = "$status" ] && i3blocks-color fg
+# a paused track is dimmed, like a toggle that is off
+[ "Paused" = "$status" ] && i3blocks-color muted
 exit 0

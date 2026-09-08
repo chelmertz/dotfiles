@@ -27,6 +27,6 @@ if $recording; then
     printf '\uf111\n'
     i3blocks-color red
 else
-    printf '\uf192 REC\n'
+    printf '\uf192\n'
     printf '\uf192\n'
 fi
