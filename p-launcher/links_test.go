@@ -155,6 +155,64 @@ func TestRefreshLinksEllyMissingOrStale(t *testing.T) {
 	}
 }
 
+func TestApiPath(t *testing.T) {
+	cases := map[string]string{
+		"https://github.com/o/r/pull/7":    "repos/o/r/pulls/7",
+		"https://github.com/o/r/issues/12": "repos/o/r/issues/12",
+		"https://github.com/o/r":           "",
+	}
+	for in, want := range cases {
+		got, ok := apiPath(in)
+		if (want == "") == ok || got != want {
+			t.Errorf("%s: got %q %v", in, got, ok)
+		}
+	}
+}
+
+func TestRefreshIssueLink(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.UpsertProjects(found("m/a")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddLinkKind("m/a", "https://github.com/o/r/issues/12", "github_issue"); err != nil {
+		t.Fatal(err)
+	}
+	now := ts("2026-09-08T10:00:00Z")
+	calls, checks := 0, 0
+	deps := linkDeps{me: "me", now: now,
+		gh: func(url, etag string) (ghPR, int, string, error) {
+			calls++
+			return ghPR{State: "closed", Title: "Fix the flaky login", Author: "jd", CreatedAt: now.Add(-48 * time.Hour), ClosedAt: now.Add(-time.Hour)}, 200, `"i1"`, nil
+		},
+		elly:   func() (map[string]ellyPR, time.Time, error) { return map[string]ellyPR{}, now, nil },
+		checks: func(url string) (string, time.Time, error) { checks++; return "success", now, nil },
+	}
+	if _, err := refreshLinks(s, deps); err != nil {
+		t.Fatal(err)
+	}
+	var state, closed, title, desc string
+	if err := s.db.QueryRow(`select l.github_state, coalesce(l.closed_at,''), l.title, p.description from link l join project p on p.id = l.project_id`).Scan(&state, &closed, &title, &desc); err != nil {
+		t.Fatal(err)
+	}
+	if state != "closed" || closed == "" || title != "Fix the flaky login" || desc != "Fix the flaky login" {
+		t.Fatalf("%q %q %q %q", state, closed, title, desc)
+	}
+	if checks != 0 {
+		t.Fatal("CI checks must not run for issues")
+	}
+	// closed is terminal: not fetched again; an existing description is kept
+	if err := s.SetDescription("m/a", "my own words"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := refreshLinks(s, deps); err != nil || calls != 1 {
+		t.Fatalf("%v calls=%d", err, calls)
+	}
+	ps, _ := s.ListProjects()
+	if ps[0].Description != "my own words" {
+		t.Fatalf("description overwritten: %q", ps[0].Description)
+	}
+}
+
 func TestEllyVerdict(t *testing.T) {
 	cases := []struct {
 		pr     ellyPR

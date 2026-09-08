@@ -73,17 +73,17 @@ const ellyStaleAfter = 30 * time.Minute
 func refreshLinks(s *Store, d linkDeps) (refreshResult, error) {
 	var res refreshResult
 	type open struct {
-		id        int64
-		url, etag string
+		id              int64
+		url, etag, kind string
 	}
-	rows, err := s.db.Query(`select id, url, etag from link where merged = 0 and closed_at is null order by id`)
+	rows, err := s.db.Query(`select id, url, etag, kind from link where merged = 0 and closed_at is null order by id`)
 	if err != nil {
 		return res, err
 	}
 	var opens []open
 	for rows.Next() {
 		var o open
-		if err := rows.Scan(&o.id, &o.url, &o.etag); err != nil {
+		if err := rows.Scan(&o.id, &o.url, &o.etag, &o.kind); err != nil {
 			rows.Close()
 			return res, err
 		}
@@ -122,10 +122,16 @@ func refreshLinks(s *Store, d linkDeps) (refreshResult, error) {
 				where id = ?`, pr.Author, pr.Title, pr.Body, pr.Add, pr.Del, rfcOrEmpty(pr.CreatedAt), rfcOrEmpty(pr.ClosedAt), merged, pr.State, etag, nowS, o.id); err != nil {
 				return res, err
 			}
+			if o.kind == "github_issue" && pr.Title != "" {
+				// an issue's title is the project's intent until the user writes one
+				if _, err := s.db.Exec(`update project set description = ? where description = '' and id = (select project_id from link where id = ?)`, pr.Title, o.id); err != nil {
+					return res, err
+				}
+			}
 			if !pr.Merged && pr.ClosedAt.IsZero() {
 				stillOpen[o.url] = o.id
-				if pr.Author == d.me {
-					mine[o.url] = true
+				if pr.Author == d.me && o.kind != "github_issue" {
+					mine[o.url] = true // CI checks are a PR thing
 				}
 			}
 		}
@@ -222,11 +228,11 @@ func (s *Store) kvSet(key, value string) error {
 // request. A 304 costs no rate limit. gh exits nonzero for non-2xx, so the
 // status line is parsed before the exit code is trusted.
 func ghFetch(url, etag string) (ghPR, int, string, error) {
-	o, r, n, ok := splitPRURL(url)
+	path, ok := apiPath(url)
 	if !ok {
-		return ghPR{}, 0, "", fmt.Errorf("not a GitHub pull request URL: %s", url)
+		return ghPR{}, 0, "", fmt.Errorf("not a GitHub issue or pull request URL: %s", url)
 	}
-	args := []string{"api", "-i", fmt.Sprintf("repos/%s/%s/pulls/%s", o, r, n)}
+	args := []string{"api", "-i", path}
 	if etag != "" {
 		args = append(args, "-H", "If-None-Match: "+etag)
 	}
@@ -265,10 +271,25 @@ func ghFetch(url, etag string) (ghPR, int, string, error) {
 func splitPRURL(url string) (owner, repo, num string, ok bool) {
 	s := strings.TrimPrefix(url, "https://github.com/")
 	parts := strings.Split(s, "/")
-	if len(parts) != 4 || parts[2] != "pull" {
+	if len(parts) != 4 || (parts[2] != "pull" && parts[2] != "issues") {
 		return "", "", "", false
 	}
 	return parts[0], parts[1], parts[3], true
+}
+
+// apiPath maps an issue or pull request URL to its REST resource. Both
+// return state, title, body, user and timestamps; only pulls carry merged
+// and the diff sizes.
+func apiPath(url string) (string, bool) {
+	ref, ok := parseGitHubURL(url)
+	if !ok {
+		return "", false
+	}
+	res := "pulls"
+	if ref.Kind == "github_issue" {
+		res = "issues"
+	}
+	return fmt.Sprintf("repos/%s/%s/%s/%d", ref.Owner, ref.Repo, res, ref.Number), true
 }
 
 // parseHTTPResponse splits `gh api -i` output into status, ETag and body.
