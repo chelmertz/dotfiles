@@ -54,6 +54,18 @@ func parseGitHubURL(s string) (ghRef, bool) {
 // Short is "owner/repo#12".
 func (r ghRef) Short() string { return fmt.Sprintf("%s/%s#%d", r.Owner, r.Repo, r.Number) }
 
+// ghIssueTitle fetches an issue title with a 1.5 s budget: it runs on
+// selection, never before the menu shows, and "" is an acceptable answer.
+func ghIssueTitle(url string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+	defer cancel()
+	out, err := runCmd(ctx, "gh", "issue", "view", url, "--json", "title", "-q", ".title")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
 
 // slug makes a directory-safe name from a title: lowercase, runs of anything

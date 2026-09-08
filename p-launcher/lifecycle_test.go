@@ -195,6 +195,38 @@ func TestPostpone(t *testing.T) {
 	}
 }
 
+func TestResolveNamespaceAndIssuePrompt(t *testing.T) {
+	s := openTestStore(t)
+	asked := 0
+	pick := func(options []string) (string, bool) {
+		asked++
+		if len(options) != 2 || options[0] != "m" {
+			t.Fatalf("options %v", options)
+		}
+		return "m", true
+	}
+	ns, ok, err := resolveNamespace(s, "matchiapp", pick)
+	if err != nil || !ok || ns != "m" || asked != 1 {
+		t.Fatalf("%q %v %v asked=%d", ns, ok, err, asked)
+	}
+	// remembered: not asked again
+	ns, ok, err = resolveNamespace(s, "matchiapp", pick)
+	if err != nil || !ok || ns != "m" || asked != 1 {
+		t.Fatalf("%q %v %v asked=%d", ns, ok, err, asked)
+	}
+	// cancel: nothing stored
+	_, ok, err = resolveNamespace(s, "someone", func([]string) (string, bool) { return "", false })
+	if err != nil || ok || s.NamespaceFor("someone") != "" {
+		t.Fatalf("%v %v %q", ok, err, s.NamespaceFor("someone"))
+	}
+	p := issuePrompt("https://github.com/o/r/issues/12")
+	for _, want := range []string{"https://github.com/o/r/issues/12", "CLAUDE.md", "plan", "stop", "Do not change any code"} {
+		if !strings.Contains(p, want) {
+			t.Fatalf("prompt missing %q", want)
+		}
+	}
+}
+
 func gitInit(t *testing.T, dir string) {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {

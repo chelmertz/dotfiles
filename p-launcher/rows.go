@@ -11,7 +11,8 @@ type Row struct {
 	Text   string
 	Path   string // project path; "" for docked action rows
 	Icon   string // icon name (see iconPaths), presentation only
-	Action string // docked row action: "archived" | "report"; "" for projects
+	Action string // docked row action: archived | report | clip-open | clip-create; "" for projects
+	Arg    string // action argument: project path for clip-open, URL for clip-create
 }
 
 // Rows renders projects (already sorted) into rofi lines: the folder name,

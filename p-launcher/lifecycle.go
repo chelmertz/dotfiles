@@ -231,6 +231,30 @@ func Rename(s *Store, root, path, newName string) (string, error) {
 	return newPath, nil
 }
 
+// resolveNamespace maps a GitHub owner to a namespace dir, asking through
+// pick (and remembering the answer) when the owner is unknown. ok is false
+// when the user cancelled.
+func resolveNamespace(s *Store, owner string, pick func(options []string) (string, bool)) (string, bool, error) {
+	if ns := s.NamespaceFor(owner); ns != "" {
+		return ns, true, nil
+	}
+	options, err := s.Namespaces()
+	if err != nil {
+		return "", false, err
+	}
+	ns, ok := pick(options)
+	if !ok || ns == "" {
+		return "", false, nil
+	}
+	return ns, true, s.SetNamespaceFor(owner, ns)
+}
+
+// issuePrompt is Claude's first message in a project created from an issue:
+// intent and a plan, no code yet. The user is at the keyboard.
+func issuePrompt(url string) string {
+	return fmt.Sprintf(`This project was created from %s. Read the issue (gh issue view), write one sentence of intent into CLAUDE.md under the title, propose a short plan as a numbered list, and stop. Do not change any code yet.`, url)
+}
+
 // contextText summarises one project for the "context" verb: status, ball,
 // links with their state, live sessions, last activity.
 func contextText(s *Store, path string) (string, error) {

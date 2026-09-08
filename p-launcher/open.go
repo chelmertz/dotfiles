@@ -57,7 +57,11 @@ func cleanSegment(s string) bool { return s != "" && s != "." && s != ".." }
 
 // Open focuses the project's terminal if one exists, otherwise launches one,
 // and records the activity. root is ~/p.
-func Open(s *Store, root, path string) error {
+func Open(s *Store, root, path string) error { return openWith(s, root, path, "") }
+
+// openWith is Open with an optional first message for Claude (used when a
+// project is created from an issue, and by tend).
+func openWith(s *Store, root, path, prompt string) error {
 	dir, f, err := projectDir(root, path)
 	if err != nil {
 		return err
@@ -89,7 +93,7 @@ func Open(s *Store, root, path string) error {
 			return err
 		}
 	case actLaunch:
-		cmd, err := launch(dir, tag, "")
+		cmd, err := launch(dir, tag, prompt)
 		if err != nil {
 			return err
 		}

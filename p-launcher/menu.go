@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"os"
 	"os/exec"
@@ -141,11 +142,31 @@ func runRofi(prompt, toggleKey string, input []byte, extra ...string) (out strin
 const (
 	chordArchived = 1
 	chordReport   = 2
+	chordLink     = 3 // link the clipboard URL to the highlighted project
 )
 
 func mainMenuExtra() []string {
-	return []string{"-kb-custom-1", "Alt+a", "-kb-custom-2", "Alt+r",
-		"-mesg", `<span alpha="60%">Alt+a archived · Alt+r report · ns/name creates</span>`}
+	return []string{"-kb-custom-1", "Alt+a", "-kb-custom-2", "Alt+r", "-kb-custom-3", "Alt+l",
+		"-mesg", `<span alpha="60%">Alt+a archived · Alt+r report · Alt+l link clipboard · ns/name creates</span>`}
+}
+
+// clipboardOffer turns the clipboard into at most one docked row at the top:
+// open the project that owns a linked issue/PR URL, or create a project from
+// an unknown issue. Unknown PR URLs get nothing (viewed PRs are rarely a
+// project). Never stores anything by itself.
+func clipboardOffer(clip string, owner func(url string) (string, bool)) (Row, bool) {
+	ref, ok := parseGitHubURL(clip)
+	if !ok {
+		return Row{}, false
+	}
+	muted := func(s string) string { return `<span alpha="45%">` + html.EscapeString(s) + `</span>` }
+	if p, ok := owner(ref.URL); ok {
+		return Row{Text: "open " + html.EscapeString(p) + "\t" + muted("from clipboard · "+ref.Short()), Icon: "clipboard", Action: "clip-open", Arg: p}, true
+	}
+	if ref.Kind == "github_issue" {
+		return Row{Text: "create from " + html.EscapeString(ref.Short()) + "\t" + muted("from clipboard"), Icon: "clipboard", Action: "clip-create", Arg: ref.URL}, true
+	}
+	return Row{}, false
 }
 
 // rowHeightArgs makes rows two lines tall when any project carries a
@@ -193,6 +214,13 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 		ps = onlyParked(ps)
 	}
 	rows := Rows(ps, open, !archived)
+	clip := ""
+	if !archived {
+		clip = readClipboard()
+		if offer, ok := clipboardOffer(clip, s.LinkOwner); ok {
+			rows = append([]Row{offer}, rows...)
+		}
+	}
 	if len(rows) == 0 || (archived && len(ps) == 0) {
 		if archived {
 			notifyInfo("no archived or postponed projects")
@@ -219,12 +247,17 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 	if !ok {
 		return fmt.Errorf("rofi returned unexpected output %q", out)
 	}
-	action := tailOf(rows, idx)
+	action, arg := tailOf(rows, idx), ""
+	if idx >= 0 && idx < len(rows) {
+		arg = rows[idx].Arg
+	}
 	switch key {
 	case chordArchived:
 		action = "archived"
 	case chordReport:
 		action = "report"
+	case chordLink:
+		return linkClipboard(s, clip, rows, idx)
 	}
 	switch action {
 	case "archived":
@@ -232,6 +265,10 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 	case "report":
 		// render all three ranges and open the 30d one; output stays quiet
 		return runReport(reportOpts{rng: "30d", theme: "dark", open: true}, s, filepath.Dir(iconDir), io.Discard)
+	case "clip-open":
+		return Open(s, root, arg)
+	case "clip-create":
+		return createFromIssue(s, root, toggleKey, arg, icons)
 	}
 	if idx < 0 {
 		// typed text that matched no row: offer to create it
@@ -252,6 +289,64 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 		}
 	}
 	return nil
+}
+
+// linkClipboard (Alt+l) attaches the clipboard's GitHub URL to the highlighted
+// project. No URL or no project row: a notification, nothing else.
+func linkClipboard(s *Store, clip string, rows []Row, idx int) error {
+	ref, ok := parseGitHubURL(clip)
+	if !ok {
+		notifyInfo("no GitHub issue or PR URL in the clipboard")
+		return nil
+	}
+	path, ok := selectRow(rows, idx)
+	if !ok {
+		notifyInfo("highlight a project to link " + ref.Short() + " to")
+		return nil
+	}
+	if err := s.AddLinkKind(path, ref.URL, ref.Kind); err != nil {
+		return err
+	}
+	notifyInfo("linked " + ref.Short() + " to " + path)
+	return nil
+}
+
+// createFromIssue is the clip-create offer: namespace from the owner map
+// (asking once when unknown), name from the issue number and title, the
+// issue as first link and its title as description, then Claude opens with
+// an intent-and-plan prompt. The title lookup has a short budget; without a
+// title the name is <repo>-<n> and `links refresh` fills the rest later.
+func createFromIssue(s *Store, root, toggleKey, url string, icons map[string]string) error {
+	ref, ok := parseGitHubURL(url)
+	if !ok {
+		return fmt.Errorf("not a GitHub issue URL: %s", url)
+	}
+	ns, ok, err := resolveNamespace(s, ref.Owner, func(options []string) (string, bool) {
+		var vs []verbRow
+		for _, o := range options {
+			vs = append(vs, verbRow{o, verbCreate, o, "create"})
+		}
+		v, ok, err := pickVerb("namespace for "+ref.Owner, toggleKey, vs, icons)
+		return v.arg, ok && err == nil
+	})
+	if err != nil || !ok {
+		return err
+	}
+	title, _ := ghIssueTitle(ref.URL)
+	path := ns + "/" + issueProjectName(ref.Number, title, ref.Repo)
+	if _, err := Create(s, root, path); err != nil {
+		return err
+	}
+	if title != "" {
+		if err := s.SetDescription(path, title); err != nil {
+			return err
+		}
+	}
+	if err := s.AddLinkKind(path, ref.URL, "github_issue"); err != nil {
+		return err
+	}
+	notifyInfo("created " + path + " from " + ref.Short())
+	return openWith(s, root, path, issuePrompt(ref.URL))
 }
 
 // onlyParked keeps archived and postponed projects: the second list.

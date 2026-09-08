@@ -159,6 +159,9 @@ func TestGoldenRofiMenu(t *testing.T) {
 	}
 	open := map[string]bool{"p:m/reputation": true, "p:m/dependabot": true, "p:m/nginx-ingress": true}
 	rows := rowsAt(ps, open, true, now) // fixed clock: stable durations in the golden
+	if offer, ok := clipboardOffer("https://github.com/matchi/matchi-web/issues/412", func(string) (string, bool) { return "", false }); ok {
+		rows = append([]Row{offer}, rows...) // an unknown issue in the clipboard
+	}
 	// the same arguments menuMode uses for the main list, hint line included
 	cmd := exec.Command("rofi", append(append(rofiArgs("project", "F5"), mainMenuExtra()...), rowHeightArgs(ps)...)...)
 	cmd.Env = append(os.Environ(), "DISPLAY="+display)

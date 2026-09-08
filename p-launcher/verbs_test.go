@@ -106,6 +106,40 @@ func verbTexts(vs []verbRow) []string {
 	return out
 }
 
+func TestClipboardOffer(t *testing.T) {
+	owner := func(url string) (string, bool) {
+		if url == "https://github.com/o/r/pull/7" || url == "https://github.com/o/r/issues/1" {
+			return "m/x", true
+		}
+		return "", false
+	}
+	// linked PR or issue → open the owner
+	r, ok := clipboardOffer("https://github.com/o/r/pull/7#discussion_r1\n", owner)
+	if !ok || r.Action != "clip-open" || r.Arg != "m/x" || r.Icon != "clipboard" || r.Path != "" || !strings.HasPrefix(r.Text, "open m/x\t") {
+		t.Fatalf("%+v %v", r, ok)
+	}
+	// unknown issue → create
+	r, ok = clipboardOffer("https://github.com/o/r/issues/12", owner)
+	if !ok || r.Action != "clip-create" || r.Arg != "https://github.com/o/r/issues/12" || !strings.HasPrefix(r.Text, "create from o/r#12\t") {
+		t.Fatalf("%+v %v", r, ok)
+	}
+	// unknown PR → nothing; junk → nothing
+	if _, ok := clipboardOffer("https://github.com/o/r/pull/99", owner); ok {
+		t.Fatal("unknown PR must not offer")
+	}
+	if _, ok := clipboardOffer("hello", owner); ok {
+		t.Fatal("junk must not offer")
+	}
+	// the offer row is an action row, never a project
+	rows := append([]Row{r}, Rows([]Project{{Path: "m/a", Name: "a", Label: "matchi"}}, nil, true)...)
+	if tailOf(rows, 0) != "clip-create" || rows[0].Arg == "" {
+		t.Fatalf("%+v", rows[0])
+	}
+	if _, ok := selectRow(rows, 0); ok {
+		t.Fatal("offer row must not open as a project")
+	}
+}
+
 func TestRowHeightArgs(t *testing.T) {
 	if got := rowHeightArgs([]Project{{Path: "m/a"}, {Path: "m/b"}}); got != nil {
 		t.Fatalf("no descriptions must keep single-line rows: %v", got)
