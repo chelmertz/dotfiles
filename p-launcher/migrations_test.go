@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -205,5 +206,50 @@ func TestMigratePopulated(t *testing.T) {
 	var updated sql.NullString
 	if err := db.QueryRow(`select etag, github_updated_at from link`).Scan(&etag, &updated); err != nil || etag != "" || updated.Valid {
 		t.Fatalf("etag=%q updated=%v %v", etag, updated, err)
+	}
+}
+
+// TestMigrateLiveCopy runs the migrations against a copy of this machine's
+// live DB, so a migration that only fails on real rows fails here, before
+// home-manager installs the binary and the timer hits it. Skips where there
+// is no live DB (CI, the nix sandbox).
+func TestMigrateLiveCopy(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skip(err)
+	}
+	live := filepath.Join(dataDir(home), "p-launcher", "p.db")
+	if _, err := os.Stat(live); err != nil {
+		t.Skip("no live DB")
+	}
+	dir := t.TempDir()
+	for _, suffix := range []string{"", "-wal"} {
+		b, err := os.ReadFile(live + suffix)
+		if err != nil {
+			if suffix == "" {
+				t.Fatal(err)
+			}
+			continue
+		}
+		if err := os.WriteFile(filepath.Join(dir, "p.db"+suffix), b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("P_LAUNCHER_NOTIFY_LOG", filepath.Join(dir, "notify.log"))
+	s, err := OpenStore(filepath.Join(dir, "p.db"))
+	if err != nil {
+		t.Fatalf("migrating a copy of the live DB: %v", err)
+	}
+	s.Close()
+}
+
+func TestNotifyLog(t *testing.T) {
+	log := filepath.Join(t.TempDir(), "n.log")
+	t.Setenv("P_LAUNCHER_NOTIFY_LOG", log)
+	notify("multi\nline")
+	notifyInfo("hi")
+	b, err := os.ReadFile(log)
+	if err != nil || string(b) != "critical\tp-launcher failed\tmulti line\nlow\tp-launcher\thi\n" {
+		t.Fatalf("%q %v", b, err)
 	}
 }

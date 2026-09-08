@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -288,7 +289,21 @@ func notifyInfo(body string) {
 	notifySend("low", "p-launcher", body)
 }
 
+// notifySend raises a desktop notification, or appends it to the file named
+// by P_LAUNCHER_NOTIFY_LOG when set: development runs and tests against a
+// copy of the live DB must never reach the user's desktop, the same way
+// golden tests keep rofi inside Xvfb.
 func notifySend(urgency, title, body string) {
+	if log := os.Getenv("P_LAUNCHER_NOTIFY_LOG"); log != "" {
+		f, err := os.OpenFile(log, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "p-launcher: notify log:", err)
+			return
+		}
+		defer f.Close()
+		fmt.Fprintf(f, "%s\t%s\t%s\n", urgency, title, strings.ReplaceAll(body, "\n", " "))
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if _, nerr := runCmd(ctx, "notify-send", "-u", urgency, "-a", "p-launcher", title, html.EscapeString(body)); nerr != nil {
