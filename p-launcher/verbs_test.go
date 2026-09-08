@@ -140,6 +140,28 @@ func TestClipboardOffer(t *testing.T) {
 	}
 }
 
+func TestMainMenuExtraHint(t *testing.T) {
+	args := mainMenuExtra("")
+	plain, mesg := strings.Join(args, "\x00"), args[len(args)-1]
+	if strings.Contains(mesg, "Alt+l") || !strings.Contains(plain, "-kb-custom-3\x00Alt+l") {
+		t.Fatalf("without a URL the chord stays registered but is not advertised: %q", plain)
+	}
+	withURL := strings.Join(mainMenuExtra("https://github.com/o/r/pull/7\n"), "\x00")
+	if !strings.Contains(withURL, "\nAlt+l links github.com/o/r/pull/7 to the highlighted project") && !strings.Contains(withURL, `">Alt+l links github.com/o/r/pull/7 to`) {
+		t.Fatalf("%q", withURL)
+	}
+	if strings.Contains(withURL, "https://") {
+		t.Fatal("protocol must be dropped")
+	}
+	long := "https://github.com/" + strings.Repeat("a", 80) + "/r/issues/1"
+	if got := strings.Join(mainMenuExtra(long), "\x00"); !strings.Contains(got, "…") {
+		t.Fatalf("long URL not truncated: %q", got)
+	}
+	if got := truncate("abcdef", 4); got != "abc…" {
+		t.Fatalf("%q", got)
+	}
+}
+
 func TestRowHeightArgs(t *testing.T) {
 	if got := rowHeightArgs([]Project{{Path: "m/a"}, {Path: "m/b"}}); got != nil {
 		t.Fatalf("no descriptions must keep single-line rows: %v", got)

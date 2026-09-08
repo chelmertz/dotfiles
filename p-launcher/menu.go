@@ -145,9 +145,24 @@ const (
 	chordLink     = 3 // link the clipboard URL to the highlighted project
 )
 
-func mainMenuExtra() []string {
-	return []string{"-kb-custom-1", "Alt+a", "-kb-custom-2", "Alt+r", "-kb-custom-3", "Alt+l",
-		"-mesg", `<span alpha="60%">Alt+a archived · Alt+r report · Alt+l link clipboard · ns/name creates</span>`}
+// mainMenuExtra registers the chords and builds the hint line(s). The Alt+l
+// hint appears only when the clipboard holds a GitHub URL, on a second line
+// naming it (host-less, truncated), so the chord is offered when it can act.
+func mainMenuExtra(clip string) []string {
+	mesg := `<span alpha="60%">Alt+a archived · Alt+r report · ns/name creates</span>`
+	if ref, ok := parseGitHubURL(clip); ok {
+		mesg += "\n" + `<span alpha="60%">Alt+l links ` + html.EscapeString(truncate(strings.TrimPrefix(ref.URL, "https://"), 60)) + ` to the highlighted project</span>`
+	}
+	return []string{"-kb-custom-1", "Alt+a", "-kb-custom-2", "Alt+r", "-kb-custom-3", "Alt+l", "-mesg", mesg}
+}
+
+// truncate cuts s to n runes with an ellipsis.
+func truncate(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n-1]) + "…"
 }
 
 // clipboardOffer turns the clipboard into at most one docked row at the top:
@@ -234,7 +249,7 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 		fmt.Fprintln(os.Stderr, "p-launcher: icons unavailable:", err)
 		icons = nil
 	}
-	prompt, extra := "project", mainMenuExtra()
+	prompt, extra := "project", mainMenuExtra(clip)
 	if archived {
 		prompt, extra = "archived / postponed", nil
 	}

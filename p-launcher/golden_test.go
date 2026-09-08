@@ -158,14 +158,15 @@ func TestGoldenRofiMenu(t *testing.T) {
 		{Path: "personal/health", Name: "health", Label: "personal"},
 	}
 	open := map[string]bool{"p:m/reputation": true, "p:m/dependabot": true, "p:m/nginx-ingress": true}
-	rows := rowsAt(ps, open, true, now) // fixed clock: stable durations in the golden
-	if offer, ok := clipboardOffer("https://github.com/matchi/matchi-web/issues/412", func(string) (string, bool) { return "", false }); ok {
-		rows = append([]Row{offer}, rows...) // an unknown issue in the clipboard
+	rows := rowsAt(ps, open, true, now)                       // fixed clock: stable durations in the golden
+	clip := "https://github.com/matchi/matchi-web/issues/412" // an unknown issue in the clipboard
+	if offer, ok := clipboardOffer(clip, func(string) (string, bool) { return "", false }); ok {
+		rows = append([]Row{offer}, rows...)
 	}
-	// the same arguments menuMode uses for the main list, hint line included
+	// the same arguments menuMode uses for the main list, hint lines included
 	// -theme pins the dark variant: the live config follows the system color
 	// scheme (bin/color-scheme), and a golden must not depend on the time of day
-	cmd := exec.Command("rofi", append(append(append(rofiArgs("project", "F5"), mainMenuExtra()...), rowHeightArgs(ps)...), "-theme", "cards-dark")...)
+	cmd := exec.Command("rofi", append(append(append(rofiArgs("project", "F5"), mainMenuExtra(clip)...), rowHeightArgs(ps)...), "-theme", "cards-dark")...)
 	cmd.Env = append(os.Environ(), "DISPLAY="+display)
 	cmd.Stdin = bytes.NewReader(rofiInput(rows, icons))
 	if err := cmd.Start(); err != nil {
