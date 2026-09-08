@@ -122,22 +122,30 @@ colors {
     background         #1e1e1e
     statusline         #8a8a8a        # muted: default block colour
     separator          #292929        # border: thin rule between groups
-    focused_workspace  #8a8a8a #1e1e1e #f2f2f2   # muted hairline, no fill
-    active_workspace   #1e1e1e #1e1e1e #f2f2f2   # visible on the other output
-    inactive_workspace #1e1e1e #1e1e1e #8a8a8a
-    urgent_workspace   #e5484d #1e1e1e #f2f2f2   # red hairline
+    focused_workspace  #1e1e1e #1e1e1e #f2f2f2   # text ramp, no box
+    active_workspace   #1e1e1e #1e1e1e #8a8a8a   # visible on the other output
+    inactive_workspace #1e1e1e #1e1e1e #6a6a6a   # dim
+    urgent_workspace   #e5484d #e5484d #1e1e1e   # the one fill on the bar
     binding_mode       #2a2a2a #2a2a2a #f2f2f2   # field: resize / fkey mode
 }
 ```
 
-The accent fill went first to the quiet variant (`bg bg fg`) and then, after a
-second critique measured it, to a hairline. Marking focus by text colour alone
-put `fg` against `muted`, which is 2.27:1 in light and 3.08:1 in dark, so the
-focused workspace was not identifiable. Every calm fill is under 1.4:1 against
-`bg`, so the 1px border is the only lever left that is a shape difference
-rather than a colour one; `muted` against `bg` clears 3:1 in both schemes.
-Urgent follows the same language, because white on the dark red fill was
-3.91:1 and failed AA text. The accent now marks the focused window only.
+The accent fill went first to a quiet `bg bg fg`, which turned out to be
+unidentifiable: `fg` against `muted` is 2.27:1 in light. A hairline and a fill
+were both tried and both rejected, because i3bar draws the workspace button
+1px from the bar top and 4px from the bottom whatever the padding is set to
+(padding grows the button rather than shifting it), so any edge floats
+off-centre; a border also reintroduced the borders the rest of the bar had
+just dropped.
+
+The cause was the palette, not the lever. `muted` had been darkened to
+`#55555a` for the block glyphs, which left an inactive workspace nearly as
+dark as the focused one. A `dim` token gives the workspace ramp its own
+lighter grey, so text alone carries it: focused `fg`, visible on another
+output `muted`, everything else `dim`, at 6.4:1 between focused and inactive
+in light. `dim` is the bar's own; the rofi template does not use it. Urgent
+keeps a fill as the one alarm on the bar. The accent marks the focused window
+only.
 
 ### Block colour by role
 
