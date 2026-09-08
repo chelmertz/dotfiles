@@ -20,6 +20,17 @@ type reportOpts struct {
 
 var reportRanges = map[string]int{"7d": 7, "30d": 30, "90d": 90}
 
+// refreshInterval matches the systemd timer; a report run inside it trusts
+// the timer's data.
+const refreshInterval = 10 * time.Minute
+
+// refreshDue says whether links should be refreshed before rendering, given
+// kv links.last_refresh ("" when never).
+func refreshDue(last string, now time.Time) bool {
+	t := parseTime(last)
+	return t.IsZero() || now.Sub(t) > refreshInterval
+}
+
 func parseReportFlags(args []string, stderr io.Writer) (reportOpts, error) {
 	var o reportOpts
 	fs := flag.NewFlagSet("report", flag.ContinueOnError)
@@ -56,12 +67,23 @@ func runReport(o reportOpts, s *Store, dataDir string, stdout io.Writer) error {
 	now := time.Now()
 	theme := themes[o.theme]
 	var raw rawData
+	var notes []string
 	if !o.demo {
+		// a link added minutes ago should show: refresh inline when the timer
+		// has not run lately; failures become a footer note, never an error
+		if last, _ := s.kvGet("links.last_refresh"); refreshDue(last, now) {
+			if res, err := refreshLinks(s, realLinkDeps()); err != nil {
+				notes = append(notes, "links refresh failed: "+err.Error())
+			} else if res.Failed > 0 {
+				notes = append(notes, fmt.Sprintf("%d links not refreshed", res.Failed))
+			}
+		}
 		var err error
 		raw, err = loadReportData(s, now.AddDate(0, 0, -90), now)
 		if err != nil {
 			return err
 		}
+		raw.Notes = append(raw.Notes, notes...)
 	}
 	var chosen string
 	for rng, days := range reportRanges {

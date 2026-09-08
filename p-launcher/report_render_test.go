@@ -60,6 +60,13 @@ func TestRenderEmptyStore(t *testing.T) {
 	}
 }
 
+func TestRefreshDue(t *testing.T) {
+	now := ts("2026-09-08T10:00:00Z")
+	if !refreshDue("", now) || !refreshDue("2026-09-08T09:40:00Z", now) || refreshDue("2026-09-08T09:55:00Z", now) {
+		t.Fatal("refreshDue")
+	}
+}
+
 func TestDemoStripDeterministic(t *testing.T) {
 	a, b := demoStrip("you", 100), demoStrip("you", 100)
 	total := 0

@@ -226,8 +226,13 @@ func TestLiveAndStrip(t *testing.T) {
 	if r[0].State != "you" || r[0].Path != "m/x" || r[0].For != "2m 00s" || r[0].Why != "waiting for approval" {
 		t.Fatalf("%+v", r[0])
 	}
-	if r[1].State != "review" || r[1].Path != "m/y" || r[1].Why != "reviewer waiting · o/r#9" {
+	if r[1].State != "review" || r[1].Path != "m/y" || r[1].Why != "reviewer waiting · o/r#9" || r[1].For != "3h 00m" {
 		t.Fatalf("%+v", r[1])
+	}
+	// elly's last activity, when known, is the better "waiting since"
+	links[0].EllyUpdatedAt = now.Add(-25 * time.Minute)
+	if l2 := live([]string{"m/y"}, nil, nil, links, nil, nil, now, 5); l2.rows[0].For != "25m 00s" {
+		t.Fatalf("%+v", l2.rows[0])
 	}
 	if r[2].State != "claude" || r[2].Path != "m/q" || r[2].Why != "turn 1 · started 14:20" {
 		t.Fatalf("%+v", r[2])

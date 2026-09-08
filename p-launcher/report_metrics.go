@@ -22,6 +22,7 @@ type rawLink struct {
 	Project, URL, Author, Title, Body         string
 	Add, Del                                  int
 	OpenedAt, ClosedAt, MergedAt, RefreshedAt time.Time // zero when unknown
+	EllyUpdatedAt                             time.Time // elly's last activity on the PR
 	Merged, ActionNeeded                      bool
 	Rounds                                    int // automatic tend rounds
 }
@@ -784,7 +785,13 @@ func live(paths []string, evs []rawEvent, states []rawState, links []rawLink, op
 			continue
 		}
 		covered[lk.Project] = true
-		review = append(review, LiveRow{State: "review", Label: "REVIEW", Path: lk.Project, For: fmtDur(int(now.Sub(lk.OpenedAt) / time.Second)),
+		// how long the reviewer has been waiting: elly's last activity on the
+		// PR when known, else since the PR was opened
+		since := lk.OpenedAt
+		if !lk.EllyUpdatedAt.IsZero() {
+			since = lk.EllyUpdatedAt
+		}
+		review = append(review, LiveRow{State: "review", Label: "REVIEW", Path: lk.Project, For: fmtDur(int(now.Sub(since) / time.Second)),
 			Why: "reviewer waiting · " + shortPR(lk.URL), Strip: stripFor(bySession[newestSession[lk.Project]], away, now, false)})
 	}
 	if open != nil {
