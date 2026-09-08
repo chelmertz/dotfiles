@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -290,10 +291,22 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 		return createFromIssue(s, root, toggleKey, arg, icons)
 	}
 	if idx < 0 {
-		// typed text that matched no row: offer to create it
-		path := createPathFromTyped(typed)
+		// typed text that matched no row: offer to create it. A bare name
+		// (no "/") is the common case, so the namespace is picked in a
+		// submenu instead of the user retyping "ns/name".
+		path, err := createPathFromTypedOrPick(s, typed, func(options []string) (string, bool) {
+			var vs []verbRow
+			for _, o := range options {
+				vs = append(vs, verbRow{o + "/" + cleanName(typed), verbCreate, o, "create"})
+			}
+			v, ok, err := pickVerb("namespace for "+cleanName(typed), toggleKey, vs, icons)
+			return v.arg, ok && err == nil
+		})
+		if err != nil {
+			return err
+		}
 		if path == "" {
-			notifyInfo("no matching project; type <namespace>/<name> to create one")
+			notifyInfo(typedCreateHint(typed))
 			return nil
 		}
 		return verbMenu(s, root, toggleKey, Project{Path: path}, createRows(path), icons)
@@ -399,6 +412,55 @@ func tailOf(rows []Row, idx int) string {
 
 // isArchivedTail reports whether idx is the "archived…" switch row.
 func isArchivedTail(rows []Row, idx int) bool { return tailOf(rows, idx) == "archived" }
+
+// createPathFromTypedOrPick turns typed text into a project path to create.
+// "ns/name" is taken as is; a bare "name" asks pick which namespace it goes
+// in (the namespace list, never a free-text prompt). "" means the text
+// cannot become a project.
+func createPathFromTypedOrPick(s *Store, typed string, pick func(options []string) (string, bool)) (string, error) {
+	if p := createPathFromTyped(typed); p != "" {
+		return p, nil
+	}
+	name := cleanName(typed)
+	if name == "" {
+		return "", nil
+	}
+	options, err := s.Namespaces()
+	if err != nil {
+		return "", err
+	}
+	if len(options) == 0 {
+		return "", nil
+	}
+	// only a namespace that was offered: cleanSegment alone allows a "/"
+	ns, ok := pick(options)
+	if !ok || !slices.Contains(options, ns) {
+		return "", nil
+	}
+	return ns + "/" + name, nil
+}
+
+// cleanName is the typed text as a project folder name: trimmed, no
+// namespace, and only if it is a usable single segment. "" otherwise.
+func cleanName(typed string) string {
+	t := strings.TrimSpace(typed)
+	if strings.ContainsAny(t, " \t/") || !cleanSegment(t) {
+		return ""
+	}
+	return t
+}
+
+// typedCreateHint says why the typed text cannot become a project.
+func typedCreateHint(typed string) string {
+	t := strings.TrimSpace(typed)
+	switch {
+	case t == "":
+		return "no matching project"
+	case strings.Contains(t, "/"):
+		return "no matching project; \"" + t + "\" is not <namespace>/<name>"
+	}
+	return "no matching project; \"" + t + "\" cannot be a folder name"
+}
 
 // createPathFromTyped accepts exactly "<namespace>/<name>" with clean
 // segments and no spaces; anything else is "".

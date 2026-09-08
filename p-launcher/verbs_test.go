@@ -199,3 +199,61 @@ func TestCreatePathFromTyped(t *testing.T) {
 		}
 	}
 }
+
+// Typing a bare name and pressing Enter must lead to creation, not a
+// dead-end notification: the namespace comes from a submenu (user hit this
+// 2026-09-08 and only saw "type <namespace>/<name> to create one").
+func TestCreatePathFromTypedOrPick(t *testing.T) {
+	s := openTestStore(t)
+	var asked []string
+	pick := func(options []string) (string, bool) { asked = options; return "m", true }
+	// bare name: the namespaces are offered and the choice becomes the path
+	got, err := createPathFromTypedOrPick(s, " newthing ", pick)
+	if err != nil || got != "m/newthing" {
+		t.Fatalf("%q %v", got, err)
+	}
+	if strings.Join(asked, ",") != "m,personal" {
+		t.Fatalf("namespaces offered: %v", asked)
+	}
+	// full path: no picker at all
+	asked = nil
+	if got, err := createPathFromTypedOrPick(s, "personal/thing", pick); err != nil || got != "personal/thing" || asked != nil {
+		t.Fatalf("%q %v %v", got, err, asked)
+	}
+	// cancelled picker, and a picked namespace that is not a clean segment
+	for _, p := range []func([]string) (string, bool){
+		func([]string) (string, bool) { return "", false },
+		func([]string) (string, bool) { return "../etc", true },
+	} {
+		if got, err := createPathFromTypedOrPick(s, "newthing", p); err != nil || got != "" {
+			t.Fatalf("%q %v", got, err)
+		}
+	}
+	// text that can never be a folder name asks nothing
+	asked = nil
+	for _, bad := range []string{"", "  ", "two words", "m/x/y", "m/", "..", "a/../b"} {
+		if got, err := createPathFromTypedOrPick(s, bad, pick); err != nil || got != "" {
+			t.Errorf("%q: got %q %v", bad, got, err)
+		}
+	}
+	if asked != nil {
+		t.Fatalf("picker asked for unusable text: %v", asked)
+	}
+}
+
+func TestCleanNameAndHint(t *testing.T) {
+	for in, want := range map[string]string{" foo ": "foo", "foo": "foo", "m/foo": "", "a b": "", "": "", "..": "", ".": ""} {
+		if got := cleanName(in); got != want {
+			t.Errorf("cleanName(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if h := typedCreateHint("m/x/y"); !strings.Contains(h, "not <namespace>/<name>") {
+		t.Errorf("%q", h)
+	}
+	if h := typedCreateHint("two words"); !strings.Contains(h, "cannot be a folder name") {
+		t.Errorf("%q", h)
+	}
+	if h := typedCreateHint(""); h != "no matching project" {
+		t.Errorf("%q", h)
+	}
+}
