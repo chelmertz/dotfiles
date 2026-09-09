@@ -152,7 +152,6 @@ workspace $ws10 output $monitor_secondary
 bindsym Ctrl+section exec ~/bin/rofi_snippets.sh
 bindsym Shift+section exec ghostty +new-window
 bindsym section exec ~/.local/bin/term-here
-bindsym Scroll_Lock exec ~/.local/bin/rofi.sh
 bindsym $mod+u exec ~/bin/rofi_uni.sh
 bindsym $mod+p exec ~/.local/bin/rofi_power.sh
 bindsym $mod+t exec ~/.local/bin/rofi_timer.sh
