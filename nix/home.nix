@@ -248,6 +248,9 @@ in
     kubectl
     lazydocker
     lazygit
+    # notify-send, called by seven scripts and by i3's config. gamma had it from
+    # Ubuntu's libnotify-bin, so its absence here was invisible until NixOS.
+    libnotify
     libreoffice
     litecli
     lnav
@@ -1211,6 +1214,14 @@ in
             annotations:
               summary: "Domain {{ $labels.domain }} expires in {{ $value }} days"
 
+          - alert: CredentialExpired
+            expr: credential_ok == 0
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.service }} cannot authenticate. gh: gh auth login | elly: open http://localhost:9876 and paste a PAT | dropbox: journalctl --user -u dropbox and follow the link URL"
+
           - alert: SystemdUserUnitFailed
             expr: systemd_user_unit_failed == 1
             for: 5m
@@ -1280,6 +1291,18 @@ in
     Unit.Description = "Collect system health metrics (systemd failures, disk usage) for Prometheus";
     Service = {
       Type = "oneshot";
+      # The credential probes call gh, sqlite3 and dropbox, none of which are
+      # on a unit's default PATH; the nix profile is not either.
+      Environment = "PATH=${
+        lib.makeBinPath [
+          pkgs.coreutils
+          pkgs.gh
+          pkgs.sqlite
+          pkgs.dropbox
+          pkgs.gnugrep
+          pkgs.systemd
+        ]
+      }:/run/current-system/sw/bin";
       ExecStart = "%h/.local/bin/prom-system-health";
     };
   };

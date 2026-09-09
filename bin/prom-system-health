@@ -36,3 +36,44 @@ df --output=target,pcent -x tmpfs -x devtmpfs -x efivarfs -x squashfs | tail -n 
   echo "filesystem_used_percent{mountpoint=\"$mount\"} $pct" >> "$tmpfile"
 done
 mv "$tmpfile" "$PROM_DIR/filesystem.prom"
+
+# Credential health. A systemd unit being active says nothing about whether the
+# thing inside it can authenticate: the tau migration had dropbox running
+# happily unlinked and elly running happily with no token, both with
+# systemd_user_unit_failed at 0. These probe the credential itself. Each is
+# wrapped so a hang or a missing binary reports 0 rather than killing the run.
+tmpfile="$PROM_DIR/credentials.$$.prom"
+cat > "$tmpfile" <<HDR
+# HELP credential_ok 1 if the service can authenticate, 0 if it needs a login
+# TYPE credential_ok gauge
+HDR
+
+probe() { # name, command...
+  local name="$1"; shift
+  if timeout 20 "$@" >/dev/null 2>&1; then
+    echo "credential_ok{service=\"$name\"} 1" >> "$tmpfile"
+  else
+    echo "credential_ok{service=\"$name\"} 0" >> "$tmpfile"
+  fi
+}
+
+probe gh gh auth status
+
+# elly keeps its personal access token in a `pat` table; empty means it fell
+# back to setup mode and is showing nobody's pull requests.
+elly_db="$HOME/.local/share/elly/elly.db"
+if [ -f "$elly_db" ] && [ "$(timeout 20 sqlite3 "$elly_db" 'select count(*) from pat;' 2>/dev/null || echo 0)" -ge 1 ]; then
+  echo 'credential_ok{service="elly"} 1' >> "$tmpfile"
+else
+  echo 'credential_ok{service="elly"} 0' >> "$tmpfile"
+fi
+
+# `dropbox status` prints "Up to date" or "Syncing" once linked, and only
+# loader noise while it is not.
+if timeout 20 dropbox status 2>/dev/null | grep -qE 'Up to date|Syncing|Indexing|Downloading|Uploading'; then
+  echo 'credential_ok{service="dropbox"} 1' >> "$tmpfile"
+else
+  echo 'credential_ok{service="dropbox"} 0' >> "$tmpfile"
+fi
+
+mv "$tmpfile" "$PROM_DIR/credentials.prom"
