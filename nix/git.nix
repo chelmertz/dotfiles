@@ -51,7 +51,15 @@
       ".lein-repl-history"
       # Claude/direnv
       "**/.claude/settings.local.json"
+      # .direnv is the built artifact and is ignored. .envrc and flake.nix are
+      # source: committing them is what makes a repo self-contained, so they
+      # are deliberately absent from this list. For a work repo where the team
+      # does not use nix, use that clone's .git/info/exclude instead of a
+      # global rule.
       ".direnv"
+      # The conventional place for per-checkout secrets a .envrc sources.
+      # Ignored globally so it cannot be committed by accident.
+      ".envrc.local"
     ];
 
     includes = [

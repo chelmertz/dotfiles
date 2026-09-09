@@ -59,6 +59,8 @@
           builtins.elem name [
             "claude-code"
             "dropbox"
+            # jetbrains.idea (IntelliJ IDEA Ultimate); its pname is just "idea"
+            "idea"
             # dropbox's FHS environment bundles a browser for its login flow;
             # it is not the Firefox the system installs.
             "firefox-bin"

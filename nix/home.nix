@@ -207,7 +207,13 @@ in
     # Ubuntu ships Yaru as a system package. XCURSOR_THEME and the three GTK
     # settings files above name it, so on NixOS it comes from here instead;
     # without it every "text" cursor lookup falls back to the legacy X11 I-beam.
-    lib.optionals config.dotfiles.nixos [ pkgs.yaru-theme ]
+    lib.optionals config.dotfiles.nixos [
+      pkgs.yaru-theme
+      # IntelliJ IDEA Ultimate, for the Groovy/Grails work in webapp. NixOS
+      # only: gamma is being retired and this is a large unfree download that
+      # rebuilds locally. Per-project JDKs come from direnv, not from here.
+      pkgs.jetbrains.idea
+    ]
     ++ (with pkgs; [
     acpi
     age
