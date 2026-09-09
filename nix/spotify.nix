@@ -4,11 +4,19 @@ let
   repo = "$HOME/code/github/chelmertz/spotify";
 in
 {
-  # Ensure the spotify data repo is cloned on new machines
+  # Ensure the spotify data repo is cloned on new machines. Two things this
+  # has to survive on a fresh machine. git needs an ssh binary
+  # for the git@ transport and the activation script's PATH has none on NixOS,
+  # where there is no /usr/bin/ssh to fall back on; and a machine that has not
+  # received its GitHub key yet cannot authenticate at all. Neither is a reason
+  # to abort the whole activation, which is what an unguarded clone did.
   home.activation.spotifyRepo = ''
     if [ ! -d "${repo}/.git" ]; then
       mkdir -p "$(dirname "${repo}")"
-      ${pkgs.git}/bin/git clone git@github.com:chelmertz/spotify.git "${repo}"
+      if ! GIT_SSH_COMMAND=${pkgs.openssh}/bin/ssh \
+           ${pkgs.git}/bin/git clone git@github.com:chelmertz/spotify.git "${repo}"; then
+        echo "spotifyRepo: clone failed, leaving it for later (no GitHub key yet?)"
+      fi
     fi
   '';
 
