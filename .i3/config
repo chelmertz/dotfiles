@@ -268,7 +268,6 @@ exec_always --no-startup-id setxkbmap -layout se
 
 exec_always --no-startup-id ~/.local/bin/set-wallpaper
 
-exec --no-startup-id autorandr -l $(autorandr --detected)
 # turn on num look on boot
 exec --no-startup-id xdotool key --clearmodifiers Num_Lock
 exec --no-startup-id ~/.local/bin/i3blocks_screenlayout.sh auto

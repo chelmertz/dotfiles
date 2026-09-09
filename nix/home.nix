@@ -186,7 +186,6 @@ in
     age
     arandr
     asciinema
-    autorandr
     aws-cdk-cli
     autotools-language-server
     awscli2
