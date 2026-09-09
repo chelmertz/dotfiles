@@ -194,7 +194,13 @@
             vim.api.nvim_create_autocmd({ "BufEnter", "FileType" }, {
               callback = function(args)
                 local bin = vim.fn.exepath("keylog")
-                if bin == "" then bin = "keylogger" end
+                if bin == "" then bin = vim.fn.exepath("keylogger") end
+                -- Actually no-op when neither is installed. The old fallback
+                -- assigned the bare name "keylogger" and handed it to
+                -- jobstart, which throws E475 on every BufEnter and FileType
+                -- when it is not on PATH, so opening any file on a machine
+                -- without it was a wall of stack traces.
+                if bin == "" then return end
                 vim.fn.jobstart({
                   bin, "ctx",
                   "--filetype=" .. (vim.bo.filetype or ""),

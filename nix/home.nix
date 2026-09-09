@@ -146,6 +146,12 @@ in
 
   home.sessionVariables = {
     TERMINAL = "ghostty";
+    # nixpkgs installs gsettings schemas under
+    # share/gsettings-schemas/<name>/glib-2.0/schemas, one level deeper than
+    # the share/glib-2.0/schemas that XDG_DATA_DIRS is searched for, so
+    # `gsettings get` answers "No schemas installed" without this. Appending
+    # keeps Ubuntu's /usr/share entries, which is where gamma finds them.
+    XDG_DATA_DIRS = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}\${XDG_DATA_DIRS:+:}\${XDG_DATA_DIRS}";
     CDK_DISABLE_TELEMETRY = "1";
     # ghostty calls gtk_widget_set_cursor_from_name(widget, "text") for
     # the terminal area. The system default (DMZ-White) has no "text"
@@ -237,6 +243,12 @@ in
     gotestsum
     graphviz
     gron
+    # gsettings, and the org.gnome.desktop.interface schema it reads. Ubuntu
+    # supplied both through libglib2.0-bin and its GNOME session; without them
+    # bin/color-scheme cannot read or set the light/dark preference, so the
+    # i3blocks toggle silently did nothing.
+    glib
+    gsettings-desktop-schemas
     highlight-pointer
     html-tidy
     htop
@@ -247,6 +259,9 @@ in
     jq
     jujutsu
     kubectl
+    # keylog: neovim feeds it the current filetype so reports can split usage
+    # by file type. Was a `go install` binary in ~/go/bin on gamma.
+    (callPackage ../keylogger/keylog.nix { })
     lazydocker
     lazygit
     libreoffice
