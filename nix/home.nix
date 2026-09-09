@@ -101,6 +101,7 @@ let
 in
 {
   imports = [
+    ./options.nix
     ./zsh.nix
     ./git.nix
     ./bin.nix

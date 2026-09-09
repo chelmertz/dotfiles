@@ -58,43 +58,59 @@
       };
     in
     {
-      homeConfigurations."ch" = home-manager.lib.homeManagerConfiguration {
-        pkgs = import nixpkgs {
-          inherit system;
-          overlays = [
-            # flameshot 14 routes capture through xdg-desktop-portal and hangs 30s on bare i3/X11
-            (final: prev: { flameshot = pkgsStable.flameshot; })
-            # Unfree packages are not on cache.nixos.org (Hydra will not redistribute
-            # them), so each bump downloads a vendor tarball and unpacks it locally —
-            # 1.4G for vscode alone. Stable lags a release behind but rebuilds rarely.
-            (final: prev: {
-              inherit (pkgsStable)
-                spotify
-                vscode
-                ;
-            })
-            # cli-helpers 2.10.0 ships 3 test_style_output tests that compare hard-coded
-            # ANSI sequences and break against current pygments output.
-            (final: prev: {
-              pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
-                (pyfinal: pyprev: {
-                  cli-helpers = pyprev.cli-helpers.overridePythonAttrs (old: {
-                    disabledTests = (old.disabledTests or [ ]) ++ [
-                      "test_style_output"
-                      "test_style_output_with_newlines"
-                      "test_style_output_custom_tokens"
-                    ];
-                  });
-                })
-              ];
-            })
-            claude-code.overlays.default
-            elly.overlays.default
-            serve.overlays.default
-          ];
-          config = unfreeConfig;
+      homeConfigurations =
+        let
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [
+              # flameshot 14 routes capture through xdg-desktop-portal and hangs 30s on bare i3/X11
+              (final: prev: { flameshot = pkgsStable.flameshot; })
+              # Unfree packages are not on cache.nixos.org (Hydra will not redistribute
+              # them), so each bump downloads a vendor tarball and unpacks it locally —
+              # 1.4G for vscode alone. Stable lags a release behind but rebuilds rarely.
+              (final: prev: {
+                inherit (pkgsStable)
+                  spotify
+                  vscode
+                  ;
+              })
+              # cli-helpers 2.10.0 ships 3 test_style_output tests that compare hard-coded
+              # ANSI sequences and break against current pygments output.
+              (final: prev: {
+                pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
+                  (pyfinal: pyprev: {
+                    cli-helpers = pyprev.cli-helpers.overridePythonAttrs (old: {
+                      disabledTests = (old.disabledTests or [ ]) ++ [
+                        "test_style_output"
+                        "test_style_output_with_newlines"
+                        "test_style_output_custom_tokens"
+                      ];
+                    });
+                  })
+                ];
+              })
+              claude-code.overlays.default
+              elly.overlays.default
+              serve.overlays.default
+            ];
+            config = unfreeConfig;
+          };
+          mkHome =
+            extraModules:
+            home-manager.lib.homeManagerConfiguration {
+              inherit pkgs;
+              modules = [ ./home.nix ] ++ extraModules;
+            };
+        in
+        {
+          # gamma, Ubuntu 24.04. home-manager reaches "ch" only after
+          # "ch@<hostname>" misses, so this is the fallback for any host
+          # without an entry of its own.
+          "ch" = mkHome [ ];
+          # tau, NixOS. This hostname must equal networking.hostName in
+          # hosts/tau/configuration.nix, or the lookup falls through to "ch"
+          # and applies the Ubuntu variant.
+          "ch@tau" = mkHome [ { dotfiles.nixos = true; } ];
         };
-        modules = [ ./home.nix ];
-      };
     };
 }
