@@ -165,7 +165,12 @@ in
   '';
 
   # for standard packages, without any custom configuration; otherwise, remove from this list and do "program.myprogram = { enable = true; .. other options}"
-  home.packages = with pkgs; [
+  home.packages =
+    # Ubuntu ships Yaru as a system package. XCURSOR_THEME and the three GTK
+    # settings files above name it, so on NixOS it comes from here instead;
+    # without it every "text" cursor lookup falls back to the legacy X11 I-beam.
+    lib.optionals config.dotfiles.nixos [ pkgs.yaru-theme ]
+    ++ (with pkgs; [
     acpi
     age
     arandr
@@ -326,7 +331,7 @@ in
     yt-dlp
     zip
     zizmor
-  ];
+  ]);
 
   programs.home-manager.enable = true;
 
@@ -471,7 +476,10 @@ in
     # terminal-launched ghostty inherits these from the shell env, hiding the
     # bug). Same wrapping wezterm uses below. Patch desktop/dbus/systemd
     # entries too so launches go through the wrapper, not the original binary.
-    package = pkgs.symlinkJoin {
+    # NixOS serves both from the system closure and the /usr paths below do not
+    # exist there, so the whole wrapper is dropped — including the cursor
+    # variables, which the NixOS session provides through XCURSOR_PATH.
+    package = if config.dotfiles.nixos then pkgs.ghostty else pkgs.symlinkJoin {
       name = "ghostty";
       paths = [ pkgs.ghostty ];
       buildInputs = [ pkgs.makeWrapper ];
@@ -691,7 +699,8 @@ in
     enable = true;
     # On non-NixOS, wezterm can't find system OpenGL/EGL libraries.
     # This wrapper adds the system library path so libEGL.so.1 is found.
-    package = pkgs.symlinkJoin {
+    # NixOS needs none of it.
+    package = if config.dotfiles.nixos then pkgs.wezterm else pkgs.symlinkJoin {
       name = "wezterm-wrapped";
       paths = [ pkgs.wezterm ];
       buildInputs = [ pkgs.makeWrapper ];
