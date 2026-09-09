@@ -138,7 +138,14 @@ nix-collect-garbage
 
 ## Packages staying outside nix
 
-These are intentionally kept as apt/system/other and should not be migrated:
+**This table is about gamma only.** It records what stayed outside nix on
+Ubuntu, and most rows no longer describe tau, where the system layer is
+declared in `hosts/tau/`: Docker, i3, the GDM session, Firefox, 1Password,
+Emacs, Java and gamemode are all in the flake there, and the GNOME-coupled
+rows simply do not exist. Read it as gamma's inventory until that machine is
+handed in, at which point the section goes with it.
+
+These are intentionally kept as apt/system/other on gamma:
 
 | Package | Source | Reason |
 |---------|--------|--------|
@@ -152,7 +159,7 @@ These are intentionally kept as apt/system/other and should not be migrated:
 | Dropbox | apt | Daemon complexity |
 | Emacs + Doom | apt (PPA) | Fragile, keeping until new computer |
 | Java 11 | apt | Keep as-is |
-| Rustup + cargo | ~/.cargo | Toolchain management; image-sorter not in nixpkgs |
+| Rustup + cargo | ~/.cargo | Toolchain management |
 | Firefox | apt (Mozilla repo) | snap confinement blocks 1Password native messaging; pinned via /etc/apt/preferences.d/mozilla |
 | 1Password (gui + cli) | apt (1Password repo) | nix can't run the privileged post-install (onepassword group, setgid on 1Password-BrowserSupport, polkit policy in /usr/share/polkit-1/actions/) needed for desktop↔extension integration and polkit unlock |
 | gamemode | apt | Keep as-is |
