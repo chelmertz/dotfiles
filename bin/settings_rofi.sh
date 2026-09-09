@@ -3,7 +3,7 @@
 set -euo pipefail
 
 if [ -z "$@" ]; then
-    printf "gnome-control-center\npavucontrol\nalsamixer\narandr"
+    printf "pavucontrol\nalsamixer\narandr"
 else
     case $1 in
         alsamixer)
@@ -11,7 +11,7 @@ else
             # ghostty in home.nix and works on both hosts.
             coproc ("${TERMINAL:-ghostty}" -e alsamixer)
             ;;
-        gnome-control-center | pavucontrol | arandr)
+        pavucontrol | arandr)
             # see https://github.com/davatorium/rofi/issues/857
             # for hint about coproc
             coproc ("$1")
