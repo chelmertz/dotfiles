@@ -161,10 +161,9 @@
       "nix-command"
       "flakes"
     ];
-    trusted-users = [
-      "root"
-      "ch"
-    ];
+    # root is trusted unconditionally by NixOS; naming it here only produced a
+    # duplicate entry in the generated nix.conf.
+    trusted-users = [ "ch" ];
     auto-optimise-store = true;
     # gamma set 8 on 16 threads. The Gen 12 has fewer; revisit after `lscpu`.
     max-jobs = 6;
@@ -205,11 +204,12 @@
 
     # i3 session glue. Ubuntu pulled these in as dependencies of its i3
     # metapackage and home-manager installs none of them, but .i3/config calls
-    # every one.
+    # every one by name. polkit_gnome is deliberately absent: home.nix appends
+    # its exec as an absolute store path, so the agent comes from the
+    # home-manager closure and a copy here would be dead weight.
     i3lock
     xss-lock
     networkmanagerapplet
-    polkit_gnome
     xorg.xset
     xorg.setxkbmap
     # For pactl only; the server is pipewire.
