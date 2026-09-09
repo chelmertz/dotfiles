@@ -124,12 +124,16 @@
   # without it there is nowhere for libsecret clients to keep anything: `gh`
   # stores its token here (gamma's reports "(keyring)"), so on a machine
   # without it gh either refuses or falls back to plaintext in hosts.yml.
-  # Enabling the service alone only unlocks the keyring for the `login` PAM
-  # stack, not for GDM, so the display manager's stack is named explicitly.
+  #
+  # This one line is enough for GDM too. It puts pam_gnome_keyring into the
+  # `login` stack, and /etc/pam.d/gdm-password is nothing but a substack of
+  # `login`, so the keyring unlocks on a graphical login as well; setting
+  # enableGnomeKeyring on gdm-password as well produces a byte-identical
+  # system and was removed.
+  #
   # A fingerprint login cannot unlock it: the reader yields no password to
   # derive the key from, so that path prompts separately.
   services.gnome.gnome-keyring.enable = true;
-  security.pam.services.gdm-password.enableGnomeKeyring = true;
 
   # ── Network ─────────────────────────────────────────────────────────────
   networking.networkmanager.enable = true;
