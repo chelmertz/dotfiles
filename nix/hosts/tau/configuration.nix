@@ -120,6 +120,17 @@
   # PAM file did. Enrolment is imperative: fprintd-enroll, after first boot.
   services.fprintd.enable = true;
 
+  # The D-Bus secret service. Ubuntu supplied it through its GNOME session, and
+  # without it there is nowhere for libsecret clients to keep anything: `gh`
+  # stores its token here (gamma's reports "(keyring)"), so on a machine
+  # without it gh either refuses or falls back to plaintext in hosts.yml.
+  # Enabling the service alone only unlocks the keyring for the `login` PAM
+  # stack, not for GDM, so the display manager's stack is named explicitly.
+  # A fingerprint login cannot unlock it: the reader yields no password to
+  # derive the key from, so that path prompts separately.
+  services.gnome.gnome-keyring.enable = true;
+  security.pam.services.gdm-password.enableGnomeKeyring = true;
+
   # ── Network ─────────────────────────────────────────────────────────────
   networking.networkmanager.enable = true;
   networking.firewall = {
