@@ -1,11 +1,6 @@
 { ... }:
 {
   home.file = {
-    ".local/bin/apply-ansible.sh" = {
-      source = ../bin/apply-ansible.sh;
-      executable = true;
-    };
-
     ".local/bin/autotag.py" = {
       source = ../bin/autotag.py;
       executable = true;

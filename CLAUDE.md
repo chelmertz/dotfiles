@@ -5,7 +5,8 @@
   has checked out. From a worktree, apply with
   `home-manager --option warn-dirty false switch --flake ./nix#ch`.
 - Every change in this repo must be applied with `home-manager switch`; a commit alone
-  changes nothing on the machine.
+  changes nothing on the machine. On tau, changes under `nix/hosts/tau/` are the
+  exception: they need `sudo nixos-rebuild switch --flake ~/.config/home-manager#tau`.
 - `nixpkgs` tracks nixos-unstable, `nixpkgs-stable` tracks the current NixOS release.
   An overlay in `nix/flake.nix` takes spotify and vscode from `pkgsStable` because
   unfree packages are not on cache.nixos.org and every bump rebuilds them locally.
