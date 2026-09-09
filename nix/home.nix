@@ -237,6 +237,16 @@ in
     evince
     exercism
     fd
+    # All present on gamma from apt and assumed by scripts here: ffmpeg by
+    # qt_to_mp4, mute_mp4 and record_screen; zenity by bin/uses for its
+    # dialogs; pdfinfo (poppler) by bin/pdftitle. dig and mtr are already on
+    # the http-monitor unit's own PATH, but not on a shell's, and that script
+    # exists to debug DNS by hand.
+    ffmpeg
+    zenity
+    poppler-utils
+    dnsutils
+    mtr
     ff2mpv-go
     feh
     figlet
