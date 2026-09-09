@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # stolen from https://askubuntu.com/a/296579/7525
 

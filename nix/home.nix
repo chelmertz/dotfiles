@@ -280,6 +280,11 @@ in
     (callPackage ../keylogger/keylog.nix { })
     lazydocker
     lazygit
+    # notify-send, called by seven scripts and by i3's config. gamma had it
+    # from Ubuntu's libnotify-bin; the package here ships the binary in its
+    # default output, but it had only ever appeared in two writeShellApplication
+    # runtimeInputs, which does not put it on PATH.
+    libnotify
     libreoffice
     litecli
     lnav
@@ -935,11 +940,12 @@ in
   };
 
   xresources.properties = {
-    # good for curved external monitor at home. 70 is tuned for gamma's 15.6"
-    # panel; tau's 14" is denser, so this is the first thing to revisit there.
-    "Xft.dpi" = 70;
-    "rofi.dpi" = 70;
-    "*.dpi" = 70;
+    # good for curved external monitor at home. 70 suited gamma's 15.6" panel;
+    # tau is the same 1920x1200 on 14", about 11% denser, so 78 keeps text the
+    # same physical size.
+    "Xft.dpi" = 78;
+    "rofi.dpi" = 78;
+    "*.dpi" = 78;
     "Xcursor.size" = 24;
   };
 

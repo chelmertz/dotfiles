@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Debug helper for pipelines - shows data flowing through while passing it along
 
 label="${1:-debug}"

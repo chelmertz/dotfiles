@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 uuid=$(python3 -c 'from uuid import uuid4; print(str(uuid4()));')
 echo -n "$uuid" | xclip -i -selection primary
