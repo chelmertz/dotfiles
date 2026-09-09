@@ -69,6 +69,13 @@ case $1 in
 		fi
 		;;
 	*)
+		# i3blocks runs this with no arguments for BOTH a click and an ordinary
+		# status refresh; only a click sets BLOCK_BUTTON. Without that guard the
+		# picker opened by itself whenever i3blocks started or restarted, and
+		# the block rendered whatever rofi's cancelled output left behind.
+		if [ -z "${BLOCK_BUTTON:-}" ]; then
+			exit 0
+		fi
 		layout=$(echo -e "both\nlaptop only\nexternal only\nreconnect" | rofi -dmenu -p "Choose screen layout" -l 4)
 		;;
 esac
