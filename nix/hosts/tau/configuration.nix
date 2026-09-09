@@ -60,6 +60,14 @@
   services.xserver.xkb.layout = "se";
   services.libinput.enable = true;
 
+  # nixos-hardware's 12th-gen module hardcodes "TPPS/2 Synaptics TrackPoint",
+  # but this machine (21KC005XMX) reports "TPPS/2 Elan TrackPoint" in
+  # /proc/bus/input/devices. The module builds a udev rule matching
+  # ATTR{name}, so with the wrong name every trackpoint setting silently does
+  # nothing — including emulateWheel, which is middle-button scrolling.
+  # nixpkgs' own option documentation notes newer ThinkPads use the Elan name.
+  hardware.trackpoint.device = lib.mkForce "TPPS/2 Elan TrackPoint";
+
   # keyd remaps below evdev, so keylog (keylogger/) sees the real Esc and
   # Ctrl rather than the synthesised ones an X-level remap produces. This must
   # stay equal to keyd/default.conf, gamma's copy of the same rule.
