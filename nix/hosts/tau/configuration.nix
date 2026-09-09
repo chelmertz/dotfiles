@@ -135,6 +135,16 @@
     enable = true;
     nssmdns4 = true;
     openFirewall = true;
+    # Publish this host's name, so `tau.local` resolves from any machine on
+    # the same network. Without it avahi only *discovers* (it was enabled for
+    # the printer) and tau could be reached only by an address that DHCP
+    # changes on every new network — an office LAN makes a remembered address
+    # and a subnet scan equally useless.
+    publish = {
+      enable = true;
+      addresses = true;
+      workstation = true;
+    };
   };
 
   # ── Login ───────────────────────────────────────────────────────────────
