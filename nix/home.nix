@@ -201,6 +201,7 @@ in
     copyq
     delve
     dos2unix
+    dropbox
     (symlinkJoin {
       name = "element-desktop";
       paths = [ element-desktop ];
@@ -1321,9 +1322,12 @@ in
       StartLimitBurst = 20;
     };
     Service = {
-      # dropboxd is a thin shell wrapper in ~/.dropbox-dist that execs the
-      # current versioned binary, so ExecStart stays stable across updates.
-      ExecStart = "%h/.dropbox-dist/dropboxd";
+      # Was %h/.dropbox-dist/dropboxd, the proprietary daemon that Ubuntu's
+      # dropbox package downloads into $HOME on first run. Nothing puts it
+      # there on NixOS, so the unit died with 203/EXEC in a restart loop.
+      # nixpkgs ships the same daemon inside a bubblewrap FHS environment,
+      # which is a real store path and survives a fresh machine.
+      ExecStart = "${pkgs.dropbox}/bin/dropbox";
       Restart = "on-failure";
       RestartSec = 10;
     };

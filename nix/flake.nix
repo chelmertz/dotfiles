@@ -58,6 +58,11 @@
           in
           builtins.elem name [
             "claude-code"
+            "dropbox"
+            # dropbox's FHS environment bundles a browser for its login flow;
+            # it is not the Firefox the system installs.
+            "firefox-bin"
+            "firefox-bin-unwrapped"
             "slack"
             "spotify"
             "vscode"
