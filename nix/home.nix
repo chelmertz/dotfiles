@@ -155,6 +155,13 @@ in
 
   home.sessionVariables = {
     TERMINAL = "ghostty";
+    # Private modules must not be fetched through the public proxy or checked
+    # against the public sum database; without this, `go` asks proxy.golang.org
+    # for a repo it cannot see and reports a 404 rather than a permission
+    # error. git.nix's insteadOf rewrite then carries the fetch over SSH.
+    # This lived only in an untracked ~/.config/go/env on gamma, so a new
+    # machine silently lost it.
+    GOPRIVATE = "github.com/matchiapp/*";
     # nixpkgs installs gsettings schemas under
     # share/gsettings-schemas/<name>/glib-2.0/schemas, one level deeper than
     # the share/glib-2.0/schemas that XDG_DATA_DIRS is searched for, so
