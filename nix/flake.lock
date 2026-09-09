@@ -21,6 +21,26 @@
         "type": "github"
       }
     },
+    "disko": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs-stable"
+        ]
+      },
+      "locked": {
+        "lastModified": 1781152676,
+        "narHash": "sha256-RxWs5ND31KzTG7wvMM+PMfUjyNpmIEr999lqNARaM5o=",
+        "owner": "nix-community",
+        "repo": "disko",
+        "rev": "ff8702b4de27f72b4c78573dfb89ec74e36abdf1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "disko",
+        "type": "github"
+      }
+    },
     "elly": {
       "inputs": {
         "nixpkgs": [
@@ -61,6 +81,26 @@
         "type": "github"
       }
     },
+    "nixos-hardware": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1788942796,
+        "narHash": "sha256-CLoJCCRi9sogsyGXYn8rOCWBLKAntfKUB9Rli/YXgEY=",
+        "owner": "NixOS",
+        "repo": "nixos-hardware",
+        "rev": "83bbc895120516d6e86885a188c04beced6535d9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "nixos-hardware",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1788179007,
@@ -79,16 +119,16 @@
     },
     "nixpkgs-stable": {
       "locked": {
-        "lastModified": 1782847189,
-        "narHash": "sha256-twXPFqFsrrY5r28Zh7Homgcp2gUMBgQ6WDS98Q/3xFI=",
+        "lastModified": 1788921488,
+        "narHash": "sha256-8+xWRxEkD6l217cIUdRxfeUGS9lQX0hVtUuNVsBaDzk=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "b6018f87da91d19d0ab4cf979885689b469cdd41",
+        "rev": "6aefcda9401be8acc2b74244fb3b37520ea1f0a8",
         "type": "github"
       },
       "original": {
         "owner": "nixos",
-        "ref": "nixos-25.11",
+        "ref": "nixos-26.05",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -96,8 +136,10 @@
     "root": {
       "inputs": {
         "claude-code": "claude-code",
+        "disko": "disko",
         "elly": "elly",
         "home-manager": "home-manager",
+        "nixos-hardware": "nixos-hardware",
         "nixpkgs": "nixpkgs",
         "nixpkgs-stable": "nixpkgs-stable",
         "serve": "serve"
