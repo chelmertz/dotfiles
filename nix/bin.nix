@@ -196,16 +196,6 @@
       executable = true;
     };
 
-    ".local/bin/image-deleter" = {
-      source = ../bin/image-deleter;
-      executable = true;
-    };
-
-    ".local/bin/image-sorter-inbox" = {
-      source = ../bin/image-sorter-inbox;
-      executable = true;
-    };
-
     ".local/bin/indentify.js" = {
       source = ../bin/indentify.js;
       executable = true;
