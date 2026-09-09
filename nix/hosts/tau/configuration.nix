@@ -38,6 +38,16 @@
   };
   console.keyMap = "sv-latin1";
 
+  # The LUKS passphrase is typed in the initrd, and there the Swedish layout
+  # was not being applied: nixpkgs puts systemd-vconsole-setup.service,
+  # loadkeys and the sv-latin1 keymap into the initrd, but nothing starts the
+  # unit. Its trigger upstream is systemd's 90-vconsole.rules, which is not
+  # among the 14 udev rules the initrd ships, and every other unit only orders
+  # itself After= it. Without this the prompt takes the kernel's built-in US
+  # layout, so any passphrase containing a character that moves between the
+  # two layouts would be untypeable at boot.
+  boot.initrd.systemd.services.systemd-vconsole-setup.wantedBy = [ "sysinit.target" ];
+
   # ── Storage ─────────────────────────────────────────────────────────────
   # A file, not a partition: resizing is editing this number. Sized for memory
   # pressure only, since hibernate is out of scope and it need not hold RAM.
