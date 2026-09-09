@@ -107,6 +107,7 @@ in
 {
   imports = [
     ./options.nix
+    ./jdk.nix
     ./zsh.nix
     ./git.nix
     ./bin.nix

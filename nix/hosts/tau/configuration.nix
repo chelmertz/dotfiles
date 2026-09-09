@@ -77,6 +77,14 @@
   # scripts — while the same command worked fine in a terminal, because a login
   # shell does source them. Ubuntu papered over this by having GDM read
   # ~/.profile, which its libglib/desktop packages populate.
+  # ~/.local/bin on PATH for every session. Sourcing home-manager's session
+  # vars below is not enough: the NixOS session wrapper sets PATH again
+  # afterwards and drops what that file prepended, exactly as it does with
+  # XDG_DATA_DIRS. Without this, every i3 binding naming a script by bare name
+  # fails — mod+space and mod+n among them — while the same command works in a
+  # terminal, because a login shell does source it.
+  environment.localBinInPath = true;
+
   services.xserver.displayManager.sessionCommands = ''
     if [ -f "$HOME/.nix-profile/etc/profile.d/hm-session-vars.sh" ]; then
       . "$HOME/.nix-profile/etc/profile.d/hm-session-vars.sh"

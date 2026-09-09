@@ -124,7 +124,6 @@
       }
     ]
   },
-  "model": "claude-fable-5-1[1m]",
   "theme": "light-daltonized",
   "tui": "fullscreen",
   "editorMode": "vim",
