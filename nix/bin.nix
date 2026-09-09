@@ -56,6 +56,11 @@
       executable = true;
     };
 
+    ".local/bin/http-monitor.sh" = {
+      source = ../bin/http-monitor.sh;
+      executable = true;
+    };
+
     ".local/bin/i3-project" = {
       source = ../bin/i3-project;
       executable = true;

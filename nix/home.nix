@@ -366,6 +366,40 @@ in
   # eight abandoned projects when this was added). Expiring the roots is the only
   # way to reach that space; direnv rebuilds the cache on the next cd.
   # tmpfiles cannot express this: its globs do not recurse to arbitrary depth.
+  # Was a */2 line in the user's crontab, which lived only on the machine. The
+  # repo's `crontab` file was a copy of Ubuntu's commented default and goes
+  # with this change. The PATH is explicit because the script shells out to
+  # dig and mtr, which are not on a NixOS login PATH.
+  systemd.user.services.http-monitor = {
+    Unit.Description = "Sample HTTP reachability";
+    Service = {
+      Type = "oneshot";
+      Environment = "PATH=${
+        lib.makeBinPath [
+          pkgs.bash
+          pkgs.coreutils
+          pkgs.curl
+          pkgs.dnsutils
+          pkgs.gawk
+          pkgs.iproute2
+          pkgs.iputils
+          pkgs.mtr
+        ]
+      }";
+      ExecStart = "%h/.local/bin/http-monitor.sh";
+    };
+  };
+
+  systemd.user.timers.http-monitor = {
+    Unit.Description = "Sample HTTP reachability every two minutes";
+    Timer = {
+      OnBootSec = "2m";
+      OnUnitActiveSec = "2m";
+      Unit = "http-monitor.service";
+    };
+    Install.WantedBy = [ "timers.target" ];
+  };
+
   systemd.user.services.direnv-prune = {
     Unit.Description = "Expire stale .direnv gcroots";
     Service = {
@@ -865,7 +899,8 @@ in
   };
 
   xresources.properties = {
-    # good for curved external monitor at home
+    # good for curved external monitor at home. 70 is tuned for gamma's 15.6"
+    # panel; tau's 14" is denser, so this is the first thing to revisit there.
     "Xft.dpi" = 70;
     "rofi.dpi" = 70;
     "*.dpi" = 70;
