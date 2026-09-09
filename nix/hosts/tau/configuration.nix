@@ -267,6 +267,21 @@
 
     docker-compose
     git
+
+    # The schemas themselves; the session variable above points at them.
+    gsettings-desktop-schemas
+  ];
+
+  # gsettings schemas, at the system level. home-manager can only prepend to
+  # XDG_DATA_DIRS from its own session-vars file, and the NixOS session wrapper
+  # sets XDG_DATA_DIRS again afterwards, dropping it: the running session had
+  # TERMINAL from that file but no schema path, so `gsettings get` answered
+  # "No schemas installed" and the i3blocks light/dark toggle silently failed.
+  # Declared here it is part of the session environment before any wrapper runs.
+  # nixpkgs nests schemas one level deeper than the share/glib-2.0/schemas that
+  # XDG_DATA_DIRS is searched for, hence the long path.
+  environment.sessionVariables.XDG_DATA_DIRS = [
+    "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}"
   ];
 
   # nix/fonts.nix installs the coding and UI faces into the user profile but no
