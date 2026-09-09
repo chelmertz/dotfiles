@@ -795,8 +795,11 @@ in
         adjustment-method = "randr";
       };
     };
-    latitude = 57.7363152;
-    longitude = 12.1292249;
+    # One decimal, not seven: this repository is public, and seven decimals is
+    # a street address. Redshift only needs the latitude accurate enough to
+    # compute sunset, where a tenth of a degree is well under a minute.
+    latitude = 57.7;
+    longitude = 12.1;
   };
 
   # Safety net: if redshift was toggled off via i3blocks during the day,
