@@ -1,0 +1,240 @@
+# tau: ThinkPad X1 Carbon Gen 12, NixOS. This is the layer Ubuntu provided on
+# gamma — the X session, keyd, Docker, printing, audio, and the desktop apps
+# that came from apt, PPAs and .deb repositories. Everything user-level stays
+# in home.nix and is applied separately with `home-manager switch`.
+#
+# The design notes for this file are outside the repository, at
+# ~/p/m/new-laptop/docs/tau-nixos-design.md, because they inventory the
+# machine and this repository is public.
+{ config, lib, pkgs, ... }:
+{
+  # ── Boot ────────────────────────────────────────────────────────────────
+  # Secure Boot must be OFF in firmware. Ubuntu booted through a signed shim;
+  # systemd-boot has no signed loader without lanzaboote, which is out of
+  # scope for this baseline.
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
+  boot.initrd.systemd.enable = true;
+
+  # ── Identity ────────────────────────────────────────────────────────────
+  # home-manager resolves homeConfigurations."ch@tau" from this name. Change it
+  # and a bare `home-manager switch` falls back to "ch", gamma's Ubuntu
+  # configuration, with no error.
+  networking.hostName = "tau";
+
+  time.timeZone = "Europe/Stockholm";
+  i18n.defaultLocale = "en_US.UTF-8";
+  # gamma's /etc/default/locale: English messages, Swedish everything else.
+  i18n.extraLocaleSettings = {
+    LC_ADDRESS = "sv_SE.UTF-8";
+    LC_IDENTIFICATION = "sv_SE.UTF-8";
+    LC_MEASUREMENT = "sv_SE.UTF-8";
+    LC_MONETARY = "sv_SE.UTF-8";
+    LC_NAME = "sv_SE.UTF-8";
+    LC_NUMERIC = "sv_SE.UTF-8";
+    LC_PAPER = "sv_SE.UTF-8";
+    LC_TELEPHONE = "sv_SE.UTF-8";
+    LC_TIME = "sv_SE.UTF-8";
+  };
+  console.keyMap = "sv-latin1";
+
+  # ── Storage ─────────────────────────────────────────────────────────────
+  # A file, not a partition: resizing is editing this number. Sized for memory
+  # pressure only, since hibernate is out of scope and it need not hold RAM.
+  swapDevices = [
+    {
+      device = "/var/lib/swapfile";
+      size = 8 * 1024;
+    }
+  ];
+
+  # ── X session ───────────────────────────────────────────────────────────
+  # gamma runs exactly this: gdm3 starting the i3 xsession. GDM rather than
+  # lightdm because it is what gamma has and it handles fingerprint login.
+  services.xserver.enable = true;
+  services.xserver.windowManager.i3.enable = true;
+  services.displayManager.gdm.enable = true;
+  services.displayManager.defaultSession = "none+i3";
+  # .i3/config also runs `setxkbmap -layout se`, which covers keyboards that
+  # appear after the session starts. This covers the greeter.
+  services.xserver.xkb.layout = "se";
+  services.libinput.enable = true;
+
+  # keyd remaps below evdev, so keylog (keylogger/) sees the real Esc and
+  # Ctrl rather than the synthesised ones an X-level remap produces. This must
+  # stay equal to keyd/default.conf, gamma's copy of the same rule.
+  services.keyd = {
+    enable = true;
+    keyboards.default = {
+      ids = [ "*" ];
+      settings.main.capslock = "overload(control, esc)";
+    };
+  };
+
+  # ── Audio, Bluetooth, printing ──────────────────────────────────────────
+  services.pipewire = {
+    enable = true;
+    alsa.enable = true;
+    alsa.support32Bit = true;
+    # .i3/config binds the volume keys to pactl and several i3blocks scripts
+    # call it, so the PulseAudio interface has to be present.
+    pulse.enable = true;
+  };
+
+  hardware.bluetooth = {
+    enable = true;
+    powerOnBoot = true;
+  };
+
+  # HP Color LaserJet MFP M281fdw, found over the network.
+  services.printing = {
+    enable = true;
+    drivers = [ pkgs.hplip ];
+  };
+  services.avahi = {
+    enable = true;
+    nssmdns4 = true;
+    openFirewall = true;
+  };
+
+  # ── Login ───────────────────────────────────────────────────────────────
+  # Wires fingerprint into GDM and sudo, which is what gamma's gdm-fingerprint
+  # PAM file did. Enrolment is imperative: fprintd-enroll, after first boot.
+  services.fprintd.enable = true;
+
+  # ── Network ─────────────────────────────────────────────────────────────
+  networking.networkmanager.enable = true;
+  networking.firewall = {
+    enable = true;
+    allowedTCPPorts = [ 22 ];
+  };
+
+  # Needed for the nixos-anywhere install and for rsync from gamma. Keys only:
+  # this laptop leaves the house.
+  services.openssh = {
+    enable = true;
+    settings = {
+      PasswordAuthentication = false;
+      KbdInteractiveAuthentication = false;
+      PermitRootLogin = "prohibit-password";
+    };
+  };
+
+  virtualisation.docker.enable = true;
+
+  # ── Users ───────────────────────────────────────────────────────────────
+  users.users.ch = {
+    isNormalUser = true;
+    shell = pkgs.zsh;
+    # gamma's groups minus lpadmin, lxd and sambashare, which were unused.
+    # video is for brightnessctl without sudo, input for keylog reading
+    # /dev/input/event*.
+    extraGroups = [
+      "wheel"
+      "docker"
+      "video"
+      "input"
+      "networkmanager"
+    ];
+    # This repository is public, so no credential appears in it. The file is
+    # root-owned and 0600, seeded during the install with nixos-anywhere's
+    # --extra-files; generate it with `mkpasswd -m yescrypt`. If it is missing
+    # at boot the account is locked rather than open, which is the right way
+    # to fail.
+    hashedPasswordFile = "/etc/local/passwd-ch";
+  };
+  # No authorizedKeys here either. sshd reads ~/.ssh/authorized_keys by
+  # default, and ~/.ssh arrives with the data migration, which tau initiates
+  # as a pull from gamma and so needs no inbound access first. Root gets no
+  # keys at all: nixos-anywhere authenticates against the installer, not the
+  # installed system.
+
+  # Registers zsh as a login shell. The configuration itself is home-manager's.
+  programs.zsh.enable = true;
+
+  # ── Nix ─────────────────────────────────────────────────────────────────
+  # On gamma these live in /etc/nix/nix.conf, root-owned, because
+  # home-manager's nix.settings writes the *user* nix.conf, which the daemon
+  # ignores for all of them. Here they are just options.
+  nix.settings = {
+    experimental-features = [
+      "nix-command"
+      "flakes"
+    ];
+    trusted-users = [
+      "root"
+      "ch"
+    ];
+    auto-optimise-store = true;
+    # gamma set 8 on 16 threads. The Gen 12 has fewer; revisit after `lscpu`.
+    max-jobs = 6;
+  };
+  # The user profile keeps its own gc timer in home.nix with the same policy.
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    randomizedDelaySec = "45min";
+    options = "--delete-older-than 14d";
+  };
+
+  # ── Foreign package formats ─────────────────────────────────────────────
+  # An AppImage expects an FHS root and will not start on NixOS without this.
+  # binfmt makes ./foo.AppImage work directly, as it does elsewhere.
+  programs.appimage = {
+    enable = true;
+    binfmt = true;
+  };
+  # hishtory, maestro, bun and rustup install prebuilt, dynamically linked
+  # binaries into $HOME. Without a loader at /lib64/ld-linux-x86-64.so.2 they
+  # fail to start; this provides one.
+  programs.nix-ld.enable = true;
+
+  # ── Applications Ubuntu supplied ────────────────────────────────────────
+  programs.firefox.enable = true;
+  programs._1password.enable = true;
+  programs._1password-gui = {
+    enable = true;
+    polkitPolicyOwners = [ "ch" ];
+  };
+  programs.steam.enable = true;
+
+  environment.systemPackages = with pkgs; [
+    # From a .deb repository and a PPA respectively.
+    code-cursor
+    emacs
+
+    # i3 session glue. Ubuntu pulled these in as dependencies of its i3
+    # metapackage and home-manager installs none of them, but .i3/config calls
+    # every one.
+    i3lock
+    xss-lock
+    networkmanagerapplet
+    polkit_gnome
+    xorg.xset
+    xorg.setxkbmap
+    # For pactl only; the server is pipewire.
+    pulseaudio
+
+    # bin/rofi_timer.sh plays bell.oga and complete.oga from this theme.
+    sound-theme-freedesktop
+
+    docker-compose
+    git
+  ];
+
+  # nix/fonts.nix installs the coding and UI faces into the user profile but no
+  # colour emoji, which rofimoji needs, and no metric-compatible fallbacks,
+  # which LibreOffice and the web expect.
+  fonts.packages = with pkgs; [
+    noto-fonts-color-emoji
+    dejavu_fonts
+    liberation_ttf
+  ];
+
+  hardware.graphics.enable = true;
+  services.fwupd.enable = true;
+
+  # The first release installed on this machine. Never bump it on an existing
+  # install: it selects state-format compatibility, not package versions.
+  system.stateVersion = "26.05";
+}
