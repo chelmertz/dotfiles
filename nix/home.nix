@@ -120,7 +120,18 @@ in
   xsession.windowManager.i3 = {
     enable = true;
     config = null;
-    extraConfig = builtins.readFile ../.i3/config;
+    # The polkit agent renders password prompts for anything that talks to
+    # polkitd (1Password system auth, GNOME Settings, mounting drives,
+    # pkexec). It sits at a different path on each host and .i3/config is read
+    # verbatim, so the exec is appended here rather than written there.
+    extraConfig =
+      builtins.readFile ../.i3/config
+      + (
+        if config.dotfiles.nixos then
+          "exec --no-startup-id ${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1\n"
+        else
+          "exec --no-startup-id /usr/lib/policykit-1-gnome/polkit-gnome-authentication-agent-1\n"
+      );
   };
   # i3blocks reads it at startup only; after a change, i3 must restart in
   # place (mod+shift+r) so i3bar respawns i3blocks.
@@ -992,7 +1003,7 @@ in
         sticky_history = true;
         history_length = 20;
         dmenu = "rofi -dmenu -p dunst";
-        browser = "/usr/bin/xdg-open";
+        browser = "${pkgs.xdg-utils}/bin/xdg-open";
         always_run_script = true;
         title = "Dunst";
         class = "Dunst";
@@ -1248,8 +1259,12 @@ in
       Description = "Domain Expiry Exporter";
     };
     Service = {
-      ExecStart = "/usr/bin/docker run --rm --name domain-exporter -p 9222:9222 docker.io/caarlos0/domain_exporter";
-      ExecStop = "/usr/bin/docker stop domain-exporter";
+      # The client must match the host daemon, so this is a bare name rather
+      # than a store path: /run/current-system/sw/bin on NixOS, /usr/bin on
+      # Ubuntu.
+      Environment = "PATH=/run/current-system/sw/bin:/usr/bin:/bin";
+      ExecStart = "docker run --rm --name domain-exporter -p 9222:9222 docker.io/caarlos0/domain_exporter";
+      ExecStop = "docker stop domain-exporter";
       Restart = "on-failure";
     };
     Install = {

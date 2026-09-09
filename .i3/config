@@ -21,10 +21,6 @@ exec --no-startup-id xss-lock --transfer-sleep-lock -- sh -c 'p-launcher desktop
 # and nm-applet is a desktop environment-independent system tray GUI for it.
 exec_always --no-startup-id nm-applet
 
-# polkit auth agent: renders password prompts for apps that talk to polkitd
-# (1Password system auth, GNOME Settings, mounting drives, pkexec).
-exec --no-startup-id /usr/lib/policykit-1-gnome/polkit-gnome-authentication-agent-1
-
 # Use pactl to adjust volume in PulseAudio.
 bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume @DEFAULT_SINK@ +10%
 bindsym XF86AudioLowerVolume exec --no-startup-id pactl set-sink-volume @DEFAULT_SINK@ -10%
@@ -211,7 +207,7 @@ bindsym F4 exec --no-startup-id i3-project switch 4
 set $p_launcher_key F5
 bindsym $p_launcher_key exec --no-startup-id systemd-cat -t p-launcher p-launcher menu --toggle-key $p_launcher_key
 bindsym F6 exec --no-startup-id i3-project switch 6
-bindsym F7 exec /home/ch/.local/bin/ror.py steam /usr/bin/steam; workspace number $ws7
+bindsym F7 exec /home/ch/.local/bin/ror.py steam steam; workspace number $ws7
 bindsym F8 exec --no-startup-id i3-project switch 8
 bindsym F9 exec --no-startup-id /home/ch/.local/bin/ror.py Slack slack; workspace number $ws9
 bindsym F10 workspace number $ws10
