@@ -322,6 +322,11 @@ in
     prometheus-blackbox-exporter
     prometheus-node-exporter
     prr
+    # 11 scripts in bin/ are python3, including ror.py, which F2 and F7 use to
+    # raise-or-run Firefox and Steam. gamma had python3 from Ubuntu, so nothing
+    # here ever declared it. orgparse is the only non-stdlib import across them
+    # and was a pip install on gamma, per nix/README.md.
+    (python3.withPackages (ps: [ ps.orgparse ]))
     qbittorrent
     qrencode
     ripdrag
