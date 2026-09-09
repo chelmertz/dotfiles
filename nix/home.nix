@@ -62,10 +62,14 @@ let
         tray_output primary
         tray_padding 4
         workspace_min_width 40
-        # 14 right so the last block clears the screen edge (i3bar only insets
-        # the statusline when a tray shares the output), 10 left to match.
-        # Vertical stays 0: nothing on the bar has an edge to give air to.
-        padding 0 14 0 10
+        # No `padding` here, deliberately. i3bar offsets the drawn statusline
+        # by it but computes click coordinates without it, so every block's
+        # clickable region sat ~24px right of its glyph: clicking the redshift
+        # bulb did nothing and clicking the bluetooth icon toggled redshift.
+        # Measured on i3 4.24 by screenshotting the bar, locating each glyph by
+        # pixel column and clicking with xdotool. The right-edge air the
+        # padding gave is now separator_block_width on the last block in
+        # .i3blocks.conf, which i3bar does account for.
         colors {
             background         ${c.bg}
             statusline         ${c.fg}
