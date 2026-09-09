@@ -37,6 +37,7 @@
 
   outputs =
     {
+      self,
       nixpkgs,
       nixpkgs-stable,
       home-manager,
@@ -125,5 +126,35 @@
           # and applies the Ubuntu variant.
           "ch@tau" = mkHome [ { dotfiles.nixos = true; } ];
         };
+
+      # tau's system layer. home.nix is applied separately by home-manager,
+      # which resolves "ch@tau" from networking.hostName below.
+      nixosConfigurations.tau = nixpkgs-stable.lib.nixosSystem {
+        inherit system;
+        modules = [
+          disko.nixosModules.disko
+          nixos-hardware.nixosModules.lenovo-thinkpad-x1-12th-gen
+          ./hosts/tau/disko.nix
+          ./hosts/tau/hardware.nix
+          ./hosts/tau/configuration.nix
+          # Unfree, and each was an apt or .deb package on gamma. Named
+          # individually for the same reason unfreeConfig above does it: an
+          # unexpected unfree dependency should fail the build, not slip in.
+          {
+            nixpkgs.config.allowUnfreePredicate =
+              pkg:
+              builtins.elem (pkg.pname or "") [
+                "1password"
+                "1password-cli"
+                "cursor"
+                "steam"
+                "steam-original"
+                "steam-run"
+                "steam-unwrapped"
+              ];
+          }
+          { system.configurationRevision = self.rev or "dirty"; }
+        ];
+      };
     };
 }
