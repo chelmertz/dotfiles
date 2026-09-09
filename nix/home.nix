@@ -101,6 +101,7 @@ let
 in
 {
   imports = [
+    ./options.nix
     ./zsh.nix
     ./git.nix
     ./bin.nix
@@ -119,7 +120,18 @@ in
   xsession.windowManager.i3 = {
     enable = true;
     config = null;
-    extraConfig = builtins.readFile ../.i3/config;
+    # The polkit agent renders password prompts for anything that talks to
+    # polkitd (1Password system auth, GNOME Settings, mounting drives,
+    # pkexec). It sits at a different path on each host and .i3/config is read
+    # verbatim, so the exec is appended here rather than written there.
+    extraConfig =
+      builtins.readFile ../.i3/config
+      + (
+        if config.dotfiles.nixos then
+          "exec --no-startup-id ${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1\n"
+        else
+          "exec --no-startup-id /usr/lib/policykit-1-gnome/polkit-gnome-authentication-agent-1\n"
+      );
   };
   # i3blocks reads it at startup only; after a change, i3 must restart in
   # place (mod+shift+r) so i3bar respawns i3blocks.
@@ -164,12 +176,16 @@ in
   '';
 
   # for standard packages, without any custom configuration; otherwise, remove from this list and do "program.myprogram = { enable = true; .. other options}"
-  home.packages = with pkgs; [
+  home.packages =
+    # Ubuntu ships Yaru as a system package. XCURSOR_THEME and the three GTK
+    # settings files above name it, so on NixOS it comes from here instead;
+    # without it every "text" cursor lookup falls back to the legacy X11 I-beam.
+    lib.optionals config.dotfiles.nixos [ pkgs.yaru-theme ]
+    ++ (with pkgs; [
     acpi
     age
     arandr
     asciinema
-    autorandr
     aws-cdk-cli
     autotools-language-server
     awscli2
@@ -185,6 +201,7 @@ in
     copyq
     delve
     dos2unix
+    dropbox
     (symlinkJoin {
       name = "element-desktop";
       paths = [ element-desktop ];
@@ -325,7 +342,7 @@ in
     yt-dlp
     zip
     zizmor
-  ];
+  ]);
 
   programs.home-manager.enable = true;
 
@@ -342,6 +359,10 @@ in
   # Age-based cleanup of noisy log/cache dirs (runs daily via systemd-tmpfiles --user)
   systemd.user.tmpfiles.rules = [
     "e %h/.gradle/daemon/*/*.log - - - 7d"
+    # node-exporter reads this directory and prom-system-health writes to it.
+    # It had only ever been created by hand, so on a new machine both failed:
+    # the collector found nothing and the writer exited 1 on its first run.
+    "d %h/.local/share/prometheus/textfile 0755 - - -"
   ];
 
   # Every .direnv registers a gcroot, and nix has no TTL for those — a root is
@@ -349,6 +370,40 @@ in
   # eight abandoned projects when this was added). Expiring the roots is the only
   # way to reach that space; direnv rebuilds the cache on the next cd.
   # tmpfiles cannot express this: its globs do not recurse to arbitrary depth.
+  # Was a */2 line in the user's crontab, which lived only on the machine. The
+  # repo's `crontab` file was a copy of Ubuntu's commented default and goes
+  # with this change. The PATH is explicit because the script shells out to
+  # dig and mtr, which are not on a NixOS login PATH.
+  systemd.user.services.http-monitor = {
+    Unit.Description = "Sample HTTP reachability";
+    Service = {
+      Type = "oneshot";
+      Environment = "PATH=${
+        lib.makeBinPath [
+          pkgs.bash
+          pkgs.coreutils
+          pkgs.curl
+          pkgs.dnsutils
+          pkgs.gawk
+          pkgs.iproute2
+          pkgs.iputils
+          pkgs.mtr
+        ]
+      }";
+      ExecStart = "%h/.local/bin/http-monitor.sh";
+    };
+  };
+
+  systemd.user.timers.http-monitor = {
+    Unit.Description = "Sample HTTP reachability every two minutes";
+    Timer = {
+      OnBootSec = "2m";
+      OnUnitActiveSec = "2m";
+      Unit = "http-monitor.service";
+    };
+    Install.WantedBy = [ "timers.target" ];
+  };
+
   systemd.user.services.direnv-prune = {
     Unit.Description = "Expire stale .direnv gcroots";
     Service = {
@@ -470,7 +525,10 @@ in
     # terminal-launched ghostty inherits these from the shell env, hiding the
     # bug). Same wrapping wezterm uses below. Patch desktop/dbus/systemd
     # entries too so launches go through the wrapper, not the original binary.
-    package = pkgs.symlinkJoin {
+    # NixOS serves both from the system closure and the /usr paths below do not
+    # exist there, so the whole wrapper is dropped — including the cursor
+    # variables, which the NixOS session provides through XCURSOR_PATH.
+    package = if config.dotfiles.nixos then pkgs.ghostty else pkgs.symlinkJoin {
       name = "ghostty";
       paths = [ pkgs.ghostty ];
       buildInputs = [ pkgs.makeWrapper ];
@@ -690,7 +748,8 @@ in
     enable = true;
     # On non-NixOS, wezterm can't find system OpenGL/EGL libraries.
     # This wrapper adds the system library path so libEGL.so.1 is found.
-    package = pkgs.symlinkJoin {
+    # NixOS needs none of it.
+    package = if config.dotfiles.nixos then pkgs.wezterm else pkgs.symlinkJoin {
       name = "wezterm-wrapped";
       paths = [ pkgs.wezterm ];
       buildInputs = [ pkgs.makeWrapper ];
@@ -844,7 +903,8 @@ in
   };
 
   xresources.properties = {
-    # good for curved external monitor at home
+    # good for curved external monitor at home. 70 is tuned for gamma's 15.6"
+    # panel; tau's 14" is denser, so this is the first thing to revisit there.
     "Xft.dpi" = 70;
     "rofi.dpi" = 70;
     "*.dpi" = 70;
@@ -982,7 +1042,7 @@ in
         sticky_history = true;
         history_length = 20;
         dmenu = "rofi -dmenu -p dunst";
-        browser = "/usr/bin/xdg-open";
+        browser = "${pkgs.xdg-utils}/bin/xdg-open";
         always_run_script = true;
         title = "Dunst";
         class = "Dunst";
@@ -1238,8 +1298,15 @@ in
       Description = "Domain Expiry Exporter";
     };
     Service = {
-      ExecStart = "/usr/bin/docker run --rm --name domain-exporter -p 9222:9222 docker.io/caarlos0/domain_exporter";
-      ExecStop = "/usr/bin/docker stop domain-exporter";
+      # The client must match the host daemon, so it cannot be a store path:
+      # /run/current-system/sw/bin on NixOS, /usr/bin on Ubuntu. systemd
+      # resolves the ExecStart binary itself against a fixed list of
+      # directories and ignores the unit's own PATH, so a bare `docker` here
+      # failed with status 203/EXEC on NixOS. Going through a shell makes the
+      # lookup use the PATH below, which names both hosts' locations.
+      Environment = "PATH=/run/current-system/sw/bin:/usr/bin:/bin";
+      ExecStart = ''${pkgs.bash}/bin/bash -c "exec docker run --rm --name domain-exporter -p 9222:9222 docker.io/caarlos0/domain_exporter"'';
+      ExecStop = ''${pkgs.bash}/bin/bash -c "exec docker stop domain-exporter"'';
       Restart = "on-failure";
     };
     Install = {
@@ -1255,9 +1322,12 @@ in
       StartLimitBurst = 20;
     };
     Service = {
-      # dropboxd is a thin shell wrapper in ~/.dropbox-dist that execs the
-      # current versioned binary, so ExecStart stays stable across updates.
-      ExecStart = "%h/.dropbox-dist/dropboxd";
+      # Was %h/.dropbox-dist/dropboxd, the proprietary daemon that Ubuntu's
+      # dropbox package downloads into $HOME on first run. Nothing puts it
+      # there on NixOS, so the unit died with 203/EXEC in a restart loop.
+      # nixpkgs ships the same daemon inside a bubblewrap FHS environment,
+      # which is a real store path and survives a fresh machine.
+      ExecStart = "${pkgs.dropbox}/bin/dropbox";
       Restart = "on-failure";
       RestartSec = 10;
     };

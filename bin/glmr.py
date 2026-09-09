@@ -1,1 +1,0 @@
-/home/ch/gitlab_mr_bot/glmr.py

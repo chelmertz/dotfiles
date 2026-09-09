@@ -298,10 +298,6 @@
   (interactive)
   (find-file (expand-file-name "~/Dropbox/orgzly/elvaco.org")))
 
-(defun edit-ansible ()
-  (interactive)
-  (find-file (expand-file-name "~/code/github/chelmertz/dotfiles/ansible-laptop.yml")))
-
 (defun capture-into-journal ()
   (interactive)
   (org-capture nil "j"))
@@ -319,7 +315,6 @@
  "," 'helm-buffers-list
  "r" 'org-refile
  "w" 'kill-buffer-and-window
- "m" 'edit-ansible
  "t" 'org-to-plaintext-to-clipboard
  "h" 'org-export-to-html-and-open
 )

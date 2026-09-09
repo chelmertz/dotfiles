@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+# The freedesktop sound theme lives under /usr/share on Ubuntu and under
+# /run/current-system/sw/share on NixOS. Take whichever exists.
+# Seeded rather than left unset: `set -u` below would abort the timer at the
+# moment it fires if neither directory existed.
+SOUNDS=/usr/share/sounds/freedesktop/stereo
+for d in "$SOUNDS" /run/current-system/sw/share/sounds/freedesktop/stereo; do
+    [ -d "$d" ] && SOUNDS="$d" && break
+done
+
 set -euo pipefail
 #set -x
 
@@ -19,7 +28,7 @@ d() {
     urg=normal
     if [ "$seconds" -lt 6 ]; then
         urg=critical
-        paplay /usr/share/sounds/freedesktop/stereo/bell.oga
+        paplay "$SOUNDS/bell.oga"
     fi
     sec_string=$(format_seconds "$secs")
     code=$(dunstify --appname "Timer" --urgency="$urg" --timeout 1000 --block --replace="$an_id" "$timer_name $sec_string")
@@ -36,7 +45,7 @@ while [[ $seconds -gt 0 ]]; do
     seconds=$((seconds - 1))
     if [ "$seconds" -eq 0 ]; then
         dunstify --appname "Timer" --replace="$an_id" --urgency=critical "Timer '$timer_name' done, $initial seconds passed" "$(date)"
-        paplay /usr/share/sounds/freedesktop/stereo/complete.oga
+        paplay "$SOUNDS/complete.oga"
         if [ "$timer_name" != "default" ]; then
             spd-say "$timer_name"
         fi

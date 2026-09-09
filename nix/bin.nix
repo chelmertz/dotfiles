@@ -1,11 +1,6 @@
 { ... }:
 {
   home.file = {
-    ".local/bin/apply-ansible.sh" = {
-      source = ../bin/apply-ansible.sh;
-      executable = true;
-    };
-
     ".local/bin/autotag.py" = {
       source = ../bin/autotag.py;
       executable = true;
@@ -53,6 +48,11 @@
 
     ".local/bin/sync-app-settings" = {
       source = ../bin/sync-app-settings;
+      executable = true;
+    };
+
+    ".local/bin/http-monitor.sh" = {
+      source = ../bin/http-monitor.sh;
       executable = true;
     };
 

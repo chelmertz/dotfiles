@@ -2,6 +2,30 @@
 
 Declarative package management for user environment.
 
+## Two hosts
+
+`gamma` is Ubuntu 24.04 with home-manager on top; `tau` is NixOS. This flake
+carries both.
+
+| Attribute | Host | Applied with |
+|---|---|---|
+| `homeConfigurations.ch` | gamma | `home-manager switch` |
+| `homeConfigurations."ch@tau"` | tau | `home-manager switch` |
+| `nixosConfigurations.tau` | tau | `sudo nixos-rebuild switch --flake ~/.config/home-manager#tau` |
+
+The `home-manager` script tries `$USER@$(hostname)` before `$USER`, so the bare
+command is right on both. `dotfiles.nixos` in `options.nix` is what differs
+between them: the EGL wrappers, the polkit agent path and the Yaru cursor
+package are Ubuntu-only.
+
+On tau the system layer is a second thing to apply. A change under
+`hosts/tau/` needs `nixos-rebuild`, not `home-manager switch`. `flake.lock` is
+shared, so `bin/nix-bump` moves both hosts at once.
+
+This repository is public, so no credential, key or address belongs in it.
+`hosts/tau/configuration.nix` reads the account password from a file placed
+during the install rather than declaring one.
+
 ## Setup
 
 ### 1. Install Nix
@@ -140,4 +164,4 @@ These are intentionally kept as apt/system/other and should not be migrated:
 
 ## Legacy
 
-`ansible-laptop.yml` is archived (commented out). Docker setup is the only remaining manual step - see comments in that file.
+The `ansible-laptop.yml` playbook is gone. What it documented is now either declared in `hosts/tau/configuration.nix` (Docker, the video and input groups, keyd, the nix daemon settings) or, for the pieces that stay imperative on Ubuntu, only relevant to gamma until it is retired.
