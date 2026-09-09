@@ -415,7 +415,9 @@ in
     Service = {
       Type = "oneshot";
       ExecStart = "${pkgs.python3}/bin/python3 %h/.local/bin/obsidian-poll";
-      Environment = "PATH=${pkgs.gh}/bin:${pkgs.git}/bin:/usr/bin:/bin";
+      # The script shells out to find as well as gh and git; on Ubuntu that
+      # came from /usr/bin, which does not exist on NixOS.
+      Environment = "PATH=${pkgs.gh}/bin:${pkgs.git}/bin:${pkgs.findutils}/bin:${pkgs.coreutils}/bin:/usr/bin:/bin";
     };
   };
 

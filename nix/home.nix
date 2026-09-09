@@ -358,6 +358,10 @@ in
   # Age-based cleanup of noisy log/cache dirs (runs daily via systemd-tmpfiles --user)
   systemd.user.tmpfiles.rules = [
     "e %h/.gradle/daemon/*/*.log - - - 7d"
+    # node-exporter reads this directory and prom-system-health writes to it.
+    # It had only ever been created by hand, so on a new machine both failed:
+    # the collector found nothing and the writer exited 1 on its first run.
+    "d %h/.local/share/prometheus/textfile 0755 - - -"
   ];
 
   # Every .direnv registers a gcroot, and nix has no TTL for those — a root is
@@ -1293,12 +1297,15 @@ in
       Description = "Domain Expiry Exporter";
     };
     Service = {
-      # The client must match the host daemon, so this is a bare name rather
-      # than a store path: /run/current-system/sw/bin on NixOS, /usr/bin on
-      # Ubuntu.
+      # The client must match the host daemon, so it cannot be a store path:
+      # /run/current-system/sw/bin on NixOS, /usr/bin on Ubuntu. systemd
+      # resolves the ExecStart binary itself against a fixed list of
+      # directories and ignores the unit's own PATH, so a bare `docker` here
+      # failed with status 203/EXEC on NixOS. Going through a shell makes the
+      # lookup use the PATH below, which names both hosts' locations.
       Environment = "PATH=/run/current-system/sw/bin:/usr/bin:/bin";
-      ExecStart = "docker run --rm --name domain-exporter -p 9222:9222 docker.io/caarlos0/domain_exporter";
-      ExecStop = "docker stop domain-exporter";
+      ExecStart = ''${pkgs.bash}/bin/bash -c "exec docker run --rm --name domain-exporter -p 9222:9222 docker.io/caarlos0/domain_exporter"'';
+      ExecStop = ''${pkgs.bash}/bin/bash -c "exec docker stop domain-exporter"'';
       Restart = "on-failure";
     };
     Install = {
