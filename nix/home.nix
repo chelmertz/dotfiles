@@ -1243,6 +1243,14 @@ in
             annotations:
               summary: "Domain {{ $labels.domain }} expires in {{ $value }} days"
 
+          - alert: CredentialExpired
+            expr: credential_ok == 0
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.service }} cannot authenticate. gh: gh auth login | elly: open http://localhost:9876 and paste a PAT | dropbox: journalctl --user -u dropbox and follow the link URL"
+
           - alert: SystemdUserUnitFailed
             expr: systemd_user_unit_failed == 1
             for: 5m
@@ -1312,6 +1320,19 @@ in
     Unit.Description = "Collect system health metrics (systemd failures, disk usage) for Prometheus";
     Service = {
       Type = "oneshot";
+      # The credential probes call gh and sqlite3, neither of which is on a
+      # unit's default PATH; the user's nix profile is not on it either. With
+      # no PATH set the probes could not find gh at all and reported a logged
+      # out account on a machine that was logged in.
+      Environment = "PATH=${
+        lib.makeBinPath [
+          pkgs.coreutils
+          pkgs.gh
+          pkgs.sqlite
+          pkgs.gnugrep
+          pkgs.systemd
+        ]
+      }:/run/current-system/sw/bin";
       ExecStart = "%h/.local/bin/prom-system-health";
     };
   };
