@@ -68,6 +68,20 @@
   # .i3/config also runs `setxkbmap -layout se`, which covers keyboards that
   # appear after the session starts. This covers the greeter.
   services.xserver.xkb.layout = "se";
+
+  # GDM starts the NixOS `none+i3` session, whose script reads no shell rc and
+  # no ~/.profile, so nothing sourced home-manager's session variables: i3 ran
+  # with TERMINAL, XCURSOR_THEME and the gsettings schema path unset, and
+  # without ~/.local/bin on PATH. Every bare-name call to a script there failed
+  # from inside the session — rofi's modi, mod+1..8 project switching, the bar
+  # scripts — while the same command worked fine in a terminal, because a login
+  # shell does source them. Ubuntu papered over this by having GDM read
+  # ~/.profile, which its libglib/desktop packages populate.
+  services.xserver.displayManager.sessionCommands = ''
+    if [ -f "$HOME/.nix-profile/etc/profile.d/hm-session-vars.sh" ]; then
+      . "$HOME/.nix-profile/etc/profile.d/hm-session-vars.sh"
+    fi
+  '';
   services.libinput.enable = true;
 
   # nixos-hardware's 12th-gen module hardcodes "TPPS/2 Synaptics TrackPoint",

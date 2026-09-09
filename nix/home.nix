@@ -144,6 +144,15 @@ in
 
   news.display = "silent";
 
+  # zsh.nix puts these on PATH for interactive shells, but the graphical
+  # session reads no shell rc at all, so they have to be in the session vars
+  # too. Without it every bare-name call to one of these scripts from i3 or
+  # rofi failed with "no such file or directory".
+  home.sessionPath = [
+    "$HOME/.local/bin"
+    "$HOME/bin"
+  ];
+
   home.sessionVariables = {
     TERMINAL = "ghostty";
     # nixpkgs installs gsettings schemas under
