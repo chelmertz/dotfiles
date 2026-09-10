@@ -6,9 +6,7 @@ description: Use when starting or resuming work in a ~/p project, writing or upd
 # Project state in ~/p
 
 Each `~/p/<namespace>/<name>` is one initiative. A session there is short-lived
-and replaceable; the files below are what survives it. Six projects
-independently converged on this layout before it was written down - this skill
-names it so tools can find it and sessions stop re-deriving it.
+and replaceable; the files below are what survives it.
 
 ## The files, by job
 

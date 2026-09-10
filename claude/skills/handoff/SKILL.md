@@ -6,22 +6,18 @@ argument-hint: "[what was just finished, optional]"
 
 # Hand off
 
-Context now, measured from this project's newest transcript:
-
-!`f=$(ls -t ~/.claude/projects/$(pwd | sed 's#/#-#g')/*.jsonl 2>/dev/null | head -1); if [ -n "$f" ]; then tail -400 "$f" | jq -s -r '[.[]|select(.message.usage)]|last|.message.usage|"  \((((.input_tokens//0)+(.cache_creation_input_tokens//0)+(.cache_read_input_tokens//0))/1000)|floor)k in context"' 2>/dev/null || echo "  (unreadable)"; else echo "  (no transcript found)"; fi`
-
-Treat that as approximate: it is the newest transcript for this directory, which
-is this session unless two are open here. The statusline is the better number
-when it disagrees.
-
 ## Decide first, in one line
 
-- **Work item finished, or under ~10% of the window left** → hand off and clear.
-- **Mid-item with room left** → write the handoff anyway (it is cheap insurance
-  against a crash) and tell the user to carry on. Do not clear.
+- **The work item is finished** → hand off, then clear.
+- **The item is mid-flight** → write the handoff anyway, as cheap insurance
+  against a crash, and tell the user to carry on. Do not clear.
+- **The statusline nagged and the item is not finished** → the room left is the
+  deciding fact and only the user can see it, so say what a stopping point
+  would cost here and let them choose. Do not stall the work on your own
+  estimate of remaining tokens.
 
-Say which of the two this is before doing anything else. The point of this
-command is that the user never has to make that call.
+Say which of the three this is before doing anything else. The point of this
+command is that the user does not have to make that call in the common cases.
 
 ## Then update the state files
 
