@@ -61,7 +61,7 @@
     text = ''
       #!/usr/bin/env bash
       set -euo pipefail
-      keys='{hooks, theme, tui, editorMode, effortLevel, preferredNotifChannel, statusLine, enabledPlugins, extraKnownMarketplaces}'
+      keys='{hooks, theme, tui, editorMode, effortLevel, preferredNotifChannel, statusLine, enabledPlugins, extraKnownMarketplaces, skillOverrides}'
       diff -u <(${pkgs.jq}/bin/jq -S "$keys" "${../claude/settings.json}") \
               <(${pkgs.jq}/bin/jq -S "$keys" "$HOME/.claude/settings.json") \
         && echo "no drift"

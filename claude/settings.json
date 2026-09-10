@@ -146,5 +146,9 @@
         "repo": "anthropics/knowledge-work-plugins"
       }
     }
+  },
+  "skillOverrides": {
+    "superpowers:writing-plans": "user-invocable-only",
+    "superpowers:executing-plans": "user-invocable-only"
   }
 }
