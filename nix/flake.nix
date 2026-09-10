@@ -153,6 +153,21 @@
           # registered and so did not survive the next reboot. Both halves are
           # pinned here: every helper the configs call is installed, and the
           # PATH entry that finds them is declared.
+          # The colour-scheme toggle spans two pieces of host configuration and
+          # both failed silently for a week: the GSettings write went to a
+          # memory backend for want of dconf's GIO module, and there was no
+          # portal on the bus for ghostty to hear the result. Neither shows up
+          # as an error anywhere, so assert them.
+          color-scheme-plumbing =
+            let
+              tau = self.nixosConfigurations.tau.config;
+            in
+            assert tau.programs.dconf.enable;
+            assert tau.xdg.portal.enable;
+            assert nixpkgs.lib.any (p: nixpkgs.lib.hasPrefix "xdg-desktop-portal-gtk" p.name)
+              tau.xdg.portal.extraPortals;
+            pkgs.runCommand "color-scheme-plumbing" { } "touch $out";
+
           i3-helpers =
             assert self.nixosConfigurations.tau.config.environment.localBinInPath;
             pkgs.runCommand "i3-helpers" { nativeBuildInputs = [ pkgs.python3 ]; } ''

@@ -341,6 +341,32 @@
     "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}"
   ];
 
+  # dconf's GIO module, on GIO_EXTRA_MODULES for the whole session. Schemas
+  # alone (above) let GLib read the light/dark preference; without this module
+  # it cannot write one. GLib falls back to an in-process memory backend that
+  # accepts every write, exits 0 and discards it, so `gsettings set` looked
+  # like it worked while dconf never moved. Ubuntu ran this module by default
+  # through its GNOME session; nothing here declared it, and `dconf read`
+  # returned nothing on tau because no write had ever landed.
+  programs.dconf.enable = true;
+
+  # xdg-desktop-portal, which gamma had from apt and this file never declared.
+  # ghostty's `theme = "dark:...,light:..."` follows the portal's
+  # org.freedesktop.appearance color-scheme, not gsettings directly, so with no
+  # portal on the bus the terminal could not follow the toggle even once the
+  # write above landed. Electron apps read the same interface.
+  xdg.portal = {
+    enable = true;
+    extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+    # XDG_CURRENT_DESKTOP is i3, and the GTK backend declares UseIn=gnome only,
+    # so without naming a default the Settings interface is not exposed at all.
+    # nix/home.nix writes the same preference into
+    # ~/.config/xdg-desktop-portal/i3-portals.conf for gamma, where the portal
+    # comes from apt; declared here as well so tau does not depend on a
+    # home-manager file having been activated first.
+    config.i3.default = [ "gtk" ];
+  };
+
   # nix/fonts.nix installs the coding and UI faces into the user profile but no
   # colour emoji, which rofimoji needs, and no metric-compatible fallbacks,
   # which LibreOffice and the web expect.

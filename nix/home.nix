@@ -287,10 +287,27 @@ in
     graphviz
     gron
     # gsettings, and the org.gnome.desktop.interface schema it reads. Ubuntu
-    # supplied both through libglib2.0-bin and its GNOME session; without them
-    # bin/color-scheme cannot read or set the light/dark preference, so the
-    # i3blocks toggle silently did nothing.
-    glib
+    # supplied both through libglib2.0-bin and its GNOME session.
+    #
+    # Wrapped, because gsettings alone is not enough to write anything. GLib
+    # reaches dconf through a GIO module found on GIO_EXTRA_MODULES, and when
+    # it is not there GLib falls back to an in-process memory backend that
+    # accepts every write, exits 0, and discards it. Nothing puts that variable
+    # in the graphical session on either host — i3 and i3blocks start before
+    # home-manager's session variables exist — so putting nix's gsettings ahead
+    # of Ubuntu's on PATH is what stopped the sun/moon toggle from reaching
+    # dconf, and with it the portal and the terminal. The binary carries the
+    # variable rather than depending on who launched it. tau also declares
+    # programs.dconf, which sets it session-wide for every other GLib app.
+    (symlinkJoin {
+      name = "glib-with-dconf";
+      paths = [ glib ];
+      buildInputs = [ makeWrapper ];
+      postBuild = ''
+        wrapProgram $out/bin/gsettings \
+          --suffix GIO_EXTRA_MODULES : "${dconf.lib}/lib/gio/modules"
+      '';
+    })
     gsettings-desktop-schemas
     highlight-pointer
     html-tidy
@@ -1224,6 +1241,9 @@ in
 
   # Route portal interfaces to the GTK backend when running under i3.
   # After changing, restart with: systemctl --user restart xdg-desktop-portal
+  # gamma's portal and its GTK backend come from apt. tau declares both in
+  # nix/hosts/tau/configuration.nix, along with this same preference, so this
+  # file is what makes the setting work on gamma and a duplicate on tau.
   xdg.configFile."xdg-desktop-portal/i3-portals.conf".text = ''
     # Without this file, xdg-desktop-portal doesn't expose org.freedesktop.portal.Settings
     # on i3 because the GTK/GNOME portal backends only declare UseIn=gnome.
