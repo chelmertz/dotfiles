@@ -68,10 +68,11 @@ else
   echo 'credential_ok{service="elly"} 0' >> "$tmpfile"
 fi
 
-# `dropbox status` looked like the obvious probe and is not usable: with the
-# nixpkgs build it never returns, so a 20s timeout killed it and the check
-# reported 0 even on a linked, syncing account. The daemon creates
-# instance1/sync only once an account is attached, so test for that instead.
+# `dropbox status` is still not the probe, though dropbox-cli now provides it
+# for real. It reports sync state, not whether an account is attached, and it
+# prints a bare "Connecting..." for the first seconds after the daemon starts,
+# which a probe would read as failure. The daemon creates instance1/sync only
+# once an account is attached, so test for that instead.
 if [ -d "$HOME/.dropbox/instance1/sync" ]; then
   echo 'credential_ok{service="dropbox"} 1' >> "$tmpfile"
 else

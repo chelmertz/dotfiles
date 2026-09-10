@@ -235,7 +235,13 @@ in
     copyq
     delve
     dos2unix
-    dropbox
+    # The CLI (`dropbox status`), not the daemon: nixpkgs splits them and both
+    # ship bin/dropbox, so only one can own the name. The daemon is reached by
+    # store path from systemd.user.services.dropbox below and never needs to be
+    # on PATH. With it here instead, `dropbox status` started a second daemon in
+    # the foreground, and that instance took over dropbox.pid and
+    # command_socket from the running one before it was killed.
+    dropbox-cli
     (symlinkJoin {
       name = "element-desktop";
       paths = [ element-desktop ];
