@@ -89,11 +89,23 @@ esac
 laptop="eDP-1"
 query=$(xrandr --query)
 external=$(printf '%s\n' "$query" | awk '/ connected/ && $1 !~ /^eDP/ {print $1; exit}')
-external_mode=$(printf '%s\n' "$query" | awk -v o="$external" '
-	$1==o {p=1; next}
-	p && /^[A-Za-z0-9-]+ (connected|disconnected)/ {exit}
-	p && /\+/ {print $1; exit}
-')
+# The laptop panel's mode and the external's are both read rather than
+# assumed. gamma and tau happen to share 1920x1200, but the arithmetic below
+# needs the numbers anyway, and 3440x240 was hardcoded here for exactly one
+# monitor: 240 is 1440 - 1200, the offset that aligns the two bottom edges.
+# The office Dell, the home LG and the panel are three different heights.
+preferred_mode() {
+	printf '%s\n' "$query" | awk -v o="$1" '
+		$1==o {p=1; next}
+		p && /^[A-Za-z0-9-]+ (connected|disconnected)/ {exit}
+		p && /\+/ {print $1; exit}
+	'
+}
+laptop_mode=$(preferred_mode "$laptop")
+# A closed lid leaves eDP-1 with no preferred mode; the panel's native one is
+# the only sensible guess left.
+laptop_mode=${laptop_mode:-1920x1200}
+external_mode=$(preferred_mode "$external")
 # Every other non-eDP output, so a stale CRTC cannot survive the switch. This
 # is what leaves a phantom output behind on unplug when it is skipped.
 off_args=""
@@ -110,14 +122,25 @@ case $layout in
 			echo >&2 "screenlayout: no external output connected"
 			exit 1
 		fi
-		xrandr --output "$laptop" --mode 1920x1200 --pos 3440x240 --rotate normal \
-			--output "$external" --primary --mode "$external_mode" --pos 0x0 --rotate normal \
+		# Laptop to the right of the external with their bottom edges aligned,
+		# which is the arrangement gamma's matchi-dell-laptop profile used.
+		ext_w=${external_mode%x*}
+		ext_h=${external_mode#*x}
+		laptop_h=${laptop_mode#*x}
+		# Whichever panel is shorter drops by the difference, so the alignment
+		# holds both ways round: the office Dell is taller than the panel, a
+		# 1080p external is shorter.
+		tallest=$(( ext_h > laptop_h ? ext_h : laptop_h ))
+		laptop_y=$(( tallest - laptop_h ))
+		ext_y=$(( tallest - ext_h ))
+		xrandr --output "$laptop" --mode "$laptop_mode" --pos "${ext_w}x${laptop_y}" --rotate normal \
+			--output "$external" --primary --mode "$external_mode" --pos "0x${ext_y}" --rotate normal \
 			$off_args
-		check_layout "$laptop:1920x1200" "$external:$external_mode" $off_specs
+		check_layout "$laptop:$laptop_mode" "$external:$external_mode" $off_specs
 		sleep 2
 		;;
 	"laptop only")
-		xrandr --output "$laptop" --primary --mode 1920x1200 --pos 0x0 --rotate normal \
+		xrandr --output "$laptop" --primary --mode "$laptop_mode" --pos 0x0 --rotate normal \
 			${external:+--output "$external" --off} $off_args
 		;;
 	"external only")
