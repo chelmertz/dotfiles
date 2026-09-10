@@ -2,10 +2,13 @@
 {
   # Public half of the Claude Code configuration (hooks, theme, plugins,
   # status line). Deliberately no `model`: a pin here outranks whatever /model
-  # writes, so the interactive choice never survived, and a new model release
-  # would leave the pin quietly stale. The merge below only adds and overwrites
-  # keys, so removing one here does not remove it from a live file; that has to
-  # be deleted once per machine. ~/.claude/settings.json is MERGED on every switch, not
+  # writes, so the interactive choice never survived (four switches on
+  # 2026-09-11 put a live session back on Fable 5.1 each time, until it hit that
+  # model's weekly limit), and a new model release would leave the pin quietly
+  # stale. The merge below only adds and overwrites keys, so removing one here
+  # does not remove it from a live file; that has to be deleted once per machine.
+  #
+  # ~/.claude/settings.json is MERGED on every switch, not
   # symlinked: Claude Code writes its own keys into that file (permissions,
   # autoMode, skip* prompts, enabledPlugins toggles) and a read-only store
   # path would break those writes. Keys present in ../claude/settings.json
@@ -58,7 +61,7 @@
     text = ''
       #!/usr/bin/env bash
       set -euo pipefail
-      keys='{hooks, model, theme, tui, editorMode, effortLevel, preferredNotifChannel, statusLine, enabledPlugins, extraKnownMarketplaces}'
+      keys='{hooks, theme, tui, editorMode, effortLevel, preferredNotifChannel, statusLine, enabledPlugins, extraKnownMarketplaces}'
       diff -u <(${pkgs.jq}/bin/jq -S "$keys" "${../claude/settings.json}") \
               <(${pkgs.jq}/bin/jq -S "$keys" "$HOME/.claude/settings.json") \
         && echo "no drift"
