@@ -65,7 +65,13 @@ in
       Type = "oneshot";
       ExecStart = "${py}/bin/python3 %h/code/github/chelmertz/spotify/spotify-backup.py";
       EnvironmentFile = "%h/.config/spotify-backup/env";
-      Environment = "PATH=${pkgs.git}/bin:/usr/bin:/bin";
+      # openssh, because the last thing the script does is `git push` to a
+      # git@ remote, and git forks ssh by name. The activation script above
+      # learned this already; the unit did not, so every firing on tau since
+      # the machine was built died with "cannot run ssh: No such file or
+      # directory" after a full fetch of the account. gamma never noticed:
+      # /usr/bin/ssh exists there.
+      Environment = "PATH=${pkgs.git}/bin:${pkgs.openssh}/bin:/usr/bin:/bin";
     };
   };
 
