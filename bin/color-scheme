@@ -4,6 +4,25 @@ current=$(gsettings get org.gnome.desktop.interface color-scheme)
 if [ $? -ne 0 ]; then echo "Could not fetch current color-scheme" >&2; exit 1; fi
 echo "Current color-scheme: $current"
 
+# GSettings and dconf must agree before anything is toggled. When GLib cannot
+# load dconf's GIO module it silently uses an in-process memory backend, which
+# returns the schema default here and swallows the write below, so the toggle
+# is computed from a value nothing in the session actually holds. dconf talks
+# to the writer directly and is the authority. An unset key reads as empty,
+# which is not a disagreement: the schema default applies.
+if command -v dconf >/dev/null 2>&1; then
+	held=$(dconf read /org/gnome/desktop/interface/color-scheme)
+	if [ -n "$held" ] && [ "$held" != "$current" ]; then
+		echo "gsettings reads $current but dconf holds $held: the dconf backend is not loaded." >&2
+		echo "GIO_EXTRA_MODULES=${GIO_EXTRA_MODULES:-unset}; it must hold dconf's gio/modules." >&2
+		if command -v notify-send >/dev/null 2>&1; then
+			notify-send -u critical "color-scheme: gsettings is not reaching dconf" \
+				"Reads $current, dconf holds $held. Nothing was changed."
+		fi
+		exit 1
+	fi
+fi
+
 case "$current" in
 	"'prefer-dark'") new_color_scheme="prefer-light" ;;
 	"'prefer-light'"|"'default'") new_color_scheme="prefer-dark" ;;
@@ -12,9 +31,30 @@ esac
 
 echo "New color-scheme: $new_color_scheme"
 
-if ! $(gsettings set org.gnome.desktop.interface color-scheme "$new_color_scheme"); then
+# Not $(gsettings set ...): that substitutes the command's output and runs it,
+# so an empty output always looked like success.
+if ! gsettings set org.gnome.desktop.interface color-scheme "$new_color_scheme"; then
 	echo "Could not set new color-scheme" >&2
 	exit 1
+fi
+
+# A successful `gsettings set` is not a write. Without dconf's GIO module on
+# GIO_EXTRA_MODULES, GLib falls back to an in-process memory backend that
+# accepts every write and forgets it, exit code 0 and all. That is how this
+# toggle came to flip i3 and rofi while the terminal stayed put: nothing
+# reached dconf, so the portal never told ghostty anything had changed.
+# dconf talks to the writer directly and reports what actually landed.
+if command -v dconf >/dev/null 2>&1; then
+	landed=$(dconf read /org/gnome/desktop/interface/color-scheme)
+	if [ "$landed" != "'$new_color_scheme'" ]; then
+		echo "gsettings reported success but dconf holds ${landed:-nothing}: the write did not land." >&2
+		echo "GIO_EXTRA_MODULES=${GIO_EXTRA_MODULES:-unset}; it must hold dconf's gio/modules." >&2
+		if command -v notify-send >/dev/null 2>&1; then
+			notify-send -u critical "color-scheme: the write did not land" \
+				"dconf still holds ${landed:-nothing}. Nothing was changed."
+		fi
+		exit 1
+	fi
 fi
 
 rofi_config="$HOME/.config/rofi/config.rasi"
