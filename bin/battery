@@ -29,8 +29,11 @@ open (ACPI, "acpi -b | grep 'Battery $bat_number' |") or die;
 $acpi = <ACPI>;
 close(ACPI);
 
-# fail on unexpected output
-if ($acpi !~ /: (\w+), (\d+)%/) {
+# fail on unexpected output. The status can be two words: a ThinkPad reports
+# "Not charging" whenever firmware holds the battery below full, which the
+# single-word pattern rejected — a die per refresh, 59 in one boot on tau,
+# exiting with perl's errno (29) rather than anything i3blocks could read.
+if ($acpi !~ /: ([\w ]+), (\d+)%/) {
 	die "$acpi\n";
 }
 
