@@ -10,6 +10,13 @@ lib.mkIf config.dotfiles.nixos {
   home.file.".local/share/jdks/21".source = pkgs.temurin-bin-21;
   home.file.".local/share/jdks/17".source = pkgs.temurin-bin-17;
 
+  # The same JDK 21 on PATH, so `java`, `jar`, `keytool` and `jshell` are
+  # commands and not just files under JAVA_HOME. gamma has them from sdkman;
+  # here nothing put them anywhere until this, and `java -version` in a login
+  # shell answered "command not found". Only 21: adding 17 as well would
+  # collide on every binary name it ships.
+  home.packages = [ pkgs.temurin-bin-21 ];
+
   # Gradle does not look in the nix store, so it is told where to look. With
   # this, a toolchain of 17 or 21 resolves without auto-provisioning.
   home.file.".gradle/gradle.properties".text = ''
