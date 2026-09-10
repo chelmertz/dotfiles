@@ -1,4 +1,22 @@
-{ ... }:
+{ pkgs, ... }:
+let
+  # python3 is in this closure but deliberately not on PATH, so a
+  # `#!/usr/bin/env python3` shebang never resolves and the script cannot start
+  # at all - no output, just an exec failure. Pin the interpreter to the store
+  # at build time, the same way obsidian.nix pins its poller's ExecStart.
+  #
+  # Found 2026-09-11: every python script installed here was unrunnable,
+  # including claude-sign-comments-hook, so nothing had enforced the --claude
+  # signature on gh comments since it was added on 2026-09-08. The symptom was
+  # a PreToolUse hook error on every Bash call, which reads as noise.
+  pyBin = py: src: pkgs.runCommand (builtins.baseNameOf src) { } ''
+    substitute ${src} $out \
+      --replace-fail '#!/usr/bin/env python3' '#!${py}/bin/python3'
+    chmod +x $out
+  '';
+  py = pyBin pkgs.python3;
+  pyOrg = pyBin (pkgs.python3.withPackages (ps: [ ps.orgparse ]));
+in
 {
   home.file = {
     ".local/bin/autorandr-learn" = {
@@ -7,7 +25,7 @@
     };
 
     ".local/bin/autotag.py" = {
-      source = ../bin/autotag.py;
+      source = py ../bin/autotag.py;
       executable = true;
     };
 
@@ -117,7 +135,7 @@
     };
 
     ".local/bin/doodle_elvaco.py" = {
-      source = ../bin/doodle_elvaco.py;
+      source = py ../bin/doodle_elvaco.py;
       executable = true;
     };
 
@@ -207,12 +225,12 @@
     };
 
     ".local/bin/jitter" = {
-      source = ../bin/jitter;
+      source = py ../bin/jitter;
       executable = true;
     };
 
     ".local/bin/json_format.py" = {
-      source = ../bin/json_format.py;
+      source = py ../bin/json_format.py;
       executable = true;
     };
 
@@ -317,7 +335,7 @@
     };
 
     ".local/bin/ror.py" = {
-      source = ../bin/ror.py;
+      source = py ../bin/ror.py;
       executable = true;
     };
 
@@ -342,7 +360,7 @@
     };
 
     ".local/bin/text-to-opml.py" = {
-      source = ../bin/text-to-opml.py;
+      source = py ../bin/text-to-opml.py;
       executable = true;
     };
 
@@ -367,7 +385,7 @@
     };
 
     ".local/bin/obsidian-poll" = {
-      source = ../bin/obsidian-poll;
+      source = py ../bin/obsidian-poll;
       executable = true;
     };
 
@@ -377,7 +395,7 @@
     };
 
     ".local/bin/claude-diary" = {
-      source = ../bin/claude-diary;
+      source = py ../bin/claude-diary;
       executable = true;
     };
 
@@ -387,7 +405,7 @@
     };
 
     ".local/bin/claude-sign-comments-hook" = {
-      source = ../bin/claude-sign-comments-hook;
+      source = py ../bin/claude-sign-comments-hook;
       executable = true;
     };
 
@@ -397,7 +415,7 @@
     };
 
     ".local/bin/turn_off_caps" = {
-      source = ../bin/turn_off_caps;
+      source = py ../bin/turn_off_caps;
       executable = true;
     };
 
@@ -417,7 +435,7 @@
     };
 
     ".local/bin/work_item_in_focus" = {
-      source = ../bin/work_item_in_focus;
+      source = pyOrg ../bin/work_item_in_focus;
       executable = true;
     };
 
