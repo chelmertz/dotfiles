@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ config, lib, pkgs, ... }:
 let
   py = pkgs.python3.withPackages (ps: [ ps.spotipy ]);
   repo = "$HOME/code/github/chelmertz/spotify";
@@ -75,7 +75,11 @@ in
     };
   };
 
-  systemd.user.timers.spotify-backup = {
+  # tau only. Both machines ran this nightly against the same account, two
+  # minutes apart, and the loser's commit stranded — which is how the push
+  # failure below stayed hidden. gamma is being handed back, so it keeps the
+  # service for a manual run and loses the schedule.
+  systemd.user.timers.spotify-backup = lib.mkIf config.dotfiles.nixos {
     Unit.Description = "Run spotify-backup daily";
     Timer = {
       OnCalendar = "*-*-* 03:00:00";
