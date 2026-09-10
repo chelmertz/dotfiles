@@ -1,25 +1,76 @@
 #!/usr/bin/env bash
-# Claude Code statusline: model · dir · branch · PR URL (clickable via OSC 8).
-# gh is slow, so the PR lookup is cached per repo+branch for 2 minutes.
+# Claude Code statusline, two lines:
+#   1. model · dir · branch · PR URL (clickable via OSC 8)
+#   2. context left · what to do about it · rate limits when they start to bite
+#
+# Everything on line 2 comes from the JSON Claude Code puts on stdin
+# (context_window, rate_limits) - no transcript parsing, no subprocess. The PR
+# URL comes from .pr.url when Claude Code knows it; the `gh` lookup is only a
+# fallback for versions that don't send it, cached per repo+branch for 2 min.
 input=$(cat)
-dir=$(printf '%s' "$input" | jq -r '.workspace.current_dir // .cwd // empty')
-model=$(printf '%s' "$input" | jq -r '.model.display_name // empty')
+
+read -r dir model pr_url ctx_pct ctx_left rl5 rl7 <<<"$(printf '%s' "$input" | jq -r '
+  [ (.workspace.current_dir // .cwd // "-")
+  , (.model.display_name // "-")
+  , (.pr.url // "-")
+  , (.context_window.used_percentage // -1 | floor)
+  , (((.context_window.context_window_size // 0) - ((.context_window.total_input_tokens // 0) + (.context_window.total_output_tokens // 0))) | floor)
+  , (.rate_limits.five_hour.used_percentage // 0 | floor)
+  , (.rate_limits.seven_day.used_percentage // 0 | floor)
+  ] | @tsv')"
+[ "$dir" = "-" ] && dir=""
+[ "$model" = "-" ] && model=""
+[ "$pr_url" = "-" ] && pr_url=""
 
 esc=$'\033'
 dim="${esc}[2m"; reset="${esc}[0m"; cyan="${esc}[36m"
+yellow="${esc}[33m"; red="${esc}[31m"; bold="${esc}[1m"
 link() { printf '%s]8;;%s%s\\%s%s]8;;%s\\' "$esc" "$1" "$esc" "$2" "$esc" "$esc"; }
 
-out="${model:+${model} }${dim}${dir/#$HOME/"~"}${reset}"
+line1="${model:+${model} }${dim}${dir/#$HOME/"~"}${reset}"
 
 if branch=$(git -C "$dir" branch --show-current 2>/dev/null) && [ -n "$branch" ]; then
-  out+=" ${cyan}${branch}${reset}"
-  toplevel=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)
-  cache="${TMPDIR:-/tmp}/claude-statusline-pr-$(printf '%s' "${toplevel}:${branch}" | md5sum | cut -c1-16)"
-  if [ ! -f "$cache" ] || [ -n "$(find "$cache" -mmin +2 2>/dev/null)" ]; then
-    url=$(cd "$toplevel" && timeout 5 gh pr view --json url -q .url 2>/dev/null)
-    printf '%s' "$url" > "$cache"
+  line1+=" ${cyan}${branch}${reset}"
+  if [ -z "$pr_url" ]; then
+    toplevel=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)
+    cache="${TMPDIR:-/tmp}/claude-statusline-pr-$(printf '%s' "${toplevel}:${branch}" | md5sum | cut -c1-16)"
+    if [ ! -f "$cache" ] || [ -n "$(find "$cache" -mmin +2 2>/dev/null)" ]; then
+      url=$(cd "$toplevel" && timeout 5 gh pr view --json url -q .url 2>/dev/null)
+      printf '%s' "$url" > "$cache"
+    fi
+    pr_url=$(cat "$cache" 2>/dev/null)
   fi
-  url=$(cat "$cache" 2>/dev/null)
-  [ -n "$url" ] && out+=" $(link "$url" "$url")"
+  [ -n "$pr_url" ] && line1+=" $(link "$pr_url" "$pr_url")"
 fi
-printf '%s' "$out"
+
+# Line 2. The hint names a work boundary rather than demanding an immediate
+# stop: what is actionable is how much room is left for the subproblem in
+# hand, so the tokens remaining are shown next to the percentage.
+line2=""
+if [ "$ctx_pct" -ge 0 ] 2>/dev/null; then
+  left="$((ctx_left / 1000))k"
+  if [ "$ctx_pct" -lt 50 ]; then
+    line2="${dim}ctx ${ctx_pct}% · ${left} left${reset}"
+  elif [ "$ctx_pct" -lt 75 ]; then
+    line2="ctx ${ctx_pct}% · ${left} left"
+  elif [ "$ctx_pct" -lt 90 ]; then
+    line2="${yellow}ctx ${ctx_pct}% · ${left} left · find a stopping point${reset}"
+  elif [ "$ctx_pct" -lt 97 ]; then
+    line2="${red}ctx ${ctx_pct}% · ${left} left · hand off at the next green test${reset}"
+  else
+    line2="${red}${bold}ctx ${ctx_pct}% · ${left} left · hand off now, then /clear${reset}"
+  fi
+fi
+
+# Rate limits only once they are worth knowing about: they cap how much can
+# run in parallel, and a reset time is no use if the bar is still low.
+limits=""
+[ "$rl5" -ge 70 ] 2>/dev/null && limits+=" 5h ${rl5}%"
+[ "$rl7" -ge 70 ] 2>/dev/null && limits+=" 7d ${rl7}%"
+if [ -n "$limits" ]; then
+  colour="$yellow"; { [ "$rl5" -ge 90 ] || [ "$rl7" -ge 90 ]; } && colour="$red"
+  line2+="${line2:+ ${dim}·${reset}}${colour}${limits# }${reset}"
+fi
+
+printf '%s' "$line1"
+[ -n "$line2" ] && printf '\n%s' "$line2"
