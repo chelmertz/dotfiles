@@ -100,15 +100,6 @@
   # nixpkgs' own option documentation notes newer ThinkPads use the Elan name.
   hardware.trackpoint.device = lib.mkForce "TPPS/2 Elan TrackPoint";
 
-  # nixos-hardware's common/pc/laptop enables TLP, which Ubuntu never ran on
-  # gamma, and TLP's default USB_AUTOSUSPEND=1 suspends USB hubs. The VIA Labs
-  # hub inside the USB-C dock does not come back from it: it re-enumerated
-  # every ~21 seconds, and each cycle took the external keyboard and mouse
-  # down with it for 2-3 seconds while the internal touchpad stayed up.
-  # TLP excludes audio and printers from autosuspend by default, but neither
-  # hubs nor HID, so the exclusion has to be all of USB.
-  services.tlp.settings.USB_AUTOSUSPEND = 0;
-
   # keyd remaps below evdev, so keylog (keylogger/) sees the real Esc and
   # Ctrl rather than the synthesised ones an X-level remap produces. This must
   # stay equal to keyd/default.conf, gamma's copy of the same rule.
