@@ -9,18 +9,20 @@
 # fallback for versions that don't send it, cached per repo+branch for 2 min.
 input=$(cat)
 
-read -r dir model pr_url ctx_pct ctx_left rl5 rl7 <<<"$(printf '%s' "$input" | jq -r '
-  [ (.workspace.current_dir // .cwd // "-")
-  , (.model.display_name // "-")
-  , (.pr.url // "-")
-  , (.context_window.used_percentage // -1 | floor)
-  , (((.context_window.context_window_size // 0) - ((.context_window.total_input_tokens // 0) + (.context_window.total_output_tokens // 0))) | floor)
-  , (.rate_limits.five_hour.used_percentage // 0 | floor)
-  , (.rate_limits.seven_day.used_percentage // 0 | floor)
-  ] | @tsv')"
-[ "$dir" = "-" ] && dir=""
-[ "$model" = "-" ] && model=""
-[ "$pr_url" = "-" ] && pr_url=""
+# One value per line, read with mapfile: a model display name like "Fable 5.1"
+# contains a space, and `read a b c` on @tsv output splits on it (tab is IFS
+# whitespace, so runs collapse and every later field shifts). That shift put
+# the remaining-token count into the rate-limit slot and printed "5h 1000000%".
+mapfile -t fld < <(printf '%s' "$input" | jq -r '
+  (.workspace.current_dir // .cwd // ""),
+  (.model.display_name // ""),
+  (.pr.url // ""),
+  (.context_window.used_percentage // -1 | floor),
+  ((((.context_window.context_window_size // 0) - ((.context_window.total_input_tokens // 0) + (.context_window.total_output_tokens // 0))) | floor)),
+  (.rate_limits.five_hour.used_percentage // 0 | floor),
+  (.rate_limits.seven_day.used_percentage // 0 | floor)')
+dir=${fld[0]}; model=${fld[1]}; pr_url=${fld[2]}
+ctx_pct=${fld[3]:--1}; ctx_left=${fld[4]:-0}; rl5=${fld[5]:-0}; rl7=${fld[6]:-0}
 
 esc=$'\033'
 dim="${esc}[2m"; reset="${esc}[0m"; cyan="${esc}[36m"
@@ -29,7 +31,9 @@ link() { printf '%s]8;;%s%s\\%s%s]8;;%s\\' "$esc" "$1" "$esc" "$2" "$esc" "$esc"
 
 line1="${model:+${model} }${dim}${dir/#$HOME/"~"}${reset}"
 
-if branch=$(git -C "$dir" branch --show-current 2>/dev/null) && [ -n "$branch" ]; then
+# `git -C ""` silently falls back to the process cwd, which is not this
+# session's directory, so an absent cwd must not reach git at all.
+if [ -n "$dir" ] && branch=$(git -C "$dir" branch --show-current 2>/dev/null) && [ -n "$branch" ]; then
   line1+=" ${cyan}${branch}${reset}"
   if [ -z "$pr_url" ]; then
     toplevel=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)
