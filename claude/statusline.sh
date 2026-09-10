@@ -43,9 +43,11 @@ if branch=$(git -C "$dir" branch --show-current 2>/dev/null) && [ -n "$branch" ]
   [ -n "$pr_url" ] && line1+=" $(link "$pr_url" "$pr_url")"
 fi
 
-# Line 2. The hint names a work boundary rather than demanding an immediate
-# stop: what is actionable is how much room is left for the subproblem in
-# hand, so the tokens remaining are shown next to the percentage.
+# Line 2. Intent: never make the reader judge which kind of handoff this is.
+# Above 75% the hint is the single word `/handoff` in every tier - the command
+# decides whether to stop now or finish the item first - and only the colour
+# carries urgency. Tokens remaining are shown because a percentage cannot say
+# whether the subproblem in hand still fits.
 line2=""
 if [ "$ctx_pct" -ge 0 ] 2>/dev/null; then
   left="$((ctx_left / 1000))k"
@@ -54,11 +56,11 @@ if [ "$ctx_pct" -ge 0 ] 2>/dev/null; then
   elif [ "$ctx_pct" -lt 75 ]; then
     line2="ctx ${ctx_pct}% · ${left} left"
   elif [ "$ctx_pct" -lt 90 ]; then
-    line2="${yellow}ctx ${ctx_pct}% · ${left} left · find a stopping point${reset}"
+    line2="${yellow}ctx ${ctx_pct}% · ${left} left · /handoff${reset}"
   elif [ "$ctx_pct" -lt 97 ]; then
-    line2="${red}ctx ${ctx_pct}% · ${left} left · hand off at the next green test${reset}"
+    line2="${red}ctx ${ctx_pct}% · ${left} left · /handoff${reset}"
   else
-    line2="${red}${bold}ctx ${ctx_pct}% · ${left} left · hand off now, then /clear${reset}"
+    line2="${red}${bold}ctx ${ctx_pct}% · ${left} left · /handoff${reset}"
   fi
 fi
 

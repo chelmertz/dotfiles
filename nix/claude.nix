@@ -36,8 +36,17 @@
   # organised, not what is being worked on: no work internals, so the public
   # repo is the right home. ~/.claude/skills/find-skills is an unrelated
   # dangling symlink from an older setup.
+  # recursive = true installs each file as its own symlink, so Claude Code can
+  # still write siblings into ~/.claude/skills; a directory symlink into the
+  # store would make the whole tree read-only. There is no home-manager
+  # construct for Claude skills, so this is the idiomatic form.
   home.file.".claude/skills/project-state" = {
     source = ../claude/skills/project-state;
+    recursive = true;
+  };
+
+  home.file.".claude/skills/handoff" = {
+    source = ../claude/skills/handoff;
     recursive = true;
   };
 
