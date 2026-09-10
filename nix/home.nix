@@ -357,6 +357,10 @@ in
     pandoc
     pastel
     pavucontrol
+    # alsamixer, offered by bin/settings_rofi.sh beside pavucontrol and arandr.
+    # Ubuntu had it from alsa-utils; on tau the menu entry opened a terminal
+    # that died immediately. amixer and aplay come with it.
+    alsa-utils
     peek
     pgcli
     php
