@@ -134,6 +134,34 @@
           "ch@tau" = mkHome [ { dotfiles.nixos = true; } ];
         };
 
+      # `nix flake check` runs these. There is no CI in this repo yet, so they
+      # only fail where someone runs them; wiring them to a workflow is the
+      # obvious follow-up.
+      checks.${system} =
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          homeFiles = builtins.attrNames self.homeConfigurations."ch@tau".config.home.file;
+          localBin = builtins.filter (n: builtins.match "\\.local/bin/.*" n != null) homeFiles;
+          declared = pkgs.writeText "declared-helpers" (
+            builtins.concatStringsSep "\n" (map builtins.baseNameOf localBin)
+          );
+        in
+        {
+          # i3 and i3blocks call the scripts in bin/ by name. Three separate
+          # fixes to the PATH that finds them looked like they had failed,
+          # because each was applied to a system generation that was never
+          # registered and so did not survive the next reboot. Both halves are
+          # pinned here: every helper the configs call is installed, and the
+          # PATH entry that finds them is declared.
+          i3-helpers =
+            assert self.nixosConfigurations.tau.config.environment.localBinInPath;
+            pkgs.runCommand "i3-helpers" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+              python3 ${./checks/i3-helpers.py} \
+                ${../.i3/config} ${../.i3blocks.conf} ${../bin} ${declared}
+              touch $out
+            '';
+        };
+
       # tau's system layer. home.nix is applied separately by home-manager,
       # which resolves "ch@tau" from networking.hostName below.
       nixosConfigurations.tau = nixpkgs-stable.lib.nixosSystem {
