@@ -80,18 +80,55 @@ case $1 in
 		;;
 esac
 
+# The external output's name is not stable. gamma's is DP-1; on tau the same
+# Dell came up as DP-3 straight into a USB-C port and as DP-1 through the dock.
+# Hardcoding it meant "both" listed the live output among the ones to switch
+# off, so picking "both" on tau blanked the monitor it was meant to enable.
+# Its mode is read from the EDID's preferred mode rather than assumed, which
+# also covers the home LG and the office Dell being different panels.
+laptop="eDP-1"
+query=$(xrandr --query)
+external=$(printf '%s\n' "$query" | awk '/ connected/ && $1 !~ /^eDP/ {print $1; exit}')
+external_mode=$(printf '%s\n' "$query" | awk -v o="$external" '
+	$1==o {p=1; next}
+	p && /^[A-Za-z0-9-]+ (connected|disconnected)/ {exit}
+	p && /\+/ {print $1; exit}
+')
+# Every other non-eDP output, so a stale CRTC cannot survive the switch. This
+# is what leaves a phantom output behind on unplug when it is skipped.
+off_args=""
+off_specs=""
+for out in $(printf '%s\n' "$query" | awk '/(dis)?connected/ && $1 !~ /^eDP/ {print $1}'); do
+	[ "$out" = "$external" ] && continue
+	off_args="$off_args --output $out --off"
+	off_specs="$off_specs $out:off"
+done
+
 case $layout in
 	"both")
-		xrandr --output eDP-1 --mode 1920x1200 --pos 3440x240 --rotate normal --output DP-1 --primary --mode 3440x1440 --pos 0x0 --rotate normal --output DP-2 --off --output DP-3 --off
-		check_layout eDP-1:1920x1200 DP-1:3440x1440 DP-2:off DP-3:off
+		if [ -z "$external" ]; then
+			echo >&2 "screenlayout: no external output connected"
+			exit 1
+		fi
+		xrandr --output "$laptop" --mode 1920x1200 --pos 3440x240 --rotate normal \
+			--output "$external" --primary --mode "$external_mode" --pos 0x0 --rotate normal \
+			$off_args
+		check_layout "$laptop:1920x1200" "$external:$external_mode" $off_specs
 		sleep 2
 		;;
 	"laptop only")
-		xrandr --output eDP-1 --primary --mode 1920x1200 --pos 0x0 --rotate normal --output DP-1 --off --output DP-2 --off --output DP-3 --off
+		xrandr --output "$laptop" --primary --mode 1920x1200 --pos 0x0 --rotate normal \
+			${external:+--output "$external" --off} $off_args
 		;;
 	"external only")
-		xrandr --output eDP-1 --off --output DP-1 --primary --mode 3440x1440 --pos 0x0 --rotate normal --output DP-2 --off --output DP-3 --off
-		check_layout eDP-1:off DP-1:3440x1440 DP-2:off DP-3:off
+		if [ -z "$external" ]; then
+			echo >&2 "screenlayout: no external output connected"
+			exit 1
+		fi
+		xrandr --output "$laptop" --off \
+			--output "$external" --primary --mode "$external_mode" --pos 0x0 --rotate normal \
+			$off_args
+		check_layout "$laptop:off" "$external:$external_mode" $off_specs
 		;;
 	"reconnect")
 		reconnect-monitor
