@@ -35,10 +35,16 @@ func Create(s *Store, root, path string) (string, error) {
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		return "", fmt.Errorf("create %s: %w", dir, err)
 	}
-	claude := filepath.Join(dir, "CLAUDE.md")
-	if _, err := os.Stat(claude); os.IsNotExist(err) {
-		if err := os.WriteFile(claude, []byte("# "+seg[1]+"\n"), 0o644); err != nil {
-			return "", err
+	// The skeleton is the layout the `project-state` skill defines: a fresh
+	// session reads CLAUDE.md and HANDOFF.md and nothing else, and the F5
+	// progress column counts the boxes under `## Next`. The old one-line stub
+	// is why three existing projects hold nothing but a title.
+	for name, body := range projectSkeleton(seg[1], time.Now()) {
+		f := filepath.Join(dir, name)
+		if _, err := os.Stat(f); os.IsNotExist(err) {
+			if err := os.WriteFile(f, []byte(body), 0o644); err != nil {
+				return "", err
+			}
 		}
 	}
 	if err := s.UpsertProjects([]Found{{Namespace: seg[0], Name: seg[1], Path: path}}); err != nil {
@@ -360,4 +366,46 @@ func Postpone(s *Store, path string, days int, now time.Time) (time.Time, error)
 	}
 	until := now.AddDate(0, 0, days)
 	return until, s.ProjectEvent(path, "snoozed", until.UTC().Format(time.RFC3339))
+}
+
+// projectSkeleton is the state-file pair a new project starts with. The layout
+// and the section names come from the `project-state` skill
+// (dotfiles/claude/skills/project-state); the placeholder first item exists so
+// the progress count starts at 0/1 rather than at an empty list.
+func projectSkeleton(name string, now time.Time) map[string]string {
+	day := now.Format("2006-01-02")
+	return map[string]string{
+		"CLAUDE.md": "# " + name + `
+
+<One paragraph: what this initiative is for, and what it is not. Replace this.>
+
+State files follow the ` + "`project-state`" + ` skill: ` + "`HANDOFF.md`" + ` is what is true
+now and what is next, kept under ~120 lines. ` + "`DECISIONS.md`" + `, ` + "`JOURNAL.md`" + ` and
+` + "`GOTCHAS.md`" + ` are append-only and get created when there is a first line for
+them. Machine or toolchain traps belong in ` + "`~/.claude/CLAUDE.md`" + `, not here.
+`,
+		"HANDOFF.md": "# " + name + ` handoff
+
+Updated ` + day + `.
+
+## Now (re-check before trusting)
+
+- Created ` + day + `. Nothing done yet.
+
+## Next
+
+Progress: 0/1.
+
+- [ ] Write the purpose in CLAUDE.md, then replace this item with real work.
+
+## Open decisions
+
+<Where a session stopped because it needed a human, and what the options were.
+Empty is a good sign.>
+
+## Unverified
+
+<Claims not yet demonstrated, and what would demonstrate them.>
+`,
+	}
 }

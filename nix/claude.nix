@@ -32,6 +32,15 @@
     executable = true;
   };
 
+  # User-level skills. Versioned here because they describe how work is
+  # organised, not what is being worked on: no work internals, so the public
+  # repo is the right home. ~/.claude/skills/find-skills is an unrelated
+  # dangling symlink from an older setup.
+  home.file.".claude/skills/project-state" = {
+    source = ../claude/skills/project-state;
+    recursive = true;
+  };
+
   # Shows what the live file has that the source does not, for the public
   # keys: run it after editing ~/.claude/settings.json by hand (or letting
   # Claude do it) and copy the wanted changes into claude/settings.json.

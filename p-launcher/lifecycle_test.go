@@ -68,8 +68,21 @@ func TestCreate(t *testing.T) {
 		t.Fatalf("dir %s", dir)
 	}
 	b, err := os.ReadFile(filepath.Join(dir, "CLAUDE.md"))
-	if err != nil || string(b) != "# new\n" {
+	if err != nil || !strings.HasPrefix(string(b), "# new\n") || !strings.Contains(string(b), "project-state") {
 		t.Fatalf("CLAUDE.md %q %v", b, err)
+	}
+	h, err := os.ReadFile(filepath.Join(dir, "HANDOFF.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// the sections the progress count and the escalation slot depend on
+	for _, want := range []string{"# new handoff", "## Now (re-check before trusting)", "Progress: 0/1.", "- [ ] Write the purpose", "## Open decisions", "## Unverified"} {
+		if !strings.Contains(string(h), want) {
+			t.Errorf("HANDOFF.md missing %q", want)
+		}
+	}
+	if n := strings.Count(string(h), "- [ ] "); n != 1 {
+		t.Errorf("want one unchecked box, got %d", n)
 	}
 	if got := listPaths(t, s, false); !reflect.DeepEqual(got, map[string]bool{"m/new": false}) {
 		t.Fatalf("%v", got)
