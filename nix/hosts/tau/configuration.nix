@@ -4,7 +4,7 @@
 # in home.nix and is applied separately with `home-manager switch`.
 #
 # The design notes for this file are outside the repository, at
-# ~/p/m/new-laptop/docs/tau-nixos-design.md, because they inventory the
+# ~/p/m/new-laptop/docs/history/tau-nixos-design.md, because they inventory the
 # machine and this repository is public.
 { config, lib, pkgs, ... }:
 {
@@ -92,6 +92,45 @@
   '';
   services.libinput.enable = true;
 
+  # Monitors, rearranged on hotplug instead of by hand. pkgs.autorandr ships a
+  # udev rule on ACTION=="change", SUBSYSTEM=="drm" that starts
+  # autorandr.service, and that trigger is the half gamma never had: its three
+  # profiles sat in ~/.config/autorandr for years while every actual layout
+  # change still went through arandr.
+  #
+  # The profiles themselves are deliberately not declared here. autorandr keys
+  # a profile on the monitor's EDID, and an EDID carries that unit's serial
+  # number, which this repository is public and should not carry. They stay in
+  # ~/.config/autorandr, which nix/home.nix points into Dropbox so they survive
+  # a reinstall — losing them was the only real argument for declaring them.
+  services.autorandr = {
+    enable = true;
+    # Match a saved profile on EDID rather than on output name. This same Dell
+    # came up as DP-3 straight into a USB-C port and as DP-1 through the dock
+    # on one morning, and an output-name match would have missed one of them.
+    matchEdid = true;
+    # An unfamiliar monitor still gets a layout rather than none: outputs side
+    # by side, laptop first. autorandr-learn replaces it with the real one.
+    defaultTarget = "horizontal";
+    hooks.postswitch = {
+      # The rofi picker ends by restoring the keyboard repeat rate and i3's
+      # project workspaces. A hotplug switch has to do the same, or plugging a
+      # monitor in silently drops both. autorandr --batch runs hooks in the
+      # user's session but not through a login shell, so PATH is set here.
+      "10-restore-session" = ''
+        export PATH="$HOME/.nix-profile/bin:$HOME/.local/bin:$PATH"
+        xset r rate 200 25
+        i3-project restore
+      '';
+      # First plug of any monitor lands on defaultTarget above, which puts the
+      # laptop left of the external and ignores their differing heights. This
+      # applies the arrangement actually wanted and saves it as a profile, so
+      # the second plug matches on EDID and this hook does nothing.
+      "20-learn-unknown" = ''
+        exec $HOME/.local/bin/autorandr-learn
+      '';
+    };
+  };
   # nixos-hardware's 12th-gen module hardcodes "TPPS/2 Synaptics TrackPoint",
   # but this machine (21KC005XMX) reports "TPPS/2 Elan TrackPoint" in
   # /proc/bus/input/devices. The module builds a udev rule matching

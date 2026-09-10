@@ -510,6 +510,57 @@ in
     fi
   '';
 
+  # autorandr's profiles, kept in Dropbox rather than in this repository. A
+  # profile is keyed on the monitor's EDID, which carries that unit's serial
+  # number, and this repository is public. $HOME alone is where gamma's three
+  # profiles sat unused for years and were only recovered because someone had
+  # archived them by hand, so the directory is a link into Dropbox: the same
+  # office Dell then arrives on both machines already learned.
+  home.file.".config/autorandr".source =
+    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Dropbox/config/autorandr";
+
+  # The link above dangles until Dropbox has the directory, and autorandr
+  # --save writes into it rather than creating it. The README goes with it: a
+  # directory of autorandr profiles is opaque hex, and Dropbox keeps no commit
+  # message to say why a directory appeared. It is copied only when it
+  # differs, because both machines write here and rewriting an identical file
+  # on every switch is how Dropbox ends up with conflicted copies.
+  home.activation.autorandrProfiles =
+    let
+      readme = pkgs.writeText "autorandr-profiles-README.md" ''
+        # autorandr profiles
+
+        Created 2026-09-10, during the move from gamma (Dell XPS 15, Ubuntu
+        24.04) to tau (ThinkPad X1 Carbon Gen 12, NixOS 26.05). This file is
+        written by `home.activation.autorandrProfiles` in `nix/home.nix` of
+        github.com/chelmertz/dotfiles, and says what the directory is for so
+        that it is still answerable years from now.
+
+        Each subdirectory is one monitor arrangement: `setup` holds the EDID
+        of every output the profile applies to, `config` the xrandr geometry.
+        autorandr reads them through `~/.config/autorandr`, a symlink to this
+        directory on every machine that dotfiles flake configures.
+
+        They are here rather than in the dotfiles repo for two reasons. An
+        EDID contains the display's serial number, and that repo is public.
+        And on gamma the same profiles lived only in `$HOME`, unused for
+        years, and survived the move only because someone had tarred them up
+        by hand.
+
+        Profiles named `learned-<hash>` were written by `bin/autorandr-learn`
+        on the first hotplug of a monitor autorandr had not seen; the hash is
+        of the fingerprint, so no serial number appears in a filename either.
+        To correct one, arrange the screens with `mod+p` → screen layout and
+        run `autorandr --save <name> --force`. Deleting any of them is safe:
+        the next hotplug learns it again.
+      '';
+    in
+    lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      mkdir -p "$HOME/Dropbox/config/autorandr"
+      ${pkgs.diffutils}/bin/cmp -s ${readme} "$HOME/Dropbox/config/autorandr/README.md" \
+        || ${pkgs.coreutils}/bin/install -m 644 ${readme} "$HOME/Dropbox/config/autorandr/README.md"
+    '';
+
   # Register the dotfiles-managed custom URI scheme handlers. `xdg-mime
   # default` edits ~/.config/mimeapps.list in place, so the rest of that
   # hand-curated file (firefox-as-default, signal, postman, …) is left alone —

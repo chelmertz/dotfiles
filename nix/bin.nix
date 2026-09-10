@@ -1,6 +1,11 @@
 { ... }:
 {
   home.file = {
+    ".local/bin/autorandr-learn" = {
+      source = ../bin/autorandr-learn;
+      executable = true;
+    };
+
     ".local/bin/autotag.py" = {
       source = ../bin/autotag.py;
       executable = true;

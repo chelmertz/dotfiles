@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+# Save an autorandr profile for a set of monitors it has never seen.
+#
+# autorandr identifies a monitor by its EDID, and an EDID carries that unit's
+# serial number, so no profile is declared in nix/hosts/tau/configuration.nix:
+# this repository is public. That leaves the first plug of any monitor with
+# nothing to match, and autorandr falls back to --default horizontal, which
+# lines the outputs up left to right in xrandr order — laptop on the left of
+# the external, tops aligned, which is neither where the laptop sits nor how
+# two panels of different heights should meet.
+#
+# Called from autorandr's postswitch hook. Applies the same layout the rofi
+# picker applies, then saves it, so the next plug of the same monitor matches
+# on EDID and this script exits immediately.
+set -u
+
+# autorandr --batch runs hooks in the user's session but not through a login
+# shell, so PATH cannot be assumed.
+export PATH="$HOME/.nix-profile/bin:$HOME/.local/bin:/run/current-system/sw/bin:$PATH"
+
+# Any named profile means autorandr matched a monitor it already knows. Only
+# the fallback target means "never seen this set".
+[ "${AUTORANDR_CURRENT_PROFILE:-}" = "horizontal" ] || exit 0
+
+# Applying a layout is itself a drm change, and the udev rule starts
+# autorandr.service on those. Without this lock the second run finds the
+# profile still unsaved, falls back a second time, and learns from a layout
+# that is halfway applied.
+lock="${XDG_RUNTIME_DIR:-/tmp}/autorandr-learn.lock"
+mkdir "$lock" 2>/dev/null || exit 0
+trap 'rmdir "$lock"' EXIT
+
+# Name it after a hash of the fingerprint, not the monitor: the fingerprint is
+# the EDID, and a filename is as public as a nix file once a screenshot of the
+# picker or a paste of `autorandr` output leaves the machine.
+name="learned-$(autorandr --fingerprint | sha256sum | cut -c1-8)"
+
+i3blocks_screenlayout.sh auto || exit 1
+autorandr --save "$name" --force || exit 1
+
+if command -v notify-send >/dev/null 2>&1; then
+	notify-send "Monitor layout learned" \
+		"Saved as $name. To correct it: arrange with mod+p → screen layout, then run autorandr --save $name --force"
+fi
