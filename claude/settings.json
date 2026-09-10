@@ -150,5 +150,6 @@
   "skillOverrides": {
     "superpowers:writing-plans": "user-invocable-only",
     "superpowers:executing-plans": "user-invocable-only"
-  }
+  },
+  "autoCompactWindow": "500k"
 }

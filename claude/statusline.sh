@@ -20,9 +20,30 @@ mapfile -t fld < <(printf '%s' "$input" | jq -r '
   (.context_window.used_percentage // -1 | floor),
   ((((.context_window.context_window_size // 0) - ((.context_window.total_input_tokens // 0) + (.context_window.total_output_tokens // 0))) | floor)),
   (.rate_limits.five_hour.used_percentage // 0 | floor),
-  (.rate_limits.seven_day.used_percentage // 0 | floor)')
+  (.rate_limits.seven_day.used_percentage // 0 | floor),
+  (.context_window.context_window_size // 0 | floor)')
 dir=${fld[0]}; model=${fld[1]}; pr_url=${fld[2]}
 ctx_pct=${fld[3]:--1}; ctx_left=${fld[4]:-0}; rl5=${fld[5]:-0}; rl7=${fld[6]:-0}
+
+# The window Claude Code reports is the model's; the ceiling that matters is
+# where compaction actually fires, which is autoCompactWindow when that is
+# smaller. Percentages are computed against the smaller of the two so the
+# /handoff hint arrives before compaction rather than after it. Accepted forms
+# per the docs: 200000, "500k", "1M", or a bare 100-1000 meaning thousands.
+acw=$(jq -r '.autoCompactWindow // empty' "$HOME/.claude/settings.json" 2>/dev/null)
+case "$acw" in
+  *[kK]) acw=$(( ${acw%[kK]} * 1000 )) ;;
+  *[mM]) acw=$(( ${acw%[mM]} * 1000000 )) ;;
+  ''|*[!0-9]*) acw=0 ;;
+  *) [ "$acw" -le 1000 ] && acw=$(( acw * 1000 )) ;;
+esac
+win=${fld[7]:-0}
+if [ "${acw:-0}" -gt 0 ] 2>/dev/null && { [ "$win" -eq 0 ] || [ "$acw" -lt "$win" ]; }; then
+  used=$(( win == 0 ? 0 : win - ctx_left ))
+  [ "$win" -gt 0 ] && ctx_left=$(( acw - used )) && ctx_pct=$(( used * 100 / acw ))
+  [ "$ctx_left" -lt 0 ] && ctx_left=0
+  [ "$ctx_pct" -gt 100 ] && ctx_pct=100
+fi
 
 esc=$'\033'
 dim="${esc}[2m"; reset="${esc}[0m"; cyan="${esc}[36m"
