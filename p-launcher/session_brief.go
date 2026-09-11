@@ -197,14 +197,20 @@ func tsAgo(ts string, now time.Time) string {
 	if err != nil {
 		return ""
 	}
-	age := ageText(now.Sub(t))
-	if age == justNow {
-		return age
-	}
-	return age + " ago"
+	return agoText(now.Sub(t))
 }
 
-// justNow is the sub-minute age, shared so tsAgo can recognise it rather than
+// agoText is ageText with the suffix every caller wants. "just now" already
+// reads as a time and takes no "ago"; keeping that rule in one place is why
+// callers use this rather than appending the suffix themselves.
+func agoText(d time.Duration) string {
+	if age := ageText(d); age != justNow {
+		return age + " ago"
+	}
+	return justNow
+}
+
+// justNow is the sub-minute age, named so agoText recognises it rather than
 // re-deriving the threshold.
 const justNow = "just now"
 
@@ -260,7 +266,7 @@ func renderSessionBrief(project string, f handoffFacts, changes []linkChange, st
 		io.WriteString(w, b.String())
 		return
 	}
-	fmt.Fprintf(&b, "p-launcher · %s · handoff written %s ago\n", project, ageText(f.Age))
+	fmt.Fprintf(&b, "p-launcher · %s · handoff written %s\n", project, agoText(f.Age))
 	if f.LastAction != "" {
 		fmt.Fprintf(&b, "Last action: %s\n", f.LastAction)
 	}

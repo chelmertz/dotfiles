@@ -111,6 +111,18 @@ func TestRenderSessionBriefQuietWhenNothingChanged(t *testing.T) {
 	}
 }
 
+// "just now" already reads as a time; the header must not suffix it.
+func TestRenderSessionBriefFreshHandoffReadsAsTime(t *testing.T) {
+	var b strings.Builder
+	renderSessionBrief("personal/demo", parseHandoff(sampleHandoff, 20*time.Second), nil, "", &b)
+	if strings.Contains(b.String(), "just now ago") {
+		t.Errorf("header doubled the suffix:\n%s", b.String())
+	}
+	if !strings.Contains(b.String(), "handoff written just now") {
+		t.Errorf("missing the fresh-handoff header:\n%s", b.String())
+	}
+}
+
 func TestRenderSessionBriefHintsWhenChanged(t *testing.T) {
 	var b strings.Builder
 	changes := []linkChange{{"https://github.com/o/r/pull/41", "merged 1h ago"}}
