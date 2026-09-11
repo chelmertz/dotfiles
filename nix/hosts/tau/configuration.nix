@@ -314,6 +314,23 @@
   # this provides one. hishtory used to belong here and no longer does: it
   # comes from nixpkgs via nix/zsh.nix, so nothing of it is prebuilt.
   programs.nix-ld.enable = true;
+  # Flatpak exists here for exactly one application: Sober, the Roblox player,
+  # which VinegarHQ ships only as a flatpak. nixpkgs has no `sober`, and its
+  # `vinegar` is not a substitute — that bootstraps Roblox *Studio*, a
+  # different program. gamma ran Sober the same way.
+  #
+  # This declares the runtime, not the app. Flatpak keeps its remotes and
+  # installed apps in mutable state that NixOS does not manage, so after a
+  # switch the app itself is two imperative commands, once:
+  #
+  #   flatpak remote-add --if-not-exists flathub \
+  #     https://dl.flathub.org/repo/flathub.flatpakrepo
+  #   flatpak install flathub org.vinegarhq.Sober
+  #
+  # Making that declarative needs a third-party flake (nix-flatpak), which is
+  # not worth a new input for one game. The portal half is already satisfied:
+  # xdg.portal below and programs.dconf are what flatpak GUI apps need.
+  services.flatpak.enable = true;
 
   # ── Applications Ubuntu supplied ────────────────────────────────────────
   programs.firefox.enable = true;
