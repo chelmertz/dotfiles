@@ -477,8 +477,13 @@
               # sdkman
               [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
 
-              # matchi
-              test -f ~/.zsh-matchi && source ~/.zsh-matchi
+              # ~/.zsh-matchi was matchi-cli's generated zsh completion, written
+              # by hand on gamma and never versioned. matchi-cli was a `go
+              # install` binary in ~/go/bin that did not survive the move, so on
+              # tau this sourced a file that will never exist. Dropped 2026-09-12
+              # rather than shipping a stale generated file; if matchi-cli comes
+              # back, generate the completion from the binary the way the jj
+              # block above does.
 
               # hishtory. The config.zsh nixpkgs ships is byte-identical to the
               # one `hishtory install` used to write into ~/.hishtory, so the

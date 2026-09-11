@@ -1,0 +1,618 @@
+#!/usr/bin/env bash
+#
+# xx — Exercism session manager.
+#
+# Picks an exercise, lays out an i3 workspace for it (editor | test watcher /
+# claude), opens the exercise page in Firefox, submits it, and rolls into the next.
+#
+#   xx           choose an exercise across all your tracks and open it
+#   xx done      submit, open the solution online, then choose the next or stop
+#   xx close     save buffers, stop the panes, release the workspace
+#
+#   -r           bypass the API cache      XX_DEBUG=1   trace API calls
+#
+# 'done' and 'close' want a terminal of their own: open one on the session's
+# workspace (it inherits the exercise directory) and run them there.
+#
+# The picker leads with whatever you were last working on and did not finish;
+# once you submit that, fresh exercises lead instead and abandoned ones sink
+# below them. Ordering is entirely derived from the API — nothing is tracked
+# locally. The only session state is the i3 workspace name ("7 - ex:gleam/darts"),
+# which yields the track, slug, exercise directory and nvim socket path.
+#
+set -uo pipefail
+
+SELF=$(readlink -f "$0")
+CONF="$HOME/.config/exercism/user.json"
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/xx"
+RUN="${XDG_RUNTIME_DIR:-/tmp}/xx"
+API="https://exercism.org/api/v2"
+TTL=600
+MARK="ex:"   # workspace-name marker; SEP matches i3-project's convention
+SEP=" - "
+WIDTH=58     # editor pane width, in percent
+SLOTS=20     # highest workspace number to consider
+
+# Teardown patience, in 0.1s ticks. Generous on purpose: a test run mid-compile or
+# claude finishing a write should be allowed to end on its own.
+GRACE_CLOSE=30 # 3s for a pane to honour WM_DELETE_WINDOW
+GRACE_TERM=50  # 5s for a process to handle SIGTERM
+
+SIGNALLED=()    # pids sent SIGTERM during a teardown, checked afterwards
+EDITOR_SAVED=0  # 1 once nvim has confirmed every buffer is written; gates SIGKILL
+
+die() { printf 'xx: %s\n' "$*" >&2; exit 1; }
+
+note() {
+	printf 'xx: %s\n' "$*" >&2
+	command -v notify-send >/dev/null && notify-send "xx" "$*"
+}
+
+dbg() { [ -n "${XX_DEBUG:-}" ] && printf 'xx[dbg] %s\n' "$*" >&2; return 0; }
+
+for tool in jq curl fzf entr i3-msg ghostty nvim column; do
+	command -v "$tool" >/dev/null || die "missing required tool: $tool"
+done
+
+[ -r "$CONF" ] || die "no exercism config at $CONF — run 'exercism configure'"
+WS=$(jq -r '.workspace' "$CONF")
+TOKEN=$(jq -r '.token' "$CONF")
+[ -n "$WS" ] && [ "$WS" != null ] || die "no workspace in $CONF"
+[ -n "$TOKEN" ] && [ "$TOKEN" != null ] || die "no token in $CONF"
+
+# --- API ---
+#
+# ASSUMPTION: the CLI token in user.json authenticates the *v2 web* API at
+# exercism.org/api/v2. Only v1 (api.exercism.org/v1) is documented for CLI
+# tokens, so this is undocumented surface and may break without notice. If it
+# does, the failure is visible here and nowhere else. XX_DEBUG=1 traces it.
+#
+# ASSUMPTION, and the nastier one: a rejected token does NOT produce a 401. The
+# API answers 200 with "solutions": [], which would silently present every
+# exercise as untouched. validate_payload cross-checks against the per-track
+# completion count, which comes from the same request family, so a broken token
+# is reported rather than quietly changing the ordering.
+
+fetch() { # $1 cache key, $2 api path
+	local f="$CACHE/$1.json" code age
+	if [ -z "${REFRESH:-}" ] && [ -f "$f" ]; then
+		age=$(($(date +%s) - $(stat -c %Y "$f")))
+		if [ "$age" -lt "$TTL" ]; then
+			dbg "cache hit $1 (${age}s old)"
+			cat "$f"
+			return 0
+		fi
+	fi
+	mkdir -p "$CACHE"
+	code=$(curl -sS -m 20 -o "$f.new" -w '%{http_code}' \
+		-H "Authorization: Bearer $TOKEN" "$API/$2" 2>/dev/null)
+	dbg "GET $API/$2 -> ${code:-no response}"
+	if [ "$code" != 200 ] || ! jq -e . "$f.new" >/dev/null 2>&1; then
+		rm -f "$f.new"
+		# stale data beats no data; say so once, out loud
+		[ -f "$f" ] && { note "API gave ${code:-no response} for $2 — using cached data"; cat "$f"; return 0; }
+		die "API request failed for $2 (HTTP ${code:-none}) — XX_DEBUG=1 for detail"
+	fi
+	mv "$f.new" "$f"
+	cat "$f"
+}
+
+validate_payload() { # $1 track, $2 completed count, $3 json
+	jq -e '.exercises | length > 0' >/dev/null 2>&1 <<<"$3" ||
+		die "no exercises in the response for $1 — the undocumented v2 API may have changed (XX_DEBUG=1)"
+	if [ "${2:-0}" -gt 0 ] && [ "$(jq '.solutions | length' <<<"$3")" -eq 0 ]; then
+		die "$1 reports $2 completed exercises but the API returned no solutions.
+    Your token is most likely no longer accepted — it authenticates the
+    undocumented v2 API, which answers 200 with an empty list instead of 401.
+    Try 'exercism configure --token=...'."
+	fi
+}
+
+joined_tracks() { # slug<TAB>completed<TAB>total, most recently touched first
+	fetch tracks tracks | jq -r '
+		.tracks | map(select(.is_joined)) | sort_by(.last_touched_at) | reverse
+		| .[] | "\(.slug)\t\(.num_completed_exercises)\t\(.num_exercises)"'
+}
+
+# --- exercise list ---
+
+# One row per unlocked exercise, all tracks:
+#   track slug type difficulty status epoch drank track-index recommended local
+# The last five are sort inputs, stripped before display.
+track_rows() { # $1 track, $2 completed count, $3 track index
+	local t=$1 completed=$2 tidx=$3 have json
+	have=$(find "$WS/$t" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null |
+		jq -R . | jq -sc .)
+	json=$(fetch "track-$t" "tracks/$t/exercises?sideload=solutions") || return 1
+	validate_payload "$t" "$completed" "$json"
+	jq -r --arg t "$t" --argjson tidx "$tidx" --argjson have "${have:-[]}" '
+		def drank: {easy: 0, medium: 1, hard: 2}[.difficulty] // 3;
+		(([.solutions[]?] | map({key: .exercise.slug, value: .}) | from_entries)) as $sol
+		| ($have | map({key: ., value: true}) | from_entries) as $local
+		| .exercises[]
+		| select(.is_unlocked)
+		| . as $e
+		| ($sol[$e.slug] // null) as $s
+		| [ $t, $e.slug, $e.type, $e.difficulty,
+		    ($s.status // ""),
+		    # last_iterated_at is null on every "started" solution (num_iterations
+		    # is 0 — downloaded, never submitted), so updated_at is the only
+		    # recency signal that covers unfinished work. Without this fallback
+		    # the continue candidate can never be an unfinished exercise.
+		    (($s.last_iterated_at // $s.updated_at // null)
+		     | if . == null then 0 else fromdateiso8601 end),
+		    ($e | drank), $tidx,
+		    (if $e.is_recommended then 1 else 0 end),
+		    (if $local[$e.slug] then "~" else "" end) ] | @tsv' <<<"$json"
+}
+
+raw_rows() {
+	local t completed tidx=0
+	# A cold cache costs one round trip per track; overlap them. Each track has
+	# its own cache file, so these cannot race each other.
+	while IFS=$'\t' read -r t _; do
+		fetch "track-$t" "tracks/$t/exercises?sideload=solutions" >/dev/null 2>&1 &
+	done < <(joined_tracks)
+	wait
+	while IFS=$'\t' read -r t completed _; do
+		track_rows "$t" "$completed" "$tidx" || return 1
+		tidx=$((tidx + 1))
+	done < <(joined_tracks)
+}
+
+# Display order, best suggestion first:
+#   ◆ continue  the one thing you were last working on, if you left it unfinished
+#   ☆ next      Exercism's recommendation, most recent tracks first
+#   ● started   picked up and abandoned earlier, most recent first
+#   (blank)     untouched, most recent track first then easiest
+#   ✔ done      already submitted
+# Submitting the ◆ row removes it, so the next 'xx' leads with fresh work while
+# abandoned exercises stay a few rows away rather than hundreds.
+ordered_rows() {
+	local all latest cont=""
+	all=$(raw_rows) || return 1
+	[ -n "$all" ] || die "no exercises returned for any track"
+	latest=$(sort -t$'\t' -k6,6nr <<<"$all" | head -1)
+	if [ "$(cut -f5 <<<"$latest")" = started ]; then
+		cont="$(cut -f1 <<<"$latest")/$(cut -f2 <<<"$latest")"
+		dbg "continue candidate: $cont"
+	else
+		dbg "no continue candidate; last activity was $(cut -f1,2 <<<"$latest" | tr '\t' /)"
+	fi
+	awk -F'\t' -v OFS='\t' -v cont="$cont" '
+		{
+			if ($1 "/" $2 == cont)         { b = 0; k = 0;             m = "◆ continue" }
+			else if ($5 == "" && $9 == 1)  { b = 1; k = $8;            m = "☆ next"     }
+			else if ($5 == "started")      { b = 2; k = -$6;           m = "● started"  }
+			else if ($5 == "")             { b = 3; k = $8 * 100 + $7; m = ""           }
+			else                           { b = 4; k = -$6;           m = "✔ done"     }
+			print b, k, $1, $2, $3, $4, m, $10
+		}' <<<"$all" |
+		sort -t$'\t' -k1,1n -k2,2n -k4,4 | cut -f3-
+}
+
+pick() { # -> "track slug"
+	local sel
+	sel=$(ordered_rows | column -t -s$'\t' |
+		fzf --layout=reverse --height=80% --prompt='exercise > ' \
+			--header='enter: open    ctrl-c: cancel') || return 1
+	awk '{print $1, $2}' <<<"$sel"
+}
+
+# --- i3 ---
+
+ws_rows() { # num<TAB>window count<TAB>name
+	i3-msg -t get_tree | jq -r '
+		def leaves: [recurse(.nodes[]?, .floating_nodes[]?) | select(.window != null)] | length;
+		[recurse(.nodes[]?, .floating_nodes[]?) | select(.type == "workspace")]
+		| map(select(.name | test("^[0-9]+")))
+		| .[] | "\(.name | capture("^(?<n>[0-9]+)") | .n)\t\(leaves)\t\(.name)"'
+}
+
+focused_ws() { i3-msg -t get_workspaces | jq -r '.[] | select(.focused) | .name'; }
+
+win_ids_of() { # $1 workspace name
+	i3-msg -t get_tree | jq -r --arg n "$1" '
+		recurse(.nodes[]?, .floating_nodes[]?)
+		| select(.type == "workspace" and .name == $n)
+		| recurse(.nodes[]?, .floating_nodes[]?) | select(.window != null) | .id'
+}
+
+win_pairs_of() { # $1 workspace name -> con_id<TAB>X window id
+	i3-msg -t get_tree | jq -r --arg n "$1" '
+		recurse(.nodes[]?, .floating_nodes[]?)
+		| select(.type == "workspace" and .name == $n)
+		| recurse(.nodes[]?, .floating_nodes[]?)
+		| select(.window != null) | "\(.id)\t\(.window)"'
+}
+
+# con_ids still up on a workspace, ignoring our own terminal, after polling.
+# Empty output means everything closed.
+wait_gone() { # $1 workspace name, $2 self con_id, $3 attempts (0.1s each)
+	local left i
+	for ((i = 0; i < $3; i++)); do
+		left=$(win_ids_of "$1" | grep -vx "${2:-__none__}")
+		[ -z "$left" ] && return 0
+		sleep 0.1
+	done
+	printf '%s\n' "$left"
+}
+
+# SIGTERM only, and to what is running *inside* each pane (entr, claude, a shell)
+# rather than the terminal around it — so each process gets to shut down on its own
+# terms and the terminal closes when its child exits. i3 does not report pids for
+# X11 windows, hence xdotool.
+#
+# $3 selects how far up to reach: "inner" signals the terminal's children, "outer"
+# signals the terminal itself. Nothing here escalates to SIGKILL; if a process
+# declines to exit, close_session reports it and leaves it running.
+signal_panes() { # $1 workspace name, $2 self con_id, $3 inner|outer
+	local id w tp kid
+	command -v xdotool >/dev/null || { dbg "no xdotool — cannot signal panes"; return 0; }
+	while IFS=$'\t' read -r id w; do
+		[ "$id" = "${2:-}" ] && continue
+		tp=$(xdotool getwindowpid "$w" 2>/dev/null) || continue
+		[ -n "$tp" ] || continue
+		if [ "$3" = inner ]; then
+			for kid in $(pgrep -P "$tp" 2>/dev/null); do
+				dbg "SIGTERM $kid (running inside window $w)"
+				kill -TERM "$kid" 2>/dev/null && SIGNALLED+=("$kid")
+			done
+		else
+			dbg "SIGTERM terminal $tp (window $w)"
+			kill -TERM "$tp" 2>/dev/null && SIGNALLED+=("$tp")
+		fi
+	done < <(win_pairs_of "$1")
+	return 0
+}
+
+# SIGKILL, the last rung. Only ever called with EDITOR_SAVED=1, i.e. after nvim
+# has confirmed every buffer is written — at that point a pane that will not go is
+# just a stuck pane, and nothing of yours is lost by removing it.
+force_panes() { # $1 workspace name, $2 self con_id
+	local id w tp kid
+	command -v xdotool >/dev/null || return 0
+	while IFS=$'\t' read -r id w; do
+		[ "$id" = "${2:-}" ] && continue
+		tp=$(xdotool getwindowpid "$w" 2>/dev/null) || continue
+		[ -n "$tp" ] || continue
+		for kid in $(pgrep -P "$tp" 2>/dev/null); do
+			dbg "SIGKILL $kid (inside window $w)"
+			kill -KILL "$kid" 2>/dev/null
+		done
+		dbg "SIGKILL terminal $tp (window $w)"
+		kill -KILL "$tp" 2>/dev/null
+	done < <(win_pairs_of "$1")
+	return 0
+}
+
+# A process can outlive its own pane by ignoring SIGTERM and SIGHUP. Reap it if the
+# editor is confirmed saved, otherwise leave it and say where it is — a closed
+# workspace must never leave work running with nothing pointing at it.
+reap_survivors() {
+	local p alive=() stubborn=()
+	for p in ${SIGNALLED[@]+"${SIGNALLED[@]}"}; do
+		kill -0 "$p" 2>/dev/null && alive+=("$p")
+	done
+	[ ${#alive[@]} -eq 0 ] && return 0
+	if [ "${EDITOR_SAVED:-0}" != 1 ]; then
+		note "${#alive[@]} process(es) ignored SIGTERM and are still running:
+    ${alive[*]}. Not force-killed, because the editor's state was never
+    confirmed saved. Inspect with 'ps -fp ${alive[*]// /,}'."
+		return 0
+	fi
+	for p in "${alive[@]}"; do
+		dbg "SIGKILL survivor $p"
+		kill -KILL "$p" 2>/dev/null
+	done
+	sleep 0.3
+	stubborn=()
+	for p in "${alive[@]}"; do kill -0 "$p" 2>/dev/null && stubborn+=("$p"); done
+	if [ ${#stubborn[@]} -gt 0 ]; then
+		note "process(es) survived even SIGKILL (uninterruptible?): ${stubborn[*]}"
+	else
+		dbg "force-killed ${#alive[@]} leftover process(es) after SIGTERM was ignored"
+	fi
+}
+
+# The container this script runs in. 'xx done' must not kill its own terminal
+# before it has finished talking. ghostty exports WINDOWID.
+self_con_id() {
+	local me=${WINDOWID:-$(xdotool getactivewindow 2>/dev/null)}
+	[ -n "$me" ] || return 0
+	i3-msg -t get_tree | jq -r --arg me "$me" '
+		recurse(.nodes[]?, .floating_nodes[]?)
+		| select(.window != null and .window == ($me | tonumber)) | .id'
+}
+
+session_ws() { ws_rows | awk -F'\t' -v m="$MARK" 'index($3, m) {print $3; exit}'; }
+
+session_id() { # -> "track/slug", empty if no session is open
+	local n
+	n=$(session_ws)
+	[ -n "$n" ] && printf '%s\n' "${n#*"$MARK"}"
+}
+
+# Lowest free workspace number. "Free" means no windows and not a slot
+# i3-project has labelled — renaming one of those desyncs its state file.
+free_ws_num() {
+	local focused fnum excl n
+	focused=$(focused_ws)
+	fnum=${focused%%[!0-9]*}
+	if [ -n "$fnum" ] && [ "$(win_ids_of "$focused" | wc -l)" -eq 0 ]; then
+		printf '%s\n' "$fnum"
+		return
+	fi
+	excl=$(
+		ws_rows | awk -F'\t' '$2 > 0 {print $1}'
+		cut -d: -f1 "$HOME/.config/i3/projects" 2>/dev/null
+	)
+	for n in $(seq 1 "$SLOTS"); do
+		grep -qx "$n" <<<"$excl" || { printf '%s\n' "$n"; return; }
+	done
+	die "no free workspace in 1..$SLOTS"
+}
+
+# Spawn a terminal and wait for its window to appear. Matching on title is not an
+# option — shell-integration rewrites it — so diff the window id set.
+spawn() { # $1 dir, rest: command -> new window id
+	local dir=$1 ws before after new
+	shift
+	ws=$(focused_ws)
+	before=$(win_ids_of "$ws" | sort)
+	# confirm-close-surface is on by default, which turns 'xx close' into two
+	# "Close Window?" dialogs (entr and claude are live processes). Disable it for
+	# panes xx owns only — terminals you open yourself keep the confirmation.
+	setsid ghostty --confirm-close-surface=false \
+		--working-directory="$dir" -e "$@" >/dev/null 2>&1 &
+	for _ in $(seq 60); do
+		sleep 0.1
+		after=$(win_ids_of "$ws" | sort)
+		new=$(comm -13 <(printf '%s\n' "$before") <(printf '%s\n' "$after") | head -1)
+		[ -n "$new" ] && { printf '%s\n' "$new"; return 0; }
+	done
+	return 1
+}
+
+# --- sessions ---
+
+# exercism test resolves each track's own runner; sqlite has no CLI runner yet.
+test_cmd() { # $1 track, $2 slug
+	case $1 in
+	sqlite) printf 'sqlite3 -bail < %s_test.sql' "$2" ;;
+	*) printf 'exercism test' ;;
+	esac
+}
+
+# The watcher pane runs a plain visible pipeline — nothing to debug but what you
+# can read in the pane. Watch the directories holding the solution and test
+# files, except on flat layouts (sqlite writes user_output.md next to the
+# sources, which would retrigger forever); there, watch the named files.
+watch_cmd() { # $1 exercise dir, $2 track, $3 slug
+	local files dirs paths
+	files=$(jq -r '(.files.solution // []) + (.files.test // []) | .[]' \
+		"$1/.exercism/config.json")
+	dirs=$(xargs -r -n1 dirname <<<"$files" | sort -u)
+	if grep -qx '\.' <<<"$dirs"; then paths=$files; else paths=$dirs; fi
+	printf "find %s -type f | entr -r -s 'clear; %s'" \
+		"$(xargs <<<"$paths")" "$(test_cmd "$2" "$3")"
+}
+
+# The exercise page on exercism.org, which carries both the instructions and the
+# tests — more than the local README.md has. Same two steps as the http* branch of
+# your `x` function. The canonical URL is recorded in .exercism/metadata.json at
+# download time; construct it only if that is missing.
+open_docs() { # $1 exercise dir, $2 track, $3 slug
+	local url
+	url=$(jq -r '.url // empty' "$1/.exercism/metadata.json" 2>/dev/null)
+	[ -n "$url" ] || url="https://exercism.org/tracks/$2/exercises/$3"
+	dbg "opening $url"
+	xdg-open "$url" 2>/dev/null
+	command -v wmctrl >/dev/null && wmctrl -a Firefox
+	return 0
+}
+
+open_session() { # $1 track, $2 slug
+	local t=$1 s=$2
+	local dir="$WS/$t/$s" cur sol sock num editor watch f
+	local -a files=()
+
+	# One exercise workspace at a time.
+	cur=$(session_id)
+	[ -n "$cur" ] && { close_session "${cur%%/*}" "${cur#*/}" || exit 1; }
+
+	if [ ! -d "$dir" ]; then
+		exercism download --track="$t" --exercise="$s" >/dev/null ||
+			die "could not download $t/$s"
+	fi
+	[ -r "$dir/.exercism/config.json" ] || die "no .exercism/config.json in $dir"
+	sol=$(jq -r '.files.solution[0]' "$dir/.exercism/config.json")
+	[ -n "$sol" ] && [ "$sol" != null ] || die "no solution file listed for $t/$s"
+	# Solution first so it is the buffer on screen; the tests come along as
+	# further buffers (no split) — :b / your buffer switcher reaches them, and
+	# 'xx close' saves any of them you touched.
+	files=("$sol")
+	while IFS= read -r f; do
+		[ -f "$dir/$f" ] && files+=("$f")
+	done < <(jq -r '.files.test[]? // empty' "$dir/.exercism/config.json")
+	watch=$(watch_cmd "$dir" "$t" "$s")
+
+	mkdir -p "$RUN"
+	sock="$RUN/$t-$s.sock"
+	rm -f "$sock"
+
+	num=$(free_ws_num) || exit 1
+	i3-msg "workspace number $num" >/dev/null
+	i3-msg "rename workspace to \"${num}${SEP}${MARK}${t}/${s}\"" >/dev/null
+
+	# nvim, not $EDITOR: --listen is what lets 'xx close' save and quit it from
+	# outside. Otherwise the window would just be killed under a dirty buffer.
+	editor=$(spawn "$dir" nvim --listen "$sock" "${files[@]}") ||
+		die "editor window never appeared"
+	i3-msg 'split horizontal' >/dev/null
+	# drop to a shell in the exercise directory if entr is ever quit
+	spawn "$dir" "${SHELL:-/bin/sh}" -c "$watch; exec ${SHELL:-/bin/sh}" >/dev/null ||
+		note "watcher window never appeared"
+	i3-msg 'split vertical' >/dev/null
+	spawn "$dir" claude >/dev/null || note "claude window never appeared"
+
+	i3-msg "[con_id=$editor] focus" >/dev/null
+	i3-msg "resize set width $WIDTH ppt" >/dev/null
+
+	# Last, so the layout is already settled behind you and nothing races Firefox
+	# for focus: read the instructions, then switch to the workspace to start.
+	open_docs "$dir" "$t" "$s"
+}
+
+close_session() { # $1 track, $2 slug
+	local t=$1 s=$2
+	local sock="$RUN/$t-$s.sock" name id me dirty left
+
+	# Force-killing is only ever allowed once the editor's buffers are known to be
+	# on disk. Every path below that reaches the teardown ladder sets this; the
+	# paths that cannot confirm it return early instead.
+	EDITOR_SAVED=0
+	SIGNALLED=()
+
+	if [ -S "$sock" ]; then
+		# </dev/null on every remote call is load-bearing: with a tty on stdin the
+		# client nvim brings up a full TUI (alt-screen, capability queries), which
+		# lands in the captured output and leaves the terminal's replies in the
+		# calling shell's input buffer. The sentinel then makes the parse immune to
+		# any stray output regardless.
+		nvim --server "$sock" --remote-send '<C-\><C-n>:wa<CR>' </dev/null >/dev/null 2>&1
+		sleep 0.3
+		dirty=$(nvim --server "$sock" --remote-expr \
+			'"xx<" . len(filter(getbufinfo({"buflisted": 1}), "v:val.changed")) . ">"' \
+			</dev/null 2>/dev/null | grep -oE 'xx<[0-9]+>' | head -1 | tr -dc '0-9')
+		dbg "unsaved buffers in $t/$s: ${dirty:-unknown}"
+		if [ -z "$dirty" ]; then
+			note "nvim did not answer about unsaved buffers in $t/$s — leaving the
+    workspace alone. Quit nvim yourself, then run 'xx close' again."
+			return 1
+		fi
+		if [ "$dirty" != 0 ]; then
+			note "$dirty unsaved buffer(s) in $t/$s — leaving the workspace alone"
+			return 1
+		fi
+		nvim --server "$sock" --remote-send ':qa<CR>' </dev/null >/dev/null 2>&1
+		sleep 0.3
+		EDITOR_SAVED=1 # nvim itself reported 0 modified buffers
+	else
+		# No socket means nvim is already gone, so it either saved or you chose not
+		# to. Either way there is no editor state left for xx to lose.
+		dbg "no nvim socket at $sock — editor already gone"
+		EDITOR_SAVED=1
+	fi
+	rm -f "$sock"
+
+	name=$(ws_rows | awk -F'\t' -v k="${MARK}${t}/${s}" 'index($3, k) {print $3; exit}')
+	[ -n "$name" ] || return 0
+	me=$(self_con_id)
+	for id in $(win_ids_of "$name"); do
+		[ "$id" = "$me" ] && continue
+		i3-msg "[con_id=$id] kill" >/dev/null
+	done
+
+	# Confirm they really went, escalating politely. A pane left up behind a dialog
+	# used to be renamed out of existence anyway, which made the session
+	# undiscoverable and left 'xx close' with nothing to find.
+	#
+	# The ladder, gentlest first. SIGKILL is the last rung and is gated on the
+	# editor being confirmed saved, so force is never the thing that loses work:
+	#   1. WM_DELETE_WINDOW above (i3's default 'kill') — the app closes itself
+	#   2. SIGTERM what runs inside the pane; the terminal follows its child out
+	#   3. SIGTERM the terminal itself
+	#   4. SIGKILL, only with EDITOR_SAVED=1
+	#   5. give up and say so
+	left=$(wait_gone "$name" "$me" "$GRACE_CLOSE")
+	if [ -n "$left" ]; then
+		dbg "still up after WM_DELETE: $(tr '\n' ' ' <<<"$left")"
+		signal_panes "$name" "$me" inner
+		left=$(wait_gone "$name" "$me" "$GRACE_TERM")
+	fi
+	if [ -n "$left" ]; then
+		dbg "still up after inner SIGTERM: $(tr '\n' ' ' <<<"$left")"
+		signal_panes "$name" "$me" outer
+		left=$(wait_gone "$name" "$me" "$GRACE_TERM")
+	fi
+	if [ -n "$left" ] && [ "$EDITOR_SAVED" = 1 ]; then
+		dbg "still up after outer SIGTERM: $(tr '\n' ' ' <<<"$left")"
+		note "$(grep -c . <<<"$left") pane(s) ignored SIGTERM — force-killing them.
+    Your buffers are already written, so nothing of yours is lost."
+		force_panes "$name" "$me"
+		left=$(wait_gone "$name" "$me" "$GRACE_TERM")
+	fi
+	if [ -n "$left" ]; then
+		note "$(grep -c . <<<"$left") window(s) on '$name' will not close$([ "$EDITOR_SAVED" = 1 ] &&
+			printf ', even after SIGKILL' || printf '; not force-killed, editor state unconfirmed').
+    Keeping the label so 'xx close' still finds this session."
+		return 1
+	fi
+
+	reap_survivors
+
+	# Only now is it safe to stop advertising a session here. Your own terminal may
+	# still be on the workspace; the number stays, the label goes.
+	i3-msg "rename workspace \"$name\" to \"${name%%"$SEP"*}\"" >/dev/null 2>&1
+	return 0
+}
+
+open_picked() {
+	local sel track slug
+	sel=$(pick) || return 0
+	read -r track slug <<<"$sel"
+	[ -n "${slug:-}" ] || return 0
+	open_session "$track" "$slug"
+}
+
+cmd_done() {
+	local cur t s out url ans
+	cur=$(session_id)
+	[ -n "$cur" ] || die "no exercise session open"
+	t=${cur%%/*} s=${cur#*/}
+
+	printf 'submitting %s/%s\n\n' "$t" "$s"
+	out=$(cd "$WS/$t/$s" && exercism submit 2>&1)
+	printf '%s\n\n' "$out"
+	url=$(grep -oE 'https://exercism\.org/\S+' <<<"$out" | head -1)
+	if [ -n "$url" ]; then
+		xdg-open "$url" >/dev/null 2>&1 &
+	else
+		note "no solution URL in the submit output — check it above"
+	fi
+	rm -f "$CACHE/track-$t.json" # that submit just changed this track's status
+
+	printf 'check the run online, then:\n'
+	printf '  [enter] choose the next one   [s] stop here   [c] change nothing\n> '
+	read -r ans
+	case $ans in
+	c) return 0 ;;
+	s) close_session "$t" "$s" ;;
+	*) open_picked ;; # open_session tears the current one down itself
+	esac
+}
+
+cmd_close() {
+	local cur
+	cur=$(session_id)
+	[ -n "$cur" ] || die "no exercise session open"
+	close_session "${cur%%/*}" "${cur#*/}"
+}
+
+usage() { sed -n '3,16p' "$SELF" | sed 's/^# \?//'; }
+
+# --- dispatch ---
+
+if [ "${1:-}" = -r ] || [ "${1:-}" = --refresh ]; then
+	REFRESH=1
+	shift
+fi
+
+case ${1:-} in
+'') open_picked ;;
+done) cmd_done ;;
+close) cmd_close ;;
+-h | --help | help) usage ;;
+*) die "unknown argument '$1' — everything goes through xx, xx done and xx close" ;;
+esac

@@ -443,5 +443,14 @@ in
       source = ../bin/youtube-mp3;
       executable = true;
     };
+
+    # Exercism session manager. Existed only in ~/.local/bin on gamma until
+    # 2026-09-12, versioned nowhere, and would have gone back to the employer
+    # with the laptop. Reads its API token from ~/.config/exercism/user.json,
+    # so nothing secret lands in this public repo.
+    ".local/bin/xx" = {
+      source = ../bin/xx;
+      executable = true;
+    };
   };
 }
