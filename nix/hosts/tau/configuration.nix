@@ -187,41 +187,31 @@
   };
 
   # ── Login ───────────────────────────────────────────────────────────────
-  # Wires fingerprint into GDM and sudo, which is what gamma's gdm-fingerprint
-  # PAM file did. Enrolment is imperative: fprintd-enroll, after first boot.
+  # Wires fingerprint into GDM, which is what gamma's gdm-fingerprint PAM
+  # file did. Enrolment is imperative: fprintd-enroll, after first boot. The
+  # option enables it in every PAM stack, though, so the next block narrows it.
   services.fprintd.enable = true;
 
-  security.pam.services = lib.mkMerge [
-    # ...but not into i3lock. i3lock buffers the password and only calls
-    # pam_authenticate on Enter, so pam_fprintd runs first with nothing to
-    # read and blocks for its whole timeout (30s) before pam_unix ever sees
-    # the password. Every unlock paid that. A fingerprint cannot start the
-    # unlock here anyway: nothing calls PAM until a key is pressed.
-    { i3lock.fprintAuth = false; }
-
-    # And everywhere else, put the reader after the password, not before it.
-    # pam_fprintd is `sufficient` and defaults ahead of pam_unix, so it blocks
-    # for its whole timeout before any password prompt appears (measured on
-    # sudo: 30.7s, with no way to type during it). Docked, the reader is out
-    # of reach and typing is faster. Ordered after pam_unix the prompt comes
-    # first, and an empty Enter still falls through to the reader, so the
-    # option is kept rather than dropped. Offsets, never constants: the
-    # built-in order values are nixpkgs internals and may be renumbered.
-    #
-    # polkit-1 is deliberately absent: it is how 1Password does system auth,
-    # and the reader is wanted first there. gdm-password needs nothing
-    # either, being a substack of `login`, which the gdm module already keeps
-    # fprintd out of; GDM runs gdm-fingerprint alongside it, not before it.
-    (lib.genAttrs [
-      "chfn" "chpasswd" "chsh" "cups" "groupadd" "groupdel" "groupmems"
-      "groupmod" "i3lock-color" "passwd" "runuser" "runuser-l" "sshd" "su"
-      "sudo" "systemd-run0" "systemd-user" "useradd" "userdel" "usermod"
-      "vlock" "xlock"
-    ] (svc: {
-      rules.auth.fprintd.order =
-        config.security.pam.services.${svc}.rules.auth.unix.order + 10;
-    }))
-  ];
+  # ...but only there and in polkit-1. pam_fprintd is `sufficient` and lands
+  # ahead of pam_unix everywhere else, where it blocks for its whole 30s
+  # timeout before any password prompt appears. Ordering it after pam_unix
+  # fixes that first prompt but still charges the 30s on every failed
+  # password, so a typo costs 32s before the retry prompt (measured). Docked,
+  # the reader is out of reach and typing is faster, so it is dropped here
+  # rather than reordered. i3lock could never have used it anyway: it buffers
+  # the password and calls pam_authenticate only on Enter, so nothing asks
+  # PAM until a key is pressed.
+  #
+  # polkit-1 keeps the reader, and keeps it first: that is how 1Password does
+  # system auth, and the reader is the point there. gdm-password needs nothing
+  # either, being a substack of `login`, which the gdm module already keeps
+  # fprintd out of; GDM runs gdm-fingerprint alongside it, not before it.
+  security.pam.services = lib.genAttrs [
+    "chfn" "chpasswd" "chsh" "cups" "groupadd" "groupdel" "groupmems"
+    "groupmod" "i3lock" "i3lock-color" "passwd" "runuser" "runuser-l" "sshd"
+    "su" "sudo" "systemd-run0" "systemd-user" "useradd" "userdel" "usermod"
+    "vlock" "xlock"
+  ] (_: { fprintAuth = false; });
 
   # The D-Bus secret service. Ubuntu supplied it through its GNOME session, and
   # without it there is nowhere for libsecret clients to keep anything: `gh`
