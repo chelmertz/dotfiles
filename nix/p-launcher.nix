@@ -29,7 +29,15 @@ in
         ${p-launcher}/bin/p-launcher links refresh
         ${p-launcher}/bin/p-launcher tend
       '';
-      Environment = "PATH=${lib.makeBinPath [ pkgs.gh ]}";
+      # gh for the refresh; the nix profile because `tend` launches a desktop
+      # session. It forks ghostty by name, ghostty runs `zsh -ic "claude; ..."`
+      # inheriting this very PATH, and notify-send is how a failure is reported
+      # — so ghostty, zsh, claude and notify-send all have to resolve here.
+      # With gh alone, tend died on the first PR it decided to act on and the
+      # notification meant to say so failed too. Same shape as spotify-backup's
+      # missing ssh, and it hid for the same reason: the unit exits 0 until the
+      # conditional path is reached, and tend acts only once a PR qualifies.
+      Environment = "PATH=${lib.makeBinPath [ pkgs.gh ]}:%h/.nix-profile/bin";
     };
   };
   # Daily brief: one read-only headless Claude run over the PR queue, stored
