@@ -309,9 +309,10 @@
     enable = true;
     binfmt = true;
   };
-  # hishtory, maestro, bun and rustup install prebuilt, dynamically linked
-  # binaries into $HOME. Without a loader at /lib64/ld-linux-x86-64.so.2 they
-  # fail to start; this provides one.
+  # maestro, bun and rustup install prebuilt, dynamically linked binaries into
+  # $HOME. Without a loader at /lib64/ld-linux-x86-64.so.2 they fail to start;
+  # this provides one. hishtory used to belong here and no longer does: it
+  # comes from nixpkgs via nix/zsh.nix, so nothing of it is prebuilt.
   programs.nix-ld.enable = true;
 
   # ── Applications Ubuntu supplied ────────────────────────────────────────

@@ -6,6 +6,18 @@
   # compinit -C never notices new completion functions, so drop the dump when
   # the profile changes - that is when new completions arrive. After installing
   # completions outside nix: rm ~/.cache/zcompdump-*
+  home.packages = [ pkgs.hishtory ];
+
+  # hishtory keeps its config and sqlite db in ~/.hishtory, which nix does not
+  # manage. Without them the binary errors on every prompt hook, so create them
+  # once. --offline because this account has never used the sync server, and an
+  # init that contacted it would hand out a new device id for nothing.
+  home.activation.hishtoryInit = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    if [ ! -e "$HOME/.hishtory/.hishtory.config" ]; then
+      $DRY_RUN_CMD ${pkgs.hishtory}/bin/hishtory init --offline --force
+    fi
+  '';
+
   home.activation.dropZcompdump = ''
     rm -f "$HOME"/.cache/zcompdump-*
   '';
@@ -142,7 +154,7 @@
 
       ''
               # PATH additions
-              export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:$HOME/.hishtory:$HOME/.maestro/bin:$BUN_INSTALL/bin:$HOME/bin:/usr/local/go/bin:$HOME/go/bin:$HOME/.emacs.d/bin:$HOME/.cargo/bin:$PATH"
+              export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:$HOME/.maestro/bin:$BUN_INSTALL/bin:$HOME/bin:/usr/local/go/bin:$HOME/go/bin:$HOME/.emacs.d/bin:$HOME/.cargo/bin:$PATH"
 
               # Generated completions and hooks cost twice over: running the
               # tool, and zsh parsing a process substitution one byte at a time
@@ -468,22 +480,26 @@
               # matchi
               test -f ~/.zsh-matchi && source ~/.zsh-matchi
 
-              # hishtory. Two calls in its config.zsh cost ~65ms per shell and
-              # both answers are constant here: getColorSupport round-trips to
-              # the terminal and always says 1, enable-control-r is true. Shadow
-              # them for the duration of the source, everything else (including
-              # the completion) falls through to the real binary.
-              if [[ -f /home/ch/.hishtory/config.zsh ]]; then
-                hishtory() {
-                  case "$*" in
-                    getColorSupport) return 1 ;;
-                    "config-get enable-control-r") print -r true ;;
-                    *) command hishtory "$@" ;;
-                  esac
-                }
-                source /home/ch/.hishtory/config.zsh
-                unfunction hishtory
-              fi
+              # hishtory. The config.zsh nixpkgs ships is byte-identical to the
+              # one `hishtory install` used to write into ~/.hishtory, so the
+              # store path replaces the imperative install entirely: the binary
+              # comes from home.packages and ~/.hishtory holds only the config
+              # and the database.
+              #
+              # Two calls in that file cost ~65ms per shell and both answers are
+              # constant here: getColorSupport round-trips to the terminal and
+              # always says 1, enable-control-r is true. Shadow them for the
+              # duration of the source, everything else (including the
+              # completion) falls through to the real binary.
+              hishtory() {
+                case "$*" in
+                  getColorSupport) return 1 ;;
+                  "config-get enable-control-r") print -r true ;;
+                  *) command hishtory "$@" ;;
+                esac
+              }
+              source ${pkgs.hishtory}/share/hishtory/config.zsh
+              unfunction hishtory
 
               # Powerlevel10k config (theme loaded via plugins)
               [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
