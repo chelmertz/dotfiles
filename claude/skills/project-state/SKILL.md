@@ -31,6 +31,7 @@ to put in them, not upfront.
 # <project> handoff
 
 Updated <date>.
+Last action: <one plain sentence, no jargon>
 
 ## Now (re-check before trusting)
 
@@ -95,3 +96,9 @@ Two conventions that carry their weight:
 
 Read `CLAUDE.md` and `HANDOFF.md`. Read nothing else until an item needs it -
 the design docs and the journal are there to be consulted, not loaded.
+
+A SessionStart hook (`p-launcher session-brief`) prints the file's headline
+facts before you read anything, and lists any linked PR that moved since the
+file was written. That list is deterministic and free; acting on it is not.
+When it is non-empty, `/catchup` folds those facts back into the file. When it
+is empty, nothing drifted and there is nothing to reconcile.

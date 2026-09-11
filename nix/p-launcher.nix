@@ -100,6 +100,10 @@ in
     Unit.Description = "p-launcher: refresh PR links every 10 min";
     Timer = {
       OnBootSec = "2m";
+      # Counterpart: linksStaleAfter in p-launcher/session_brief.go, which
+      # must stay above this interval or the session brief calls the timer
+      # broken between ticks. TestLinksTimerIntervalMatchesStaleness asserts
+      # against this literal.
       OnUnitActiveSec = "10m";
       RandomizedDelaySec = "1m";
     };

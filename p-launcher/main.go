@@ -3,8 +3,8 @@
 // weekly on how many things to run at once.
 //
 // Subcommands are porcelain (menu, open, create, archive, report) and
-// plumbing (list, hook, links refresh, tend, desktop). State lives in one
-// SQLite file under XDG data; nothing is stored under ~/p.
+// plumbing (list, hook, session-brief, links refresh, tend, desktop). State
+// lives in one SQLite file under XDG data; nothing is stored under ~/p.
 package main
 
 import (
@@ -30,7 +30,7 @@ func (e *hintError) Error() string { return e.msg + ". " + e.hint }
 func (e *hintError) Unwrap() error { return e.cause }
 
 func usage() error {
-	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> [--no-open] | describe <ns/name> <text> | adopt <ns/name> <cwd-prefix> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | menu [--toggle-key KEY] | hook | desktop lock|unlock | tend [--dry-run] [--max N] | kv get <key> | kv set <key> <value> | backup [DIR] | brief [--dry-run] [--force] [--show] | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
+	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> [--no-open] | describe <ns/name> <text> | adopt <ns/name> <cwd-prefix> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | menu [--toggle-key KEY] | hook | session-brief | desktop lock|unlock | tend [--dry-run] [--max N] | kv get <key> | kv set <key> <value> | backup [DIR] | brief [--dry-run] [--force] [--show] | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
 }
 
 func main() {
@@ -149,7 +149,7 @@ func run(args []string) error {
 		if len(args) != 2 {
 			return usage()
 		}
-	case "hook":
+	case "hook", "session-brief":
 		if len(args) != 1 {
 			return usage()
 		}
@@ -178,9 +178,10 @@ func run(args []string) error {
 	}
 	defer s.Close()
 
-	if cmd != "hook" && cmd != "desktop" {
-		// sessions whose claude process is gone stop counting as live; the
-		// hook path skips this to stay cheap and single-purpose
+	if cmd != "hook" && cmd != "session-brief" && cmd != "desktop" {
+		// sessions whose claude process is gone stop counting as live; both
+		// hook paths skip this to stay cheap, and session-brief runs
+		// synchronously on the session-start path where it would be felt
 		if _, err := s.ReapDead(func(pid int) bool { return isClaude(procRoot, pid) }); err != nil {
 			return err
 		}
@@ -305,6 +306,16 @@ func run(args []string) error {
 		// goes to stdout, which Claude Code would inject into the session.
 		if err := hook(s, root, os.Stdin); err != nil {
 			fmt.Fprintln(os.Stderr, "p-launcher hook:", err)
+		}
+		return nil
+	case "session-brief":
+		// The other half of the SessionStart hook, and the opposite of "hook"
+		// above: this one exists to write to stdout, so it must be registered
+		// synchronously (an async hook's stdout is discarded). Still exit 0
+		// and print nothing on failure - a brief is a convenience, and a
+		// session that cannot start is not.
+		if err := briefSession(s, root, hookCwd(os.Stdin), time.Now(), os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "p-launcher session-brief:", err)
 		}
 		return nil
 	}

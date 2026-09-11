@@ -71,6 +71,11 @@
             "command": "p-launcher hook",
             "async": true,
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "p-launcher session-brief",
+            "timeout": 5
           }
         ]
       }

@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Use when the statusline shows /handoff, when a work item is finished and the context is filling, or whenever the user types /handoff. Updates the project's HANDOFF.md, then says whether to /clear now or carry on.
+description: Use when the statusline shows /handoff, when a work item is finished and the context is filling, or whenever the user types /handoff. Updates the project's HANDOFF.md, then says whether to /clear now or carry on. Counterpart of the `catchup` skill, which re-checks this state when work is picked back up.
 argument-hint: "[what was just finished, optional]"
 ---
 
@@ -36,6 +36,10 @@ Follow the `project-state` skill's layout. In `HANDOFF.md`:
 5. Move what stopped being actionable into `JOURNAL.md` (verified, dated) or
    `DECISIONS.md` (chosen, why, what was rejected). Keep `HANDOFF.md` under its
    ceiling by moving things out, never by trimming wording.
+6. `Last action:` in the header block, under `Updated <date>.` — one plain
+   sentence, rewritten each time. `p-launcher session-brief` prints this line
+   into the next session before anything else is read, so it has to make sense
+   with no other context.
 
 Machine or toolchain traps go in `~/.claude/CLAUDE.md`, not the project file.
 Durable facts about the system being built go upstream through a PR.
@@ -49,11 +53,17 @@ Next step:   <the top unchecked item, in the shape it will be picked up>
 Decisions:   <count needing the user, or "none">
 ```
 
-Those four lines are what the next session's start briefing will show, so they
-have to make sense cold.
+Those four lines are what the next session's start brief shows, so they have
+to make sense cold. The brief derives them from the file, not from this output:
+`Last action:` from the header line, the rest from `## Next` and the sections
+below it. If a line here has no counterpart in the file, the next session will
+not see it.
 
 ## Finally
 
 If the decision was to clear, end by telling the user to press `/clear` now.
 A command cannot invoke a built-in, so that keystroke stays theirs. If the
 decision was to carry on, say so and stop - do not suggest clearing.
+
+When work is picked back up, `/catchup` is the other end of this: it re-checks
+what this file claims against what happened in the meantime.

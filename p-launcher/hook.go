@@ -307,3 +307,17 @@ func ruleFor(tool string, input json.RawMessage) string {
 	}
 	return tool
 }
+
+// hookCwd reads the cwd out of hook JSON on stdin, falling back to the
+// process's own directory so the subcommand stays runnable by hand. A hook
+// that cannot be tested from a shell is a hook nobody tests.
+func hookCwd(r io.Reader) string {
+	var in HookInput
+	if err := json.NewDecoder(r).Decode(&in); err == nil && in.Cwd != "" {
+		return in.Cwd
+	}
+	if wd, err := os.Getwd(); err == nil {
+		return wd
+	}
+	return ""
+}
