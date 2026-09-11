@@ -191,6 +191,13 @@
   # PAM file did. Enrolment is imperative: fprintd-enroll, after first boot.
   services.fprintd.enable = true;
 
+  # ...but not into i3lock. i3lock buffers the password and only calls
+  # pam_authenticate on Enter, so pam_fprintd runs first with nothing to read
+  # and blocks for its whole timeout (30s) before pam_unix ever sees the
+  # password. Every unlock paid that. A fingerprint cannot start the unlock
+  # here anyway, because nothing calls PAM until a key is pressed.
+  security.pam.services.i3lock.fprintAuth = false;
+
   # The D-Bus secret service. Ubuntu supplied it through its GNOME session, and
   # without it there is nowhere for libsecret clients to keep anything: `gh`
   # stores its token here (gamma's reports "(keyring)"), so on a machine
