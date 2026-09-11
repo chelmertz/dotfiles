@@ -77,6 +77,19 @@
         inherit system;
         config = unfreeConfig;
       };
+      # nixos-26.05 pins 1Password 8.12.21, which writes a system unlock key it
+      # cannot decrypt on the next launch ("cannot unlock keychain:
+      # GcmFailedToDecrypt"), so the lock screen reports "Sys auth status
+      # NotSetup" and system authentication never engages. Unstable carries
+      # 8.12.32 against stable's 8.12.21 (checked 2026-09-14; the number moves
+      # with the lock, so re-read it rather than trusting this line). Whether
+      # that clears it is unconfirmed; if it does not, drop this override
+      # rather than grow it. Its own predicate because
+      # unfreeConfig above does not list 1Password — only tau's system layer does.
+      pkgs1Password = import nixpkgs {
+        inherit system;
+        config.allowUnfreePredicate = pkg: (pkg.pname or "") == "1password";
+      };
     in
     {
       homeConfigurations =
@@ -273,6 +286,15 @@
                 "steam-run"
                 "steam-unwrapped"
               ];
+          }
+          # The app only. _1password-cli is versioned separately (2.34.0, not
+          # 8.12.x) and is not involved here, so it stays on stable.
+          {
+            nixpkgs.overlays = [
+              (final: prev: {
+                inherit (pkgs1Password) _1password-gui;
+              })
+            ];
           }
           { system.configurationRevision = self.rev or "dirty"; }
         ];
