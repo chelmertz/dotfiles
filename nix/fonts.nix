@@ -17,6 +17,10 @@
     ibm-plex
     inconsolata
     iosevka
+    # second choice in obsidian.nix's monospace stack, and undeclared until
+    # 2026-09-11, so that entry silently fell through to Fira Code on both
+    # machines. gamma never had it either; this is not a migration regression.
+    jetbrains-mono
     martian-mono
     recursive
     roboto-mono

@@ -86,6 +86,10 @@ let
     enabledCssSnippets = [ "dagbok" ];
     interfaceFontFamily = "";
     textFontFamily = "";
+    # Berkeley Mono is commercial and has never been installed on either
+    # machine, so it is aspirational: the stack falls through to JetBrains Mono,
+    # which nix/fonts.nix declares as of 2026-09-11. Kept first for the day a
+    # licence is bought.
     monospaceFontFamily = "Berkeley Mono, JetBrains Mono, Fira Code, Go Mono, Consolas, monospace";
     baseFontSize = 12;
   };
