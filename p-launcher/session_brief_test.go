@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -219,6 +221,12 @@ func TestBriefSessionSilentOutsideProjects(t *testing.T) {
 // file, so assert against the literal rather than against a shared constant.
 func TestLinksTimerIntervalMatchesStaleness(t *testing.T) {
 	b, err := os.ReadFile("../nix/p-launcher.nix")
+	if errors.Is(err, fs.ErrNotExist) {
+		// buildGoModule copies only this subdirectory into the sandbox, so
+		// the nix tree is out of reach there. The check still runs on every
+		// local `go test ./...`, which is the gate before a switch.
+		t.Skip("nix/ not in the build sandbox; run this from the repo checkout")
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
