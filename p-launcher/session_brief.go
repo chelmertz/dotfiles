@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -295,9 +296,26 @@ func renderSessionBrief(project string, f handoffFacts, changes []linkChange, st
 	io.WriteString(w, b.String())
 }
 
-// briefSession is the subcommand. A cwd outside a project prints nothing, so
-// the hook can be registered globally without noise in other repos.
-func briefSession(s *Store, root, cwd string, now time.Time, w io.Writer) error {
+// hookBrief is the JSON a SessionStart hook returns. The same text goes to
+// both halves on purpose: systemMessage is what Claude Code shows the user in
+// the terminal, additionalContext is what the model reads. Plain stdout would
+// only reach the model - the user would see nothing, which is the whole
+// failure this replaces.
+type hookBrief struct {
+	SystemMessage string          `json:"systemMessage"`
+	Specific      hookBriefTarget `json:"hookSpecificOutput"`
+}
+
+type hookBriefTarget struct {
+	HookEventName     string `json:"hookEventName"`
+	AdditionalContext string `json:"additionalContext"`
+}
+
+// briefSession is the subcommand. A cwd outside a project writes nothing at
+// all, so the hook can be registered globally without noise in other repos.
+// fromHook picks the shape: hook JSON when Claude Code called it, plain text
+// when a human did, so the same command stays readable from a shell.
+func briefSession(s *Store, root, cwd string, fromHook bool, now time.Time, w io.Writer) error {
 	path := projectPathFor(root, cwd)
 	if path == "" {
 		return nil
@@ -320,6 +338,21 @@ func briefSession(s *Store, root, cwd string, now time.Time, w io.Writer) error 
 			return err
 		}
 	}
-	renderSessionBrief(path, f, changes, linksStaleness(s, now), w)
-	return nil
+	var text strings.Builder
+	renderSessionBrief(path, f, changes, linksStaleness(s, now), &text)
+	if text.Len() == 0 {
+		return nil
+	}
+	if !fromHook {
+		_, err := io.WriteString(w, text.String())
+		return err
+	}
+	out := hookBrief{
+		SystemMessage: strings.TrimRight(text.String(), "\n"),
+		Specific: hookBriefTarget{
+			HookEventName:     "SessionStart",
+			AdditionalContext: strings.TrimRight(text.String(), "\n"),
+		},
+	}
+	return json.NewEncoder(w).Encode(out)
 }

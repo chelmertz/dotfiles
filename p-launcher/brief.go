@@ -132,7 +132,7 @@ func buildBriefInput(s *Store, prs map[string]ellyPR, ellyFetched time.Time, now
 	if err := rows.Err(); err != nil {
 		return briefInput{}, err
 	}
-	ps, err := s.ListProjects()
+	ps, err := s.listProjectsAt(true, now) // the caller's clock, so the postponed set is testable
 	if err != nil {
 		return briefInput{}, err
 	}

@@ -314,7 +314,8 @@ func run(args []string) error {
 		// synchronously (an async hook's stdout is discarded). Still exit 0
 		// and print nothing on failure - a brief is a convenience, and a
 		// session that cannot start is not.
-		if err := briefSession(s, root, hookCwd(os.Stdin), time.Now(), os.Stdout); err != nil {
+		cwd, fromHook := hookCwd(os.Stdin)
+		if err := briefSession(s, root, cwd, fromHook, time.Now(), os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, "p-launcher session-brief:", err)
 		}
 		return nil

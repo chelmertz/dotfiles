@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -203,7 +205,7 @@ func TestLinksStalenessSilentWhenFresh(t *testing.T) {
 func TestBriefSessionSilentOutsideProjects(t *testing.T) {
 	s := openTestStore(t)
 	var b strings.Builder
-	if err := briefSession(s, t.TempDir(), "/etc", time.Now(), &b); err != nil {
+	if err := briefSession(s, t.TempDir(), "/etc", false, time.Now(), &b); err != nil {
 		t.Fatal(err)
 	}
 	if b.String() != "" {
@@ -225,5 +227,48 @@ func TestLinksTimerIntervalMatchesStaleness(t *testing.T) {
 	}
 	if linksStaleAfter <= 10*time.Minute {
 		t.Errorf("linksStaleAfter = %s, must exceed the 10m timer interval", linksStaleAfter)
+	}
+}
+
+// Called by a hook, the brief must return JSON carrying the same text twice:
+// systemMessage is what the user sees in the terminal, additionalContext is
+// what the model reads. Plain stdout reaches only the model.
+func TestBriefSessionHookJSON(t *testing.T) {
+	s := openTestStore(t)
+	root := t.TempDir()
+	dir := filepath.Join(root, "personal", "demo")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "HANDOFF.md"), []byte(sampleHandoff), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpsertProjects([]Found{{Namespace: "personal", Name: "demo", Path: "personal/demo"}}); err != nil {
+		t.Fatal(err)
+	}
+	var b strings.Builder
+	if err := briefSession(s, root, dir, true, time.Now(), &b); err != nil {
+		t.Fatal(err)
+	}
+	var got hookBrief
+	if err := json.Unmarshal([]byte(b.String()), &got); err != nil {
+		t.Fatalf("hook output is not JSON: %v\n%s", err, b.String())
+	}
+	if got.Specific.HookEventName != "SessionStart" {
+		t.Errorf("hookEventName = %q", got.Specific.HookEventName)
+	}
+	if got.SystemMessage == "" || got.SystemMessage != got.Specific.AdditionalContext {
+		t.Errorf("user and model must get the same text:\n%q\n%q", got.SystemMessage, got.Specific.AdditionalContext)
+	}
+	if !strings.Contains(got.SystemMessage, "Progress:    7/24") {
+		t.Errorf("systemMessage missing the brief:\n%s", got.SystemMessage)
+	}
+	// a human at a shell gets plain text, not JSON
+	var plain strings.Builder
+	if err := briefSession(s, root, dir, false, time.Now(), &plain); err != nil {
+		t.Fatal(err)
+	}
+	if strings.HasPrefix(strings.TrimSpace(plain.String()), "{") {
+		t.Errorf("plain mode emitted JSON:\n%s", plain.String())
 	}
 }
