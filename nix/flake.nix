@@ -168,6 +168,31 @@
               tau.xdg.portal.extraPortals;
             pkgs.runCommand "color-scheme-plumbing" { } "touch $out";
 
+          # git-freshen writes to real repositories on a timer, so the thing
+          # worth asserting is what it declines to do. The suite builds a
+          # throwaway remote and one clone per refusal - dirty, diverged,
+          # mid-rebase, occupied, a local main that is ahead - and fails if any
+          # of them moved. Every gate in it has been shown failing under a
+          # mutation that removes the guard.
+          git-freshen =
+            pkgs.runCommand "git-freshen"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.git
+                  pkgs.coreutils
+                  pkgs.findutils
+                  pkgs.gnused
+                  pkgs.gnugrep
+                  pkgs.gawk
+                  pkgs.util-linux
+                ];
+              }
+              ''
+                bash ${./checks/git-freshen-test.sh} ${../bin/git-freshen}
+                touch $out
+              '';
+
           i3-helpers =
             assert self.nixosConfigurations.tau.config.environment.localBinInPath;
             pkgs.runCommand "i3-helpers" { nativeBuildInputs = [ pkgs.python3 ]; } ''

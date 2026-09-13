@@ -121,6 +121,7 @@ in
     ./mediabox.nix
     ./fonts.nix
     ./p-launcher.nix
+    ./git-freshen.nix
   ];
 
   xsession.windowManager.i3 = {

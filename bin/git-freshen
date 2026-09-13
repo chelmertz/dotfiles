@@ -1,0 +1,338 @@
+#!/usr/bin/env bash
+# git-freshen - fetch every clone under the work roots, and fast-forward what
+# can be fast-forwarded, so entering a repo never starts with `git fetch` and a
+# decision.
+#
+# It never rewrites history. No rebase, no merge commit, no push, no stash, no
+# reset: every write is either `merge --ff-only` or an update-ref that has been
+# proven a fast-forward first. Anything that would need judgement - a diverged
+# branch, a dirty tree, an interrupted rebase - is reported and left alone.
+# That rule is the whole design. A background job that rebases can leave a repo
+# mid-conflict, and a repo you find mid-conflict is worse than one you find
+# three commits behind.
+#
+# Two separate writes, because they solve different halves of the problem:
+#
+#   1. the checked-out branch, when it is clean and strictly behind upstream
+#   2. local main/master, when it is *not* checked out anywhere - advanced by
+#      update-ref, which touches no working tree at all, so a feature branch
+#      you are sitting on still gets a fresh main to rebase onto later
+#
+# Auth is non-interactive by construction (BatchMode, no terminal prompt, a
+# timeout per repo): a timer must never hang on a passphrase nobody can type.
+#
+#   git-freshen [--dry-run] [ROOT...]
+#
+# --dry-run still fetches. Fetching writes only remote-tracking refs and can
+# change no working tree, so a dry run that skipped it would report stale
+# behind-counts, which is the one thing the report is for. What --dry-run
+# withholds is every local-branch write. It is the only flag, because every
+# other knob would be a way to make the command mean something other than what
+# its name says; the two that are genuinely machine-dependent are environment
+# variables (GIT_FRESHEN_JOBS, GIT_FRESHEN_TIMEOUT).
+#
+# OUTPUT. Stdout is one tab-separated record per checkout and nothing else, so
+# it can be cut, awked and diffed between runs. Stderr carries the header and
+# the tally - the parts a human reads and a pipeline should not have to skip.
+#
+#   status  path  branch  ahead  behind  upstream  fetch  moved  note
+#
+# Every field is present on every line; "-" means not applicable. `path` is
+# relative to $HOME. `moved` names the refs this run advanced (or would, under
+# --dry-run) - "-" when it wrote nothing. Pipe through `column -t` to read it.
+#
+# status is one of:
+#   fast-forwarded  the checked-out branch was advanced to its upstream
+#   would-ff        it could have been, and --dry-run held the write back
+#   current         nothing to do
+#   unpushed        local commits are not on the remote yet
+#   diverged        ahead *and* behind; needs a rebase you must do yourself
+#   blocked         behind, but dirty / mid-rebase / someone is working in it
+#   upstream-gone   tracks a branch deleted from the remote, usually a merged PR
+#   no-upstream     tracks nothing
+#   detached        no branch checked out
+#   failed          the write was attempted and git refused it
+#   unknown         git could not answer; the note says what was asked
+#   skip            not a usable checkout
+set -uo pipefail
+
+DEFAULT_ROOTS=("$HOME/code/github" "$HOME/code/gitlab" "$HOME/code/matchi" "$HOME/p")
+MAXDEPTH=5
+
+# Machine-dependent, so environment rather than flags: a slow link wants a
+# longer timeout and a fast machine wants more jobs, and neither changes what
+# the command does.
+dry_run=0
+jobs=${GIT_FRESHEN_JOBS:-8}
+timeout_s=${GIT_FRESHEN_TIMEOUT:-45}
+
+# noninteractive_auth makes it impossible for any git invocation here to ask a
+# human for anything. A timer has no human, and on a desktop the question does
+# not even reach a terminal.
+#
+# GIT_TERMINAL_PROMPT is not enough on its own, which is how the first real run
+# put a GTK "Username for 'https://git.heroku.com'" dialog on screen: it
+# suppresses only the *terminal* prompt, and for HTTPS credentials git prefers
+# an askpass helper, which on a desktop session is a GUI. Four separate doors,
+# so all four are shut - askpass, the ssh askpass the agent would use, ssh's
+# own interactive fallback, and the terminal.
+noninteractive_auth() {
+  export GIT_TERMINAL_PROMPT=0
+  # A helper that exits non-zero makes git fail the fetch immediately instead
+  # of retrying with an empty answer, which is what `true` or `echo` would do.
+  export GIT_ASKPASS=${GIT_FRESHEN_ASKPASS:-$(command -v false)}
+  export SSH_ASKPASS_REQUIRE=never
+  unset SSH_ASKPASS
+  export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -oBatchMode=yes -oConnectTimeout=10"
+}
+
+die() { printf 'git-freshen: %s\n' "$*" >&2; exit 2; }
+
+usage() { sed -n '2,/^set -uo/p' "$0" | sed 's/^# \{0,1\}//; $d'; }
+
+# ---------------------------------------------------------------- worker ----
+# Everything below --one runs for a single checkout. It is a re-exec rather
+# than an exported function so `xargs -P` can fan out over it without the
+# quoting games that an exported bash function needs.
+
+# gitq runs git quietly and returns its stdout, "" on any failure. Every call
+# here is a question whose unanswerable case is "treat it as absent".
+gitq() { git -C "$repo" "$@" 2>/dev/null; }
+
+# in_progress reports an interrupted rebase, merge, cherry-pick or bisect.
+# Each leaves a marker in the *worktree's* git dir, not the common one, so a
+# sibling worktree mid-rebase never blocks this one.
+in_progress() {
+  local d
+  d=$(gitq rev-parse --absolute-git-dir) || return 1
+  [ -n "$d" ] || return 1
+  [ -e "$d/rebase-merge" ] || [ -e "$d/rebase-apply" ] ||
+    [ -e "$d/MERGE_HEAD" ] || [ -e "$d/CHERRY_PICK_HEAD" ] ||
+    [ -e "$d/BISECT_LOG" ]
+}
+
+# live reports a process sitting inside this checkout. A clean fast-forward
+# under an open session changes files it is reading; the gate is cheap, so it
+# is on. /proc is authoritative and costs milliseconds.
+live() {
+  local cwd
+  for d in /proc/[0-9]*; do
+    cwd=$(readlink "$d/cwd" 2>/dev/null) || continue
+    case "$cwd" in "$repo"|"$repo"/*) return 0 ;; esac
+  done
+  return 1
+}
+
+# advance_unchecked_main fast-forwards local main/master by writing the ref
+# directly. Deliberately not `merge --ff-only`: that needs the branch checked
+# out. update-ref moves it with no working tree involved, which is the point -
+# the branch you are *on* stays exactly where it is.
+#
+# Guarded three ways: the branch must exist, must not be checked out in this or
+# any sibling worktree, and origin/<branch> must be a strict descendant of it.
+# The ancestry test is what makes this a fast-forward rather than a reset.
+advance_unchecked_main() {
+  local b local_sha remote_sha
+  for b in main master; do
+    gitq show-ref --verify --quiet "refs/heads/$b" || continue
+    printf '%s\n' "$checked_out_branches" | grep -qxF "$b" && continue
+    gitq show-ref --verify --quiet "refs/remotes/origin/$b" || continue
+    local_sha=$(gitq rev-parse "$b")
+    remote_sha=$(gitq rev-parse "origin/$b")
+    [ -n "$local_sha" ] && [ -n "$remote_sha" ] || continue
+    [ "$local_sha" = "$remote_sha" ] && continue
+    gitq merge-base --is-ancestor "$b" "origin/$b" || continue
+    if [ "$dry_run" = 1 ]; then
+      add_moved "$b"
+    elif git -C "$repo" update-ref -m 'git-freshen: fast-forward' \
+           "refs/heads/$b" "$remote_sha" "$local_sha" 2>/dev/null; then
+      add_moved "$b"
+    else
+      add_moved "$b(failed)"
+    fi
+  done
+}
+
+one() {
+  fetch_state=ok; branch=-; upstream=-; ahead=-; behind=-; moved=-
+  local counts detail=''
+
+  gitq rev-parse --is-inside-work-tree >/dev/null || { emit skip "not a usable checkout"; return; }
+
+  # --prune drops remote-tracking refs for branches deleted upstream, which is
+  # what keeps a merged PR's branch from lingering as a live-looking ref.
+  # --no-tags: tag traffic is the bulk of a fetch on a release-heavy repo and
+  # nothing here reads tags.
+  #
+  # The origin retry is not belt-and-braces. `--all` fails if any one remote
+  # fails, and a long-lived clone collects dead remotes - a decommissioned
+  # heroku, a deleted fork. One of those marked nine repositories "fetch
+  # failed" on the first real run while origin had fetched cleanly, which
+  # would only have taught the reader to ignore the warning.
+  if ! timeout "$timeout_s" git -C "$repo" fetch --all --prune --no-tags --quiet 2>/dev/null; then
+    if ! timeout "$timeout_s" git -C "$repo" fetch origin --prune --no-tags --quiet 2>/dev/null; then
+      fetch_state=failed
+    fi
+  fi
+
+  checked_out_branches=$(gitq worktree list --porcelain |
+    sed -n 's#^branch refs/heads/##p')
+  advance_unchecked_main
+
+  branch=$(gitq symbolic-ref --quiet --short HEAD)
+  if [ -z "$branch" ]; then
+    branch=-
+    emit detached "no branch checked out"
+    return
+  fi
+
+  # `rev-parse --abbrev-ref @{u}` is not a clean test for "has an upstream".
+  # When the branch it tracks has been deleted on the remote it prints the
+  # literal string "@{u}" on stdout and reports the failure on stderr only, so
+  # taking it as an upstream name is how 25 repositories landed in an
+  # "unknown" bucket on the first real run. The resolvable-commit check is the
+  # honest question, and branch.<name>.merge is what tells "tracked something
+  # that is gone" - a merged PR, nearly always - from "never tracked anything".
+  upstream=$(gitq rev-parse --abbrev-ref --symbolic-full-name '@{u}')
+  if [ -z "$(gitq rev-parse --verify --quiet '@{u}^{commit}')" ]; then
+    if [ -n "$(gitq config --get "branch.$branch.merge")" ]; then
+      upstream=$(gitq config --get "branch.$branch.merge")
+      emit upstream-gone "remote branch deleted, usually a merged PR"
+    else
+      upstream=-
+      emit no-upstream "tracks nothing"
+    fi
+    return
+  fi
+
+  counts=$(gitq rev-list --left-right --count "HEAD...@{u}")
+  ahead=${counts%%[[:space:]]*}
+  behind=${counts##*[[:space:]]}
+  if [ -z "$ahead" ] || [ -z "$behind" ]; then
+    ahead=-; behind=-
+    emit unknown "rev-list could not count against $upstream"
+    return
+  fi
+
+  if [ "$ahead" -gt 0 ] && [ "$behind" -gt 0 ]; then
+    emit diverged "rebase by hand"
+    return
+  fi
+  if [ "$behind" -eq 0 ]; then
+    if [ "$ahead" -gt 0 ]; then emit unpushed "local commits are not on the remote"
+    else emit current "-"; fi
+    return
+  fi
+
+  # Behind and not ahead: the fast-forward case. Untracked files are not a
+  # reason to refuse - git itself aborts if a fast-forward would overwrite one,
+  # and treating them as dirt would permanently exclude every repo with a
+  # stray build artifact.
+  if in_progress; then
+    emit blocked "a rebase or merge is in progress"
+  elif [ -n "$(gitq status --porcelain --untracked-files=no)" ]; then
+    emit blocked "uncommitted changes"
+  elif live; then
+    emit blocked "a process is working in it"
+  elif [ "$dry_run" = 1 ]; then
+    add_moved "$branch"
+    emit would-ff "-"
+  elif git -C "$repo" merge --ff-only "@{u}" >/dev/null 2>&1; then
+    add_moved "$branch"
+    emit fast-forwarded "-"
+  else
+    emit failed "merge --ff-only refused it"
+  fi
+}
+
+# add_moved accumulates the refs this run advanced. Keeping it a field rather
+# than prose in the note is what lets a later run be diffed against this one.
+add_moved() { [ "$moved" = - ] && moved=$1 || moved="$moved,$1"; }
+
+# emit writes the one record this checkout produces: nine tab-separated
+# fields, every one present, "-" for not-applicable. It exists because a dozen
+# places in the worker end with "this checkout is in state X" and the field
+# order has to be identical in all of them - the twelfth copy of a printf is
+# where columns drift. A single printf so parallel workers cannot interleave,
+# and status first so a caller can tally with `cut -f1 | sort | uniq -c`.
+emit() {
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$1" "${repo#$HOME/}" "$branch" "$ahead" "$behind" "$upstream" \
+    "$fetch_state" "$moved" "$2"
+}
+
+# ------------------------------------------------------------------ main ----
+
+main() {
+  local roots=()
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --dry-run) dry_run=1 ;;
+      --help|-h) usage; return 0 ;;
+      --) shift; roots+=("$@"); break ;;
+      -*) die "unknown flag $1; the only flag is --dry-run (see --help)" ;;
+      *) roots+=("$1") ;;
+    esac
+    shift
+  done
+  [ ${#roots[@]} -gt 0 ] || roots=("${DEFAULT_ROOTS[@]}")
+
+  local present=()
+  for r in "${roots[@]}"; do [ -d "$r" ] && present+=("$r"); done
+  [ ${#present[@]} -gt 0 ] || die "none of the roots exist: ${roots[*]}"
+
+  # A .git entry is a directory for a clone and a file for a linked worktree;
+  # both are checkouts worth visiting, and the worktree's own HEAD is the
+  # thing its fast-forward applies to. -prune stops the walk descending into
+  # .git itself while still letting it reach a clone nested inside a repo,
+  # which is exactly the ~/p layout (a project directory holding clones).
+  local repos total
+  repos=$(find "${present[@]}" -mindepth 1 -maxdepth "$MAXDEPTH" -name .git -prune -print 2>/dev/null |
+    sed 's#/\.git$##' | sort -u)
+  [ -n "$repos" ] || die "no checkouts found under ${present[*]}"
+  total=$(printf '%s\n' "$repos" | wc -l)
+
+  printf 'git-freshen: %s checkouts under %s%s\n' "$total" \
+    "$(printf '%s ' "${present[@]#$HOME/}")" \
+    "$([ "$dry_run" = 1 ] && printf -- '- dry run, no local branch will move')" >&2
+
+  # The worker inherits its settings through the environment rather than a
+  # flag tail: xargs -I{} substitutes into a fixed template, and every flag
+  # added there is another thing the two parsers have to agree about.
+  export GIT_FRESHEN_DRY_RUN=$dry_run GIT_FRESHEN_TIMEOUT=$timeout_s
+  # "$BASH" rather than "$0" alone: the re-exec must not depend on the shebang
+  # resolving. In the nix check sandbox there is no /usr/bin/env at all, so a
+  # self-exec through the shebang produced no output and every assertion
+  # "passed" against an empty string until the sandbox run caught it.
+  local out
+  out=$(printf '%s\n' "$repos" |
+    xargs -r -d '\n' -P "$jobs" -I{} "${BASH:-bash}" "$0" --one {})
+
+  # Sorted so two runs can be diffed, and so the statuses needing a human
+  # group together above the "current" bulk.
+  printf '%s\n' "$out" | sort
+
+  # The tally goes to stderr with the header: a caller redirecting stdout
+  # wants records only, and a human wants to know the shape without counting.
+  printf '\n' >&2
+  printf '%s\n' "$out" | cut -f1 | sort | uniq -c | sort -rn |
+    awk '{printf "  %-15s %s\n", $2, $1}' >&2
+  local failed
+  failed=$(printf '%s\n' "$out" | awk -F'\t' '$7 == "failed"' | wc -l)
+  [ "$failed" -gt 0 ] && printf '  %-15s %s\n' 'fetch-failed' "$failed" >&2
+  return 0
+}
+
+# The worker re-exec: one argument, the checkout. Everything else arrives in
+# the environment, set by main above.
+if [ "${1:-}" = --one ]; then
+  repo=$2
+  dry_run=${GIT_FRESHEN_DRY_RUN:-0}
+  timeout_s=${GIT_FRESHEN_TIMEOUT:-45}
+  noninteractive_auth
+  one
+  exit 0
+fi
+
+noninteractive_auth
+main "$@"

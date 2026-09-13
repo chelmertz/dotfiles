@@ -174,6 +174,13 @@ in
       executable = true;
     };
 
+    # Named git-freshen so `git freshen` reaches it too, the same way
+    # git-spinoff below is invoked as `git spinoff`.
+    ".local/bin/git-freshen" = {
+      source = ../bin/git-freshen;
+      executable = true;
+    };
+
     ".local/bin/git-spinoff" = {
       source = ../bin/git-spinoff;
       executable = true;
