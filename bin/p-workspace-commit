@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Hook for Stop and SessionEnd — commits the ~/p workspace's notes.
+#
+# ~/p holds no code of its own: the tracked files are HANDOFF.md and its
+# siblings plus the dated design docs, and .gitignore keeps every nested clone
+# out (see that file for why the re-includes stop at depth 2). The repo is
+# local and is never pushed - it names work internals, and its whole job is to
+# make "what did that file say yesterday" answerable.
+#
+# It exists because remembering to commit fails exactly when it matters. Two
+# incidents in one week - a regex that truncated HANDOFF.md, and a snapshot
+# restore that reverted it and DECISIONS.md by five days - were recoverable
+# only because a session transcript happened to still be on disk.
+#
+# Never blocks and never fails a turn: every path exits 0.
+set -uo pipefail
+
+root="${P_WORKSPACE_ROOT:-$HOME/p}"
+[ -d "$root/.git" ] || exit 0
+
+# Several Claude sessions run at once, and each fires this on every turn end.
+# Without the lock they race on .git/index.lock and one of them loses its
+# commit. -w 10 rather than -n: losing a commit is the failure being prevented.
+exec 9>"$root/.git/p-workspace-commit.lock" || exit 0
+flock -w 10 9 || exit 0
+
+cd "$root" || exit 0
+git add -A || exit 0
+git diff --cached --quiet && exit 0   # nothing changed, no empty commit
+
+# Name the projects that changed, so `git log --oneline` reads as a timeline of
+# which work moved when. Beyond three, the count carries more than the list.
+mapfile -t dirs < <(git diff --cached --name-only | cut -d/ -f1-2 | sort -u)
+case ${#dirs[@]} in
+  0) what="workspace" ;;
+  1|2|3) what=$(printf '%s, ' "${dirs[@]}"); what=${what%, } ;;
+  *) what="${#dirs[@]} projects" ;;
+esac
+
+git -c user.name=p-launcher -c user.email=p-launcher@localhost \
+    commit -q -m "$what" || exit 0
+exit 0

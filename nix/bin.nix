@@ -399,6 +399,11 @@ in
       executable = true;
     };
 
+    ".local/bin/p-workspace-commit" = {
+      source = ../bin/p-workspace-commit;
+      executable = true;
+    };
+
     ".local/bin/claude-terse-git-hook" = {
       source = ../bin/claude-terse-git-hook;
       executable = true;

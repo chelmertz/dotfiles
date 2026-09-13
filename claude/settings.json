@@ -88,6 +88,12 @@
             "command": "p-launcher hook",
             "async": true,
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "p-workspace-commit",
+            "async": true,
+            "timeout": 15
           }
         ]
       }
@@ -112,6 +118,12 @@
             "command": "p-launcher hook",
             "async": true,
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "p-workspace-commit",
+            "async": true,
+            "timeout": 15
           }
         ]
       }
