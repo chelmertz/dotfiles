@@ -415,3 +415,46 @@ func TestReapDead(t *testing.T) {
 		t.Fatalf("second pass reaped %d (only 'alive' carried a pid) %v", n, err)
 	}
 }
+
+// The defect this exists for: the context peak first lived on session_state,
+// which ClearSession deletes on SessionEnd. That made the drift flag able to
+// fire only for sessions that died without ending properly - inert for the
+// normal case, and invisible to every test that did not end a session first.
+func TestContextPeakSurvivesSessionEnd(t *testing.T) {
+	s := openTestStore(t)
+	root := t.TempDir()
+	mk(t, root, "m/s")
+	if err := s.UpsertProjects(found("m/s")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetSessionState("sess-1", "m/s", "claude", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RecordContext("m/s", 80); err != nil {
+		t.Fatal(err)
+	}
+	// A lower reading must not lower the mark: a session that compacts drops
+	// back down, and the high-water mark is what says the work was big.
+	if err := s.RecordContext("m/s", 30); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ClearSession("sess-1"); err != nil {
+		t.Fatal(err)
+	}
+	ps, err := s.ListProjects()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got Project
+	for _, p := range ps {
+		if p.Path == "m/s" {
+			got = p
+		}
+	}
+	if got.CtxPeak != 80 {
+		t.Fatalf("context peak is %d after the session ended, want 80", got.CtxPeak)
+	}
+	if got.LastSessionAt.IsZero() {
+		t.Fatal("last session time lost when the session ended")
+	}
+}

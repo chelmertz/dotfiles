@@ -23,6 +23,7 @@ type HookInput struct {
 	Reason           string          `json:"reason"`            // SessionEnd
 	Source           string          `json:"source"`            // SessionStart
 	AgentID          string          `json:"agent_id"`          // set when a subagent fired the hook
+	TranscriptPath   string          `json:"transcript_path"`   // SessionEnd: the jsonl the auto-handoff reads
 	ToolName         string          `json:"tool_name"`         // PostToolUse
 	ToolInput        json.RawMessage `json:"tool_input"`
 	ToolResponse     json.RawMessage `json:"tool_response"`
@@ -157,6 +158,9 @@ func hook(s *Store, root string, r io.Reader) error {
 	}
 	switch {
 	case state == "clear":
+		// Before the state row goes: the auto-handoff decision needs the session
+		// that just ended, and ClearSession is what removes it.
+		autoHandoff(s, root, in)
 		return s.ClearSession(in.SessionID)
 	case state != "" && path != "":
 		reason := ""

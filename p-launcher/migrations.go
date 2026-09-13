@@ -23,6 +23,28 @@ var migrations = []func(*sql.Tx) error{
 	migrate012,
 	migrate013,
 	migrate014,
+	migrate015,
+}
+
+// migrate015 moves the context high-water mark out of session_state, which
+// ClearSession deletes on SessionEnd - taking the number with it and leaving
+// the drift flag able to fire only for sessions that died without ending
+// properly. Two rows survived against 108 recorded session_end events, so
+// migrate014 was inert for the case it existed to serve. This table is keyed
+// by session and never cleared, so a new session gets a new row and an old
+// peak cannot leak into it.
+func migrate015(tx *sql.Tx) error {
+	if _, err := tx.Exec(`create table session_ctx (
+  session_id text primary key,
+  project_id integer not null references project(id),
+  pct        integer not null,
+  at         text not null
+);
+create index session_ctx_project on session_ctx (project_id, at)`); err != nil {
+		return err
+	}
+	_, err := tx.Exec(`alter table session_state drop column ctx_pct`)
+	return err
 }
 
 // migrate014 records how full a session's context got, which is the only

@@ -205,10 +205,10 @@ func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 		       (? and exists(select 1 from link l where l.project_id = p.id and l.action_needed = 1)) as review,
 		       coalesce((select min(coalesce(l.elly_updated_at, l.github_updated_at, l.opened_at)) from link l where l.project_id = p.id and l.action_needed = 1), '') as review_since,
 		       coalesce((select l.detail from link l where l.project_id = p.id and l.action_needed = 1 order by coalesce(l.elly_updated_at, l.github_updated_at, l.opened_at) limit 1), '') as review_why,
-		       -- The latest session regardless of the staleness cutoff above: drift is
-		       -- about sessions that have *ended*, which the cutoff exists to hide.
-		       coalesce((select ss.since from session_state ss where ss.project_id = p.id order by ss.since desc limit 1), '') as last_session_at,
-		       coalesce((select ss.ctx_pct from session_state ss where ss.project_id = p.id order by ss.since desc limit 1), 0) as ctx_peak,
+		       -- session_ctx, not session_state: SessionEnd deletes the state row,
+		       -- and drift is precisely about sessions that have ended.
+		       coalesce((select sc.at from session_ctx sc where sc.project_id = p.id order by sc.at desc limit 1), '') as last_session_at,
+		       coalesce((select sc.pct from session_ctx sc where sc.project_id = p.id order by sc.at desc limit 1), 0) as ctx_peak,
 		       n.sort_order
 		from project p join namespace n on n.id = p.namespace_id
 		order by p.path`, cutoff, cutoff, cutoff, fresh)
@@ -522,17 +522,21 @@ func (s *Store) RecordContext(path string, pct int) error {
 	if pct < 0 || pct > 100 {
 		return fmt.Errorf("context percentage must be 0-100, got %d", pct)
 	}
-	res, err := s.db.Exec(`update session_state set ctx_pct = max(ctx_pct, ?)
-		where session_id = (select ss.session_id from session_state ss
-			join project p on p.id = ss.project_id
-			where p.path = ? order by ss.since desc limit 1)`, pct, path)
+	// The session id is resolved here rather than passed in: the caller is
+	// claude/statusline.sh and cwd is the only identifier that script is known
+	// to receive. The newest session row for the project is the one it is
+	// rendering for.
+	res, err := s.db.Exec(`insert into session_ctx (session_id, project_id, pct, at)
+		select ss.session_id, ss.project_id, ?, ?
+		from session_state ss join project p on p.id = ss.project_id
+		where p.path = ? order by ss.since desc limit 1
+		on conflict(session_id) do update set pct = max(pct, excluded.pct), at = excluded.at`,
+		pct, now(), path)
 	if err != nil {
 		return fmt.Errorf("record context for %s: %w", path, err)
 	}
-	// No session row yet means the statusline rendered before any hook fired.
+	// No live session row means the statusline rendered before any hook fired.
 	// Nothing to attach the number to, and nothing worth failing over.
-	if n, err := res.RowsAffected(); err == nil && n == 0 {
-		return nil
-	}
+	_, _ = res.RowsAffected()
 	return nil
 }
