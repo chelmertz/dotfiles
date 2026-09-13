@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 let
   # python3 is in this closure but deliberately not on PATH, so a
   # `#!/usr/bin/env python3` shebang never resolves and the script cannot start
@@ -14,6 +14,22 @@ let
       --replace-fail '#!/usr/bin/env python3' '#!${py}/bin/python3'
     chmod +x $out
   '';
+  # wrapBin gives a script its own runtime dependencies, so a systemd unit that
+  # runs it needs no Environment=PATH. That is the fix DECISIONS.md records for
+  # a class that has broken four units: a PATH pinned in a unit file is a
+  # dependency list kept where the script's author never looks, and it drifts
+  # every time the script grows a new fork site. --suffix, not --prefix, so an
+  # interactive session's own PATH still wins and this is only the fallback -
+  # which is exactly the case a unit with no PATH hits.
+  wrapBin =
+    { name, src, deps }:
+    pkgs.runCommand name { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
+      mkdir -p $out/bin
+      cp ${src} $out/bin/${name}
+      chmod +x $out/bin/${name}
+      wrapProgram $out/bin/${name} --suffix PATH : ${lib.makeBinPath deps}
+    '';
+
   py = pyBin pkgs.python3;
   pyOrg = pyBin (pkgs.python3.withPackages (ps: [ ps.orgparse ]));
 in
@@ -74,8 +90,22 @@ in
       executable = true;
     };
 
+    # Run by the http-monitor systemd unit, which pins no PATH.
     ".local/bin/http-monitor.sh" = {
-      source = ../bin/http-monitor.sh;
+      source = "${wrapBin {
+        name = "http-monitor.sh";
+        src = ../bin/http-monitor.sh;
+        deps = [
+          pkgs.bash
+          pkgs.coreutils
+          pkgs.curl
+          pkgs.bind.dnsutils
+          pkgs.gawk
+          pkgs.iproute2
+          pkgs.iputils
+          pkgs.mtr
+        ];
+      }}/bin/http-monitor.sh";
       executable = true;
     };
 
@@ -206,8 +236,19 @@ in
       executable = true;
     };
 
+    # Run by the prom-system-health systemd unit, which pins no PATH.
     ".local/bin/prom-system-health" = {
-      source = ../bin/prom-system-health;
+      source = "${wrapBin {
+        name = "prom-system-health";
+        src = ../bin/prom-system-health;
+        deps = [
+          pkgs.coreutils
+          pkgs.gh
+          pkgs.sqlite
+          pkgs.gnugrep
+          pkgs.systemd
+        ];
+      }}/bin/prom-system-health";
       executable = true;
     };
 
@@ -391,8 +432,21 @@ in
       executable = true;
     };
 
+    # Run by the obsidian-poll systemd unit, which pins no PATH. Wrapped on top
+    # of the python-shebang pin, so the unit must exec this file directly
+    # rather than passing it to a python3 - the wrapper is a shell script and
+    # the real python lives beside it.
     ".local/bin/obsidian-poll" = {
-      source = py ../bin/obsidian-poll;
+      source = "${wrapBin {
+        name = "obsidian-poll";
+        src = py ../bin/obsidian-poll;
+        deps = [
+          pkgs.gh
+          pkgs.git
+          pkgs.findutils
+          pkgs.coreutils
+        ];
+      }}/bin/obsidian-poll";
       executable = true;
     };
 

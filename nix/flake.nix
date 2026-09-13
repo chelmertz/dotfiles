@@ -174,6 +174,52 @@
           # mid-rebase, occupied, a local main that is ahead - and fails if any
           # of them moved. Every gate in it has been shown failing under a
           # mutation that removes the guard.
+          # A systemd user unit that pins Environment=PATH keeps its
+          # dependency list where the program's author never looks, and it has
+          # drifted four times (GOTCHAS.md has the four). The fix is to wrap
+          # the program (bin.nix `wrapBin`); this check is what stops the habit
+          # coming back, since exit status cannot prove a branch was not taken.
+          #
+          # The allowlist is every unit that genuinely cannot be wrapped, with
+          # the reason. It is asserted in both directions: an unlisted pin
+          # fails, and so does a listed unit that no longer pins one, so the
+          # list cannot rot into a set of names nobody rechecks.
+          unit-paths =
+            let
+              inherit (nixpkgs) lib;
+              services = self.homeConfigurations."ch@tau".config.systemd.user.services;
+              pinsPath =
+                svc:
+                let
+                  env = svc.Service.Environment or null;
+                in
+                env != null && lib.hasInfix "PATH=" (toString env);
+              pinned = lib.attrNames (lib.filterAttrs (_: pinsPath) services);
+              allowed = {
+                # The script lives in another repo; there is nothing of ours to wrap.
+                mediabox-settings = "external script (mediaserver repo)";
+                spotify-backup = "external script (spotify repo)";
+                # Inline writeShellScript: the list is three lines from the fork
+                # sites, so it is not kept anywhere the author misses.
+                p-launcher-backup = "inline script, list is beside the forks";
+                # Deliberately not store-pinned: the docker client must match the
+                # host daemon, so it has to come from the system profile.
+                domain-exporter = "docker client must match the host daemon";
+              };
+              unexpected = lib.subtractLists (lib.attrNames allowed) pinned;
+              stale = lib.subtractLists pinned (lib.attrNames allowed);
+            in
+            assert lib.assertMsg (unexpected == [ ]) ''
+              These systemd user units pin Environment=PATH and are not in the
+              allowlist: ${toString unexpected}.
+              Wrap the program with its own dependencies instead (bin.nix
+              wrapBin), or add it to the allowlist in nix/flake.nix with the
+              reason it cannot be wrapped.'';
+            assert lib.assertMsg (stale == [ ]) ''
+              These units are in the Environment=PATH allowlist but no longer
+              pin one: ${toString stale}. Remove them from the allowlist.'';
+            pkgs.runCommand "unit-paths" { } "touch $out";
+
           git-freshen =
             pkgs.runCommand "git-freshen"
               {

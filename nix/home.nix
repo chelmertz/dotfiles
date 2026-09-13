@@ -463,24 +463,12 @@ in
   # tmpfiles cannot express this: its globs do not recurse to arbitrary depth.
   # Was a */2 line in the user's crontab, which lived only on the machine. The
   # repo's `crontab` file was a copy of Ubuntu's commented default and goes
-  # with this change. The PATH is explicit because the script shells out to
-  # dig and mtr, which are not on a NixOS login PATH.
+  # with this change. The script carries dig, mtr and the rest itself (bin.nix
+  # wrapBin), so this unit pins no PATH.
   systemd.user.services.http-monitor = {
     Unit.Description = "Sample HTTP reachability";
     Service = {
       Type = "oneshot";
-      Environment = "PATH=${
-        lib.makeBinPath [
-          pkgs.bash
-          pkgs.coreutils
-          pkgs.curl
-          pkgs.dnsutils
-          pkgs.gawk
-          pkgs.iproute2
-          pkgs.iputils
-          pkgs.mtr
-        ]
-      }";
       ExecStart = "%h/.local/bin/http-monitor.sh";
     };
   };
@@ -1434,19 +1422,10 @@ in
     Unit.Description = "Collect system health metrics (systemd failures, disk usage) for Prometheus";
     Service = {
       Type = "oneshot";
-      # The credential probes call gh and sqlite3, neither of which is on a
-      # unit's default PATH; the user's nix profile is not on it either. With
-      # no PATH set the probes could not find gh at all and reported a logged
-      # out account on a machine that was logged in.
-      Environment = "PATH=${
-        lib.makeBinPath [
-          pkgs.coreutils
-          pkgs.gh
-          pkgs.sqlite
-          pkgs.gnugrep
-          pkgs.systemd
-        ]
-      }:/run/current-system/sw/bin";
+      # The credential probes call gh and sqlite3. Neither is on a unit's default
+      # PATH and the user's nix profile is not either, so with no PATH the probes
+      # once reported a logged-out account on a machine that was logged in. The
+      # script now carries them itself (bin.nix wrapBin), so this unit pins none.
       ExecStart = "%h/.local/bin/prom-system-health";
     };
   };

@@ -418,10 +418,12 @@ in
     Unit.Description = "Poll GitHub PRs and update Obsidian integrations";
     Service = {
       Type = "oneshot";
-      ExecStart = "${pkgs.python3}/bin/python3 %h/.local/bin/obsidian-poll";
-      # The script shells out to find as well as gh and git; on Ubuntu that
-      # came from /usr/bin, which does not exist on NixOS.
-      Environment = "PATH=${pkgs.gh}/bin:${pkgs.git}/bin:${pkgs.findutils}/bin:${pkgs.coreutils}/bin:/usr/bin:/bin";
+      # Exec the script directly rather than passing it to a python3: it is
+      # wrapped (bin.nix wrapBin) so the file at this path is a shell wrapper
+      # with the real python beside it, and its interpreter is store-pinned
+      # anyway. The wrapper carries gh, git and find, so this unit pins no
+      # PATH - on Ubuntu those came from /usr/bin, which does not exist here.
+      ExecStart = "%h/.local/bin/obsidian-poll";
     };
   };
 
