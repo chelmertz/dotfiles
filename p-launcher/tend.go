@@ -216,7 +216,24 @@ func loadTendLinks(s *Store) ([]tendLink, error) {
 	return out, rows.Err()
 }
 
-func liveProjects(s *Store, now time.Time) (map[string]bool, error) {
+// liveProjects reports which projects someone is already working in, from
+// both available signals because neither is complete on its own: recent
+// session rows miss a session that has not submitted a prompt yet, and a
+// /proc scan misses a session whose process this one cannot read. Either
+// signal is enough - tend downgrades an act to a notification rather than
+// opening a second window on top of somebody.
+func liveProjects(s *Store, root, proc string, now time.Time) (map[string]bool, error) {
+	out, err := liveFromSessions(s, now)
+	if err != nil {
+		return nil, err
+	}
+	for p := range liveFromProc(proc, root) {
+		out[p] = true
+	}
+	return out, nil
+}
+
+func liveFromSessions(s *Store, now time.Time) (map[string]bool, error) {
 	rows, err := s.db.Query(`select distinct p.path from session_state ss join project p on p.id = ss.project_id where ss.since > ?`,
 		now.Add(-staleSession).UTC().Format(time.RFC3339))
 	if err != nil {
@@ -264,7 +281,7 @@ func runTend(s *Store, root string, dry bool, max int, d tendDeps, lastComment f
 	if err != nil {
 		return err
 	}
-	live, err := liveProjects(s, d.now)
+	live, err := liveProjects(s, root, procRoot, d.now)
 	if err != nil {
 		return err
 	}

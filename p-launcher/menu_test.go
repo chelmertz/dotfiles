@@ -14,9 +14,11 @@ func TestWriteList(t *testing.T) {
 	ps[1].Review = true
 	ps[1].Description = "track sleep and running"
 	var buf bytes.Buffer
-	writeList(&buf, ps, map[string]bool{"p:m/dependabot": true})
-	want := "m/dependabot\tdependabot\tmatchi\t1\t2026-09-01T10:00:00Z\tyou\t0\t0\t\n" +
-		"personal/health\thealth\tpersonal\t0\t\t\t0\t1\ttrack sleep and running\n"
+	// personal/health is live by /proc while having no ball at all: the case
+	// the session rows miss, and the reason column 10 exists.
+	writeList(&buf, ps, map[string]bool{"p:m/dependabot": true}, map[string]bool{"personal/health": true})
+	want := "m/dependabot\tdependabot\tmatchi\t1\t2026-09-01T10:00:00Z\tyou\t0\t0\t\t0\n" +
+		"personal/health\thealth\tpersonal\t0\t\t\t0\t1\ttrack sleep and running\t1\n"
 	if buf.String() != want {
 		t.Fatalf("got %q", buf.String())
 	}

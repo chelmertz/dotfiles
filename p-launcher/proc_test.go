@@ -55,3 +55,53 @@ func TestClaudePID(t *testing.T) {
 		t.Fatal("parentPID with parens in comm")
 	}
 }
+
+// fakeCwd gives a fake /proc entry a cwd symlink. The target need not exist:
+// os.Readlink reports the link's text, which is all liveFromProc reads.
+func fakeCwd(t *testing.T, proc string, pid int, dir string) {
+	t.Helper()
+	if err := os.Symlink(dir, filepath.Join(proc, strconv.Itoa(pid), "cwd")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLiveFromProc(t *testing.T) {
+	root := "/home/x/p"
+	proc := fakeProc(t, map[int][3]string{
+		// a claude working in a project: the case session rows miss when the
+		// session has not submitted a prompt yet
+		11: {".claude-unwrapp", "/nix/store/abc-claude-code/bin/claude\x00", "1"},
+		// a claude outside ~/p entirely
+		12: {".claude-unwrapp", "/nix/store/abc-claude-code/bin/claude\x00", "1"},
+		// not claude, but sitting in a project
+		13: {"zsh", "zsh\x00-ic\x00claude; exec zsh", "1"},
+		// a claude with no readable cwd (denied, or exited mid-scan)
+		14: {".claude-unwrapp", "/nix/store/abc-claude-code/bin/claude\x00", "1"},
+	})
+	fakeCwd(t, proc, 11, "/home/x/p/personal/demo/dotfiles")
+	fakeCwd(t, proc, 12, "/home/x/code/elsewhere")
+	fakeCwd(t, proc, 13, "/home/x/p/m/other")
+
+	live := liveFromProc(proc, root)
+	if !live["personal/demo"] {
+		t.Errorf("missed a claude working in a project: %v", live)
+	}
+	if live["m/other"] {
+		t.Errorf("a non-claude process must not mark a project live: %v", live)
+	}
+	if len(live) != 1 {
+		t.Errorf("live = %v, want only personal/demo", live)
+	}
+}
+
+// A project deep inside a clone still maps to the project, since that is where
+// a session working on a checkout actually sits.
+func TestLiveFromProcMapsNestedCwd(t *testing.T) {
+	proc := fakeProc(t, map[int][3]string{
+		21: {".claude-unwrapp", "/nix/store/abc-claude-code/bin/claude\x00", "1"},
+	})
+	fakeCwd(t, proc, 21, "/home/x/p/m/thing/repo/src/deep")
+	if live := liveFromProc(proc, "/home/x/p"); !live["m/thing"] {
+		t.Errorf("nested cwd did not map to its project: %v", live)
+	}
+}

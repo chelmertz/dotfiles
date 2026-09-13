@@ -48,12 +48,21 @@ func list(s *Store, root string, w io.Writer, all bool) error {
 	if err != nil {
 		return err
 	}
-	return writeList(w, ps, open)
+	live, err := liveProjects(s, root, procRoot, time.Now())
+	if err != nil {
+		return err
+	}
+	return writeList(w, ps, open, live)
 }
 
-func writeList(w io.Writer, ps []Project, open map[string]bool) error {
+// writeList prints one project per line, tab separated. Column 10 is the one
+// to read before writing another project's files: it is the union of a recent
+// session row and a claude process with its cwd inside the project, because
+// neither signal alone is complete. Column 4 (`open`) is only the i3 window
+// tag and column 6 (`ball`) only exists once a session has submitted a prompt.
+func writeList(w io.Writer, ps []Project, open, live map[string]bool) error {
 	for _, p := range ps {
-		o, a, r := "0", "0", "0"
+		o, a, r, l := "0", "0", "0", "0"
 		if open[tagFor(p.Path)] {
 			o = "1"
 		}
@@ -63,7 +72,10 @@ func writeList(w io.Writer, ps []Project, open map[string]bool) error {
 		if p.Review {
 			r = "1"
 		}
-		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p.Path, p.Name, p.Label, o, p.LastActive, p.Ball, a, r, p.Description); err != nil {
+		if live[p.Path] {
+			l = "1"
+		}
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p.Path, p.Name, p.Label, o, p.LastActive, p.Ball, a, r, p.Description, l); err != nil {
 			return err
 		}
 	}

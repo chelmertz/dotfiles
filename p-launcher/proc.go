@@ -62,3 +62,38 @@ func parentPID(proc string, pid int) int {
 	n, _ := strconv.Atoi(f[1])
 	return n
 }
+
+// liveFromProc reports which projects have a claude process running inside
+// them, keyed by "namespace/name".
+//
+// This is the half of liveness the database cannot see. `session_state` is
+// hook-derived, so a session that has not yet submitted a prompt has no row at
+// all, and `open` is the i3 window tag, which misses a claude started in an
+// untagged terminal or under tmux. On 2026-09-13 the signals were compared
+// across twelve projects: the session rows found three, /proc found four, and
+// the one they missed - personal/1password-systemauth - was a session that had
+// never typed anything.
+//
+// Unreadable entries are skipped, never guessed at: /proc/<pid>/cwd is denied
+// for other users' processes, and a pid can exit mid-scan.
+func liveFromProc(proc, root string) map[string]bool {
+	live := map[string]bool{}
+	ents, err := os.ReadDir(proc)
+	if err != nil {
+		return live
+	}
+	for _, e := range ents {
+		pid, err := strconv.Atoi(e.Name())
+		if err != nil || !isClaude(proc, pid) {
+			continue
+		}
+		cwd, err := os.Readlink(filepath.Join(proc, e.Name(), "cwd"))
+		if err != nil {
+			continue
+		}
+		if p := projectPathFor(root, cwd); p != "" {
+			live[p] = true
+		}
+	}
+	return live
+}
