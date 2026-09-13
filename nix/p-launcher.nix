@@ -1,13 +1,48 @@
-{ pkgs, lib, ... }:
+{ config, pkgs, lib, ... }:
 let
   # Launcher for ~/p projects (F5). Source in ../p-launcher; design notes in
   # ~/p/personal/p-launcher/. Bumping a Go dependency changes vendorHash: set
   # it to lib.fakeHash, run home-manager switch, copy the "got:" hash back.
+  # Everything p-launcher forks by bare name. It carries them itself rather
+  # than each systemd unit pinning a PATH that has to be kept in step with the
+  # code: four units in this repo have now been broken by that pattern, and the
+  # list lives where the program's author never looks. --suffix, not --prefix,
+  # so an interactive session's own PATH still wins and this is only the
+  # fallback - which is exactly the case a unit with no PATH hits.
+  #
+  # Scope: everything reachable from a systemd unit, where PATH is whatever
+  # the unit says and nothing else. gh for `links refresh`; ghostty, zsh and
+  # claude-code because `tend` forks ghostty, which runs
+  # `zsh -ic "claude; exec zsh"` inheriting this PATH; libnotify because that
+  # is how a failure is reported, and its absence once swallowed the message
+  # about a missing ghostty; claude again for the daily brief. git and i3 are
+  # cheap and forked by the open path.
+  #
+  # Deliberately absent: rofi, firefox, xdg-open, xclip, copyq and ImageMagick's
+  # `import`. Every one of them is reached only from the F5 menu, the clipboard
+  # verb or the E2E goldens - all of which run in the user's own session with a
+  # full PATH. Adding firefox in particular would put a browser in this
+  # package's closure to guard a path no unit can take.
+  runtimeDeps = [
+    pkgs.gh
+    config.programs.ghostty.package
+    pkgs.zsh
+    pkgs.claude-code
+    pkgs.libnotify
+    pkgs.git
+    pkgs.i3
+  ];
+
   p-launcher = pkgs.buildGoModule {
     pname = "p-launcher";
     version = "0.1.0";
     src = ../p-launcher;
     vendorHash = "sha256-JIqffDGU076jdWEEW6Uw7c1oC3ZHrr+gEqi6sfdIgAk=";
+    nativeBuildInputs = [ pkgs.makeWrapper ];
+    postInstall = ''
+      wrapProgram $out/bin/p-launcher \
+        --suffix PATH : ${lib.makeBinPath runtimeDeps}
+    '';
     meta.mainProgram = "p-launcher";
   };
 in
@@ -29,15 +64,13 @@ in
         ${p-launcher}/bin/p-launcher links refresh
         ${p-launcher}/bin/p-launcher tend
       '';
-      # gh for the refresh; the nix profile because `tend` launches a desktop
-      # session. It forks ghostty by name, ghostty runs `zsh -ic "claude; ..."`
-      # inheriting this very PATH, and notify-send is how a failure is reported
-      # — so ghostty, zsh, claude and notify-send all have to resolve here.
-      # With gh alone, tend died on the first PR it decided to act on and the
-      # notification meant to say so failed too. Same shape as spotify-backup's
-      # missing ssh, and it hid for the same reason: the unit exits 0 until the
-      # conditional path is reached, and tend acts only once a PR qualifies.
-      Environment = "PATH=${lib.makeBinPath [ pkgs.gh ]}:%h/.nix-profile/bin";
+      # No PATH pinned: the binary is wrapped with what it forks (see
+      # runtimeDeps above). It used to name gh only, and tend died on the first
+      # PR it decided to act on because ghostty was not there - with the
+      # notification meant to report that failing too, for the same reason.
+      # The unit exits 0 until the conditional path is reached, so it hid for a
+      # day. Listing dependencies where the program's author never looks is
+      # what produced that; the program carries them now.
     };
   };
   # Daily brief: one read-only headless Claude run over the PR queue, stored
@@ -48,7 +81,7 @@ in
     Unit.Description = "p-launcher: daily PR brief";
     Service = {
       Type = "oneshot";
-      Environment = "PATH=${lib.makeBinPath [ pkgs.gh pkgs.git pkgs.coreutils ]}:%h/.nix-profile/bin";
+      # PATH comes from the wrapper, as for p-launcher-links above.
       ExecStart = "${p-launcher}/bin/p-launcher brief";
     };
   };
