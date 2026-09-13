@@ -399,6 +399,14 @@ in
       executable = true;
     };
 
+    # The dotfiles clone is public and now carries ~/.claude/CLAUDE.md, which
+    # both the user and Claude append to. The push is where content becomes
+    # public and the only point every editing path passes through.
+    "code/github/chelmertz/dotfiles/.git/hooks/pre-push" = {
+      source = ../bin/git-secrets-pre-push;
+      executable = true;
+    };
+
     ".local/bin/p-workspace-commit" = {
       source = ../bin/p-workspace-commit;
       executable = true;
