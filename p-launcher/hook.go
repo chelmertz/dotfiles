@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // HookInput is the subset of the Claude Code hook stdin JSON that p-launcher
@@ -315,10 +316,36 @@ func ruleFor(tool string, input json.RawMessage) string {
 // hookCwd reads the cwd out of hook JSON on stdin, falling back to the
 // process's own directory so the subcommand stays runnable by hand. A hook
 // that cannot be tested from a shell is a hook nobody tests.
+//
+// The deadline is what makes that true. Decoding stdin blocks until EOF, and
+// by hand stdin is a terminal or an inherited socket that never reaches one:
+// running `p-launcher session-brief` from a shell hung indefinitely, and only
+// looked fine when stdin happened to be closed already. A hook writes its JSON
+// immediately, so anything slower than this is not a hook.
+const hookStdinWait = 500 * time.Millisecond
+
 func hookCwd(r io.Reader) (cwd string, fromHook bool) {
-	var in HookInput
-	if err := json.NewDecoder(r).Decode(&in); err == nil && in.Cwd != "" {
-		return in.Cwd, true
+	type result struct {
+		cwd string
+		ok  bool
+	}
+	ch := make(chan result, 1)
+	go func() {
+		var in HookInput
+		if err := json.NewDecoder(r).Decode(&in); err == nil && in.Cwd != "" {
+			ch <- result{in.Cwd, true}
+			return
+		}
+		ch <- result{"", false}
+	}()
+	select {
+	case got := <-ch:
+		if got.ok {
+			return got.cwd, true
+		}
+	case <-time.After(hookStdinWait):
+		// The goroutine stays parked on the read; the process is about to
+		// print and exit, so that costs nothing.
 	}
 	if wd, err := os.Getwd(); err == nil {
 		return wd, false

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestProjectPathFor(t *testing.T) {
@@ -147,4 +149,40 @@ func ballOf(t *testing.T, s *Store, path string) string {
 	}
 	t.Fatalf("project %s not listed", path)
 	return ""
+}
+
+// hookCwd used to block until stdin reached EOF, which by hand it never does:
+// `p-launcher session-brief` from a shell hung indefinitely and only looked
+// correct when stdin happened to be closed already. A reader that never
+// returns must fall back to the working directory, not wait forever.
+func TestHookCwdDoesNotBlockOnOpenStdin(t *testing.T) {
+	never, w := io.Pipe()
+	defer w.Close() // never written to and never closed: an idle terminal or socket
+	done := make(chan struct{})
+	var cwd string
+	var fromHook bool
+	go func() {
+		cwd, fromHook = hookCwd(never)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("hookCwd blocked on a stdin that never closes")
+	}
+	if fromHook {
+		t.Fatal("fromHook should be false when no hook JSON arrived")
+	}
+	wd, _ := os.Getwd()
+	if cwd != wd {
+		t.Fatalf("cwd = %q, want the working directory %q", cwd, wd)
+	}
+}
+
+// The hook path must still work: JSON on stdin wins over the fallback.
+func TestHookCwdReadsHookJSON(t *testing.T) {
+	cwd, fromHook := hookCwd(strings.NewReader(`{"cwd":"/home/ch/p/m/x","hook_event_name":"SessionStart"}`))
+	if !fromHook || cwd != "/home/ch/p/m/x" {
+		t.Fatalf("got %q/%v, want the cwd from the JSON", cwd, fromHook)
+	}
 }
