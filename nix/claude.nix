@@ -1,4 +1,4 @@
-{ pkgs, lib, ... }:
+{ config, pkgs, lib, ... }:
 {
   # Public half of the Claude Code configuration (hooks, theme, plugins,
   # status line). Deliberately no `model`: a pin here outranks whatever /model
@@ -14,10 +14,19 @@
   # path would break those writes. Keys present in ../claude/settings.json
   # win; every other key in the live file is kept.
   #
-  # The private half (permissions allowlist, autoMode rules) names work
-  # paths and is deliberately not in this public repo; on a new machine it is
-  # restored by hand. Credentials live in ~/.claude/.credentials.json and are
-  # never versioned (log in again).
+  # ~/.claude/CLAUDE.md is an out-of-store symlink into this clone, not a copy
+  # and not a store path: it is edited by hand (and by Claude, which is told to
+  # put machine and toolchain traps there), so edits have to land in the
+  # working tree where a commit can pick them up. A store symlink would be
+  # read-only and a copy-on-activation would overwrite whatever was added since
+  # the last switch. Checked 2026-09-13 before publishing: it names no
+  # employer, customer, host or credential - only working preferences and
+  # NixOS facts.
+  #
+  # The permissions allowlist stays out. Not for secrecy - it names none
+  # either - but because the merge below replaces arrays, so versioning it
+  # would revert every rule approved interactively since the last commit.
+  # Credentials live in ~/.claude/.credentials.json and are never versioned.
   home.activation.claudeSettings = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     live="$HOME/.claude/settings.json"
     src="${../claude/settings.json}"
@@ -29,6 +38,9 @@
       $DRY_RUN_CMD cp "$src" "$live" && $DRY_RUN_CMD chmod 644 "$live"
     fi
   '';
+
+  home.file.".claude/CLAUDE.md".source =
+    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/dotfiles/claude/CLAUDE.md";
 
   home.file.".claude/statusline.sh" = {
     source = ../claude/statusline.sh;

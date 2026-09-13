@@ -25,7 +25,18 @@ exec 9>"$root/.git/p-workspace-commit.lock" || exit 0
 flock -w 10 9 || exit 0
 
 cd "$root" || exit 0
-git add -A || exit 0
+git add -A 2>/dev/null || exit 0
+
+# Drop nested clones. Git stages a directory containing .git as a gitlink
+# (mode 160000) and never its contents, so a clone is recognised by being one:
+# no list of paths to maintain, no naming convention for anyone to forget, and
+# a clone added at any depth tomorrow is handled the same way. Filtering by
+# depth instead silently missed 18 files, m/CLAUDE.md among them.
+mapfile -t links < <(git ls-files --stage | awk '$1 == "160000" { print $4 }')
+if [ ${#links[@]} -gt 0 ]; then
+  git rm -q --cached --ignore-unmatch -- "${links[@]}" 2>/dev/null || :
+fi
+
 git diff --cached --quiet && exit 0   # nothing changed, no empty commit
 
 # Name the projects that changed, so `git log --oneline` reads as a timeline of
