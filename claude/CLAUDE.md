@@ -75,6 +75,12 @@ project is a note the next project pays for again.
 - `git diff` runs through an external difftastic driver and its output is **not
   a valid patch**. Use `git -c diff.external= diff --no-ext-diff` whenever the
   output will be piped to `git apply`.
+- `GIT_TERMINAL_PROMPT=0` is not enough to make git non-interactive. For HTTPS
+  credentials git prefers an askpass helper, which in this desktop session is a
+  GTK dialog - a background job hung on one on 2026-09-13. Shut all four doors:
+  `GIT_TERMINAL_PROMPT=0`, `GIT_ASKPASS` to something that exits non-zero,
+  `SSH_ASKPASS_REQUIRE=never` with `SSH_ASKPASS` unset, and `GIT_SSH_COMMAND`
+  carrying `-oBatchMode=yes`. `bin/git-freshen` has the recipe.
 - The `gh` token expires. The symptom is HTTP 401 on every `gh` call while git
   over SSH keeps working; `gh auth login -h github.com` is interactive, so I
   have to run it myself.
