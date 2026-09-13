@@ -67,6 +67,9 @@ type Checklist struct {
 	OpenIssues, ClosedIssues int
 	LiveSessions             int
 	DirtyClones              []string // clone dir names with uncommitted or unpushed work
+	RemovedClones            []string // clone dir names deleted because nothing in them was unsaved
+	KeptClones               int      // clones left on disk, and why, in KeptReason
+	KeptReason               string
 }
 
 // Text renders the checklist for stdout and the notification body.
@@ -98,6 +101,12 @@ func (c Checklist) Text() string {
 	}
 	if len(c.DirtyClones) > 0 {
 		fmt.Fprintf(&b, "clones with uncommitted or unpushed work: %s\n", strings.Join(c.DirtyClones, ", "))
+	}
+	if len(c.RemovedClones) > 0 {
+		fmt.Fprintf(&b, "removed %d clean clone(s): %s\n", len(c.RemovedClones), strings.Join(c.RemovedClones, ", "))
+	}
+	if c.KeptClones > 0 {
+		fmt.Fprintf(&b, "kept %d clone(s): %s\n", c.KeptClones, c.KeptReason)
 	}
 	return b.String()
 }
@@ -152,6 +161,7 @@ func Archive(s *Store, root, path, reason string, clip func(string) error) (Chec
 	}
 	if dir := filepath.Join(root, path); isDir(dir) {
 		c.DirtyClones = dirtyClones(dir)
+		c.RemovedClones, c.KeptClones, c.KeptReason = removeSpentClones(dir, c.DirtyClones, c.LiveSessions)
 	}
 	if len(c.Rules) > 0 && clip != nil {
 		var lines []string
@@ -408,4 +418,56 @@ Empty is a good sign.>
 <Claims not yet demonstrated, and what would demonstrate them.>
 `,
 	}
+}
+
+// removeSpentClones deletes the checkouts one level below an archived
+// project's directory. An archived project is finished work, and its clones
+// are re-clonable from their remotes; keeping 200M of them per project is what
+// made git-freshen walk checkouts nobody will open again. Removing them here
+// rather than teaching every tool to skip ~/p/archive keeps the rule in one
+// place - the archive is empty of checkouts, so nothing has to know it exists.
+//
+// This is the only irreversible thing in this package, so it refuses more than
+// it does. A clone is removed only when dirtyClones did not name it, which
+// means no uncommitted changes and nothing unpushed, and only when no session
+// is live anywhere in the project - someone working right now outranks the
+// archive they just typed. Anything that is not a git checkout is never
+// touched, so the project's own state files survive.
+func removeSpentClones(dir string, dirty []string, liveSessions int) (removed []string, kept int, reason string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, 0, ""
+	}
+	isDirty := make(map[string]bool, len(dirty))
+	for _, d := range dirty {
+		isDirty[d] = true
+	}
+	var candidates []string
+	for _, e := range entries {
+		if e.IsDir() && isDir(filepath.Join(dir, e.Name(), ".git")) {
+			candidates = append(candidates, e.Name())
+		}
+	}
+	if len(candidates) == 0 {
+		return nil, 0, ""
+	}
+	if liveSessions > 0 {
+		return nil, len(candidates), "a session is live"
+	}
+	for _, name := range candidates {
+		if isDirty[name] {
+			kept++
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(dir, name)); err != nil {
+			kept++
+			continue
+		}
+		removed = append(removed, name)
+	}
+	sort.Strings(removed)
+	if kept > 0 {
+		reason = "uncommitted or unpushed work"
+	}
+	return removed, kept, reason
 }

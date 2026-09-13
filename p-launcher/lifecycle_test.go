@@ -340,3 +340,86 @@ func TestArchive(t *testing.T) {
 		t.Fatal("reopened twice")
 	}
 }
+
+// TestArchiveRemovesCleanClones is mostly about what archiving refuses to
+// delete. Removing a checkout is the one irreversible thing in this codebase,
+// so the gates - clean, and no live session anywhere in the project - are
+// asserted before the removal itself is.
+func TestArchiveRemovesCleanClones(t *testing.T) {
+	s := openTestStore(t)
+	root := t.TempDir()
+	dir := mk(t, root, "m/b")
+	if err := s.UpsertProjects(found("m/b")); err != nil {
+		t.Fatal(err)
+	}
+	gitInit(t, filepath.Join(dir, "clean"))
+	gitInit(t, filepath.Join(dir, "clean2"))
+	gitInit(t, filepath.Join(dir, "dirty"))
+	if err := os.WriteFile(filepath.Join(dir, "dirty", "wip.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "notes"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "HANDOFF.md"), []byte("state"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cl, err := Archive(s, root, "m/b", "done", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(cl.RemovedClones, []string{"clean", "clean2"}) {
+		t.Fatalf("removed %v", cl.RemovedClones)
+	}
+	if !reflect.DeepEqual(cl.DirtyClones, []string{"dirty"}) {
+		t.Fatalf("dirty %v", cl.DirtyClones)
+	}
+	for _, gone := range []string{"clean", "clean2"} {
+		if isDir(filepath.Join(dir, gone)) {
+			t.Fatalf("%s still on disk", gone)
+		}
+	}
+	// The three things that must survive: unsaved work, anything that is not
+	// a checkout, and the project's own state files.
+	if !isDir(filepath.Join(dir, "dirty")) {
+		t.Fatal("a clone with uncommitted work was deleted")
+	}
+	if !isDir(filepath.Join(dir, "notes")) {
+		t.Fatal("a plain directory was deleted")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "HANDOFF.md")); err != nil {
+		t.Fatalf("state file gone: %v", err)
+	}
+	if !strings.Contains(cl.Text(), "removed 2 clean clone(s): clean, clean2") {
+		t.Fatalf("text:\n%s", cl.Text())
+	}
+}
+
+// A live session means someone is working in the project right now, whatever
+// the archive says. Nothing is removed under one.
+func TestArchiveKeepsClonesWhileASessionIsLive(t *testing.T) {
+	s := openTestStore(t)
+	root := t.TempDir()
+	dir := mk(t, root, "m/c")
+	if err := s.UpsertProjects(found("m/c")); err != nil {
+		t.Fatal(err)
+	}
+	gitInit(t, filepath.Join(dir, "clean"))
+	if err := s.SetSessionState("s9", "m/c", "claude", ""); err != nil {
+		t.Fatal(err)
+	}
+	cl, err := Archive(s, root, "m/c", "done", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cl.RemovedClones) != 0 {
+		t.Fatalf("removed %v under a live session", cl.RemovedClones)
+	}
+	if !isDir(filepath.Join(dir, "clean")) {
+		t.Fatal("clone deleted under a live session")
+	}
+	if !strings.Contains(cl.Text(), "kept 1 clone(s): a session is live") {
+		t.Fatalf("text:\n%s", cl.Text())
+	}
+}
