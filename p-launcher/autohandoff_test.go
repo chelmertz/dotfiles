@@ -81,3 +81,44 @@ func TestHandoffDecideLogsWhatItWouldDo(t *testing.T) {
 		t.Fatalf("log line should name the project: %q", d.String())
 	}
 }
+
+// A SessionEnd hook's stderr goes nowhere a person will read, so the decision
+// row is the only evidence the feature produces while it is being trusted.
+// Recording it must also not disturb the project's lifecycle: project_event's
+// newest row per project is what marks one archived, which is why this goes to
+// session_event instead.
+func TestAutoHandoffRecordsEveryDecisionWithoutTouchingLifecycle(t *testing.T) {
+	s := openTestStore(t)
+	root := t.TempDir()
+	dir := mk(t, root, "m/e")
+	if err := s.UpsertProjects(found("m/e")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "HANDOFF.md"), []byte("s"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ProjectEvent("m/e", "archived", "done"); err != nil {
+		t.Fatal(err)
+	}
+	// A skip: no transcript. It must still leave a row.
+	autoHandoff(s, root, HookInput{SessionID: "s-1", Cwd: dir, Event: "SessionEnd"})
+
+	var kind, detail string
+	if err := s.db.QueryRow(`select kind, detail from session_event where kind = 'auto_handoff' order by id desc limit 1`).Scan(&kind, &detail); err != nil {
+		t.Fatalf("no decision row recorded: %v", err)
+	}
+	if !strings.Contains(detail, "skip") || !strings.Contains(detail, "transcript") {
+		t.Fatalf("decision row should say what it decided and why, got %q", detail)
+	}
+	// The project must still read as archived: writing to project_event would
+	// have made its newest kind "auto_handoff" and quietly un-archived it.
+	ps, err := s.ListProjectsFiltered(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range ps {
+		if p.Path == "m/e" && !p.Archived {
+			t.Fatal("recording a decision un-archived the project")
+		}
+	}
+}

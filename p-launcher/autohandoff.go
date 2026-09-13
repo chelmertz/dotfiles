@@ -123,10 +123,7 @@ func runAutoHandoff(s *Store, root string, d handoffDecision, now time.Time) err
 	if v, _ := s.kvGet(key); v != "" {
 		used, _ = strconv.Atoi(v)
 	}
-	if err := s.kvSet(key, strconv.Itoa(used+1)); err != nil {
-		return err
-	}
-	return s.ProjectEvent(d.Path, "auto_handoff", d.Transcript)
+	return s.kvSet(key, strconv.Itoa(used+1))
 }
 
 // autoHandoff runs the decision for a session that just ended and logs it,
@@ -162,6 +159,23 @@ func autoHandoff(s *Store, root string, in HookInput) {
 	}
 	d := handoffDecide(p, root, in.TranscriptPath, live, loadHandoffCfg(s, now))
 	fmt.Fprintln(os.Stderr, d)
+	// A SessionEnd hook's stderr is swallowed by Claude Code, so the line above
+	// reaches nobody. The row is the only durable record of what this decided,
+	// and reading a few days of them is the whole plan for trusting it.
+	//
+	// session_event, not project_event: the latter's newest row per project is
+	// what marks a project archived or snoozed (latestKindExpr), so writing
+	// here would silently un-archive one. `tend` logs its decisions the same
+	// way for the same reason.
+	if err := s.RecordSessionEvent(SessionEvent{
+		SessionID: "auto-handoff:" + in.SessionID,
+		Path:      path,
+		Cwd:       in.Cwd,
+		Kind:      "auto_handoff",
+		Detail:    d.Kind + ": " + d.Reason,
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "auto-handoff %s: %v\n", path, err)
+	}
 	if err := runAutoHandoff(s, root, d, now); err != nil {
 		fmt.Fprintf(os.Stderr, "auto-handoff %s: %v\n", path, err)
 	}
