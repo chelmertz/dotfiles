@@ -68,8 +68,15 @@ if [ -n "$dir" ] && branch=$(git -C "$dir" branch --show-current 2>/dev/null) &&
   [ -n "$pr_url" ] && line1+=" $(link "$pr_url" "$pr_url")"
 fi
 
+# handoff_at is where the `/handoff` hint turns on. Its counterpart is
+# driftCtxPct in p-launcher's rows.go, which flags a project whose handoff was
+# never written after a session this size; the two must stay equal or the
+# launcher would mark projects the statusline never nagged about.
+# TestStatuslineDriftThresholdMatches pins it against this literal.
+handoff_at=75
+
 # Line 2. Intent: never make the reader judge which kind of handoff this is.
-# Above 75% the hint is the single word `/handoff` in every tier - the command
+# Above handoff_at the hint is the single word `/handoff` in every tier - the command
 # decides whether to stop now or finish the item first - and only the colour
 # carries urgency. Tokens remaining are shown because a percentage cannot say
 # whether the subproblem in hand still fits.
@@ -78,7 +85,7 @@ if [ "$ctx_pct" -ge 0 ] 2>/dev/null; then
   left="$((ctx_left / 1000))k"
   if [ "$ctx_pct" -lt 50 ]; then
     line2="${dim}ctx ${ctx_pct}% · ${left} left${reset}"
-  elif [ "$ctx_pct" -lt 75 ]; then
+  elif [ "$ctx_pct" -lt "$handoff_at" ]; then
     line2="ctx ${ctx_pct}% · ${left} left"
   elif [ "$ctx_pct" -lt 90 ]; then
     line2="${yellow}ctx ${ctx_pct}% · ${left} left · /handoff${reset}"
@@ -87,6 +94,20 @@ if [ "$ctx_pct" -ge 0 ] 2>/dev/null; then
   else
     line2="${red}${bold}ctx ${ctx_pct}% · ${left} left · /handoff${reset}"
   fi
+fi
+
+# Hand the percentage to p-launcher, which has no other way to see it: the hook
+# payload Claude Code sends has no context fields at all. The launcher uses it
+# for the drift flag - a project whose HANDOFF.md was never written after a
+# session this size (driftCtxPct in rows.go, same number as handoff_at).
+#
+# This is the only subprocess on this path, so it is fenced three ways: only in
+# the band that matters, only on multiples of 5 so a long session costs at most
+# six calls rather than one per render, and backgrounded with its output
+# discarded so a locked database can never stall the statusline.
+if [ "$ctx_pct" -ge "$handoff_at" ] 2>/dev/null && [ $((ctx_pct % 5)) -eq 0 ] && [ -n "$dir" ]; then
+  ( cd "$dir" && p-launcher ctx "$ctx_pct" ) >/dev/null 2>&1 &
+  disown 2>/dev/null || true
 fi
 
 # Rate limits only once they are worth knowing about: they cap how much can

@@ -52,6 +52,7 @@ func list(s *Store, root string, w io.Writer, all bool) error {
 	if err != nil {
 		return err
 	}
+	markDrift(ps, root, live)
 	return writeList(w, ps, open, live)
 }
 
@@ -244,6 +245,11 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 	}
 	if archived {
 		ps = onlyParked(ps)
+	}
+	// The drift flag is read here rather than in load(): its input is a file
+	// mtime and the live set, neither of which the store sees.
+	if live, err := liveProjects(s, root, procRoot, time.Now()); err == nil {
+		markDrift(ps, root, live)
 	}
 	rows := Rows(ps, open, !archived)
 	clip := ""

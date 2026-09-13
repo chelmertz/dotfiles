@@ -22,6 +22,18 @@ var migrations = []func(*sql.Tx) error{
 	migrate011,
 	migrate012,
 	migrate013,
+	migrate014,
+}
+
+// migrate014 records how full a session's context got, which is the only
+// measure of "how much work happened here" p-launcher can see. The number
+// lives in the statusline's stdin and nowhere else - the hook payload has no
+// context fields at all - so the statusline hands it over and this column is
+// where it lands. Peak, not last: a session that compacts drops back down and
+// the high-water mark is what says the work was substantial.
+func migrate014(tx *sql.Tx) error {
+	_, err := tx.Exec(`alter table session_state add column ctx_pct integer not null default 0`)
+	return err
 }
 
 // migrate013 holds the other PRs one brief item covers, so the action stays

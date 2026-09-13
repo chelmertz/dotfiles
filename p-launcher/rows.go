@@ -2,6 +2,8 @@ package main
 
 import (
 	"html"
+	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -89,6 +91,12 @@ func stateText(p Project, isOpen bool, now time.Time) string {
 		return "reviewer waiting for your reply"
 	case p.Snoozed:
 		return "postponed"
+	case p.Drifted:
+		// Lower priority than every pending state above: those are about what
+		// is happening now, this is about a file that was not written after
+		// something already finished. It fills a slot that would otherwise be
+		// empty, since a drifted project has no live session by definition.
+		return "handoff owed"
 	case !isOpen:
 		return ""
 	case p.Ball == "claude":
@@ -116,4 +124,49 @@ func stateIcon(p Project, isOpen bool) string {
 		return "claude"
 	}
 	return "idle"
+}
+
+// driftCtxPct is the same line the statusline turns its `/handoff` hint on at
+// (claude/statusline.sh, line 2). One number, two places it has to mean the
+// same thing: below it a session is small enough that nothing is owed, above
+// it the session was told to hand off. TestStatuslineDriftThresholdMatches
+// asserts against the literal in that script, not against this constant, so a
+// rename on either side cannot make the check pass by comparing a value to
+// itself.
+const driftCtxPct = 75
+
+// drifted reports that a project's HANDOFF.md no longer describes the work
+// done in it: a session got big enough that the statusline asked for a
+// handoff, it has since ended, and the handoff was not written afterwards.
+//
+// Computed on read, never stored (DECISIONS.md): the input is HANDOFF.md's
+// mtime, which changes outside any timer's knowledge - you edit the file, or
+// /catchup rewrites it - so a stored flag would be wrong immediately and stay
+// wrong until the next tick. Statting one file costs microseconds and the menu
+// already walks the projects.
+//
+// A live session is never drifted however full its context is. You are working
+// in it right now; the handoff is owed when you stop, not while you type.
+func drifted(p Project, root string, live bool) bool {
+	if live || p.CtxPeak < driftCtxPct || p.LastSessionAt.IsZero() {
+		return false
+	}
+	st, err := os.Stat(filepath.Join(root, p.Path, "HANDOFF.md"))
+	if err != nil {
+		// No handoff at all is a different problem with a different fix
+		// (write one), and reporting it here would mark every project that
+		// has not been backfilled yet.
+		return false
+	}
+	return st.ModTime().Before(p.LastSessionAt)
+}
+
+// markDrift sets the flag on every project, from the filesystem and the live
+// set. It is called by each front end after it has both, rather than inside
+// the store, because the input is a file mtime: DECISIONS.md records why this
+// must not become a stored column.
+func markDrift(ps []Project, root string, live map[string]bool) {
+	for i := range ps {
+		ps[i].Drifted = drifted(ps[i], root, live[ps[i].Path])
+	}
 }

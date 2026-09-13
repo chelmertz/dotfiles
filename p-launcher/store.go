@@ -27,9 +27,12 @@ type Project struct {
 	ReviewWhy   string    // the verdict in words: "2 unresolved threads", "ask adam to re-review"
 	Description string    // one sentence of intent, "" when unset
 	Reason      string    // why the ball is where it is: stop, idle_prompt, question, permission_prompt, …
+	CtxPeak       int       // how full the latest session's context got, 0-100; 0 when never reported
+	LastSessionAt time.Time // when the latest session last changed state, live or not
 	Since       time.Time // when the ball state started; zero without a live session
 	ReviewSince time.Time // when the reviewer's last activity landed; zero without a review verdict
-	nsOrder     int       // namespace.sort_order, the last tiebreak
+	Drifted       bool      // HANDOFF.md was not written after the last sizeable session; set on read, never stored
+	nsOrder       int       // namespace.sort_order, the last tiebreak
 }
 
 // asksInput are the "you" reasons where Claude is blocked on an answer, as
@@ -202,6 +205,10 @@ func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 		       (? and exists(select 1 from link l where l.project_id = p.id and l.action_needed = 1)) as review,
 		       coalesce((select min(coalesce(l.elly_updated_at, l.github_updated_at, l.opened_at)) from link l where l.project_id = p.id and l.action_needed = 1), '') as review_since,
 		       coalesce((select l.detail from link l where l.project_id = p.id and l.action_needed = 1 order by coalesce(l.elly_updated_at, l.github_updated_at, l.opened_at) limit 1), '') as review_why,
+		       -- The latest session regardless of the staleness cutoff above: drift is
+		       -- about sessions that have *ended*, which the cutoff exists to hide.
+		       coalesce((select ss.since from session_state ss where ss.project_id = p.id order by ss.since desc limit 1), '') as last_session_at,
+		       coalesce((select ss.ctx_pct from session_state ss where ss.project_id = p.id order by ss.since desc limit 1), 0) as ctx_peak,
 		       n.sort_order
 		from project p join namespace n on n.id = p.namespace_id
 		order by p.path`, cutoff, cutoff, cutoff, fresh)
@@ -212,11 +219,12 @@ func (s *Store) listProjectsAt(all bool, at time.Time) ([]Project, error) {
 	var out []Project
 	for rows.Next() {
 		var p Project
-		var kind, detail, since, reviewSince string
-		if err := rows.Scan(&p.Path, &p.Name, &p.Label, &p.Description, &p.LastActive, &p.Ball, &p.Reason, &since, &kind, &detail, &p.Review, &reviewSince, &p.ReviewWhy, &p.nsOrder); err != nil {
+		var kind, detail, since, reviewSince, lastSessionAt string
+		if err := rows.Scan(&p.Path, &p.Name, &p.Label, &p.Description, &p.LastActive, &p.Ball, &p.Reason, &since, &kind, &detail, &p.Review, &reviewSince, &p.ReviewWhy, &lastSessionAt, &p.CtxPeak, &p.nsOrder); err != nil {
 			return nil, err
 		}
 		p.Since, p.ReviewSince = parseTime(since), parseTime(reviewSince)
+		p.LastSessionAt = parseTime(lastSessionAt)
 		p.Archived = kind == "archived"
 		p.Snoozed = kind == "snoozed" && parseTime(detail).After(at)
 		needsYou := p.Ball == "you" || p.Review
@@ -497,6 +505,34 @@ func (s *Store) AddLinkKind(path, url, kind string) error {
 		if err := s.db.QueryRow(`select count(*) from link where url = ?`, url).Scan(&exists); err == nil && exists == 0 {
 			return fmt.Errorf("add link: unknown project %q", path)
 		}
+	}
+	return nil
+}
+
+// RecordContext stores how full a session's context has got, for the project
+// whose directory the caller is in. The value only ever rises: a session that
+// compacts drops back down, and the high-water mark is what says the work was
+// substantial enough that a handoff is owed.
+//
+// Keyed by project rather than session id because the caller is
+// claude/statusline.sh, and cwd is the only identifier that script is known to
+// receive. It updates the newest session row for the project, which is the one
+// the statusline is rendering for.
+func (s *Store) RecordContext(path string, pct int) error {
+	if pct < 0 || pct > 100 {
+		return fmt.Errorf("context percentage must be 0-100, got %d", pct)
+	}
+	res, err := s.db.Exec(`update session_state set ctx_pct = max(ctx_pct, ?)
+		where session_id = (select ss.session_id from session_state ss
+			join project p on p.id = ss.project_id
+			where p.path = ? order by ss.since desc limit 1)`, pct, path)
+	if err != nil {
+		return fmt.Errorf("record context for %s: %w", path, err)
+	}
+	// No session row yet means the statusline rendered before any hook fired.
+	// Nothing to attach the number to, and nothing worth failing over.
+	if n, err := res.RowsAffected(); err == nil && n == 0 {
+		return nil
 	}
 	return nil
 }

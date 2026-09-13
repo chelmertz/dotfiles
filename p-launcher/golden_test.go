@@ -154,7 +154,10 @@ func TestGoldenRofiMenu(t *testing.T) {
 		{Path: "m/reputation", Name: "reputation", Label: "matchi", Ball: "you", Reason: "question", Since: now.Add(-3 * time.Minute)},
 		{Path: "m/dependabot", Name: "dependabot", Label: "matchi", Ball: "claude", Since: now.Add(-42 * time.Second), Description: "keep every service's dependencies current without breaking deploys"},
 		{Path: "m/nginx-ingress", Name: "nginx-ingress", Label: "matchi"},
-		{Path: "personal/p-launcher", Name: "p-launcher", Label: "personal"},
+		// Drifted: a session got past the statusline's handoff line and ended
+		// without one being written. Its row would otherwise carry no state text
+		// at all, which is the slot the marker is meant to fill.
+		{Path: "personal/p-launcher", Name: "p-launcher", Label: "personal", Drifted: true},
 		{Path: "personal/health", Name: "health", Label: "personal"},
 	}
 	open := map[string]bool{"p:m/reputation": true, "p:m/dependabot": true, "p:m/nginx-ingress": true}

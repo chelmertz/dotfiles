@@ -116,6 +116,10 @@ func run(args []string) error {
 				return usage()
 			}
 		}
+	case "ctx":
+		if len(args) != 2 {
+			return usage()
+		}
 	case "kv":
 		if !(len(args) == 3 && args[1] == "get") && !(len(args) == 4 && args[1] == "set") {
 			return usage()
@@ -190,6 +194,24 @@ func run(args []string) error {
 	switch cmd {
 	case "list":
 		return list(s, root, os.Stdout, listAll)
+	// ctx is called by claude/statusline.sh, which is the only place the context
+	// percentage exists - the hook payload carries no context fields at all. It
+	// fires from a statusline render, so it must stay silent and cheap: a cwd
+	// outside ~/p writes nothing rather than erroring.
+	case "ctx":
+		pct, err := strconv.Atoi(args[1])
+		if err != nil {
+			return fmt.Errorf("ctx takes a percentage, got %q", args[1])
+		}
+		cwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		path := projectPathFor(root, cwd)
+		if path == "" {
+			return nil
+		}
+		return s.RecordContext(path, pct)
 	case "create":
 		dir, err := Create(s, root, args[1])
 		if err != nil {

@@ -423,3 +423,51 @@ func TestArchiveKeepsClonesWhileASessionIsLive(t *testing.T) {
 		t.Fatalf("text:\n%s", cl.Text())
 	}
 }
+
+// The drift flag: a project whose handoff no longer describes the work done in
+// it. Each case here is one of the three gates, because the flag is only
+// useful if it stays quiet - a marker that is always on is a marker nobody
+// reads.
+func TestDrifted(t *testing.T) {
+	root := t.TempDir()
+	dir := mk(t, root, "m/d")
+	handoff := filepath.Join(dir, "HANDOFF.md")
+	write := func(mtime time.Time) {
+		if err := os.WriteFile(handoff, []byte("state"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(handoff, mtime, mtime); err != nil {
+			t.Fatal(err)
+		}
+	}
+	early := time.Date(2026, 9, 13, 10, 0, 0, 0, time.UTC)
+	late := early.Add(2 * time.Hour)
+
+	cases := []struct {
+		name    string
+		ctxPct  int
+		since   time.Time
+		live    bool
+		handoff *time.Time
+		want    bool
+	}{
+		{"work after the handoff, session over", 80, late, false, &early, true},
+		{"a live session is never drifted", 95, late, true, &early, false},
+		{"context never reached the warn line", 60, late, false, &early, false},
+		{"handoff written after the session", 80, early, false, &late, false},
+		{"no handoff at all is not drift", 80, late, false, nil, false},
+		{"exactly at the warn line counts", driftCtxPct, late, false, &early, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			os.Remove(handoff)
+			if c.handoff != nil {
+				write(*c.handoff)
+			}
+			p := Project{Path: "m/d", CtxPeak: c.ctxPct, LastSessionAt: c.since}
+			if got := drifted(p, root, c.live); got != c.want {
+				t.Fatalf("drifted = %v, want %v", got, c.want)
+			}
+		})
+	}
+}

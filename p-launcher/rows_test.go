@@ -1,7 +1,11 @@
 package main
 
 import (
+	"errors"
+	"io/fs"
+	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -87,5 +91,54 @@ func TestRowsDescriptionSubtitle(t *testing.T) {
 func TestRowsEmpty(t *testing.T) {
 	if got := Rows(nil, nil, false); len(got) != 0 {
 		t.Fatalf("got %+v", got)
+	}
+}
+
+// The drift threshold is a literal in two languages and no compiler checks
+// either against the other. Both assertions are against the number 75 written
+// out here, not against each other: a test that compares driftCtxPct to a
+// value parsed out of the script would still pass if someone changed both, and
+// a test that compares a constant to itself passes through the rename it was
+// meant to catch.
+func TestStatuslineDriftThresholdMatches(t *testing.T) {
+	if driftCtxPct != 75 {
+		t.Fatalf("driftCtxPct is %d; statusline.sh turns /handoff on at 75, so change both or neither", driftCtxPct)
+	}
+	b, err := os.ReadFile("../claude/statusline.sh")
+	if errors.Is(err, fs.ErrNotExist) {
+		// buildGoModule copies only this subdirectory into the sandbox, the
+		// same reason TestLinksTimerIntervalMatchesStaleness skips there. It
+		// still runs on every local `go test ./...`, the gate before a switch.
+		t.Skip("claude/ not in the build sandbox; run this from the repo checkout")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "handoff_at=75") {
+		t.Fatal("claude/statusline.sh no longer sets handoff_at=75; retune driftCtxPct in rows.go to match, or the launcher flags projects the statusline never nagged about")
+	}
+}
+
+func TestRowsShowDrift(t *testing.T) {
+	now := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
+	ps := []Project{
+		{Path: "m/a", Name: "a", Label: "matchi", Drifted: true},
+		// A pending state outranks it: drift is about a file, the ball is
+		// about someone waiting.
+		{Path: "m/b", Name: "b", Label: "matchi", Drifted: true, Ball: "you", Reason: "question"},
+		{Path: "m/c", Name: "c", Label: "matchi"},
+	}
+	rows := rowsAt(ps, map[string]bool{tagFor("m/b"): true}, false, now)
+	if len(rows) != 3 {
+		t.Fatalf("rows %d", len(rows))
+	}
+	if !strings.Contains(rows[0].Text, "handoff owed") {
+		t.Fatalf("drifted project has no marker: %q", rows[0].Text)
+	}
+	if strings.Contains(rows[1].Text, "handoff owed") || !strings.Contains(rows[1].Text, "asked you a question") {
+		t.Fatalf("a pending question should outrank drift: %q", rows[1].Text)
+	}
+	if strings.Contains(rows[2].Text, "handoff owed") {
+		t.Fatalf("undrifted project marked: %q", rows[2].Text)
 	}
 }
