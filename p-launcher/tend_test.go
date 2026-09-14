@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -197,5 +198,55 @@ func TestTendApplyRecords(t *testing.T) {
 	}
 	if len(notified) != 2 {
 		t.Fatalf("%v", notified)
+	}
+}
+
+// The two limits are independent and have never been seen together: the daily
+// cap lives in tendDecide and counts across runs, --max lives in runTend and
+// counts within one. Five eligible PRs under cap 3 and max 2 must act on two,
+// hold one back as "max per run" and two as "daily cap" - not act on three,
+// and not silently spend the cap on work that never launched.
+func TestRunTendDailyCapAndMaxPerRun(t *testing.T) {
+	s := openTestStore(t)
+	root := t.TempDir()
+	mk(t, root, "m/a")
+	if err := s.UpsertProjects(found("m/a")); err != nil {
+		t.Fatal(err)
+	}
+	now := ts("2026-09-07T14:00:00Z")
+	for i := 1; i <= 5; i++ {
+		url := fmt.Sprintf("https://github.com/o/r/pull/%d", i)
+		if err := s.AddLink("m/a", url); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.db.Exec(`update link set author = 'me', last_commenter = 'jd', action_needed = 1,
+			detail = 'changes requested', github_updated_at = ? where url = ?`, now.Add(-10*time.Minute).UTC().Format(time.RFC3339), url); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.kvSet("tend.enabled", "1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.kvSet("tend.daily_cap", "3"); err != nil {
+		t.Fatal(err)
+	}
+	var out strings.Builder
+	deps := tendDeps{now: now, me: "me"}
+	if err := runTend(s, root, true, 2, deps, nil, &out); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]int{}
+	for _, line := range strings.Split(strings.TrimSpace(out.String()), "\n") {
+		switch {
+		case strings.HasPrefix(line, "act "):
+			got["act"]++
+		case strings.Contains(line, "(max per run)"):
+			got["max"]++
+		case strings.Contains(line, "(daily cap)"):
+			got["cap"]++
+		}
+	}
+	if got["act"] != 2 || got["max"] != 1 || got["cap"] != 2 {
+		t.Fatalf("act/max/cap = %d/%d/%d, want 2/1/2:\n%s", got["act"], got["max"], got["cap"], out.String())
 	}
 }

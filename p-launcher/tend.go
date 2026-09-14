@@ -139,6 +139,10 @@ type tendDeps struct {
 	launch func(dir, tag, prompt string) error
 	notify func(msg string)
 	now    time.Time
+	// me is the GitHub login to treat as the user's; empty asks gh. Only a
+	// test sets it, and only because the two caps cannot be exercised
+	// together without it.
+	me string
 }
 
 // tendApply performs decisions: act launches a session and records the
@@ -276,7 +280,10 @@ func runTend(s *Store, root string, dry bool, max int, d tendDeps, lastComment f
 	if err != nil {
 		return err
 	}
-	me := ghLogin()
+	me := d.me
+	if me == "" {
+		me = ghLogin()
+	}
 	cfg, err := loadTendCfg(s, me, d.now)
 	if err != nil {
 		return err
