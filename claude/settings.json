@@ -142,6 +142,7 @@
     ]
   },
   "theme": "light-daltonized",
+  "outputStyle": "Terse",
   "tui": "fullscreen",
   "editorMode": "vim",
   "effortLevel": "high",

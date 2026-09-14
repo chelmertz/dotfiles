@@ -48,10 +48,14 @@
   # reason as CLAUDE.md above - it is prose that gets tuned by hand, so an edit
   # has to land in the working tree where a commit can pick it up.
   #
-  # Deliberately NOT selected here. `outputStyle` is a settings.json key, and
-  # the merge above lets this repo win, so pinning it would revert whatever
-  # /output-style writes - the exact trap documented for `model` at the top of
-  # this file. Selecting it is a one-time `/output-style` per machine.
+  # Pinned in ../claude/settings.json as `outputStyle: "Terse"` since
+  # 2026-09-14. It used to be left out because the merge above lets this repo
+  # win and would have reverted whatever `/output-style` wrote - the trap
+  # documented for `model` at the top of this file. That command is gone as of
+  # Claude Code 2.1.258 (built-in styles became plugins), so nothing else
+  # writes the key and there is no write left to revert. Custom styles still
+  # load: probed on 2.1.258, `claude --settings '{"outputStyle":"Terse"}' -p`
+  # sees this file's `# Register` heading and `--settings '{}'` does not.
   home.file.".claude/output-styles/terse.md".source =
     config.lib.file.mkOutOfStoreSymlink
       "${config.home.homeDirectory}/dotfiles/claude/output-styles/terse.md";
