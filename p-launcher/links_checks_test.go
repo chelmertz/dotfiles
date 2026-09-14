@@ -103,3 +103,41 @@ func TestFoldChecks(t *testing.T) {
 		}
 	}
 }
+
+// A 304 must apply the same "checks are a PR thing" rule as a 200. It did
+// not: an issue the user opened reached ghChecks as `gh pr view <issue url>`,
+// which abandons the URL and resolves the repo from cwd instead - failing
+// with "not a git repository" on every refresh.
+func TestRefreshLinksUnchangedIssueSkipsChecks(t *testing.T) {
+	s, now := linksFixture(t)
+	const issue = "https://github.com/o/r/issues/7"
+	if err := s.AddLinkKind("m/a", issue, "github_issue"); err != nil {
+		t.Fatal(err)
+	}
+	seed := linkDeps{me: "me", now: now,
+		gh: func(url, etag string) (ghPR, int, string, error) {
+			return ghPR{State: "open", Author: "me", CreatedAt: now.Add(-time.Hour)}, 200, `"e"`, nil
+		},
+		elly: func() (map[string]ellyPR, time.Time, error) { return nil, now, nil },
+	}
+	if _, err := refreshLinks(s, seed); err != nil {
+		t.Fatal(err)
+	}
+	checked := map[string]bool{}
+	unchanged := seed
+	unchanged.now = now.Add(time.Hour)
+	unchanged.gh = func(url, etag string) (ghPR, int, string, error) { return ghPR{}, 304, "", nil }
+	unchanged.checks = func(url string) (string, time.Time, error) {
+		checked[url] = true
+		return "success", now, nil
+	}
+	if _, err := refreshLinks(s, unchanged); err != nil {
+		t.Fatal(err)
+	}
+	if checked[issue] {
+		t.Fatalf("gh pr view ran against an issue: %v", checked)
+	}
+	if !checked["https://github.com/o/r/pull/1"] {
+		t.Fatalf("the user's own open PR lost its checks: %v", checked)
+	}
+}

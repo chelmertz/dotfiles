@@ -198,8 +198,8 @@ func refreshLinks(s *Store, d linkDeps) (refreshResult, error) {
 			}
 			stillOpen[o.url] = o.id
 			var author string
-			if err := s.db.QueryRow(`select author from link where id = ?`, o.id).Scan(&author); err == nil && author == d.me {
-				mine[o.url] = true
+			if err := s.db.QueryRow(`select author from link where id = ?`, o.id).Scan(&author); err == nil && author == d.me && o.kind != "github_issue" {
+				mine[o.url] = true // CI checks are a PR thing, same as the 200 path
 			}
 		default:
 			res.Refreshed++
