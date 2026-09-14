@@ -4,16 +4,26 @@
 
 DOTFILES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
+# Kept in step with the pairs in bin/sync-app-settings. CopyQ was dropped on
+# 2026-09-14: it is wholly on defaults, so the tracked file held nothing the
+# user wrote.
+SETTINGS="vscode-settings.json vscode-keybindings.json cursor-settings.json cursor-keybindings.json"
+
 "$DOTFILES_DIR/bin/sync-app-settings"
 
-# Stage any files that were updated
-git -C "$DOTFILES_DIR" add \
-	vscode-settings.json \
-	vscode-keybindings.json \
-	cursor-settings.json \
-	cursor-keybindings.json \
-	copyq.conf \
-	2>/dev/null
+for f in $SETTINGS; do
+	[ -f "$DOTFILES_DIR/$f" ] || continue
+	git -C "$DOTFILES_DIR" add "$f" 2>/dev/null
+done
+
+# Say what rode along. This hook stages files the commit never mentioned, and
+# staging silently is how a 223-line copyq.conf deletion reached origin/main
+# inside an unrelated 1Password commit on 2026-09-14.
+staged=$(git -C "$DOTFILES_DIR" diff --cached --name-only -- $SETTINGS 2>/dev/null)
+if [ -n "$staged" ]; then
+	echo "pre-commit: app settings staged into this commit, unrelated to its message:"
+	echo "$staged" | sed 's/^/  /'
+fi
 
 # Always allow the commit to proceed
 exit 0
