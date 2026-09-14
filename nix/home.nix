@@ -45,7 +45,13 @@ let
   # tried first and dropped for reintroducing the borders the rest of the bar
   # had just given up. A fill would work too and is centred (i3bar insets the
   # button 1px top and bottom of a 25px bar); the ramp is simply quieter.
-  # Urgent keeps a fill, being the one alarm on the bar.
+  # Urgent keeps a fill, being one of the two alarms on the bar. The other is
+  # binding_mode, which had worn the same quiet field grey as an inactive
+  # window: #e9e9ee on a #f5f5f7 bar, invisible against it, with statusline
+  # text on top. A binding mode is not a decoration - while one is active
+  # every binding outside it is unbound, so a whole keyboard goes dead with no
+  # signal. It gets the urgent fill for that reason (2026-09-14, after fkey
+  # mode swallowed every key and the indicator went unnoticed).
   i3scheme = c: ''
     # class                 border      background  text     indicator   child_border
     client.focused          ${c.accent} ${c.accent} #ffffff  ${c.accent} ${c.accent}
@@ -77,7 +83,7 @@ let
             active_workspace   ${c.bg} ${c.bg} ${c.muted}
             inactive_workspace ${c.bg} ${c.bg} ${c.dim}
             urgent_workspace   ${c.red} ${c.red} ${c.bg}
-            binding_mode       ${c.field} ${c.field} ${c.fg}
+            binding_mode       ${c.red} ${c.red} ${c.bg}
         }
     }
   '';
