@@ -86,6 +86,11 @@ project is a note the next project pays for again.
 - PATH differs between tool calls: a command that resolved a moment ago may not
   resolve in the next call. Check rather than assume.
 - Shell cwd does not persist between tool calls. Use absolute paths.
+- `rebase.updateRefs = true` is set globally in `~/.config/git/config`, so a safety
+  branch made *before* a rebase is dragged forward by it and protects nothing. The
+  rebase reports this honestly (`Updated the following refs with --update-refs`) and it
+  is easy to read as success. Re-point the ref by SHA afterwards, or capture the SHA
+  instead of a branch. Cost one silently useless safety ref on 2026-09-14.
 - `git diff` runs through an external difftastic driver and its output is **not
   a valid patch**. Use `git -c diff.external= diff --no-ext-diff` whenever the
   output will be piped to `git apply`.
@@ -100,12 +105,24 @@ project is a note the next project pays for again.
   have to run it myself.
 - Two `gh` calls in one compound shell command can hit the permission
   classifier. Run them one per invocation.
+- Something other than you commits `~/p` on `main` mid-session, with generic
+  messages like `9 projects`, and it sweeps up state files seconds after you
+  create them. A file you just wrote going from `??` to clean without you
+  committing is that, not data loss. Confirm rather than assume: `git log
+  --oneline -- <path>` plus `git cat-file -e <session-start-sha>:<path>` says
+  whether the path existed before you touched it. Three such commits landed
+  under one session on 2026-09-14 and cost a clobber scare.
 
 # Skills
 
 - `project-state` and `handoff` (user-level, versioned in the dotfiles repo)
   define how `~/p` project state is written and handed over. Prefer them over
   inventing a layout.
+- `p-launcher session-brief` only recognises `- [ ]` with the space. A `- []`
+  item still counts toward `Progress: x/y` but is never picked as `Next step`,
+  so the brief silently promotes a later item and the real next step vanishes.
+  Two such lines hid the top item in `m/c4-arch` (fixed 2026-09-14). Bold
+  markers survive into the brief as literal asterisks — keep the item plain.
 - The superpowers `brainstorming` skill's hard gate — a design doc for every
   project "regardless of perceived simplicity" — does not apply here. The
   Decision making rules above win: smallest validation first, and a design doc
