@@ -65,10 +65,18 @@ project is a note the next project pays for again.
   them: `command mv -f`, `\cp -f`. A scripted `mv` otherwise hangs on a prompt
   nobody can answer — two minutes were lost to exactly that on 2026-09-11.
 - Go builds and tests need `CGO_ENABLED=0`. There is no gcc on PATH.
-- python3 is in the nix closure but deliberately not on PATH. Scripts installed
-  to `~/.local/bin` get their shebang pinned to the store at build time (`pyBin`
-  in `nix/bin.nix`); a bare `#!/usr/bin/env python3` cannot exec. Never assume
-  python3 is callable — check first, or use jq, perl or awk.
+- python3 **is** on PATH, deliberately: `nix/home.nix` puts
+  `(python3.withPackages ...)` in `home.packages` for the 11 python scripts in
+  `bin/`. Scripts installed to `~/.local/bin` still get their shebang pinned to
+  the store at build time (`pyBin` in `nix/bin.nix`) rather than trusting a bare
+  `#!/usr/bin/env python3`. (Corrected 2026-09-14: this entry had claimed the
+  opposite, and cost a session that routed around python3 for no reason.)
+- A dead keyboard in i3 is a binding mode far more often than a broken config:
+  while one is active, every binding outside it is simply unbound, so all of
+  them appear to vanish at once. `i3-msg -t get_binding_state` names the mode
+  and `i3-msg mode "default"` leaves it. `$mod+m` toggles `fkey` and is the
+  only way in or out. The bar indicator is urgent red since 2026-09-14; before
+  that it was inactive-window grey on the bar background and unreadable.
 - PATH differs between tool calls: a command that resolved a moment ago may not
   resolve in the next call. Check rather than assume.
 - Shell cwd does not persist between tool calls. Use absolute paths.
