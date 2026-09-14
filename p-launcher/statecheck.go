@@ -172,16 +172,24 @@ type StateFileRow struct {
 	Path, Kind, Detail string
 }
 
-// scanState checks every project on disk and returns the problems sorted by
-// path, how many projects have at least one, and how many were scanned. The
+// scanState checks every live project on disk and returns the problems sorted
+// by path, how many projects have at least one, and how many were scanned. The
 // denominator matters: "4 of 15" is a backlog, "4 of 4" is a broken
 // convention.
-func scanState(root string) (rows []StateFileRow, affected, scanned int) {
+//
+// archived holds the paths whose latest lifecycle event is "archived", which
+// only the database knows: archiving writes an event and never moves the
+// folder, so Discover keeps returning it. Their handoffs are a record of
+// finished work, and a problem in one is a nag that no one will ever clear.
+func scanState(root string, archived map[string]bool) (rows []StateFileRow, affected, scanned int) {
 	found, err := Discover(root)
 	if err != nil {
 		return nil, 0, 0
 	}
 	for _, f := range found {
+		if archived[f.Path] {
+			continue
+		}
 		scanned++
 		ps := checkState(root, f.Path)
 		if len(ps) > 0 {

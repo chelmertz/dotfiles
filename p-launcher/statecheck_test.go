@@ -212,7 +212,7 @@ func TestScanStateListsOneRowPerProblemAcrossProjects(t *testing.T) {
 		strings.Replace(goodHandoff, "Progress: 0/1.", "Progress: three left, 1/4.", 1)+
 			strings.Repeat("- filler.\n", handoffCeiling))
 
-	rows, affected, scanned := scanState(root)
+	rows, affected, scanned := scanState(root, nil)
 	if scanned != 3 {
 		t.Fatalf("scanned %d projects, want 3", scanned)
 	}
@@ -286,5 +286,43 @@ func TestDroppedSlotsOrderedListItemsAreNotCounted(t *testing.T) {
 	}
 	if !strings.Contains(got[0].Detail, "Open decisions") {
 		t.Fatalf("detail %q does not name the section", got[0].Detail)
+	}
+}
+
+// An archived project is finished work: its handoff is a record, not a task,
+// so nagging about it is noise that never clears. Folders never move on
+// archive (lifecycle.go), so Discover still finds it and only the DB knows.
+func TestScanStateSkipsArchivedProjects(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "ns/bare"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "ns/done"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rows, affected, scanned := scanState(root, map[string]bool{"ns/done": true})
+	if scanned != 1 {
+		t.Fatalf("scanned %d, want 1: an archived project is not scanned", scanned)
+	}
+	if affected != 1 || len(rows) != 1 || rows[0].Path != "ns/bare" {
+		t.Fatalf("affected %d rows %v", affected, rows)
+	}
+}
+
+func TestMarkFileStateSkipsArchivedProjects(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "ns/done"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "ns/live"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ps := []Project{{Path: "ns/done", Archived: true}, {Path: "ns/live"}}
+	markFileState(ps, root, nil)
+	if len(ps[0].StateProblems) != 0 {
+		t.Fatalf("archived project still nags: %v", ps[0].StateProblems)
+	}
+	if len(ps[1].StateProblems) != 1 {
+		t.Fatalf("live project lost its problem: %v", ps[1].StateProblems)
 	}
 }

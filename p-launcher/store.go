@@ -180,6 +180,26 @@ func (s *Store) ListProjectsFiltered(all bool) ([]Project, error) {
 	return s.listProjectsAt(all, time.Now())
 }
 
+// ArchivedPaths is the set of project paths whose latest lifecycle event is
+// "archived". Archiving never moves the folder, so this is the only way to
+// tell a finished project from a live one when walking the disk.
+func (s *Store) ArchivedPaths() (map[string]bool, error) {
+	rows, err := s.db.Query(`select p.path from project p where ` + latestKindExpr + ` = 'archived'`)
+	if err != nil {
+		return nil, fmt.Errorf("archived paths: %w", err)
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return nil, err
+		}
+		out[path] = true
+	}
+	return out, rows.Err()
+}
+
 // latestKindExpr / latestDetailExpr read the project's newest lifecycle event.
 const latestKindExpr = `coalesce((select pe.kind from project_event pe where pe.project_id = p.id order by pe.occurred_at desc, pe.id desc limit 1), '')`
 const latestDetailExpr = `coalesce((select pe.detail from project_event pe where pe.project_id = p.id order by pe.occurred_at desc, pe.id desc limit 1), '')`

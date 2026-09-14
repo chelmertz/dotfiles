@@ -184,6 +184,11 @@ func drifted(p Project, root string, live bool) bool {
 func markFileState(ps []Project, root string, live map[string]bool) {
 	for i := range ps {
 		ps[i].Drifted = drifted(ps[i], root, live[ps[i].Path])
+		if ps[i].Archived {
+			// Finished work: the handoff is a record, not a task. Same rule
+			// as scanState's, and the reason it takes an archived set.
+			continue
+		}
 		ps[i].StateProblems = checkState(root, ps[i].Path)
 	}
 }

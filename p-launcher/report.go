@@ -101,7 +101,11 @@ func runReport(o reportOpts, s *Store, root, dataDir string, stdout io.Writer) e
 			r.Range = rng
 		} else {
 			r = computeReport(raw, rng, now.AddDate(0, 0, -days), now, theme)
-			rows, affected, scanned := scanState(root)
+			archived, err := s.ArchivedPaths()
+			if err != nil {
+				return err
+			}
+			rows, affected, scanned := scanState(root, archived)
 			r.StateFiles, r.StateHidden = capStateRows(rows, stateRowsShown)
 			r.StateAffected, r.StateScanned = affected, scanned
 		}
