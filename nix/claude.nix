@@ -42,6 +42,20 @@
   home.file.".claude/CLAUDE.md".source =
     config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/dotfiles/claude/CLAUDE.md";
 
+  # Output styles change the system prompt itself, which is why register and
+  # response shape live here rather than in CLAUDE.md: CLAUDE.md arrives as
+  # context and competes with everything else in it. Out-of-store for the same
+  # reason as CLAUDE.md above - it is prose that gets tuned by hand, so an edit
+  # has to land in the working tree where a commit can pick it up.
+  #
+  # Deliberately NOT selected here. `outputStyle` is a settings.json key, and
+  # the merge above lets this repo win, so pinning it would revert whatever
+  # /output-style writes - the exact trap documented for `model` at the top of
+  # this file. Selecting it is a one-time `/output-style` per machine.
+  home.file.".claude/output-styles/terse.md".source =
+    config.lib.file.mkOutOfStoreSymlink
+      "${config.home.homeDirectory}/dotfiles/claude/output-styles/terse.md";
+
   home.file.".claude/statusline.sh" = {
     source = ../claude/statusline.sh;
     executable = true;
