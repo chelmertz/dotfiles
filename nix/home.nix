@@ -52,11 +52,16 @@ let
   # every binding outside it is unbound, so a whole keyboard goes dead with no
   # signal. It gets the urgent fill for that reason (2026-09-14, after fkey
   # mode swallowed every key and the indicator went unnoticed).
+  # Unfocused windows wear a frame in the border grey rather than the
+  # background, so the focused window is the only coloured one on screen and
+  # gets found by hue instead of by width. The alternative was a fatter border,
+  # which costs every window the pixels whether or not it is focused
+  # (2026-09-14, 3px to 4px was as far as that went).
   i3scheme = c: ''
     # class                 border      background  text     indicator   child_border
     client.focused          ${c.accent} ${c.accent} #ffffff  ${c.accent} ${c.accent}
     client.focused_inactive ${c.field}  ${c.field}  ${c.fg}  ${c.field}  ${c.field}
-    client.unfocused        ${c.bg}     ${c.bg}     ${c.muted} ${c.bg}   ${c.bg}
+    client.unfocused        ${c.border} ${c.border} ${c.muted} ${c.border} ${c.border}
     client.urgent           ${c.red}    ${c.red}    #ffffff  ${c.red}    ${c.red}
     client.background       ${c.bg}
 

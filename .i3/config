@@ -119,7 +119,7 @@ for_window [window_type="notification"] floating enable
 for_window [class="ripdrag"] floating enable, sticky enable
 
 for_window [class=".*"] title_format " %title"
-for_window [class=".*"] border pixel 3
+for_window [class=".*"] border pixel 4
 
 # Define names for default workspaces for which we configure key bindings later on.
 # We use variables to avoid repeating the names in multiple places.
