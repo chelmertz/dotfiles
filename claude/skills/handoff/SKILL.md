@@ -36,6 +36,12 @@ Follow the `project-state` skill's layout. In `HANDOFF.md`:
 5. Move what stopped being actionable into `JOURNAL.md` (verified, dated) or
    `DECISIONS.md` (chosen, why, what was rejected). Keep `HANDOFF.md` under its
    ceiling by moving things out, never by trimming wording.
+
+   Move things out whole. Cutting a bullet is safe: the text lands in the
+   journal and the gap is visible. Merging two bullets into one is where facts
+   go missing — the survivor still reads as a complete sentence, so nothing
+   looks broken, and only a cold read catches the `neither does X` left with no
+   antecedent or the `roughly 2×` left with nothing to compare against.
 6. `Last action:` in the header block, under `Updated <date>.` — one plain
    sentence, rewritten each time. `p-launcher session-brief` prints this line
    into the next session before anything else is read, so it has to make sense
