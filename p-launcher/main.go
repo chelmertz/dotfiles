@@ -173,7 +173,7 @@ func run(args []string) error {
 	root := filepath.Join(home, "p")
 	dbPath := filepath.Join(dataDir(home), "p-launcher", "p.db")
 	if cmd == "report" && ro.demo {
-		return runReport(ro, nil, filepath.Dir(dbPath), os.Stdout) // no DB needed
+		return runReport(ro, nil, root, filepath.Dir(dbPath), os.Stdout) // no DB needed
 	}
 
 	s, err := OpenStore(dbPath)
@@ -321,7 +321,7 @@ func run(args []string) error {
 	case "menu":
 		return menu(s, root, toggleKey, filepath.Join(filepath.Dir(dbPath), "icons"))
 	case "report":
-		return runReport(ro, s, filepath.Dir(dbPath), os.Stdout)
+		return runReport(ro, s, root, filepath.Dir(dbPath), os.Stdout)
 	case "hook":
 		// Claude Code runs this on every hook event with JSON on stdin. It
 		// must never slow or fail a session: log to stderr and exit 0. Nothing

@@ -34,6 +34,11 @@ type Report struct {
 	NoPRSessions, SessionsTotal      int
 	NoPRMedianPrompts, NoPRBig       int
 	TendSessions                     int // sessions started by tend in range
+	// state files: what the session brief reads, and what it cannot read.
+	// Filesystem, not database, so runReport fills these in, not computeReport.
+	StateFiles                  []StateFileRow
+	StateHidden                 int // rows the cap left out
+	StateAffected, StateScanned int
 
 	// S4: what is waiting on me right now?
 	Live                     []LiveRow

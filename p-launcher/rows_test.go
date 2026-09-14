@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -140,5 +141,41 @@ func TestRowsShowDrift(t *testing.T) {
 	}
 	if strings.Contains(rows[2].Text, "handoff owed") {
 		t.Fatalf("undrifted project marked: %q", rows[2].Text)
+	}
+}
+
+func TestRowsShowStateProblemOnlyInAnEmptySlot(t *testing.T) {
+	now := time.Date(2026, 9, 14, 12, 0, 0, 0, time.UTC)
+	missing := []stateProblem{{Kind: "missing"}}
+	ps := []Project{
+		// closed, nothing pending: the slot is empty, so the nag fills it
+		{Path: "m/a", Name: "a", Label: "matchi", StateProblems: missing},
+		// drift is the same kind of fact but more urgent: work just finished
+		// and went unrecorded, where this one was never started
+		{Path: "m/b", Name: "b", Label: "matchi", StateProblems: missing, Drifted: true},
+		// a live session's own state always wins: the nag is about a file
+		{Path: "m/c", Name: "c", Label: "matchi", StateProblems: missing, Ball: "claude"},
+	}
+	rows := rowsAt(ps, map[string]bool{tagFor("m/c"): true}, false, now)
+	for i, want := range []string{"no handoff", "handoff owed", "working"} {
+		if !strings.Contains(rows[i].Text, want) {
+			t.Fatalf("row %d %q does not say %q", i, rows[i].Text, want)
+		}
+	}
+}
+
+func TestMarkFileStateReadsProblemsFromDisk(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "ns/bare"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeHandoff(t, root, "ns/ok", goodHandoff)
+	ps := []Project{{Path: "ns/bare"}, {Path: "ns/ok"}}
+	markFileState(ps, root, map[string]bool{})
+	if len(ps[0].StateProblems) != 1 || ps[0].StateProblems[0].Kind != "missing" {
+		t.Fatalf("bare project: %v", ps[0].StateProblems)
+	}
+	if len(ps[1].StateProblems) != 0 {
+		t.Fatalf("good project: %v", ps[1].StateProblems)
 	}
 }

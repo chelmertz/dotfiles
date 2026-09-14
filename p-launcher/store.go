@@ -16,23 +16,24 @@ type Store struct{ db *sql.DB }
 
 // Project is one row of the launcher list, already sorted for display.
 type Project struct {
-	Path        string    // "m/dependabot"
-	Name        string    // "dependabot"
-	Label       string    // namespace label, "matchi"
-	LastActive  string    // RFC3339 UTC or "" when never selected
-	Ball        string    // "you" (a Claude session waits on the user), "claude" (working), or ""
-	Archived    bool      // latest project_event is "archived"
-	Snoozed     bool      // latest project_event is "snoozed" with a wake time still ahead
-	Review      bool      // a fresh elly verdict says a linked PR waits on the user
-	ReviewWhy   string    // the verdict in words: "2 unresolved threads", "ask adam to re-review"
-	Description string    // one sentence of intent, "" when unset
-	Reason      string    // why the ball is where it is: stop, idle_prompt, question, permission_prompt, …
-	CtxPeak       int       // how full the latest session's context got, 0-100; 0 when never reported
-	LastSessionAt time.Time // when the latest session last changed state, live or not
-	Since       time.Time // when the ball state started; zero without a live session
-	ReviewSince time.Time // when the reviewer's last activity landed; zero without a review verdict
-	Drifted       bool      // HANDOFF.md was not written after the last sizeable session; set on read, never stored
-	nsOrder       int       // namespace.sort_order, the last tiebreak
+	Path          string         // "m/dependabot"
+	Name          string         // "dependabot"
+	Label         string         // namespace label, "matchi"
+	LastActive    string         // RFC3339 UTC or "" when never selected
+	Ball          string         // "you" (a Claude session waits on the user), "claude" (working), or ""
+	Archived      bool           // latest project_event is "archived"
+	Snoozed       bool           // latest project_event is "snoozed" with a wake time still ahead
+	Review        bool           // a fresh elly verdict says a linked PR waits on the user
+	ReviewWhy     string         // the verdict in words: "2 unresolved threads", "ask adam to re-review"
+	Description   string         // one sentence of intent, "" when unset
+	Reason        string         // why the ball is where it is: stop, idle_prompt, question, permission_prompt, …
+	CtxPeak       int            // how full the latest session's context got, 0-100; 0 when never reported
+	LastSessionAt time.Time      // when the latest session last changed state, live or not
+	Since         time.Time      // when the ball state started; zero without a live session
+	ReviewSince   time.Time      // when the reviewer's last activity landed; zero without a review verdict
+	Drifted       bool           // HANDOFF.md was not written after the last sizeable session; set on read, never stored
+	StateProblems []stateProblem // what is wrong with the project's state files; set on read, never stored
+	nsOrder       int            // namespace.sort_order, the last tiebreak
 }
 
 // asksInput are the "you" reasons where Claude is blocked on an answer, as

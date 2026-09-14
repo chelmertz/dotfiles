@@ -67,6 +67,21 @@ func rowsAt(ps []Project, open map[string]bool, withTail bool, now time.Time) []
 // stateText spells out the state the icon stands for, with how long it has
 // been so. "" for a closed project with nothing pending.
 func stateText(p Project, isOpen bool, now time.Time) string {
+	if s := liveStateText(p, isOpen, now); s != "" {
+		return s
+	}
+	// Nothing is happening in this project, so the slot is free to say what is
+	// wrong with the files the brief reads. Only the first problem fits;
+	// checkState returns them worst first, and the report lists them all.
+	if len(p.StateProblems) > 0 {
+		return p.StateProblems[0].short()
+	}
+	return ""
+}
+
+// liveStateText is the state of the work itself, which always outranks a
+// complaint about a file.
+func liveStateText(p Project, isOpen bool, now time.Time) string {
 	dur := ""
 	if !p.Since.IsZero() && now.After(p.Since) {
 		dur = " · " + fmtDur(int(now.Sub(p.Since)/time.Second))
@@ -154,19 +169,21 @@ func drifted(p Project, root string, live bool) bool {
 	st, err := os.Stat(filepath.Join(root, p.Path, "HANDOFF.md"))
 	if err != nil {
 		// No handoff at all is a different problem with a different fix
-		// (write one), and reporting it here would mark every project that
-		// has not been backfilled yet.
+		// (write one). checkState reports it as a "missing" problem and the
+		// row shows that instead, so it is not silently dropped here.
 		return false
 	}
 	return st.ModTime().Before(p.LastSessionAt)
 }
 
-// markDrift sets the flag on every project, from the filesystem and the live
-// set. It is called by each front end after it has both, rather than inside
-// the store, because the input is a file mtime: DECISIONS.md records why this
-// must not become a stored column.
-func markDrift(ps []Project, root string, live map[string]bool) {
+// markFileState fills in everything about a project that comes from its files
+// rather than the database: whether the handoff has drifted, and what is wrong
+// with it. Called by each front end after it has the live set, rather than
+// inside the store, because the inputs are a file mtime and the file itself:
+// DECISIONS.md records why neither may become a stored column.
+func markFileState(ps []Project, root string, live map[string]bool) {
 	for i := range ps {
 		ps[i].Drifted = drifted(ps[i], root, live[ps[i].Path])
+		ps[i].StateProblems = checkState(root, ps[i].Path)
 	}
 }

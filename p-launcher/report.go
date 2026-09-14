@@ -20,6 +20,11 @@ type reportOpts struct {
 
 var reportRanges = map[string]int{"7d": 7, "30d": 30, "90d": 90}
 
+// stateRowsShown caps the state-file table so the fixed-height friction panel
+// keeps its shape; the rest are counted, the way the live section counts its
+// hidden rows.
+const stateRowsShown = 6
+
 // refreshInterval matches the systemd timer; a report run inside it trusts
 // the timer's data.
 const refreshInterval = 10 * time.Minute
@@ -57,7 +62,9 @@ func parseReportFlags(args []string, stderr io.Writer) (reportOpts, error) {
 
 // runReport renders report-7d.html, report-30d.html and report-90d.html into
 // the out dir and prints the path of the --range file. s is nil with --demo.
-func runReport(o reportOpts, s *Store, dataDir string, stdout io.Writer) error {
+// root is the ~/p tree: the state-file check reads it directly, since nothing
+// about a handoff that was never written reaches the database.
+func runReport(o reportOpts, s *Store, root, dataDir string, stdout io.Writer) error {
 	if o.out == "" {
 		o.out = dataDir
 	}
@@ -94,6 +101,9 @@ func runReport(o reportOpts, s *Store, dataDir string, stdout io.Writer) error {
 			r.Range = rng
 		} else {
 			r = computeReport(raw, rng, now.AddDate(0, 0, -days), now, theme)
+			rows, affected, scanned := scanState(root)
+			r.StateFiles, r.StateHidden = capStateRows(rows, stateRowsShown)
+			r.StateAffected, r.StateScanned = affected, scanned
 		}
 		r.RenderMillis = time.Since(started).Milliseconds()
 		path := filepath.Join(o.out, "report-"+rng+".html")

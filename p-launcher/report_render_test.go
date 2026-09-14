@@ -90,3 +90,56 @@ func TestDemoStripDeterministic(t *testing.T) {
 		t.Fatalf("no away minutes: %+v", a)
 	}
 }
+
+func TestRenderStateFilesTable(t *testing.T) {
+	r := demoReport(ts("2026-09-07T14:32:07Z"), themes["dark"])
+	r.StateFiles = []StateFileRow{
+		{Path: "m/claude-billing", Kind: "dropped", Detail: "`Last action:` wraps onto the next line"},
+		{Path: "personal/health", Kind: "missing", Detail: "no HANDOFF.md"},
+	}
+	r.StateHidden, r.StateAffected, r.StateScanned = 3, 5, 15
+	var buf bytes.Buffer
+	if err := renderReport(&buf, r); err != nil {
+		t.Fatal(err)
+	}
+	s := buf.String()
+	for _, want := range []string{
+		"m/claude-billing", "personal/health", "dropped", "missing",
+		"Last action:", // the detail is the whole point: it says what to do
+		"5 of 15",      // a denominator, so a backlog is not read as a convention breaking
+		"3 not shown",  // the same cap wording the live section uses
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("missing %q", want)
+		}
+	}
+	for _, bad := range []string{"<no value>", "ZgotmplZ", "%!"} {
+		if strings.Contains(s, bad) {
+			t.Fatalf("template leaked %q", bad)
+		}
+	}
+}
+
+func TestRenderNoStateFilesSaysSo(t *testing.T) {
+	r := demoReport(ts("2026-09-07T14:32:07Z"), themes["dark"])
+	r.StateFiles, r.StateAffected, r.StateScanned = nil, 0, 15
+	var buf bytes.Buffer
+	if err := renderReport(&buf, r); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "all 15 projects") {
+		t.Fatal("a clean scan has to say so; a blank panel reads as a check that never ran")
+	}
+}
+
+func TestDemoReportCarriesStateFiles(t *testing.T) {
+	// --demo is what the screenshots and the design review use; a section that
+	// is empty there reads as a section that does nothing.
+	r := demoReport(ts("2026-09-07T14:32:07Z"), themes["dark"])
+	if len(r.StateFiles) == 0 || r.StateScanned == 0 {
+		t.Fatalf("demo has %d state rows over %d projects", len(r.StateFiles), r.StateScanned)
+	}
+	if r.StateAffected == 0 || r.StateAffected > r.StateScanned {
+		t.Fatalf("affected %d of scanned %d", r.StateAffected, r.StateScanned)
+	}
+}

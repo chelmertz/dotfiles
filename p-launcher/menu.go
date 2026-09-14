@@ -52,7 +52,7 @@ func list(s *Store, root string, w io.Writer, all bool) error {
 	if err != nil {
 		return err
 	}
-	markDrift(ps, root, live)
+	markFileState(ps, root, live)
 	return writeList(w, ps, open, live)
 }
 
@@ -249,7 +249,7 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 	// The drift flag is read here rather than in load(): its input is a file
 	// mtime and the live set, neither of which the store sees.
 	if live, err := liveProjects(s, root, procRoot, time.Now()); err == nil {
-		markDrift(ps, root, live)
+		markFileState(ps, root, live)
 	}
 	rows := Rows(ps, open, !archived)
 	clip := ""
@@ -302,7 +302,7 @@ func menuMode(s *Store, root, toggleKey, iconDir string, archived bool) error {
 		return menuMode(s, root, toggleKey, iconDir, true)
 	case "report":
 		// render all three ranges and open the 30d one; output stays quiet
-		return runReport(reportOpts{rng: "30d", theme: "dark", open: true}, s, filepath.Dir(iconDir), io.Discard)
+		return runReport(reportOpts{rng: "30d", theme: "dark", open: true}, s, root, filepath.Dir(iconDir), io.Discard)
 	case "brief":
 		// the stored brief, rendered this morning by the timer; a missing one
 		// says so rather than spending a Claude run inside the menu

@@ -79,6 +79,14 @@ func demoReport(now time.Time, T Theme) Report {
 	r.CompTotal, r.CompAuto, r.CompManual = 14, 11, 3
 	r.NoPRSessions, r.SessionsTotal, r.NoPRMedianPrompts, r.NoPRBig = 14, 38, 4, 3
 	r.TendSessions = 2
+	// One of each kind, so the demo shows what the three problems look like
+	// side by side. Paths are the demo set, not this machine.
+	r.StateFiles = []StateFileRow{
+		{Path: "m/claude-billing", Kind: "dropped", Detail: "`Last action:` wraps onto the next line and the brief prints only the first: put the sentence on one line"},
+		{Path: "personal/health", Kind: "missing", Detail: "no HANDOFF.md: nothing tells the next session what is true"},
+		{Path: "m/new-laptop", Kind: "oversized", Detail: "HANDOFF.md is 373 lines against a ceiling of 120: move a section out, do not trim wording"},
+	}
+	r.StateHidden, r.StateAffected, r.StateScanned = 2, 5, 14
 
 	live := []LiveRow{
 		{State: "you", Label: "NEED INPUT", Path: "personal/p-launcher", For: "2m 14s", Why: "waiting for approval · Bash(go test ./...)"},
