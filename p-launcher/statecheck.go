@@ -90,12 +90,16 @@ func checkState(root, path string) []stateProblem {
 // sentence is told apart from the next field beginning.
 var reFieldLine = regexp.MustCompile(`^[A-Z][A-Za-z ]{0,24}:`)
 
+// reOrdered matches an ordered list item, "1. " and friends.
+var reOrdered = regexp.MustCompile(`^\d+[.)]\s`)
+
 // bulletish reports that a line is a list item to a human eye, whatever
 // indentation or marker it uses. mdItems only counts "- " and "* " at column
-// zero, so anything else here is an item the brief will not count.
+// zero, so anything else here - an indented dash, or an ordered "1." - is an
+// item the brief will not count.
 func bulletish(line string) bool {
 	t := strings.TrimSpace(line)
-	return strings.HasPrefix(t, "- ") || strings.HasPrefix(t, "* ")
+	return strings.HasPrefix(t, "- ") || strings.HasPrefix(t, "* ") || reOrdered.MatchString(t)
 }
 
 // droppedSlots reports every slot the file fills for a human but the parser
@@ -154,7 +158,7 @@ func droppedSlots(text string) []stateProblem {
 		for _, line := range strings.Split(body, "\n") {
 			if bulletish(line) {
 				out = append(out, stateProblem{Kind: "dropped",
-					Detail: "`## " + name + "` has items the brief counts as none: unindent them to column zero"})
+					Detail: "`## " + name + "` has items the brief counts as none: each one must start with `- ` at column zero, not an indent and not `1.`"})
 				break
 			}
 		}

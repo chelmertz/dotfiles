@@ -273,3 +273,18 @@ func kinds2(rs []StateFileRow) []string {
 	}
 	return out
 }
+
+// Found in personal/1password-systemauth on 2026-09-14: its decisions are an
+// ordered list, so mdItems counted none and the brief said zero decisions
+// while three sat waiting. Ordered items look like items to every reader
+// except the parser.
+func TestDroppedSlotsOrderedListItemsAreNotCounted(t *testing.T) {
+	text := strings.Replace(goodHandoff, "- **Pick a colour.** Blue or green.", "1. **Pick a colour.** Blue or green.\n2. **Pick a font.** Serif or not.", 1)
+	got := droppedSlots(text)
+	if len(got) != 1 || got[0].Kind != "dropped" {
+		t.Fatalf("want the ordered decisions flagged, got %v", kinds(got))
+	}
+	if !strings.Contains(got[0].Detail, "Open decisions") {
+		t.Fatalf("detail %q does not name the section", got[0].Detail)
+	}
+}
