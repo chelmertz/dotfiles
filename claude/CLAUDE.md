@@ -77,6 +77,12 @@ project is a note the next project pays for again.
   and `i3-msg mode "default"` leaves it. `$mod+m` toggles `fkey` and is the
   only way in or out. The bar indicator is urgent red since 2026-09-14; before
   that it was inactive-window grey on the bar background and unreadable.
+- `bin/<app>` in a nix store path is usually a wrapper, not the program. Grepping it for a
+  symbol returns nothing, which reads exactly like "this build lacks that feature" — it
+  cost one wrong conclusion about p-launcher and nearly bought a `nixos-rebuild` chasing a
+  TPM theory 1Password could not have used. The wrapper is not always a script: flameshot's
+  is a 20 KB ELF beside a 2.7 MB `.flameshot-wrapped`. Resolve it first — `/proc/<pid>/exe`
+  of the running process, or a `.<name>-wrapped` sibling — then grep with `grep -a`.
 - PATH differs between tool calls: a command that resolved a moment ago may not
   resolve in the next call. Check rather than assume.
 - Shell cwd does not persist between tool calls. Use absolute paths.
