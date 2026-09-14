@@ -289,6 +289,11 @@ in
     gleam
     # gleam needs an Erlang runtime; the top-level `erlang` alias is deprecated
     beamPackages.erlang
+    # GNU Make, so a repo with a Makefile needs no dep of its own. Note this
+    # brings make and nothing it might shell out to: there is still no gcc on
+    # PATH, so a Makefile whose rules invoke a compiler fails at that rule, not
+    # at make.
+    gnumake
     go
     gojo
     golangci-lint
