@@ -127,6 +127,19 @@ type linkChange struct {
 	What string
 }
 
+// briefWindow is where "changed since" starts looking. Preferably the last
+// time anything actually checked these links against GitHub; the handoff's own
+// age only when nothing ever has. Keying it to the file's mtime alone is the
+// defect migrate016 exists for: /handoff writes that file, so handing off
+// moved the window past what had just happened and the next brief said all
+// was quiet.
+func briefWindow(s *Store, path string, handoffAge time.Duration, now time.Time) time.Time {
+	if seen, err := s.LinksSeen(path); err == nil && !seen.IsZero() {
+		return seen
+	}
+	return now.Add(-handoffAge)
+}
+
 // changedSince reports what moved on a project's links after the handoff was
 // written. Order is by how much it should change the plan: a merged or closed
 // PR retires work, a reviewer waiting blocks it, failing checks reopen it,
@@ -334,7 +347,7 @@ func briefSession(s *Store, root, cwd string, fromHook bool, now time.Time, w io
 	var changes []linkChange
 	if f.Present {
 		var err error
-		if changes, err = changedSince(s.db, path, now.Add(-f.Age), now); err != nil {
+		if changes, err = changedSince(s.db, path, briefWindow(s, path, f.Age, now), now); err != nil {
 			return err
 		}
 	}

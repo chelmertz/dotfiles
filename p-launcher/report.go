@@ -79,7 +79,7 @@ func runReport(o reportOpts, s *Store, root, dataDir string, stdout io.Writer) e
 		// a link added minutes ago should show: refresh inline when the timer
 		// has not run lately; failures become a footer note, never an error
 		if last, _ := s.kvGet("links.last_refresh"); refreshDue(last, now) {
-			if res, err := refreshLinks(s, realLinkDeps()); err != nil {
+			if res, err := refreshLinks(s, realLinkDeps(root)); err != nil {
 				notes = append(notes, "links refresh failed: "+err.Error())
 			} else if res.Failed > 0 {
 				notes = append(notes, fmt.Sprintf("%d links not refreshed", res.Failed))

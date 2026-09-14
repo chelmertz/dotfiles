@@ -541,3 +541,32 @@ func (s *Store) RecordContext(path string, pct int) error {
 	_, _ = res.RowsAffected()
 	return nil
 }
+
+// SetLinksSeen records that this project's links were just checked against
+// GitHub for real. It is what narrows the brief's "changed since" window, so
+// only something that actually looked may call it: /catchup after its `gh pr
+// view` pass. /handoff must not, which is the whole point of the column.
+func (s *Store) SetLinksSeen(path string, at time.Time) error {
+	res, err := s.db.Exec(`update project set links_seen_at = ? where path = ?`,
+		at.UTC().Format(time.RFC3339), path)
+	if err != nil {
+		return fmt.Errorf("set links seen %s: %w", path, err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("set links seen: unknown project %q", path)
+	}
+	return nil
+}
+
+// LinksSeen is when this project's links were last actually checked, zero if
+// never.
+func (s *Store) LinksSeen(path string) (time.Time, error) {
+	var v string
+	if err := s.db.QueryRow(`select links_seen_at from project where path = ?`, path).Scan(&v); err != nil {
+		return time.Time{}, err
+	}
+	if v == "" {
+		return time.Time{}, nil
+	}
+	return time.Parse(time.RFC3339, v)
+}

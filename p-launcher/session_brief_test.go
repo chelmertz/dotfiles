@@ -280,3 +280,79 @@ func TestBriefSessionHookJSON(t *testing.T) {
 		t.Errorf("plain mode emitted JSON:\n%s", plain.String())
 	}
 }
+
+// The defect: the window started at HANDOFF.md's mtime, which /handoff itself
+// writes, so handing off moved the window past anything that had just
+// happened. On 2026-09-14 two PRs merged at 16:04Z, a handoff was written at
+// 16:15Z, and the next brief reported nothing changed. The window now starts
+// at the last time links were actually checked, which only /catchup advances.
+func TestBriefWindowIsNotResetByWritingTheHandoff(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.UpsertProjects([]Found{{Namespace: "m", Name: "demo", Path: "m/demo"}}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 9, 14, 16, 20, 0, 0, time.UTC)
+	handoffAge := 5 * time.Minute // written at 16:15Z, after the merge
+
+	// Nothing checked yet: fall back to the handoff's own age, as before.
+	if got := briefWindow(s, "m/demo", handoffAge, now); !got.Equal(now.Add(-handoffAge)) {
+		t.Errorf("with no check recorded, window = %v, want the handoff age %v", got, now.Add(-handoffAge))
+	}
+
+	// Links last actually checked yesterday: the window reaches back to then,
+	// so a merge at 16:04Z is inside it.
+	seen := time.Date(2026, 9, 13, 9, 0, 0, 0, time.UTC)
+	if err := s.SetLinksSeen("m/demo", seen); err != nil {
+		t.Fatal(err)
+	}
+	got := briefWindow(s, "m/demo", handoffAge, now)
+	if !got.Equal(seen) {
+		t.Fatalf("window = %v, want the last check %v", got, seen)
+	}
+	merged := time.Date(2026, 9, 14, 16, 4, 40, 0, time.UTC)
+	if !merged.After(got) {
+		t.Errorf("a merge at %v still falls outside the window starting %v", merged, got)
+	}
+}
+
+// A catch-up that just verified every PR narrows the window to now, so the
+// next brief is quiet until something actually moves.
+func TestSetLinksSeenNarrowsTheWindow(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.UpsertProjects([]Found{{Namespace: "m", Name: "demo", Path: "m/demo"}}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 9, 14, 16, 20, 0, 0, time.UTC)
+	if err := s.SetLinksSeen("m/demo", now); err != nil {
+		t.Fatal(err)
+	}
+	if got := briefWindow(s, "m/demo", 48*time.Hour, now); !got.Equal(now) {
+		t.Errorf("window = %v, want %v", got, now)
+	}
+}
+
+// The catchup skill tells a session to run `p-launcher links seen <ns/name>`,
+// and that command is the only thing that narrows the brief's window. Nothing
+// compiles the skill, so a rename here would leave the skill instructing a
+// command that no longer exists and every window silently wide. Asserts
+// against the literal on both sides, not against a shared constant.
+func TestCatchupSkillNamesTheLinksSeenCommand(t *testing.T) {
+	const literal = "p-launcher links seen"
+	b, err := os.ReadFile("../claude/skills/catchup/SKILL.md")
+	if errors.Is(err, fs.ErrNotExist) {
+		t.Skip("claude/ not in the build sandbox; run this from the repo checkout")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), literal) {
+		t.Fatalf("catchup/SKILL.md no longer says %q, so nothing advances links_seen_at and every brief window stays as wide as the last check", literal)
+	}
+	src, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(src), `args[1] == "seen"`) || !strings.Contains(string(src), "links seen <ns/name>") {
+		t.Fatalf("main.go no longer accepts or documents `links seen`, but catchup/SKILL.md still tells sessions to run %q", literal)
+	}
+}

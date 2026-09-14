@@ -9,14 +9,17 @@ argument-hint: "[what to check first, optional]"
 `/handoff` writes what was true when you stopped. This reads what became true
 while you were away and makes the file agree with it. The session brief
 (`p-launcher session-brief`, printed by a SessionStart hook) already listed the
-GitHub facts for free; this command is the part that needs judgement, so it is
-worth running when that list is non-empty and not otherwise.
+GitHub facts for free; this command re-checks them and supplies the judgement.
+An empty list is a reason to be quick, not a reason not to run.
 
 ## Decide first, in one line
 
 - **The brief listed changes** → reconcile them. That is the job.
-- **The brief listed nothing and the handoff is recent** → say so, restate the
-  next step, and stop. Do not go looking for work to do.
+- **The brief listed nothing** → run the checks below anyway, then say so and
+  restate the next step. An empty list is a claim about GitHub, and only the
+  checks make it true: the data behind it is up to ten minutes old, and its
+  window is only as honest as the last `links seen`. Do not go looking for work
+  beyond the checks.
 - **No brief in context** (a resumed or compacted session) → run
   `p-launcher session-brief` and start from its output.
 - **No HANDOFF.md** → say so and offer to write one from what is in the repo.
@@ -44,6 +47,11 @@ re-reading the whole project costs more than the drift it finds.
 
 Stop there. The design docs and the journal are there to be consulted when an
 item needs them, not loaded because you are here.
+
+Then run `p-launcher links seen <ns/name>`. That is what tells the next brief
+these links were actually looked at, and it is the only thing that narrows its
+"changed since" window. Skipping it costs a wider window, never a wrong one.
+`/handoff` deliberately does not do this: writing a file verifies nothing.
 
 ## Then write
 

@@ -54,15 +54,22 @@ type linkDeps struct {
 	checks func(url string) (string, time.Time, error)
 	me     string
 	now    time.Time
+	// root is ~/p. Empty means "do not read handoffs", which is what the
+	// tests that predate adoption pass.
+	root string
 }
 
 type refreshResult struct {
 	Refreshed, Unchanged, Failed int
+	Adopted                      int
 	EllyStale, EllyMissing       bool
 }
 
 func (r refreshResult) String() string {
 	s := fmt.Sprintf("links: %d refreshed, %d unchanged, %d failed", r.Refreshed, r.Unchanged, r.Failed)
+	if r.Adopted > 0 {
+		s += fmt.Sprintf("; %d adopted from handoffs", r.Adopted)
+	}
 	if r.EllyMissing {
 		s += "; elly unavailable"
 	} else if r.EllyStale {
@@ -74,11 +81,87 @@ func (r refreshResult) String() string {
 // ellyStaleAfter is elly's 5 min interval times its backoff cap, plus slack.
 const ellyStaleAfter = 30 * time.Minute
 
+// handoffRefs returns every GitHub pull request or issue the text names,
+// canonical and deduplicated, in the order they first appear.
+func handoffRefs(text string) []ghRef {
+	var out []ghRef
+	seen := map[string]bool{}
+	for _, m := range ghURLRe.FindAllString(text, -1) {
+		if seen[m] {
+			continue
+		}
+		seen[m] = true
+		if ref, ok := parseGitHubURL(m); ok {
+			out = append(out, ref)
+		}
+	}
+	return out
+}
+
+// adoptHandoffLinks registers every PR and issue a project's HANDOFF.md names,
+// and reports how many were new. Until this existed a link row arrived only
+// from the `gh pr create` hook or a hand-added URL, so a PR written straight
+// into a handoff was invisible to the brief's "changed since" block however
+// wide its window was - https://github.com/matchiapp/webapp/pull/11339 merged
+// unseen on 2026-09-14 for that reason. Runs before every refresh, so it has
+// to be idempotent and has to treat a missing file as ordinary: four ~/p
+// projects have no handoff at all.
+func adoptHandoffLinks(s *Store, root string) (int, error) {
+	if root == "" {
+		return 0, nil
+	}
+	rows, err := s.db.Query(`select path from project order by path`)
+	if err != nil {
+		return 0, err
+	}
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		paths = append(paths, p)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, path := range paths {
+		b, err := os.ReadFile(filepath.Join(root, path, "HANDOFF.md"))
+		if err != nil {
+			continue
+		}
+		for _, ref := range handoffRefs(string(b)) {
+			var exists int
+			if err := s.db.QueryRow(`select count(*) from link where url = ?`, ref.URL).Scan(&exists); err != nil {
+				return n, err
+			}
+			if exists > 0 {
+				continue
+			}
+			if err := s.AddLinkKind(path, ref.URL, ref.Kind); err != nil {
+				return n, err
+			}
+			n++
+		}
+	}
+	return n, nil
+}
+
 // refreshLinks updates every non-terminal link from GitHub (conditional
 // requests) and applies elly's verdicts. Remote failures never return an
 // error: values stay, the failure is counted and recorded in kv.
 func refreshLinks(s *Store, d linkDeps) (refreshResult, error) {
 	var res refreshResult
+	// Adopt first: a PR the handoff names but nothing registered is refreshed
+	// in this same pass rather than in ten minutes' time.
+	adopted, err := adoptHandoffLinks(s, d.root)
+	if err != nil {
+		return res, err
+	}
+	res.Adopted = adopted
 	type open struct {
 		id              int64
 		url, etag, kind string
@@ -472,6 +555,6 @@ func foldChecks(raw []byte) (string, time.Time) {
 }
 
 // realLinkDeps wires the CLI adapters.
-func realLinkDeps() linkDeps {
-	return linkDeps{gh: ghFetch, elly: ellyRead, checks: ghChecks, me: ghLogin(), now: time.Now()}
+func realLinkDeps(root string) linkDeps {
+	return linkDeps{gh: ghFetch, elly: ellyRead, checks: ghChecks, me: ghLogin(), now: time.Now(), root: root}
 }

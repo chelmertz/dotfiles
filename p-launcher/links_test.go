@@ -330,3 +330,125 @@ func TestEllyReadOlderSchema(t *testing.T) {
 		t.Fatalf("%+v %v", prs, err)
 	}
 }
+
+func TestHandoffRefsFindsEveryGitHubURLOnce(t *testing.T) {
+	text := `# handoff
+
+- https://github.com/o/r/pull/3605 is green and awaits a human merge.
+- the same PR again: https://github.com/o/r/pull/3605
+- an issue, https://github.com/o/r/issues/12, and a non-GitHub
+  https://example.com/o/r/pull/9 that is not a ref.
+- https://github.com/other/repo/pull/11339 wants marking ready first.
+`
+	got := handoffRefs(text)
+	want := []ghRef{
+		{Kind: "github_pr", Owner: "o", Repo: "r", Number: 3605, URL: "https://github.com/o/r/pull/3605"},
+		{Kind: "github_issue", Owner: "o", Repo: "r", Number: 12, URL: "https://github.com/o/r/issues/12"},
+		{Kind: "github_pr", Owner: "other", Repo: "repo", Number: 11339, URL: "https://github.com/other/repo/pull/11339"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %d refs %v, want %d", len(got), got, len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("ref %d: got %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+// The defect this closes: a PR URL written into a handoff was never a link
+// row, so the brief's "changed since" block could not report it however wide
+// the window was. https://github.com/matchiapp/webapp/pull/11339 merged
+// unseen on 2026-09-14 for exactly this reason.
+func TestAdoptHandoffLinksRegistersPRsTheHandoffNames(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "m/a"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	handoff := "Next step: merge https://github.com/o/r/pull/11339, still draft.\n"
+	if err := os.WriteFile(filepath.Join(root, "m/a", "HANDOFF.md"), []byte(handoff), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := openTestStore(t)
+	if err := s.UpsertProjects(found("m/a")); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := adoptHandoffLinks(s, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("adopted %d links, want 1", n)
+	}
+	var kind string
+	if err := s.db.QueryRow(`select kind from link where url = ?`, "https://github.com/o/r/pull/11339").Scan(&kind); err != nil {
+		t.Fatalf("link not registered: %v", err)
+	}
+	if kind != "github_pr" {
+		t.Errorf("kind = %q, want github_pr", kind)
+	}
+
+	// Idempotent: the timer runs this every 10 minutes.
+	if n, err := adoptHandoffLinks(s, root); err != nil || n != 0 {
+		t.Fatalf("second run adopted %d (err %v), want 0", n, err)
+	}
+}
+
+// A project with no handoff, and a root that does not exist, are both ordinary
+// states on this machine - four ~/p projects have no HANDOFF.md at all.
+func TestAdoptHandoffLinksToleratesMissingFiles(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.UpsertProjects(found("m/a")); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := adoptHandoffLinks(s, t.TempDir()); err != nil || n != 0 {
+		t.Fatalf("missing handoff: got %d, %v; want 0, nil", n, err)
+	}
+	if n, err := adoptHandoffLinks(s, filepath.Join(t.TempDir(), "nope")); err != nil || n != 0 {
+		t.Fatalf("missing root: got %d, %v; want 0, nil", n, err)
+	}
+}
+
+// Adoption is worth nothing unless the thing that runs every 10 minutes calls
+// it: the point is that a PR named only in a handoff gets picked up without
+// anyone adding it. Asserts it is refreshed in the same pass, not the next.
+func TestRefreshLinksAdoptsFromHandoffs(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "m/a"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "m/a", "HANDOFF.md"),
+		[]byte("merge https://github.com/o/r/pull/11339 once it is ready\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := openTestStore(t)
+	if err := s.UpsertProjects(found("m/a")); err != nil {
+		t.Fatal(err)
+	}
+	now := ts("2026-09-14T18:00:00Z")
+	fetched := map[string]bool{}
+	deps := linkDeps{me: "me", now: now, root: root,
+		gh: func(url, etag string) (ghPR, int, string, error) {
+			fetched[url] = true
+			return ghPR{State: "closed", Merged: true, Title: "telemetry", Author: "me",
+				CreatedAt: ts("2026-09-13T10:00:00Z"), ClosedAt: ts("2026-09-14T16:04:40Z"),
+				MergedAt: ts("2026-09-14T16:04:40Z"), UpdatedAt: ts("2026-09-14T16:04:42Z")}, 200, `"e"`, nil
+		},
+		elly:   func() (map[string]ellyPR, time.Time, error) { return nil, now, nil },
+		checks: func(string) (string, time.Time, error) { return "", time.Time{}, nil },
+	}
+	res, err := refreshLinks(s, deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Adopted != 1 {
+		t.Errorf("Adopted = %d, want 1", res.Adopted)
+	}
+	if !fetched["https://github.com/o/r/pull/11339"] {
+		t.Error("adopted link was not refreshed in the same pass")
+	}
+	if got := readLink(t, s, "https://github.com/o/r/pull/11339"); !got.Merged {
+		t.Error("adopted link did not pick up its merged state")
+	}
+}

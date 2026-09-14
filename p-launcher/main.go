@@ -30,7 +30,7 @@ func (e *hintError) Error() string { return e.msg + ". " + e.hint }
 func (e *hintError) Unwrap() error { return e.cause }
 
 func usage() error {
-	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> [--no-open] | describe <ns/name> <text> | adopt <ns/name> <cwd-prefix> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | menu [--toggle-key KEY] | hook | session-brief | desktop lock|unlock | tend [--dry-run] [--max N] | kv get <key> | kv set <key> <value> | backup [DIR] | brief [--dry-run] [--force] [--show] | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
+	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> [--no-open] | describe <ns/name> <text> | adopt <ns/name> <cwd-prefix> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | links seen <ns/name> | menu [--toggle-key KEY] | hook | session-brief | desktop lock|unlock | tend [--dry-run] [--max N] | kv get <key> | kv set <key> <value> | backup [DIR] | brief [--dry-run] [--force] [--show] | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
 }
 
 func main() {
@@ -93,7 +93,10 @@ func run(args []string) error {
 			return usage()
 		}
 	case "links":
-		if len(args) != 2 || args[1] != "refresh" {
+		switch {
+		case len(args) == 2 && args[1] == "refresh":
+		case len(args) == 3 && args[1] == "seen":
+		default:
 			return usage()
 		}
 	case "desktop":
@@ -244,8 +247,14 @@ func run(args []string) error {
 	case "link":
 		return s.AddLink(args[2], args[3])
 	case "links":
+		if args[1] == "seen" {
+			// Only something that actually checked GitHub may call this: it
+			// narrows the brief's "changed since" window. /catchup does, after
+			// its `gh pr view` pass. /handoff must not.
+			return s.SetLinksSeen(args[2], time.Now())
+		}
 		// Remote failures are counted, not fatal: the timer retries.
-		res, err := refreshLinks(s, realLinkDeps())
+		res, err := refreshLinks(s, realLinkDeps(root))
 		if err != nil {
 			return err
 		}

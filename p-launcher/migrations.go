@@ -24,6 +24,7 @@ var migrations = []func(*sql.Tx) error{
 	migrate013,
 	migrate014,
 	migrate015,
+	migrate016,
 }
 
 // migrate015 moves the context high-water mark out of session_state, which
@@ -277,6 +278,20 @@ create index link_project on link (project_id);`)
 // view can say what it waits for.
 func migrate004(tx *sql.Tx) error {
 	_, err := tx.Exec(`alter table session_state add column reason text not null default ''`)
+	return err
+}
+
+// migrate016 records when a project's links were last actually checked
+// against GitHub by a person or a catch-up, which is not the same thing as
+// when HANDOFF.md was last written. The brief's "changed since" window used
+// the file's mtime, and /handoff writes that file, so handing off moved the
+// window past whatever had just happened: two PRs merged at 16:04Z on
+// 2026-09-14, the handoff was written at 16:15Z, and the next brief reported
+// nothing. Only /catchup advances this, never /handoff and never the links
+// timer - a timer that runs every 10 minutes would collapse the window to
+// nothing and hide everything.
+func migrate016(tx *sql.Tx) error {
+	_, err := tx.Exec(`alter table project add column links_seen_at text not null default ''`)
 	return err
 }
 
