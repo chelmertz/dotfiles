@@ -230,6 +230,11 @@
 
   # ── Network ─────────────────────────────────────────────────────────────
   networking.networkmanager.enable = true;
+
+  # Blocks network-online.target until a connection is routable, which cost
+  # 3.96s of a 7.8s userspace boot. docker.service is the only thing that
+  # wants it here and dockerd does not need a routable network to start.
+  systemd.services.NetworkManager-wait-online.enable = false;
   networking.firewall = {
     enable = true;
     allowedTCPPorts = [ 22 ];
