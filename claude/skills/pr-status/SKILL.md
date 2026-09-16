@@ -32,7 +32,7 @@ Per PR, the fields that matter:
 | Field | Means |
 |---|---|
 | `ChecksState` | `FAILURE`/`ERROR` = red. `PENDING` = still running. `SUCCESS` = green. `""` = no checks. |
-| `ChecksFailing` | names of the failing checks. `ChecksComplete: false` means more exist than were read — say "at least N". |
+| `ChecksFailing` | names of the failing checks. `ChecksComplete: false` means the list is not the whole truth: with names present say "at least N", and with the list **empty on a red PR** say "red, check names unavailable" — never "0 failing checks". An empty list there means elly's PAT lacks the Checks/Commit-statuses read permission, not that the PR is fine. |
 | `ThreadsActionable` | `> 0` means **we** owe the reply. This is the count that was missed. |
 | `ThreadsWaiting` | threads where the other side owes the reply. |
 | `LastPrCommenter` | who spoke last. |
