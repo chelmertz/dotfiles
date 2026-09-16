@@ -33,9 +33,10 @@ Per PR, the fields that matter:
 |---|---|
 | `ChecksState` | `FAILURE`/`ERROR` = red. `PENDING` = still running. `SUCCESS` = green. `""` = no checks. |
 | `ChecksFailing` | names of the failing checks. `ChecksComplete: false` means the list is not the whole truth: with names present say "at least N", and with the list **empty on a red PR** say "red, check names unavailable" — never "0 failing checks". An empty list there is Github refusing to name the jobs, not the PR being fine. |
-| `ThreadsActionable` | `> 0` means **we** owe the reply. This is the count that was missed. |
+| `ThreadsActionable` | `> 0` means **we** owe the reply, on anyone's PR. elly computes it against our username, so it does not flip with authorship: on someone else's PR it counts the threads we started and have neither answered nor reacted to. This is the count that was missed. |
 | `ThreadsWaiting` | threads where the other side owes the reply. |
-| `LastPrCommenter` | who spoke last. |
+| `LastPrCommenter` | who spoke last, and `""` when that was a bot — elly ignores `github-actions` and `vercel`. Empty is "no human has spoken", not "unknown". |
+| `ReviewRequestedFromUsers` | who is being asked, `@`-prefixed for a team. Empty means nobody was requested, which on our own PR is the thing to say. |
 | `RereviewFrom` | reviewers who reviewed before the latest push and were not re-requested. |
 | `ReviewStatus` | approval state **only**. Never read it alone. |
 | `IsDraft`, `Buried` | not anyone's turn; `Buried` is a decision the user already made. |
@@ -65,25 +66,49 @@ If the request fails, elly is not running — say so and stop. Do **not** fall
 back to assembling the answer from `gh`. An unavailable source means the state
 is unknown, and unknown must be reported as unknown.
 
+`review_requests_unreadable` means the second of elly's two searches failed on
+the last poll. Everything listed is still right; what may be missing is a PR we
+were asked to review and have never commented on. It usually clears by itself.
+
 `p-launcher session-brief` reads the same database, so its PR lines and this
 skill can never disagree.
+
+## What elly still cannot see
+
+elly runs two searches: `involves:` — author OR assignee OR mentions OR
+commenter — and `review-requested:`. Between them they cover a PR we touched
+and a PR we were asked for by name.
+
+A review requested from a **team** we belong to matches neither, because
+`review-requested:` is direct requests only and elly cannot resolve team
+membership. Such a PR is invisible until someone mentions us on it. If the
+question is "is there anything I have not been shown", that is the gap to name;
+do not answer it from `gh pr list`.
 
 ## Decide whose turn, in this order
 
 First match wins. The order is the point: a PR that is red or owes a reply can
 never come out as "waiting on someone else".
 
-1. `IsDraft` → nobody's turn.
+1. `IsDraft` or `Buried` → nobody's turn.
 2. merge conflict → **ours**.
-3. `ChecksState` is `FAILURE`/`ERROR` → **ours**, and name the checks.
-4. `ThreadsActionable > 0` → **ours**, and say how many and who spoke last.
+3. `ChecksState` is `FAILURE`/`ERROR` → **ours** on our own PR, the author's on
+   theirs. Name the checks.
+4. `ThreadsActionable > 0` → **ours**, on anyone's PR, and say how many and who
+   spoke last. Do not flip this one to the author because they authored it.
 5. changes requested and not yet answered → **ours**.
 6. `ChecksState` is `PENDING` → nobody's turn yet; say what it is waiting for.
-7. approved → **ours to merge**.
-8. otherwise → theirs to review.
+7. approved, our PR → **ours to merge**.
+8. our PR, none of the above → theirs to review; name who from
+   `ReviewRequestedFromUsers`, and say plainly when that is empty, because a PR
+   nobody was asked to review is waiting on us to ask.
+9. someone else's PR, none of the above → **ours to review only if we were
+   actually asked**: our login in `ReviewRequestedFromUsers` or `RereviewFrom`.
 
-For a PR someone else authored, mirror it: unresolved threads or red checks put
-it back with the author; otherwise it is ours to review.
+Anything left over is a PR we are merely involved in, and it is nobody's turn.
+Do not put it in an "on you" list. This matters because it is most of them: the
+same run that produced nine real rows produced seven of these, every one of
+which would have read as a review we owed.
 
 ## Before sending a list to a person
 
@@ -98,6 +123,8 @@ Two failure modes to check for by name, because both have happened:
   review.
 - **A PR listed as theirs when the last word is ours.** `ThreadsActionable`
   settles it; nothing else does.
+- **A PR we only commented on, listed as a review we owe.** Step 9 settles it:
+  no login in `ReviewRequestedFromUsers` or `RereviewFrom` means nobody asked.
 
 If elly's `LastFetched` is more than ~15 minutes old, say the data's age rather
 than presenting it as current, or trigger a refresh:

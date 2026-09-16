@@ -46,6 +46,12 @@
   one already-identified PR (a diff, a thread body, a workflow log).
 - **Never put a red PR in a "please review" list.** It wastes the reviewer's
   time and is the fastest way to lose the next review.
+- **Being in elly is not being asked.** Its `involves:` search matches anything
+  I authored, was assigned, was mentioned on or commented on, so most of the
+  list is other people's PRs I merely touched. A review is owed only when my
+  login is in `ReviewRequestedFromUsers` or `RereviewFrom`; everything else is
+  nobody's turn and belongs in no "on you" list. Seven of sixteen rows were
+  this on 2026-09-17.
 
 # Claims about code
 - A comment, doc or commit message that asserts how code behaves **elsewhere** — another repo, another PR, another file — is a claim to verify before writing, not after. Open the file. `git show origin/main:path` costs one command; a wrong claim in a doc outlives the PR and gets trusted.
