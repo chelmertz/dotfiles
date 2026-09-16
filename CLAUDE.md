@@ -2,8 +2,11 @@
 
 - The home-manager flake lives in `nix/`. `~/.config/home-manager` is a symlink to
   `nix/` in the primary clone, so a bare `home-manager switch` applies whatever main
-  has checked out. From a worktree, apply with
-  `home-manager --option warn-dirty false switch --flake ./nix#ch`.
+  has checked out. From a worktree or a second clone, name the host's attribute —
+  `home-manager --option warn-dirty false switch --flake ./nix#ch@tau` on tau,
+  `#ch` on gamma. The bare command picks `ch@$(hostname)` and falls back to `ch`;
+  `--flake` does no such lookup, so `#ch` on tau silently applies the Ubuntu
+  variant.
 - Every change in this repo must be applied with `home-manager switch`; a commit alone
   changes nothing on the machine. On tau, changes under `nix/hosts/tau/` are the
   exception: they need `sudo nixos-rebuild switch --flake ~/.config/home-manager#tau`.
