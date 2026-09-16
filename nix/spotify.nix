@@ -1,4 +1,4 @@
-{ config, lib, pkgs, ... }:
+{ pkgs, ... }:
 let
   py = pkgs.python3.withPackages (ps: [ ps.spotipy ]);
   repo = "$HOME/code/github/chelmertz/spotify";
@@ -75,16 +75,10 @@ in
     };
   };
 
-  # tau only. Both machines ran this nightly against the same account, two
-  # minutes apart, and the loser's commit stranded — which is how the push
-  # failure below stayed hidden. gamma is being handed back, so it keeps the
-  # service for a manual run and loses the schedule.
-  systemd.user.timers.spotify-backup = lib.mkIf config.dotfiles.nixos {
-    Unit.Description = "Run spotify-backup daily";
-    Timer = {
-      OnCalendar = "*-*-* 03:00:00";
-      Persistent = true;
-    };
-    Install.WantedBy = [ "timers.target" ];
-  };
+  # No timer. The Spotify API returns 403 "Active premium subscription
+  # required for the owner of the app" for /me/playlists, so every nightly
+  # firing exited 1 and left the unit in systemctl --user --failed. The
+  # service above stays for a manual `systemctl --user start spotify-backup`
+  # once the subscription is back; the SpotifyBackupStale alert went with the
+  # schedule, since nothing runs to keep it fresh.
 }

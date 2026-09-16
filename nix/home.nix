@@ -1345,14 +1345,6 @@ in
             annotations:
               summary: "Domain {{ $labels.domain }} expires in {{ $value }} days"
 
-          - alert: SpotifyBackupStale
-            expr: (time() - spotify_backup_last_success_timestamp) > 172800 or absent(spotify_backup_last_success_timestamp)
-            for: 1h
-            labels:
-              severity: warning
-            annotations:
-              summary: "Spotify backup stale (2+ days). Check: journalctl --user -u spotify-backup -e | Re-run: systemctl --user start spotify-backup"
-
           - alert: DomainExpiryCritical
             expr: domain_expiry_days < 30
             for: 1h
