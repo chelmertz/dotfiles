@@ -1479,9 +1479,9 @@ in
   systemd.user.services.dropbox = {
     Unit = {
       Description = "Dropbox";
-      # Same X-race reasoning as flameshot below.
-      StartLimitIntervalSec = 300;
-      StartLimitBurst = 20;
+      # Same graphical-session ordering as flameshot below.
+      After = [ "graphical-session.target" ];
+      PartOf = [ "graphical-session.target" ];
     };
     Service = {
       # Was %h/.dropbox-dist/dropboxd, the proprietary daemon that Ubuntu's
@@ -1494,16 +1494,16 @@ in
       RestartSec = 10;
     };
     Install = {
-      WantedBy = [ "default.target" ];
+      WantedBy = [ "graphical-session.target" ];
     };
   };
 
   systemd.user.services.copyq = {
     Unit = {
       Description = "CopyQ clipboard manager";
-      # Same X-race reasoning as flameshot below.
-      StartLimitIntervalSec = 300;
-      StartLimitBurst = 20;
+      # Same graphical-session ordering as flameshot below.
+      After = [ "graphical-session.target" ];
+      PartOf = [ "graphical-session.target" ];
     };
     Service = {
       ExecStart = "${pkgs.copyq}/bin/copyq";
@@ -1511,7 +1511,7 @@ in
       RestartSec = 10;
     };
     Install = {
-      WantedBy = [ "default.target" ];
+      WantedBy = [ "graphical-session.target" ];
     };
   };
 
@@ -1521,12 +1521,14 @@ in
   systemd.user.services.flameshot = {
     Unit = {
       Description = "Flameshot";
-      # Default (5 starts / 10s) is too tight: at boot the unit races the X
-      # session and burns all retries before DISPLAY exists, ending up failed.
-      # Ideal fix is wiring graphical-session.target, but GDM doesn't pull it
-      # in for non-GNOME sessions. Give it 5 min to catch X coming up.
-      StartLimitIntervalSec = 300;
-      StartLimitBurst = 20;
+      # Ordered after graphical-session.target rather than pulled by
+      # default.target. NixOS's nixos-fake-graphical-session.target BindsTo
+      # graphical-session.target for non-systemd-aware sessions like i3, so it
+      # does become active - roughly a second after default.target. Starting
+      # from default.target won that race every boot: Qt found no DISPLAY,
+      # aborted with a coredump, and only came back on the RestartSec below.
+      After = [ "graphical-session.target" ];
+      PartOf = [ "graphical-session.target" ];
     };
     Service = {
       ExecStart = "${pkgs.flameshot}/bin/flameshot";
@@ -1534,7 +1536,7 @@ in
       RestartSec = 10;
     };
     Install = {
-      WantedBy = [ "default.target" ];
+      WantedBy = [ "graphical-session.target" ];
     };
   };
 
