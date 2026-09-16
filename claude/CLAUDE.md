@@ -26,6 +26,27 @@
 - Keep branches independent. Preference order: independent PRs, then smaller PRs, then stacked PRs. Stacking is acceptable only when it genuinely helps a reviewer chunk their work — never as a substitute for untangling a dependency.
 - Two PRs that each need the other to land first is a failure to spot; if a dependency is unavoidable, name it in the description and say which order to merge.
 
+# PR status: ask elly, never infer it from `gh`
+
+- **`reviewDecision` does not say whose turn it is.** It reports only whether an
+  approving review exists — not failing checks, not who owes the next reply. On
+  2026-09-16 four PRs went to a reviewer as "waiting on you": two were red (11
+  and 10 failing checks) and two had 4 and 8 threads whose last comment was
+  mine. All four read `REVIEW_REQUIRED`, so the list looked right and was wrong
+  in every row. `claude-pr-status-hook` now blocks that query.
+- **elly already knows.** It polls every PR every 5 minutes and stores
+  `ThreadsActionable` (> 0 means I owe the reply), `LastPrCommenter`,
+  `RereviewFrom` and `ChecksState`/`ChecksFailing`. Read
+  `curl -s localhost:9876/api/v0/prs`; the `pr-status` skill has the ordering
+  that decides whose turn it is. `p-launcher session-brief` reads the same
+  database, so the two can never disagree.
+- **A failed elly call means the state is unknown**, and unknown gets reported
+  as unknown. Do not reassemble the answer out of `gh` — that is the improvised
+  path that produced the wrong list in the first place. `gh` is still right for
+  one already-identified PR (a diff, a thread body, a workflow log).
+- **Never put a red PR in a "please review" list.** It wastes the reviewer's
+  time and is the fastest way to lose the next review.
+
 # Claims about code
 - A comment, doc or commit message that asserts how code behaves **elsewhere** — another repo, another PR, another file — is a claim to verify before writing, not after. Open the file. `git show origin/main:path` costs one command; a wrong claim in a doc outlives the PR and gets trusted.
 - Never write a planned state in the present tense. If the thing that makes it true has not merged, say so and name it: "PR X adds them; until it merges, …". Two separate defects in one initiative came from describing intended wiring as existing wiring.
