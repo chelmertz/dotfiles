@@ -40,6 +40,18 @@ Per PR, the fields that matter:
 | `ReviewStatus` | approval state **only**. Never read it alone. |
 | `IsDraft`, `Buried` | not anyone's turn; `Buried` is a decision the user already made. |
 
+## Ask elly what it cannot do
+
+```
+curl -s localhost:9876/api/v0/config/status
+```
+
+A non-empty `degradations` array is elly naming its own blind spot, with the
+remedy. Repeat it rather than working around it: `checks_unreadable` means the
+PAT lacks the Checks read permission, so red PRs are still identified correctly
+but their check names are missing. Never present a deficiency as a clean
+result.
+
 If the request fails, elly is not running — say so and stop. Do **not** fall
 back to assembling the answer from `gh`. An unavailable source means the state
 is unknown, and unknown must be reported as unknown.
