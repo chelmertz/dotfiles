@@ -32,7 +32,7 @@ Per PR, the fields that matter:
 | Field | Means |
 |---|---|
 | `ChecksState` | `FAILURE`/`ERROR` = red. `PENDING` = still running. `SUCCESS` = green. `""` = no checks. |
-| `ChecksFailing` | names of the failing checks. `ChecksComplete: false` means the list is not the whole truth: with names present say "at least N", and with the list **empty on a red PR** say "red, check names unavailable" — never "0 failing checks". An empty list there means elly's PAT lacks the Checks/Commit-statuses read permission, not that the PR is fine. |
+| `ChecksFailing` | names of the failing checks. `ChecksComplete: false` means the list is not the whole truth: with names present say "at least N", and with the list **empty on a red PR** say "red, check names unavailable" — never "0 failing checks". An empty list there is Github refusing to name the jobs, not the PR being fine. |
 | `ThreadsActionable` | `> 0` means **we** owe the reply. This is the count that was missed. |
 | `ThreadsWaiting` | threads where the other side owes the reply. |
 | `LastPrCommenter` | who spoke last. |
@@ -47,10 +47,19 @@ curl -s localhost:9876/api/v0/config/status
 ```
 
 A non-empty `degradations` array is elly naming its own blind spot, with the
-remedy. Repeat it rather than working around it: `checks_unreadable` means the
-PAT lacks the Checks read permission, so red PRs are still identified correctly
-but their check names are missing. Never present a deficiency as a clean
-result.
+remedy. Repeat it rather than working around it, and never present a deficiency
+as a clean result.
+
+`checks_unreadable` is the standing one on this machine, and it is not a
+misconfiguration to go and fix. Github issues the *Checks* permission to Github
+Apps only — it is absent from the fine-grained token UI altogether, so no token
+of that class can be granted it. Red and green stay correct, because that
+verdict is an aggregate Github computes itself; what is missing is the name of
+the failing Github Actions job. External reporters such as Buildkite are still
+named, through *Commit statuses*. A classic token with the `repo` scope would
+get the names, and was rejected on 2026-09-17: read-and-write on every
+reachable repository is not worth a job name. So say "red, check names
+unavailable" and move on — do not suggest a permission change.
 
 If the request fails, elly is not running — say so and stop. Do **not** fall
 back to assembling the answer from `gh`. An unavailable source means the state

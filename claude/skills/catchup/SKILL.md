@@ -35,9 +35,22 @@ re-reading the whole project costs more than the drift it finds.
 1. **Every line the brief printed.** Each is a fact `HANDOFF.md` has not caught
    up with yet.
 2. **Every PR or issue URL in `## Now` and `## Next` the brief did not
-   mention** — one `gh pr view <url> --json state,mergedAt,reviewDecision,statusCheckRollup`
-   each. One `gh` call per tool invocation: two in one compound command hits the
-   permission classifier.
+   mention.** One `curl -s localhost:9876/api/v0/prs` covers all of them at
+   once — elly polls every PR involving you every 5 minutes, and the `pr-status`
+   skill has the fields and the ordering that decide whose turn each one is.
+   Never reach for `gh pr view --json reviewDecision` to answer that; the field
+   reports only whether an approving review exists, and `claude-pr-status-hook`
+   blocks the call.
+
+   A URL the response does not contain is a fact, not a gap: elly stores open
+   PRs only (`state:open` in its search, and every fetch replaces the table), so
+   absence means merged or closed. That is the one thing to ask `gh` —
+   `gh pr view <url> --json state,mergedAt` — and it is a lookup on an already
+   identified PR, not a way to build the list. One `gh` call per tool
+   invocation: two in one compound command hits the permission classifier.
+
+   If elly does not answer, the state is unknown and gets written down as
+   unknown. Do not reassemble it from `gh`.
 3. **Each clone or worktree named in `## Now`** — fetch, then ahead/behind
    against its upstream and whether the tree is dirty. Name which worktree; they
    are one per task and another session may hold one.
