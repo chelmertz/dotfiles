@@ -483,6 +483,12 @@ in
       executable = true;
     };
 
+
+    ".local/bin/claude-pr-status-hook" = {
+      source = py ../bin/claude-pr-status-hook;
+      executable = true;
+    };
+
     ".local/bin/toggle-obsidian-scratchpad" = {
       source = ../bin/toggle-obsidian-scratchpad;
       executable = true;

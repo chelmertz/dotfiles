@@ -88,6 +88,11 @@
     recursive = true;
   };
 
+  home.file.".claude/skills/pr-status" = {
+    source = ../claude/skills/pr-status;
+    recursive = true;
+  };
+
   # Shows what the live file has that the source does not, for the public
   # keys: run it after editing ~/.claude/settings.json by hand (or letting
   # Claude do it) and copy the wanted changes into claude/settings.json.

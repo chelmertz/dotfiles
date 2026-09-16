@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""PreToolUse hook (matcher: Bash): refuse `gh pr list/view` that asks for
+reviewDecision without also asking for the checks.
+
+reviewDecision answers "is an approving review recorded". It does NOT answer
+"whose turn is it", and reading it as if it did is how a list of PRs gets sent
+to a colleague with the ball on the wrong side.
+
+On 2026-09-16 four PRs were reported to a reviewer as waiting on them. Two had
+11 and 10 failing checks; the other two had 4 and 8 review threads whose last
+comment was ours. reviewDecision was REVIEW_REQUIRED on all four, so the list
+looked right and was wrong in every row.
+
+elly already polls every PR and stores threads_actionable, last_pr_commenter
+and (since 2026-09-16) checks_state. Ask it:
+
+    curl -s localhost:9876/api/v0/prs
+
+Blocked:
+    gh pr list  --json reviewDecision,title
+    gh pr view 123 --json reviewDecision
+
+Allowed (the caller is looking at CI too, so the trap is not open):
+    gh pr list --json reviewDecision,statusCheckRollup
+    gh pr view 123 --json statusCheckRollup,mergeable
+
+Exit 2 blocks the tool call; stderr goes back to Claude.
+Escape hatch for the user only: CLAUDE_PR_STATUS=0.
+"""
+import json
+import os
+import re
+import sys
+
+# A gh invocation that starts a command segment: line start, or after ; && || |
+# Mirrors claude-sign-comments-hook, so the same words inside a heredoc, a
+# python script or a quoted string are not treated as commands.
+GH_PR_HEAD = re.compile(
+    r"(?:^|[;&|]\s*)\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*gh\s+pr\s+(list|view)\b([^;&|]*)",
+    re.MULTILINE,
+)
+JSON_FLAG = re.compile(r"--json[=\s]+([A-Za-z0-9_,]+)")
+
+GUIDANCE = """reviewDecision does not say whose turn it is — it says only whether an
+approving review exists. A PR can be REVIEW_REQUIRED with red checks, or with
+unanswered review threads, and this field reports neither.
+
+Ask elly, which already polls every PR every 5 minutes:
+
+    curl -s localhost:9876/api/v0/prs
+
+Each PR carries ChecksState ("FAILURE" means red, and ChecksFailing names the
+checks), ThreadsActionable (> 0 means the reply is owed by you),
+LastPrCommenter and RereviewFrom. Report from those, not from reviewDecision.
+
+If you genuinely need this field, ask for the checks in the same call:
+    gh pr view <url> --json reviewDecision,statusCheckRollup,mergeable
+
+User escape hatch: CLAUDE_PR_STATUS=0."""
+
+
+def block(command, fields):
+    print(f"[claude-pr-status-hook]: `gh pr {command}` asks for "
+          f"{', '.join(fields)} without statusCheckRollup.", file=sys.stderr)
+    print(GUIDANCE, file=sys.stderr)
+    sys.exit(2)
+
+
+def main():
+    if os.environ.get("CLAUDE_PR_STATUS") == "0":
+        return
+    try:
+        payload = json.load(sys.stdin)
+    except Exception:
+        return  # fail open on anything unparseable, like the sibling hooks
+    if payload.get("tool_name") != "Bash":
+        return
+    command = (payload.get("tool_input") or {}).get("command") or ""
+
+    for match in GH_PR_HEAD.finditer(command):
+        subcommand, rest = match.group(1), match.group(2)
+        fields = set()
+        for flag in JSON_FLAG.finditer(rest):
+            fields.update(f for f in flag.group(1).split(",") if f)
+        if not fields:
+            continue
+        if "reviewDecision" not in fields:
+            continue
+        # Asking for the checks alongside it means the caller is not relying on
+        # the review field alone, which is the whole hazard.
+        if fields & {"statusCheckRollup", "mergeable", "mergeStateStatus"}:
+            continue
+        block(subcommand, sorted(fields))
+
+
+if __name__ == "__main__":
+    main()
