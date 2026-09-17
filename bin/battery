@@ -1,44 +1,56 @@
 #!/usr/bin/env perl
 #
+# Originally derived from the i3blocks "battery" script
 # Copyright 2014 Pierre Mavro <deimos@deimos.fr>
 # Copyright 2014 Vivien Didelot <vivien@didelot.org>
 #
 # Licensed under the terms of the GNU GPL v3, or any later version.
 #
-# This script is meant to use with i3blocks. It parses the output of the "acpi"
-# command (often provided by a package of the same name) to read the status of
-# the battery, and eventually its remaining time (to full charge or discharge).
+# Reports the laptop battery for i3blocks. The text turns red below 15 %
+# (through i3blocks-color), and the urgency (exit code 33) is set if there is
+# less than 5 % remaining.
 #
-# The text turns red below 15% (through i3blocks-color), and the urgency
-# (exit code 33) is set if there is less that 5% remaining.
+# This reads /sys/class/power_supply directly rather than parsing "acpi -b".
+# acpi numbers its output by enumeration order over every power_supply device,
+# peripherals included, and offers no way to ask for one by name. A Logitech
+# receiver's hidpp_battery_1 took slot 0 on tau and reports no capacity at all,
+# so the bar showed a steady 0 % while the laptop sat at 84 %. An index is not
+# a stable handle for a device that can pair, sleep and unpair.
 
 use strict;
 use warnings;
 use utf8;
 binmode(STDOUT, ':encoding(UTF-8)');
 
-my $acpi;
-my $status;
-my $percent;
-my $full_text;
-my $short_text;
-my $bat_number = $ENV{BLOCK_INSTANCE} || 0;
+my $SYS = '/sys/class/power_supply';
 
-# read the first line of the "acpi" command output
-open (ACPI, "acpi -b | grep 'Battery $bat_number' |") or die;
-$acpi = <ACPI>;
-close(ACPI);
-
-# fail on unexpected output. The status can be two words: a ThinkPad reports
-# "Not charging" whenever firmware holds the battery below full, which the
-# single-word pattern rejected — a die per refresh, 59 in one boot on tau,
-# exiting with perl's errno (29) rather than anything i3blocks could read.
-if ($acpi !~ /: ([\w ]+), (\d+)%/) {
-	die "$acpi\n";
+sub slurp {
+	my ($path) = @_;
+	open(my $fh, '<', $path) or return undef;
+	my $val = <$fh>;
+	close($fh);
+	return undef unless defined $val;
+	chomp $val;
+	return $val;
 }
 
-$status = $1;
-$percent = $2;
+# A peripheral's battery carries scope=Device; a system battery either says
+# System or omits the file. That is the discriminator, not the name, so an
+# unusual BAT name still works and a second mouse never does.
+sub is_system_battery {
+	my ($dir) = @_;
+	my $type = slurp("$dir/type");
+	return 0 unless defined $type && $type eq 'Battery';
+	my $scope = slurp("$dir/scope");
+	return !defined $scope || $scope eq 'System';
+}
+
+my ($bat) = sort grep { is_system_battery($_) } glob("$SYS/*");
+exit(0) unless defined $bat;
+
+my $percent = slurp("$bat/capacity");
+my $status = slurp("$bat/status") // 'Unknown';
+exit(0) unless defined $percent && $percent =~ /^\d+$/;
 
 # font awesome battery glyphs by quarter: f244 empty .. f240 full; f0e7 bolt
 my $glyph = $percent > 87 ? "\x{f240}"
@@ -47,20 +59,39 @@ my $glyph = $percent > 87 ? "\x{f240}"
           : $percent > 12 ? "\x{f243}"
           :                 "\x{f244}";
 $glyph = "\x{f0e7}" if $status eq 'Charging';
-$full_text = "$glyph $percent%";
+my $full_text = "$glyph $percent%";
 
 if ($status eq 'Full') {
 	# don't print anything when full, the status quo when laptop is "stationary"
 	exit(0);
 }
 
-$short_text = $full_text;
+my $short_text = $full_text;
 
-if ($acpi =~ /(\d\d:\d\d):/) {
-	$full_text .= " ($1)";
+# Energy-reporting batteries expose energy_now/power_now in uWh/uW; charge
+# reporting ones expose charge_now/current_now in uAh/uA. Either pair divides
+# to hours, so one branch covers both.
+my ($now, $rate, $full);
+for my $unit (['energy', 'power'], ['charge', 'current']) {
+	my ($cap, $flow) = @$unit;
+	$now = slurp("$bat/${cap}_now");
+	$full = slurp("$bat/${cap}_full");
+	$rate = slurp("$bat/${flow}_now");
+	last if defined $now && defined $rate && $rate > 0;
 }
 
-# print text
+if (defined $now && defined $rate && $rate > 0) {
+	my $remaining;
+	if ($status eq 'Charging' && defined $full) {
+		$remaining = ($full - $now) / $rate;
+	} elsif ($status eq 'Discharging') {
+		$remaining = $now / $rate;
+	}
+	if (defined $remaining && $remaining > 0) {
+		$full_text .= sprintf(" (%d:%02d)", int($remaining), ($remaining - int($remaining)) * 60);
+	}
+}
+
 print "$full_text\n";
 print "$short_text\n";
 
