@@ -70,8 +70,17 @@ is unknown, and unknown must be reported as unknown.
 the last poll. Everything listed is still right; what may be missing is a PR we
 were asked to review and have never commented on. It usually clears by itself.
 
-`p-launcher session-brief` reads the same database, so its PR lines and this
-skill can never disagree.
+`p-launcher session-brief` does **not** read elly live. It reads its own `link`
+table, filled at the last `p-launcher links refresh`, so the two disagree until
+a refresh runs — on 2026-09-17 the brief said "13 unresolved threads, waiting on
+you" on a PR elly already had at zero, minutes after the replies went in. When
+they differ, elly is current and the brief is stale; run `p-launcher links
+refresh` and re-read rather than reporting either one over the other.
+
+The brief is not redundant, though: it covers PRs elly cannot see. Its rows are
+whatever the project linked, looked up through `gh`, so a PR the user is neither
+involved in nor a named reviewer on — https://github.com/matchiapp/matchi-frontend/pull/1988
+was one — appears there and in no elly search.
 
 ## What elly still cannot see
 
