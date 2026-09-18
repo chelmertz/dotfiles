@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(openspec validate:*)",
+      "Bash(golangci-lint run:*)",
+      "Bash(unzip -l:*)",
+      "Bash(unzip -p:*)",
+      "Bash(iwconfig:*)",
+      "Bash(nmcli con show:*)",
+      "Bash(nmcli dev show:*)",
+      "Bash(nmcli dev wifi list:*)",
+      "Bash(ip route show:*)",
+      "Bash(ip -6 route show:*)",
+      "Bash(ip -br addr:*)",
+      "Bash(ip neigh show:*)",
+      "Bash(getent:*)",
+      "Bash(systemctl is-active:*)",
+      "Bash(systemctl --failed:*)",
+      "Bash(nix eval:*)"
+    ]
+  }
+}
