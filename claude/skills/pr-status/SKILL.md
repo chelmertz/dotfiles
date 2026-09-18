@@ -153,3 +153,53 @@ gh pr view <url> --json reviewDecision,statusCheckRollup,mergeable
 ```
 
 That is a lookup on a PR already identified. It is not a way to build the list.
+
+## When elly itself is wrong
+
+The scoring is a rule set that gets revisited, not a fixed truth — a PR that
+obviously needs attention and scores low is a bug in `internal/points/points.go`,
+not a reason to work around elly. Fix it there and ship it; the round trip is
+about ten minutes.
+
+`~/code/github/chelmertz/elly` is **trunk-based on `main`**: no branches, no PRs,
+no issues. Commit to `main` and push. A worktree is the right habit everywhere
+else and the wrong one here.
+
+Reproduce it as a failing test first — `internal/points/points_test.go` is a
+table plus named tests, and each named test carries a comment saying which real
+PR it came from and what was reported wrong. Keep that: those comments are why
+a rule survives the next revisit. Then:
+
+```
+cd ~/code/github/chelmertz/elly
+CGO_ENABLED=0 go test ./...        # no gcc on this machine, cgo must be off
+CGO_ENABLED=0 golangci-lint run ./...
+git commit && git push origin main
+```
+
+Shipping it is a separate step, and a commit alone changes nothing on tau —
+elly runs from the nix store, not from that checkout. Bump the flake input in
+the dotfiles repo and switch:
+
+```
+cd <dotfiles worktree>
+nix flake update elly --flake ./nix
+home-manager --option warn-dirty false switch --flake ./nix#ch@tau
+```
+
+`elly.service` restarts on its own during activation. Confirm the running
+binary is the commit just pushed, rather than assuming the switch picked it up:
+
+```
+readlink -f $(command -v elly)     # .../elly-<short sha>/bin/elly
+```
+
+Then give it half a minute before reading the API — the first fetch after a
+restart has not landed yet, and `/api/v0/prs` answers with non-JSON until it
+has.
+
+One caution on verifying a scoring change against live data: the reasons are
+rendered on the page (`curl -s localhost:9876/`), not in `/api/v0/prs`, and the
+state that triggered the change may already be gone. Answering the comment that
+made a PR actionable makes us the last commenter, and the rule correctly stops
+firing. The test is the proof; a live row is a nice-to-have.
