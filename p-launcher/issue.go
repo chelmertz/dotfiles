@@ -28,8 +28,10 @@ import (
 const (
 	nextOpen  = "<!-- p-launcher:next -->"
 	nextClose = "<!-- /p-launcher:next -->"
-	// blockNote tells a reader who did not write the block where to edit.
-	blockNote = "_Mirrored from HANDOFF.md by p-launcher. Edit the handoff, not this list._"
+	// blockNote has to mean something to a reader who has never heard of
+	// p-launcher, so it says what happens to an edit rather than naming the
+	// thing that makes it happen.
+	blockNote = "_This list is generated and gets overwritten. Comment below instead of editing it._"
 	// defaultIssueRepo is where project issues go until the AI team names a
 	// home repository; `p-launcher kv set issue.repo <owner/name>` overrides.
 	// Its counterpart is the convention in ~/p/m/CLAUDE.md.
@@ -74,18 +76,11 @@ func nextItems(section string) []nextItem {
 	return out
 }
 
-// issueBlock renders the machine-owned block, markers included. done/total
-// come from the handoff's own Progress line, which counts the project's whole
-// life: finished items move to JOURNAL.md, so the checklist below is only
-// what is still live. Saying both is what keeps a "(10/15)" title from
-// contradicting the seven boxes under it.
-func issueBlock(items []nextItem, done, total int) string {
+// issueBlock renders the machine-owned block, markers included.
+func issueBlock(items []nextItem) string {
 	var b strings.Builder
 	b.WriteString(nextOpen + "\n")
 	b.WriteString("### Next\n\n")
-	if open := len(items); total > open {
-		fmt.Fprintf(&b, "Progress: %d/%d over the life of the project; %d open below.\n\n", done, total, open)
-	}
 	for _, it := range items {
 		box := " "
 		if it.Done {
@@ -270,16 +265,17 @@ func planIssue(s *Store, p Found, d issueDeps) (issuePlan, error) {
 	}
 	f := parseHandoff(string(text), 0)
 	items := nextItems(mdSection(string(text), "Next"))
-	done, total := f.Done, f.Total
-	if !f.HasCount {
-		for _, it := range items {
-			if it.Done {
-				done++
-			}
+	// Counted from the rendered list, never from the handoff's own Progress
+	// line: that one counts the project's whole life, because finished items
+	// move to JOURNAL.md, and a title saying 10/15 above seven boxes makes a
+	// reader distrust both numbers.
+	done, total := 0, len(items)
+	for _, it := range items {
+		if it.Done {
+			done++
 		}
-		total = len(items)
 	}
-	block := issueBlock(items, done, total)
+	block := issueBlock(items)
 
 	url, ok, err := s.PrimaryIssue(p.Path)
 	if err != nil {

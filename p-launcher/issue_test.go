@@ -36,8 +36,8 @@ Progress: 1/3.
 }
 
 func TestSpliceBlockKeepsTextOutsideTheMarkers(t *testing.T) {
-	block := issueBlock([]nextItem{{Text: "one"}}, 1, 1)
-	body := "Intent paragraph.\n\n" + issueBlock([]nextItem{{Text: "old", Done: true}}, 1, 1) + "\n\nA human wrote this below.\n"
+	block := issueBlock([]nextItem{{Text: "one"}})
+	body := "Intent paragraph.\n\n" + issueBlock([]nextItem{{Text: "old", Done: true}}) + "\n\nA human wrote this below.\n"
 	got := spliceBlock(body, block)
 	if !strings.HasPrefix(got, "Intent paragraph.") {
 		t.Errorf("intent lost:\n%s", got)
@@ -54,7 +54,7 @@ func TestSpliceBlockKeepsTextOutsideTheMarkers(t *testing.T) {
 }
 
 func TestSpliceBlockAppendsWhenAbsent(t *testing.T) {
-	got := spliceBlock("Only prose.\n", issueBlock(nil, 0, 0))
+	got := spliceBlock("Only prose.\n", issueBlock(nil))
 	if !strings.HasPrefix(got, "Only prose.") || !strings.Contains(got, nextOpen) {
 		t.Errorf("got:\n%s", got)
 	}
@@ -280,21 +280,23 @@ func mustPref(t *testing.T, s *Store, path, set string) (string, time.Time, erro
 	return s.IssuePref(path)
 }
 
-// A handoff whose Progress line counts more than the live checklist (finished
-// items move to JOURNAL.md) must not produce an issue whose title contradicts
-// its own boxes.
-func TestIssueBlockReconcilesLifetimeProgress(t *testing.T) {
-	got := issueBlock([]nextItem{{Text: "a"}, {Text: "b"}}, 10, 15)
-	if !strings.Contains(got, "Progress: 10/15 over the life of the project; 2 open below.") {
-		t.Errorf("no reconciling line:\n%s", got)
+// The title counts the boxes a reader can see. The handoff's own Progress
+// line counts the project's life (finished items move to JOURNAL.md), and
+// exporting that made the title read (10/15) above seven boxes.
+func TestIssueTitleCountsTheVisibleBoxes(t *testing.T) {
+	s, g, root := issueFixture(t, strings.Replace(handoffOne, "Progress: 1/2.", "Progress: 10/15.", 1))
+	if _, err := syncIssues(s, g.deps(root)); err != nil {
+		t.Fatal(err)
 	}
-	if plain := issueBlock([]nextItem{{Text: "a"}, {Text: "b", Done: true}}, 1, 2); strings.Contains(plain, "over the life") {
-		t.Errorf("line printed when the counts already agree:\n%s", plain)
+	url, _, _ := s.PrimaryIssue("m/a")
+	if got := g.issues[url][0]; got != "a (1/2)" {
+		t.Errorf("title = %q, want the two boxes in the body", got)
+	}
+	if strings.Contains(g.issues[url][1], "life of the project") {
+		t.Errorf("explanatory line survived:\n%s", g.issues[url][1])
 	}
 }
 
-// A person renaming the issue keeps that name: only the counter after it is
-// p-launcher's. The first version reverted the rename on the next refresh.
 func TestSyncIssueKeepsAHumanRename(t *testing.T) {
 	s, g, root := issueFixture(t, handoffOne)
 	d := g.deps(root)
@@ -315,8 +317,8 @@ func TestSyncIssueKeepsAHumanRename(t *testing.T) {
 		t.Fatalf("title = %q, want the rename kept", got)
 	}
 
-	// The counter still belongs to p-launcher and follows the handoff.
-	next := strings.Replace(handoffOne, "Progress: 1/2.", "Progress: 2/2.", 1)
+	// The counter still belongs to p-launcher and follows the checklist.
+	next := strings.Replace(handoffOne, "- [ ] second", "- [x] second", 1)
 	if err := os.WriteFile(filepath.Join(root, "m", "a", "HANDOFF.md"), []byte(next), 0o644); err != nil {
 		t.Fatal(err)
 	}
