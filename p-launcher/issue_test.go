@@ -36,8 +36,8 @@ Progress: 1/3.
 }
 
 func TestSpliceBlockKeepsTextOutsideTheMarkers(t *testing.T) {
-	block := issueBlock([]nextItem{{Text: "one"}})
-	body := "Intent paragraph.\n\n" + issueBlock([]nextItem{{Text: "old", Done: true}}) + "\n\nA human wrote this below.\n"
+	block := issueBlock([]nextItem{{Text: "one"}}, 1, 1)
+	body := "Intent paragraph.\n\n" + issueBlock([]nextItem{{Text: "old", Done: true}}, 1, 1) + "\n\nA human wrote this below.\n"
 	got := spliceBlock(body, block)
 	if !strings.HasPrefix(got, "Intent paragraph.") {
 		t.Errorf("intent lost:\n%s", got)
@@ -54,7 +54,7 @@ func TestSpliceBlockKeepsTextOutsideTheMarkers(t *testing.T) {
 }
 
 func TestSpliceBlockAppendsWhenAbsent(t *testing.T) {
-	got := spliceBlock("Only prose.\n", issueBlock(nil))
+	got := spliceBlock("Only prose.\n", issueBlock(nil, 0, 0))
 	if !strings.HasPrefix(got, "Only prose.") || !strings.Contains(got, nextOpen) {
 		t.Errorf("got:\n%s", got)
 	}
@@ -278,4 +278,17 @@ func mustPref(t *testing.T, s *Store, path, set string) (string, time.Time, erro
 		t.Fatal(err)
 	}
 	return s.IssuePref(path)
+}
+
+// A handoff whose Progress line counts more than the live checklist (finished
+// items move to JOURNAL.md) must not produce an issue whose title contradicts
+// its own boxes.
+func TestIssueBlockReconcilesLifetimeProgress(t *testing.T) {
+	got := issueBlock([]nextItem{{Text: "a"}, {Text: "b"}}, 10, 15)
+	if !strings.Contains(got, "Progress: 10/15 over the life of the project; 2 open below.") {
+		t.Errorf("no reconciling line:\n%s", got)
+	}
+	if plain := issueBlock([]nextItem{{Text: "a"}, {Text: "b", Done: true}}, 1, 2); strings.Contains(plain, "over the life") {
+		t.Errorf("line printed when the counts already agree:\n%s", plain)
+	}
 }

@@ -74,11 +74,18 @@ func nextItems(section string) []nextItem {
 	return out
 }
 
-// issueBlock renders the machine-owned block, markers included.
-func issueBlock(items []nextItem) string {
+// issueBlock renders the machine-owned block, markers included. done/total
+// come from the handoff's own Progress line, which counts the project's whole
+// life: finished items move to JOURNAL.md, so the checklist below is only
+// what is still live. Saying both is what keeps a "(10/15)" title from
+// contradicting the seven boxes under it.
+func issueBlock(items []nextItem, done, total int) string {
 	var b strings.Builder
 	b.WriteString(nextOpen + "\n")
 	b.WriteString("### Next\n\n")
+	if open := len(items); total > open {
+		fmt.Fprintf(&b, "Progress: %d/%d over the life of the project; %d open below.\n\n", done, total, open)
+	}
 	for _, it := range items {
 		box := " "
 		if it.Done {
@@ -256,7 +263,7 @@ func planIssue(s *Store, p Found, d issueDeps) (issuePlan, error) {
 		total = len(items)
 	}
 	pl.Title = issueTitle(p.Name, done, total)
-	block := issueBlock(items)
+	block := issueBlock(items, done, total)
 
 	url, ok, err := s.PrimaryIssue(p.Path)
 	if err != nil {
