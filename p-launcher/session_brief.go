@@ -144,27 +144,34 @@ func briefWindow(s *Store, path string, handoffAge time.Duration, now time.Time)
 // written. Order is by how much it should change the plan: a merged or closed
 // PR retires work, a reviewer waiting blocks it, failing checks reopen it,
 // and plain activity is only worth a line because someone else wrote it.
-func changedSince(db *sql.DB, path string, since, now time.Time) ([]linkChange, error) {
-	rows, err := db.Query(`select l.url, l.merged, coalesce(l.closed_at, ''), coalesce(l.check_state, ''),
+func changedSince(db *sql.DB, path, me string, since, now time.Time) ([]linkChange, error) {
+	rows, err := db.Query(`select l.url, l.kind, l.merged, coalesce(l.closed_at, ''), coalesce(l.check_state, ''),
 		coalesce(l.check_at, ''), coalesce(l.github_updated_at, ''), coalesce(l.elly_updated_at, ''),
-		l.action_needed, coalesce(l.detail, ''), coalesce(l.last_commenter, '')
+		l.action_needed, coalesce(l.detail, ''), coalesce(l.last_commenter, ''),
+		coalesce(l.last_comment_at, ''), l.last_comment_author, l.last_comment_body
 		from link l join project p on p.id = l.project_id where p.path = ? order by l.id`, path)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var merged, blocked, failing, active []linkChange
+	var merged, blocked, talked, failing, active []linkChange
 	for rows.Next() {
-		var url, closedAt, checkState, checkAt, ghUpdated, ellyUpdated, detail, commenter string
+		var url, kind, closedAt, checkState, checkAt, ghUpdated, ellyUpdated, detail, commenter string
+		var commentAt, commentBy, commentBody string
 		var isMerged, needed int
-		if err := rows.Scan(&url, &isMerged, &closedAt, &checkState, &checkAt, &ghUpdated, &ellyUpdated, &needed, &detail, &commenter); err != nil {
+		if err := rows.Scan(&url, &kind, &isMerged, &closedAt, &checkState, &checkAt, &ghUpdated, &ellyUpdated, &needed, &detail, &commenter,
+			&commentAt, &commentBy, &commentBody); err != nil {
 			return nil, err
 		}
 		switch {
 		case tsAfter(closedAt, since) && isMerged == 1:
 			merged = append(merged, linkChange{url, "merged " + tsAgo(closedAt, now)})
 		case tsAfter(closedAt, since):
-			merged = append(merged, linkChange{url, "closed unmerged " + tsAgo(closedAt, now)})
+			// Closing is how an issue finishes; only a pull request closed
+			// without merging is the bad kind of closed.
+			merged = append(merged, linkChange{url, closedText(kind) + " " + tsAgo(closedAt, now)})
+		case commentBy != "" && commentBy != me && tsAfter(commentAt, since):
+			talked = append(talked, linkChange{url, commentBy + " commented: " + snippet(commentBody) + " " + tsAgo(commentAt, now)})
 		case needed == 1 && tsAfter(ellyUpdated, since):
 			blocked = append(blocked, linkChange{url, waitingText(detail, commenter) + " " + tsAgo(ellyUpdated, now)})
 		case checkState == "failure" && tsAfter(checkAt, since):
@@ -176,7 +183,31 @@ func changedSince(db *sql.DB, path string, since, now time.Time) ([]linkChange, 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	return append(append(append(merged, blocked...), failing...), active...), nil
+	return append(append(append(append(merged, blocked...), talked...), failing...), active...), nil
+}
+
+// closedText names what a closed link means for its kind. A closed issue is
+// the normal way work finishes; "closed unmerged" reads as abandoned and once
+// described every completed project issue that way.
+func closedText(kind string) string {
+	if kind == "github_issue" {
+		return "closed"
+	}
+	return "closed unmerged"
+}
+
+// snippet is one line of a comment, short enough that the brief stays a
+// glance. The whole comment is a click away at the URL on the same line.
+func snippet(body string) string {
+	s := strings.TrimSpace(body)
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = strings.TrimSpace(s[:i])
+	}
+	s = strings.Join(strings.Fields(s), " ")
+	if len(s) > 60 {
+		return strings.ToValidUTF8(s[:60], "") + "…"
+	}
+	return s
 }
 
 // waitingText phrases elly's verdict for a reader with no context. detail is
@@ -270,7 +301,7 @@ func linksStaleness(s *Store, now time.Time) string {
 // renderBrief writes the brief, or nothing at all when there is nothing worth
 // a line. Every line is a fact the reader can act on; no line is printed to
 // say that a fact is absent.
-func renderSessionBrief(project string, f handoffFacts, changes []linkChange, stale string, w io.Writer) {
+func renderSessionBrief(project string, f handoffFacts, changes []linkChange, stale, ask string, w io.Writer) {
 	var b strings.Builder
 	if !f.Present {
 		fmt.Fprintf(&b, "p-launcher · %s · no HANDOFF.md yet (see the project-state skill)\n", project)
@@ -299,6 +330,9 @@ func renderSessionBrief(project string, f handoffFacts, changes []linkChange, st
 	if stale != "" {
 		fmt.Fprintf(&b, "%s\n", stale)
 	}
+	if ask != "" {
+		fmt.Fprintf(&b, "%s\n", ask)
+	}
 	if len(changes) > 0 {
 		b.WriteString("Changed since the handoff was written:\n")
 		for _, c := range changes {
@@ -307,6 +341,32 @@ func renderSessionBrief(project string, f handoffFacts, changes []linkChange, st
 		b.WriteString("  → run /catchup: HANDOFF.md has not caught up with these yet.\n")
 	}
 	io.WriteString(w, b.String())
+}
+
+// issueAskEvery is how long the brief stays quiet after asking. The question
+// is worth repeating for a project that grows into one, and worth never
+// repeating within a day's sessions.
+const issueAskEvery = 7 * 24 * time.Hour
+
+// issueAsk is the one-line opt-in question, and the only human moment in the
+// GitHub mirror. It fires for a project that has items to mirror and no
+// answer yet; "no" is durable, and enabling later is a sentence in a session.
+// Asking stamps the project so a run of sessions in one afternoon asks once.
+func issueAsk(s *Store, path string, f handoffFacts, now time.Time) (string, error) {
+	if !f.Present || f.NextStep == "" {
+		return "", nil
+	}
+	pref, asked, err := s.IssuePref(path)
+	if err != nil || pref != "" {
+		return "", err
+	}
+	if !asked.IsZero() && now.Sub(asked) < issueAskEvery {
+		return "", nil
+	}
+	if err := s.MarkIssueAsked(path, now); err != nil {
+		return "", err
+	}
+	return `No GitHub issue mirrors this project. Say "mirror this on GitHub" to create one, or "no issue" to stop asking.`, nil
 }
 
 // hookBrief is the JSON a SessionStart hook returns. The same text goes to
@@ -347,12 +407,17 @@ func briefSession(s *Store, root, cwd string, fromHook bool, now time.Time, w io
 	var changes []linkChange
 	if f.Present {
 		var err error
-		if changes, err = changedSince(s.db, path, briefWindow(s, path, f.Age, now), now); err != nil {
+		me, _ := s.kvGet("gh.login") // stored by the links timer; the brief never calls the network
+		if changes, err = changedSince(s.db, path, me, briefWindow(s, path, f.Age, now), now); err != nil {
 			return err
 		}
 	}
+	ask, err := issueAsk(s, path, f, now)
+	if err != nil {
+		return err
+	}
 	var text strings.Builder
-	renderSessionBrief(path, f, changes, linksStaleness(s, now), &text)
+	renderSessionBrief(path, f, changes, linksStaleness(s, now), ask, &text)
 	if text.Len() == 0 {
 		return nil
 	}

@@ -25,6 +25,7 @@ var migrations = []func(*sql.Tx) error{
 	migrate014,
 	migrate015,
 	migrate016,
+	migrate017,
 }
 
 // migrate015 moves the context high-water mark out of session_state, which
@@ -278,6 +279,23 @@ create index link_project on link (project_id);`)
 // view can say what it waits for.
 func migrate004(tx *sql.Tx) error {
 	_, err := tx.Exec(`alter table session_state add column reason text not null default ''`)
+	return err
+}
+
+// migrate017 adds what the GitHub issue mirror needs: a per-project opt-in
+// (unset asks once, then never again after a no), a primary flag so one link
+// is addressable as "this project's issue", the last Last-action line already
+// commented so the timer does not repeat itself, and the newest comment on a
+// link so the brief can say who spoke without calling the network.
+func migrate017(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+alter table project add column issue_pref text not null default '';
+alter table project add column issue_asked_at text;
+alter table link add column is_primary integer not null default 0;
+alter table link add column synced_action text not null default '';
+alter table link add column last_comment_at text;
+alter table link add column last_comment_author text not null default '';
+alter table link add column last_comment_body text not null default '';`)
 	return err
 }
 

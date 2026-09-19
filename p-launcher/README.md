@@ -21,6 +21,17 @@ things to run at once.
 - `links refresh` and `tend` (on a systemd user timer) track PR links via
   GitHub and elly, and can start a Claude session to address review feedback
   once enabled.
+- `issue enable <ns/name>` mirrors a project onto one GitHub issue: its
+  CLAUDE.md's first paragraph is the intent, `HANDOFF.md`'s `## Next` is a
+  checklist inside a marked block, and the title carries `(done/total)`
+  because a GitHub project board shows no progress for body checkboxes. The
+  links timer keeps it current, so nothing is typed after the opt-in; the
+  session brief asks for that opt-in once per project. Only the marked block
+  is machine-owned - prose around it and comments on the issue are never
+  touched, and comments by other people surface in the brief. `issue sync
+  --dry-run` prints what would change; `issue disable` stops the asking.
+  Issues are opened in `eversport/ai-platform` unless `kv set issue.repo`
+  says otherwise.
 
 Design notes and the handoff live outside this repo, in
 `~/p/personal/p-launcher/`. Tests: `go test ./...`; screenshot goldens with

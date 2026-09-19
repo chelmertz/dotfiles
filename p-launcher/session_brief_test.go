@@ -100,7 +100,7 @@ func TestAgeText(t *testing.T) {
 
 func TestRenderSessionBriefQuietWhenNothingChanged(t *testing.T) {
 	var b strings.Builder
-	renderSessionBrief("personal/demo", parseHandoff(sampleHandoff, 2*time.Hour), nil, "", &b)
+	renderSessionBrief("personal/demo", parseHandoff(sampleHandoff, 2*time.Hour), nil, "", "", &b)
 	got := b.String()
 	if strings.Contains(got, "/catchup") {
 		t.Errorf("hinted /catchup with no changes:\n%s", got)
@@ -118,7 +118,7 @@ func TestRenderSessionBriefQuietWhenNothingChanged(t *testing.T) {
 // "just now" already reads as a time; the header must not suffix it.
 func TestRenderSessionBriefFreshHandoffReadsAsTime(t *testing.T) {
 	var b strings.Builder
-	renderSessionBrief("personal/demo", parseHandoff(sampleHandoff, 20*time.Second), nil, "", &b)
+	renderSessionBrief("personal/demo", parseHandoff(sampleHandoff, 20*time.Second), nil, "", "", &b)
 	if strings.Contains(b.String(), "just now ago") {
 		t.Errorf("header doubled the suffix:\n%s", b.String())
 	}
@@ -130,7 +130,7 @@ func TestRenderSessionBriefFreshHandoffReadsAsTime(t *testing.T) {
 func TestRenderSessionBriefHintsWhenChanged(t *testing.T) {
 	var b strings.Builder
 	changes := []linkChange{{"https://github.com/o/r/pull/41", "merged 1h ago"}}
-	renderSessionBrief("personal/demo", parseHandoff(sampleHandoff, 2*time.Hour), changes, "", &b)
+	renderSessionBrief("personal/demo", parseHandoff(sampleHandoff, 2*time.Hour), changes, "", "", &b)
 	got := b.String()
 	if !strings.Contains(got, "https://github.com/o/r/pull/41 merged 1h ago") {
 		t.Errorf("missing the change:\n%s", got)
@@ -166,7 +166,7 @@ func TestChangedSince(t *testing.T) {
 	exec(`update link set check_state = 'failure', check_at = ? where url = 'u/checks'`, rfc(-10*time.Minute))
 	exec(`update link set github_updated_at = ?, last_commenter = 'adam' where url = 'u/active'`, rfc(-30*time.Second))
 
-	got, err := changedSince(s.db, "personal/demo", since, now)
+	got, err := changedSince(s.db, "personal/demo", "me", since, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -354,5 +354,110 @@ func TestCatchupSkillNamesTheLinksSeenCommand(t *testing.T) {
 	}
 	if !strings.Contains(string(src), `args[1] == "seen"`) || !strings.Contains(string(src), "links seen <ns/name>") {
 		t.Fatalf("main.go no longer accepts or documents `links seen`, but catchup/SKILL.md still tells sessions to run %q", literal)
+	}
+}
+
+// A closed issue is how work finishes; a closed pull request is not. Before
+// migrate017's kind column reached here, both read "closed unmerged".
+func TestChangedSinceWordsClosedByKind(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.UpsertProjects([]Found{{Namespace: "m", Name: "demo", Path: "m/demo"}}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 9, 19, 12, 0, 0, 0, time.UTC)
+	closedAt := now.Add(-time.Hour).UTC().Format(time.RFC3339)
+	if err := s.AddLinkKind("m/demo", "u/issue", "github_issue"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddLink("m/demo", "u/pr"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.Exec(`update link set closed_at = ?`, closedAt); err != nil {
+		t.Fatal(err)
+	}
+	got, err := changedSince(s.db, "m/demo", "me", now.Add(-2*time.Hour), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"u/issue closed 1h ago", "u/pr closed unmerged 1h ago"}
+	var lines []string
+	for _, c := range got {
+		lines = append(lines, c.URL+" "+c.What)
+	}
+	if strings.Join(lines, "\n") != strings.Join(want, "\n") {
+		t.Errorf("got:\n%s\nwant:\n%s", strings.Join(lines, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// A stakeholder commenting on a project issue is the signal elly cannot give:
+// its search covers open pull requests only.
+func TestChangedSinceSurfacesOtherPeoplesComments(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.UpsertProjects([]Found{{Namespace: "m", Name: "demo", Path: "m/demo"}}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 9, 19, 12, 0, 0, 0, time.UTC)
+	at := now.Add(-20 * time.Minute).UTC().Format(time.RFC3339)
+	for _, u := range []string{"u/theirs", "u/mine"} {
+		if err := s.AddLinkKind("m/demo", u, "github_issue"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.db.Exec(`update link set last_comment_at = ?, last_comment_author = 'tobias',
+		last_comment_body = 'Can this land before the board review?' where url = 'u/theirs'`, at); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.Exec(`update link set last_comment_at = ?, last_comment_author = 'me',
+		last_comment_body = 'my own note' where url = 'u/mine'`, at); err != nil {
+		t.Fatal(err)
+	}
+	got, err := changedSince(s.db, "m/demo", "me", now.Add(-2*time.Hour), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %v, want only the comment that was not mine", got)
+	}
+	if got[0].What != "tobias commented: Can this land before the board review? 20m ago" {
+		t.Errorf("what = %q", got[0].What)
+	}
+}
+
+func TestIssueAskFiresOnceThenWaits(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.UpsertProjects([]Found{{Namespace: "m", Name: "demo", Path: "m/demo"}}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 9, 19, 12, 0, 0, 0, time.UTC)
+	f := parseHandoff("Last action: x\n\n## Next\n\n- [ ] something\n", time.Hour)
+
+	ask, err := issueAsk(s, "m/demo", f, now)
+	if err != nil || ask == "" {
+		t.Fatalf("first session got %q %v, want the question", ask, err)
+	}
+	if again, _ := issueAsk(s, "m/demo", f, now.Add(time.Hour)); again != "" {
+		t.Errorf("asked twice in one afternoon: %q", again)
+	}
+	if later, _ := issueAsk(s, "m/demo", f, now.Add(8*24*time.Hour)); later == "" {
+		t.Error("never asked again, even after a week")
+	}
+	if err := s.SetIssuePref("m/demo", "no"); err != nil {
+		t.Fatal(err)
+	}
+	if after, _ := issueAsk(s, "m/demo", f, now.Add(90*24*time.Hour)); after != "" {
+		t.Errorf(`"no" was not durable: %q`, after)
+	}
+}
+
+// A project with nothing to do yet is not asked: the question only makes
+// sense once there is a checklist to mirror.
+func TestIssueAskSilentWithoutItems(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.UpsertProjects([]Found{{Namespace: "m", Name: "demo", Path: "m/demo"}}); err != nil {
+		t.Fatal(err)
+	}
+	f := parseHandoff("Last action: x\n\n## Next\n\nProgress: 0/0.\n", time.Hour)
+	if ask, err := issueAsk(s, "m/demo", f, time.Now()); ask != "" || err != nil {
+		t.Errorf("got %q %v", ask, err)
 	}
 }

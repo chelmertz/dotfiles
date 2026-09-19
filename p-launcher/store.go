@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -589,4 +590,95 @@ func (s *Store) LinksSeen(path string) (time.Time, error) {
 		return time.Time{}, nil
 	}
 	return time.Parse(time.RFC3339, v)
+}
+
+// IssuePref is the project's GitHub-issue opt-in: "" not asked yet, "yes"
+// mirror the handoff into an issue, "no" never ask again. Unknown projects
+// read as unset rather than erroring: the brief calls this for whatever
+// directory a session started in.
+func (s *Store) IssuePref(path string) (pref string, askedAt time.Time, err error) {
+	var asked string
+	err = s.db.QueryRow(`select issue_pref, coalesce(issue_asked_at, '') from project where path = ?`, path).Scan(&pref, &asked)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", time.Time{}, nil
+	}
+	return pref, parseTime(asked), err
+}
+
+// SetIssuePref records the answer. "no" is durable: nothing asks again unless
+// the user enables the project explicitly.
+func (s *Store) SetIssuePref(path, pref string) error {
+	if pref != "yes" && pref != "no" && pref != "" {
+		return fmt.Errorf("issue pref %q: want yes, no or empty", pref)
+	}
+	res, err := s.db.Exec(`update project set issue_pref = ? where path = ?`, pref, path)
+	if err != nil {
+		return fmt.Errorf("issue pref %s: %w", path, err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("issue pref: unknown project %q", path)
+	}
+	return nil
+}
+
+// MarkIssueAsked stamps the project so the brief's one-line question does not
+// repeat every session while the answer is still unset.
+func (s *Store) MarkIssueAsked(path string, at time.Time) error {
+	_, err := s.db.Exec(`update project set issue_asked_at = ? where path = ?`, at.UTC().Format(time.RFC3339), path)
+	return err
+}
+
+// PrimaryIssue returns the project's mirrored issue, if it has one.
+func (s *Store) PrimaryIssue(path string) (url string, ok bool, err error) {
+	err = s.db.QueryRow(`select l.url from link l join project p on p.id = l.project_id
+		where p.path = ? and l.is_primary = 1 and l.kind = 'github_issue' order by l.id limit 1`, path).Scan(&url)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	return url, err == nil, err
+}
+
+// SetPrimaryIssue registers a freshly created issue as the project's mirror.
+func (s *Store) SetPrimaryIssue(path, url string) error {
+	if err := s.AddLinkKind(path, url, "github_issue"); err != nil {
+		return err
+	}
+	_, err := s.db.Exec(`update link set is_primary = 1 where url = ?`, url)
+	return err
+}
+
+// SyncedAction is the Last-action line already posted as a comment on this
+// issue; the mirror comments only when the handoff's line differs.
+func (s *Store) SyncedAction(url string) (string, error) {
+	var v string
+	err := s.db.QueryRow(`select synced_action from link where url = ?`, url).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return v, err
+}
+
+func (s *Store) SetSyncedAction(url, action string) error {
+	_, err := s.db.Exec(`update link set synced_action = ? where url = ?`, action, url)
+	return err
+}
+
+// IssueProjects lists the projects that opted in, newest path order, with the
+// name the issue title carries.
+func (s *Store) IssueProjects() ([]Found, error) {
+	rows, err := s.db.Query(`select p.path, p.name, n.dir from project p
+		join namespace n on n.id = p.namespace_id where p.issue_pref = 'yes' order by p.path`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Found
+	for rows.Next() {
+		var f Found
+		if err := rows.Scan(&f.Path, &f.Name, &f.Namespace); err != nil {
+			return nil, err
+		}
+		out = append(out, f)
+	}
+	return out, rows.Err()
 }
