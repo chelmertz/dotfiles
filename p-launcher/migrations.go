@@ -282,11 +282,11 @@ func migrate004(tx *sql.Tx) error {
 	return err
 }
 
-// migrate017 adds what the GitHub issue mirror needs: a per-project opt-in
-// (unset asks once, then never again after a no), a primary flag so one link
-// is addressable as "this project's issue", the last Last-action line already
-// commented so the timer does not repeat itself, and the newest comment on a
-// link so the brief can say who spoke without calling the network.
+// migrate017 added the columns for the GitHub issue mirror, which was parked
+// on 2026-09-20 before its write side could be trusted on a surface other
+// people edit. The columns stay: a shipped migration is never edited, and
+// removing this one would leave a database already at db_version 17 skipping
+// whatever migration takes the number next.
 func migrate017(tx *sql.Tx) error {
 	_, err := tx.Exec(`
 alter table project add column issue_pref text not null default '';

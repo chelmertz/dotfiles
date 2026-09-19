@@ -52,12 +52,8 @@ type linkDeps struct {
 	gh     func(url, etag string) (ghPR, int, string, error)
 	elly   func() (map[string]ellyPR, time.Time, error)
 	checks func(url string) (string, time.Time, error)
-	// lastComment reads the newest comment on a mirrored issue. Only called
-	// when GitHub reports the issue changed, because a new comment is one of
-	// the things that moves its updated_at. nil skips it.
-	lastComment func(url string) (author, body string, at time.Time, err error)
-	me          string
-	now         time.Time
+	me     string
+	now    time.Time
 	// root is ~/p. Empty means "do not read handoffs", which is what the
 	// tests that predate adoption pass.
 	root string
@@ -169,21 +165,18 @@ func refreshLinks(s *Store, d linkDeps) (refreshResult, error) {
 	type open struct {
 		id              int64
 		url, etag, kind string
-		primary         bool
 	}
-	rows, err := s.db.Query(`select id, url, etag, kind, is_primary from link where merged = 0 and closed_at is null order by id`)
+	rows, err := s.db.Query(`select id, url, etag, kind from link where merged = 0 and closed_at is null order by id`)
 	if err != nil {
 		return res, err
 	}
 	var opens []open
 	for rows.Next() {
 		var o open
-		var primary int
-		if err := rows.Scan(&o.id, &o.url, &o.etag, &o.kind, &primary); err != nil {
+		if err := rows.Scan(&o.id, &o.url, &o.etag, &o.kind); err != nil {
 			rows.Close()
 			return res, err
 		}
-		o.primary = primary == 1
 		opens = append(opens, o)
 	}
 	rows.Close()
@@ -220,20 +213,9 @@ func refreshLinks(s *Store, d linkDeps) (refreshResult, error) {
 				where id = ?`, pr.Author, pr.Title, pr.Body, pr.Add, pr.Del, rfcOrEmpty(pr.CreatedAt), rfcOrEmpty(pr.ClosedAt), merged, pr.State, etag, nowS, rfcOrEmpty(pr.UpdatedAt), o.id); err != nil {
 				return res, err
 			}
-			if o.kind == "github_issue" && !o.primary && pr.Title != "" {
-				// an issue's title is the project's intent until the user writes
-				// one. A mirrored issue is excluded: p-launcher generates that
-				// title, counter and all, so adopting it would describe the
-				// project as "claude-billing (0/6)".
+			if o.kind == "github_issue" && pr.Title != "" {
+				// an issue's title is the project's intent until the user writes one
 				if _, err := s.db.Exec(`update project set description = ? where description = '' and id = (select project_id from link where id = ?)`, pr.Title, o.id); err != nil {
-					return res, err
-				}
-			}
-			if o.primary && d.lastComment != nil {
-				if author, body, at, err := d.lastComment(o.url); err != nil {
-					lastErr = "comments: " + err.Error()
-				} else if _, err := s.db.Exec(`update link set last_comment_author = ?, last_comment_body = ?, last_comment_at = nullif(?, '') where id = ?`,
-					author, clip(body), rfcOrEmpty(at), o.id); err != nil {
 					return res, err
 				}
 			}
@@ -255,13 +237,6 @@ func refreshLinks(s *Store, d linkDeps) (refreshResult, error) {
 			if _, err := s.db.Exec(`update link set check_state = ?, check_at = nullif(?, '') where id = ?`, state, rfcOrEmpty(at), stillOpen[url]); err != nil {
 				return res, err
 			}
-		}
-	}
-	// The brief needs to know which comments are the user's own, and it may
-	// not call the network to find out.
-	if d.me != "" {
-		if err := s.kvSet("gh.login", d.me); err != nil {
-			return res, err
 		}
 	}
 	if err := s.kvSet("links.last_refresh", nowS); err != nil {
@@ -581,6 +556,5 @@ func foldChecks(raw []byte) (string, time.Time) {
 
 // realLinkDeps wires the CLI adapters.
 func realLinkDeps(root string) linkDeps {
-	return linkDeps{gh: ghFetch, elly: ellyRead, checks: ghChecks, lastComment: ghIssueLastComment,
-		me: ghLogin(), now: time.Now(), root: root}
+	return linkDeps{gh: ghFetch, elly: ellyRead, checks: ghChecks, me: ghLogin(), now: time.Now(), root: root}
 }

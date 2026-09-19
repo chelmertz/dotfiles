@@ -30,7 +30,7 @@ func (e *hintError) Error() string { return e.msg + ". " + e.hint }
 func (e *hintError) Unwrap() error { return e.cause }
 
 func usage() error {
-	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> [--no-open] | describe <ns/name> <text> | adopt <ns/name> <cwd-prefix> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | links seen <ns/name> | issue enable|disable <ns/name> | issue sync [--dry-run] | menu [--toggle-key KEY] | hook | session-brief | desktop lock|unlock | tend [--dry-run] [--max N] | kv get <key> | kv set <key> <value> | backup [DIR] | brief [--dry-run] [--force] [--show] | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
+	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> [--no-open] | describe <ns/name> <text> | adopt <ns/name> <cwd-prefix> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | links seen <ns/name> | menu [--toggle-key KEY] | hook | session-brief | desktop lock|unlock | tend [--dry-run] [--max N] | kv get <key> | kv set <key> <value> | backup [DIR] | brief [--dry-run] [--force] [--show] | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
 }
 
 func main() {
@@ -59,7 +59,6 @@ func run(args []string) error {
 	var ro reportOpts
 	var archiveReason string
 	listAll, tendDry, tendMax, createNoOpen := false, false, 2, false
-	issueDry := false
 	briefDry, briefForce, briefShow := false, false, false
 	switch cmd {
 	case "list":
@@ -97,15 +96,6 @@ func run(args []string) error {
 		switch {
 		case len(args) == 2 && args[1] == "refresh":
 		case len(args) == 3 && args[1] == "seen":
-		default:
-			return usage()
-		}
-	case "issue":
-		switch {
-		case len(args) == 3 && (args[1] == "enable" || args[1] == "disable"):
-		case len(args) == 2 && args[1] == "sync":
-		case len(args) == 3 && args[1] == "sync" && args[2] == "--dry-run":
-			issueDry = true
 		default:
 			return usage()
 		}
@@ -269,44 +259,7 @@ func run(args []string) error {
 			return err
 		}
 		fmt.Println(res)
-		// The same timer drives the issue mirror: an opted-in project's issue
-		// is never more than one interval behind its HANDOFF.md, and nobody
-		// types anything to keep it that way. A mirror failure is reported
-		// but never fails the refresh that already succeeded.
-		ires, err := syncIssues(s, realIssueDeps(s, root, time.Now()))
-		fmt.Println(ires)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "p-launcher: %v\n", err)
-		}
 		return nil
-	case "issue":
-		d := realIssueDeps(s, root, time.Now())
-		switch args[1] {
-		case "disable":
-			return s.SetIssuePref(args[2], "no")
-		case "enable":
-			// Sync immediately rather than leaving the user to wonder for ten
-			// minutes whether the answer took.
-			if err := s.SetIssuePref(args[2], "yes"); err != nil {
-				return err
-			}
-			ns, name, _ := strings.Cut(args[2], "/")
-			res, err := syncIssue(s, Found{Namespace: ns, Name: name, Path: args[2]}, d)
-			if err != nil {
-				return err
-			}
-			fmt.Println(res)
-			if url, ok, _ := s.PrimaryIssue(args[2]); ok {
-				fmt.Println(url)
-			}
-			return nil
-		}
-		if issueDry {
-			return previewIssues(s, d, os.Stdout)
-		}
-		res, err := syncIssues(s, d)
-		fmt.Println(res)
-		return err
 	case "desktop":
 		// Screen lock/unlock from the i3 xss-lock wrapper; the report's away
 		// detection reads these (session_id "desktop", no project).
