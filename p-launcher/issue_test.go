@@ -292,3 +292,52 @@ func TestIssueBlockReconcilesLifetimeProgress(t *testing.T) {
 		t.Errorf("line printed when the counts already agree:\n%s", plain)
 	}
 }
+
+// A person renaming the issue keeps that name: only the counter after it is
+// p-launcher's. The first version reverted the rename on the next refresh.
+func TestSyncIssueKeepsAHumanRename(t *testing.T) {
+	s, g, root := issueFixture(t, handoffOne)
+	d := g.deps(root)
+	if _, err := syncIssues(s, d); err != nil {
+		t.Fatal(err)
+	}
+	url, _, _ := s.PrimaryIssue("m/a")
+	g.issues[url] = [2]string{"Claude billing at MATCHi (1/2)", g.issues[url][1]}
+
+	res, err := syncIssues(s, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Updated != 0 {
+		t.Errorf("a rename alone triggered a write: %+v", res)
+	}
+	if got := g.issues[url][0]; got != "Claude billing at MATCHi (1/2)" {
+		t.Fatalf("title = %q, want the rename kept", got)
+	}
+
+	// The counter still belongs to p-launcher and follows the handoff.
+	next := strings.Replace(handoffOne, "Progress: 1/2.", "Progress: 2/2.", 1)
+	if err := os.WriteFile(filepath.Join(root, "m", "a", "HANDOFF.md"), []byte(next), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := syncIssues(s, d); err != nil {
+		t.Fatal(err)
+	}
+	if got := g.issues[url][0]; got != "Claude billing at MATCHi (2/2)" {
+		t.Errorf("title = %q, want the counter updated under the kept name", got)
+	}
+}
+
+func TestTitleStem(t *testing.T) {
+	for _, c := range []struct{ in, want string }{
+		{"claude-billing (10/15)", "claude-billing"},
+		{"Claude billing at MATCHi  (0/0)", "Claude billing at MATCHi"},
+		{"no counter here", "no counter here"},
+		{"(3/7)", "fallback"},
+		{"", "fallback"},
+	} {
+		if got := titleStem(c.in, "fallback"); got != c.want {
+			t.Errorf("titleStem(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}

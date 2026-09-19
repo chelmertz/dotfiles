@@ -155,8 +155,25 @@ func paraText(lines []string) string {
 // issueTitle is what the board card shows. The counter is in the title
 // because project 171's only progress field counts sub-issues, and body
 // checkboxes are invisible there.
-func issueTitle(name string, done, total int) string {
-	return fmt.Sprintf("%s (%d/%d)", name, done, total)
+func issueTitle(stem string, done, total int) string {
+	return fmt.Sprintf("%s (%d/%d)", stem, done, total)
+}
+
+// reTitleCounter is the machine-owned tail of a title.
+var reTitleCounter = regexp.MustCompile(`\s*\(\d+/\d+\)\s*$`)
+
+// titleStem is the human half of an issue title: whatever is there once the
+// counter is stripped. The title is split the same way the body is - a person
+// renames "claude-billing (10/15)" to "Claude billing at MATCHi" and keeps
+// that name forever, while p-launcher maintains only the counter after it.
+// Before this, the next refresh reverted the rename within ten minutes and
+// said nothing (seen 2026-09-19, 33 seconds after the rename).
+func titleStem(remote, fallback string) string {
+	stem := strings.TrimSpace(reTitleCounter.ReplaceAllString(remote, ""))
+	if stem == "" {
+		return fallback
+	}
+	return stem
 }
 
 // issueComment is what gets posted when the handoff's Last action changes:
@@ -262,7 +279,6 @@ func planIssue(s *Store, p Found, d issueDeps) (issuePlan, error) {
 		}
 		total = len(items)
 	}
-	pl.Title = issueTitle(p.Name, done, total)
 	block := issueBlock(items, done, total)
 
 	url, ok, err := s.PrimaryIssue(p.Path)
@@ -270,6 +286,7 @@ func planIssue(s *Store, p Found, d issueDeps) (issuePlan, error) {
 		return pl, err
 	}
 	if !ok {
+		pl.Title = issueTitle(p.Name, done, total)
 		pl.Create = true
 		pl.Body = block + "\n"
 		if intent := projectIntent(d.root, p.Path); intent != "" {
@@ -283,6 +300,7 @@ func planIssue(s *Store, p Found, d issueDeps) (issuePlan, error) {
 	if err != nil {
 		return pl, fmt.Errorf("read issue %s: %w", url, err)
 	}
+	pl.Title = issueTitle(titleStem(remoteTitle, p.Name), done, total)
 	pl.Body = spliceBlock(remoteBody, block)
 	pl.Edit = pl.Body != remoteBody || remoteTitle != pl.Title
 	synced, err := s.SyncedAction(url)
