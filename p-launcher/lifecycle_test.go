@@ -471,3 +471,54 @@ func TestDrifted(t *testing.T) {
 		})
 	}
 }
+
+// Archiving deletes the checkouts one level below the project directory and
+// leaves the directory itself. When the directory *is* a checkout there is
+// nothing below it, so archiving silently keeps the whole clone and the
+// project has no state files to keep either. Say so rather than fix it: the
+// fix is a move, and archive's one irreversible path stays as narrow as it is.
+func TestArchiveNamesACloneAtTheProjectRoot(t *testing.T) {
+	s := openTestStore(t)
+	root := t.TempDir()
+	dir := mk(t, root, "m/stray")
+	gitInit(t, dir)
+	if err := s.UpsertProjects(found("m/stray")); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Archive(s, root, "m/stray", "done", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.CloneAtRoot {
+		t.Fatal("archive did not notice the project directory is itself a clone")
+	}
+	if len(c.RemovedClones) != 0 {
+		t.Fatalf("archive removed something; it must only report: %v", c.RemovedClones)
+	}
+	if !isDir(filepath.Join(dir, ".git")) {
+		t.Fatal("archive deleted the checkout it was told to leave alone")
+	}
+	if !strings.Contains(c.Text(), "itself a git clone") {
+		t.Fatalf("checklist text does not mention it:\n%s", c.Text())
+	}
+}
+
+func TestArchiveIsQuietAboutAProperProjectDirectory(t *testing.T) {
+	s := openTestStore(t)
+	root := t.TempDir()
+	dir := mk(t, root, "m/proper")
+	gitInit(t, filepath.Join(dir, "repo"))
+	if err := s.UpsertProjects(found("m/proper")); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Archive(s, root, "m/proper", "done", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.CloneAtRoot {
+		t.Fatal("flagged a directory that is not a clone")
+	}
+	if len(c.RemovedClones) != 1 || c.RemovedClones[0] != "repo" {
+		t.Fatalf("the nested clone should still be removed, got %v", c.RemovedClones)
+	}
+}

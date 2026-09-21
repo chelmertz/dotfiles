@@ -32,7 +32,7 @@ const handoffCeiling = 120
 // the row label and the report's grouping; Detail is the sentence that says
 // what to do about it.
 type stateProblem struct {
-	Kind   string // missing | oversized | dropped
+	Kind   string // clone | missing | oversized | dropped
 	Detail string
 }
 
@@ -41,6 +41,8 @@ type stateProblem struct {
 // detail belongs in the report, where there is room to read it.
 func (p stateProblem) short() string {
 	switch p.Kind {
+	case "clone":
+		return "clone at project root"
 	case "missing":
 		return "no handoff"
 	case "oversized":
@@ -63,9 +65,20 @@ func lineCount(text string) int {
 }
 
 // checkState reports what is wrong with <root>/<path>'s state files. Cheap
-// enough for the menu to call on every project on every open: one stat, one
+// enough for the menu to call on every project on every open: two stats, one
 // read, and the parsing the brief already does.
 func checkState(root, path string) []stateProblem {
+	// A checkout at the project root has nowhere to keep state files: the
+	// only place left is the repository itself, which belongs to someone
+	// else. Every other check below would then report the consequence -
+	// "no HANDOFF.md" - and invite the wrong fix, so this one returns alone.
+	// Archiving deletes the clones one level down and leaves the project
+	// directory; when that directory *is* the clone, archiving deletes the
+	// project. Two of them went that way on 2026-09-21.
+	if isDir(filepath.Join(root, path, ".git")) {
+		return []stateProblem{{Kind: "clone", Detail: "the project directory is itself a git clone: " +
+			"move the checkout into a subdirectory so the project has somewhere to keep its state files"}}
+	}
 	b, err := os.ReadFile(filepath.Join(root, path, "HANDOFF.md"))
 	if errors.Is(err, fs.ErrNotExist) {
 		return []stateProblem{{Kind: "missing", Detail: "no HANDOFF.md: nothing tells the next session what is true"}}
@@ -203,9 +216,10 @@ func scanState(root string, archived map[string]bool) (rows []StateFileRow, affe
 }
 
 // stateKindRank orders the report's table the way the row orders its label:
-// a slot the brief drops is misinformation, a missing handoff is an absence,
+// a clone at the project root is a layout error that makes the rest moot, a
+// slot the brief drops is misinformation, a missing handoff is an absence,
 // an oversized one is only untidy.
-var stateKindRank = map[string]int{"dropped": 0, "missing": 1, "oversized": 2}
+var stateKindRank = map[string]int{"clone": 0, "dropped": 1, "missing": 2, "oversized": 3}
 
 // capStateRows keeps the n worst rows and counts the rest, so the fixed-height
 // friction panel cannot push the sections below it off the page. The same

@@ -56,6 +56,14 @@ options were. Empty is a good sign, not a missing section.>
 
 `## Clone map` is worth adding in a project with more than one clone.
 
+**A project directory holds clones; it is never a clone itself.** Clone into
+`~/p/<namespace>/<name>/<repo>/`, never over `~/p/<namespace>/<name>/`. A
+checkout at the project root leaves the state files above nowhere to live, and
+archiving deletes the clones one level down while keeping the project
+directory - so when that directory is the clone, archiving deletes the
+project. `p-launcher` flags the layout as `clone at project root` on every F5
+open.
+
 Two conventions that carry their weight:
 
 - **"re-check before trusting" is not politeness.** State goes stale between

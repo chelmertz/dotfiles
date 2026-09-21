@@ -157,7 +157,7 @@ func TestDroppedSlotsIndentedDecisionItems(t *testing.T) {
 // Every problem needs a row label short enough for rofi's third column, which
 // already carries phrases like "reviewer waiting for your reply".
 func TestStateProblemRowLabelsAreShort(t *testing.T) {
-	for _, k := range []string{"missing", "oversized", "dropped"} {
+	for _, k := range []string{"clone", "missing", "oversized", "dropped"} {
 		s := stateProblem{Kind: k}.short()
 		if s == "" {
 			t.Fatalf("kind %q has no row label", k)
@@ -324,5 +324,97 @@ func TestMarkFileStateSkipsArchivedProjects(t *testing.T) {
 	}
 	if len(ps[1].StateProblems) != 1 {
 		t.Fatalf("live project lost its problem: %v", ps[1].StateProblems)
+	}
+}
+
+// writeCloneAtProjectRoot makes <root>/<path> a git checkout rather than a
+// directory holding one, the layout that cost two projects their state files.
+func writeCloneAtProjectRoot(t *testing.T, root, path string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(root, path, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCheckStateReportsCloneAtProjectRoot(t *testing.T) {
+	root := t.TempDir()
+	writeCloneAtProjectRoot(t, root, "ns/stray")
+	got := checkState(root, "ns/stray")
+	if len(got) != 1 || got[0].Kind != "clone" {
+		t.Fatalf("want one clone problem, got %v", kinds(got))
+	}
+}
+
+// The layout error outranks every file complaint it causes. "No HANDOFF.md"
+// on a checkout invites writing one into someone else's repository, which is
+// the wrong fix; moving the checkout down a level is the right one.
+func TestCheckStateCloneAtProjectRootOutranksMissingHandoff(t *testing.T) {
+	root := t.TempDir()
+	writeCloneAtProjectRoot(t, root, "ns/stray")
+	if got := kinds(checkState(root, "ns/stray")); len(got) != 1 || got[0] != "clone" {
+		t.Fatalf("want [clone] alone, got %v", got)
+	}
+}
+
+// A handoff beside a nested checkout is the correct layout and must stay
+// silent, or the check fires on every project in ~/p.
+func TestCheckStateNestedCloneIsNotAProblem(t *testing.T) {
+	root := t.TempDir()
+	writeHandoff(t, root, "ns/proper", goodHandoff)
+	if err := os.MkdirAll(filepath.Join(root, "ns/proper", "repo", ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := checkState(root, "ns/proper"); len(got) != 0 {
+		t.Fatalf("want no problems for a nested clone, got %v", kinds(got))
+	}
+}
+
+func TestCloneRanksWorstInTheReportTable(t *testing.T) {
+	for _, k := range []string{"dropped", "missing", "oversized"} {
+		if stateKindRank["clone"] >= stateKindRank[k] {
+			t.Fatalf("clone ranks %d, not worse than %s at %d", stateKindRank["clone"], k, stateKindRank[k])
+		}
+	}
+}
+
+// The report reads scanState, not checkState, so the new kind has to survive
+// the walk that feeds the table.
+func TestScanStateReportsCloneAtProjectRoot(t *testing.T) {
+	root := t.TempDir()
+	writeCloneAtProjectRoot(t, root, "ns/stray")
+	writeHandoff(t, root, "ns/proper", goodHandoff)
+	rows, affected, scanned := scanState(root, nil)
+	if scanned != 2 || affected != 1 {
+		t.Fatalf("want 1 of 2 affected, got %d of %d", affected, scanned)
+	}
+	if len(rows) != 1 || rows[0].Path != "ns/stray" || rows[0].Kind != "clone" {
+		t.Fatalf("want one clone row for ns/stray, got %+v", rows)
+	}
+	if !strings.Contains(rows[0].Detail, "subdirectory") {
+		t.Fatalf("detail does not say where the checkout should go: %q", rows[0].Detail)
+	}
+}
+
+// The row label is a string here and a promise in the project-state skill,
+// which tells a session what it will see when it gets the layout wrong.
+// Assert against the literal in that file, not against short(), so a reword
+// on either side cannot pass by comparing a value to itself.
+func TestCloneLabelMatchesProjectStateSkill(t *testing.T) {
+	if got := (stateProblem{Kind: "clone"}).short(); got != "clone at project root" {
+		t.Fatalf("row label is %q; the project-state skill promises \"clone at project root\"", got)
+	}
+	b, err := os.ReadFile("../claude/skills/project-state/SKILL.md")
+	if errors.Is(err, fs.ErrNotExist) {
+		t.Skip("claude/ not in the build sandbox; run this from the repo checkout")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(b)
+	if !strings.Contains(text, "`clone at project root`") {
+		t.Fatal("project-state/SKILL.md no longer names the `clone at project root` label; change short() to match, or the skill describes a warning the launcher never prints")
+	}
+	if !strings.Contains(text, "never a clone itself") {
+		t.Fatal("project-state/SKILL.md no longer states the layout rule this check enforces")
 	}
 }

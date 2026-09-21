@@ -70,6 +70,7 @@ type Checklist struct {
 	RemovedClones            []string // clone dir names deleted because nothing in them was unsaved
 	KeptClones               int      // clones left on disk, and why, in KeptReason
 	KeptReason               string
+	CloneAtRoot              bool // the project directory is itself a checkout, so there is nothing below it to remove
 }
 
 // Text renders the checklist for stdout and the notification body.
@@ -107,6 +108,10 @@ func (c Checklist) Text() string {
 	}
 	if c.KeptClones > 0 {
 		fmt.Fprintf(&b, "kept %d clone(s): %s\n", c.KeptClones, c.KeptReason)
+	}
+	if c.CloneAtRoot {
+		b.WriteString("the project directory is itself a git clone: nothing was removed, " +
+			"and deleting it would take the project with it\n")
 	}
 	return b.String()
 }
@@ -160,6 +165,13 @@ func Archive(s *Store, root, path, reason string, clip func(string) error) (Chec
 		return c, err
 	}
 	if dir := filepath.Join(root, path); isDir(dir) {
+		// removeSpentClones only ever looks one level down, so a project
+		// directory that is itself a checkout keeps every byte and reads as
+		// a clean archive. Reporting it is the whole fix here: deleting it
+		// would delete the project, and the move that resolves it is the
+		// user's call. The state-file check nags about the same layout on
+		// every F5 open, so a live project gets told long before this.
+		c.CloneAtRoot = isDir(filepath.Join(dir, ".git"))
 		c.DirtyClones = dirtyClones(dir)
 		c.RemovedClones, c.KeptClones, c.KeptReason = removeSpentClones(dir, c.DirtyClones, c.LiveSessions)
 	}
