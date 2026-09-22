@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -31,9 +32,27 @@ func (e *hintError) Unwrap() error { return e.cause }
 
 // usage rejects an invocation and records it: the notification alone never
 // said which arguments were wrong or which session passed them.
+// usageText is the one-line synopsis, "usage: " then every verb separated by
+// " | ". printHelp splits it on that separator, so a new verb is added here
+// and nowhere else.
+const usageText = "usage: p-launcher list [--all] | open <ns/name> | create <ns/name> [--no-open] | describe <ns/name> <text> | adopt <ns/name> <cwd-prefix> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | links seen <ns/name> | menu [--toggle-key KEY] | hook | session-brief | desktop lock|unlock | tend [--dry-run] [--max N] | kv get <key> | kv set <key> <value> | backup [DIR] | brief [--dry-run] [--force] [--show] | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open] | help"
+
+// usage rejects an invocation and records it: the notification alone never
+// said which arguments were wrong or which session passed them.
 func usage(args []string) error {
 	logUsage(args)
-	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> [--no-open] | describe <ns/name> <text> | adopt <ns/name> <cwd-prefix> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | links seen <ns/name> | menu [--toggle-key KEY] | hook | session-brief | desktop lock|unlock | tend [--dry-run] [--max N] | kv get <key> | kv set <key> <value> | backup [DIR] | brief [--dry-run] [--force] [--show] | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
+	return errors.New(usageText)
+}
+
+// printHelp writes the verbs one per line to stdout and is the only path that
+// treats a request for the synopsis as success. Everything else that reaches
+// the usage text is a failure the caller has to see as one.
+func printHelp(w io.Writer) {
+	verbs := strings.Split(strings.TrimPrefix(usageText, "usage: p-launcher "), " | ")
+	fmt.Fprintln(w, "usage: p-launcher <verb> [args]")
+	for _, v := range verbs {
+		fmt.Fprintln(w, "  "+v)
+	}
 }
 
 func main() {
@@ -56,6 +75,13 @@ func run(args []string) error {
 		return usage(args)
 	}
 	cmd := args[0]
+	// A request for the synopsis is not a failure: print it and exit 0, or
+	// every session that guesses at --help gets a sticky critical
+	// notification carrying the same text it asked for.
+	if cmd == "help" || cmd == "--help" || cmd == "-h" {
+		printHelp(os.Stdout)
+		return nil
+	}
 	// Validate the subcommand and its arity before touching the store, so a
 	// typo'd subcommand never opens (and possibly migrates) the DB.
 	toggleKey := ""
@@ -365,10 +391,16 @@ func dataDir(home string) string {
 }
 
 // report writes the error to stderr (the journal, via systemd-cat) and
-// raises a desktop notification.
+// raises a desktop notification - unless a claude session made the call, in
+// which case stderr is already a tool result that session reads, and the
+// notification is a sticky duplicate on a desktop nobody was looking at. The
+// hotkey path keeps it: there, stderr goes to the journal and nowhere a
+// person will see it.
 func report(err error) {
 	fmt.Fprintln(os.Stderr, "p-launcher:", err)
-	notify(err.Error())
+	if claudePID(procRoot, os.Getpid()) == 0 {
+		notify(err.Error())
+	}
 }
 
 // notify raises a critical desktop notification for a failure, with body.

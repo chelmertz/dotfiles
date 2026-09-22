@@ -14,7 +14,8 @@ import (
 // whose process is gone. WM-independent, so it also covers sessions not
 // started from the launcher.
 
-const procRoot = "/proc"
+// procRoot is the process table. A variable so tests can substitute a fake.
+var procRoot = "/proc"
 
 // claudePID walks up from pid and returns the first ancestor that is a
 // claude process, or 0 when none is found within a few levels.
