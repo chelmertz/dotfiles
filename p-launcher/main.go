@@ -29,7 +29,10 @@ type hintError struct {
 func (e *hintError) Error() string { return e.msg + ". " + e.hint }
 func (e *hintError) Unwrap() error { return e.cause }
 
-func usage() error {
+// usage rejects an invocation and records it: the notification alone never
+// said which arguments were wrong or which session passed them.
+func usage(args []string) error {
+	logUsage(args)
 	return errors.New("usage: p-launcher list [--all] | open <ns/name> | create <ns/name> [--no-open] | describe <ns/name> <text> | adopt <ns/name> <cwd-prefix> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | links seen <ns/name> | menu [--toggle-key KEY] | hook | session-brief | desktop lock|unlock | tend [--dry-run] [--max N] | kv get <key> | kv set <key> <value> | backup [DIR] | brief [--dry-run] [--force] [--show] | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open]")
 }
 
@@ -50,7 +53,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return usage()
+		return usage(args)
 	}
 	cmd := args[0]
 	// Validate the subcommand and its arity before touching the store, so a
@@ -64,20 +67,20 @@ func run(args []string) error {
 	case "list":
 		listAll = len(args) == 2 && args[1] == "--all"
 		if len(args) > 2 || (len(args) == 2 && !listAll) {
-			return usage()
+			return usage(args)
 		}
 	case "create":
 		createNoOpen = len(args) == 3 && args[2] == "--no-open"
 		if len(args) != 2 && !createNoOpen {
-			return usage()
+			return usage(args)
 		}
 	case "describe":
 		if len(args) != 3 {
-			return usage()
+			return usage(args)
 		}
 	case "adopt":
 		if len(args) != 3 {
-			return usage()
+			return usage(args)
 		}
 	case "archive":
 		switch {
@@ -86,22 +89,22 @@ func run(args []string) error {
 		case len(args) == 4 && args[2] == "--reason" && args[3] != "":
 			archiveReason = args[3]
 		default:
-			return usage()
+			return usage(args)
 		}
 	case "link":
 		if len(args) != 4 || args[1] != "add" {
-			return usage()
+			return usage(args)
 		}
 	case "links":
 		switch {
 		case len(args) == 2 && args[1] == "refresh":
 		case len(args) == 3 && args[1] == "seen":
 		default:
-			return usage()
+			return usage(args)
 		}
 	case "desktop":
 		if len(args) != 2 || (args[1] != "lock" && args[1] != "unlock") {
-			return usage()
+			return usage(args)
 		}
 	case "tend":
 		for i := 1; i < len(args); i++ {
@@ -111,25 +114,25 @@ func run(args []string) error {
 			case args[i] == "--max" && i+1 < len(args):
 				n, err := strconv.Atoi(args[i+1])
 				if err != nil || n < 0 {
-					return usage()
+					return usage(args)
 				}
 				tendMax = n
 				i++
 			default:
-				return usage()
+				return usage(args)
 			}
 		}
 	case "ctx":
 		if len(args) != 2 {
-			return usage()
+			return usage(args)
 		}
 	case "kv":
 		if !(len(args) == 3 && args[1] == "get") && !(len(args) == 4 && args[1] == "set") {
-			return usage()
+			return usage(args)
 		}
 	case "backup":
 		if len(args) > 2 {
-			return usage()
+			return usage(args)
 		}
 	case "brief":
 		for i := 1; i < len(args); i++ {
@@ -141,7 +144,7 @@ func run(args []string) error {
 			case "--show":
 				briefShow = true
 			default:
-				return usage()
+				return usage(args)
 			}
 		}
 	case "menu":
@@ -150,15 +153,15 @@ func run(args []string) error {
 		case len(args) == 3 && args[1] == "--toggle-key" && args[2] != "":
 			toggleKey = args[2]
 		default:
-			return usage()
+			return usage(args)
 		}
 	case "open":
 		if len(args) != 2 {
-			return usage()
+			return usage(args)
 		}
 	case "hook", "session-brief":
 		if len(args) != 1 {
-			return usage()
+			return usage(args)
 		}
 	case "report":
 		var err error
@@ -166,7 +169,7 @@ func run(args []string) error {
 			return err
 		}
 	default:
-		return usage()
+		return usage(args)
 	}
 
 	home, err := os.UserHomeDir()
