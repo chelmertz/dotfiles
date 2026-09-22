@@ -60,6 +60,15 @@
     config.lib.file.mkOutOfStoreSymlink
       "${config.home.homeDirectory}/dotfiles/claude/output-styles/terse.md";
 
+  # `editorMode = "vim"` makes escape the insert-to-normal key, but Claude Code
+  # also binds it to `chat:cancel` in the Chat context, so an escape pressed in
+  # normal mode (a double tap, or a buffer that was already in normal mode)
+  # discards the whole input. Unbound here; `ctrl+c` still interrupts a running
+  # turn and `ctrl+l` still clears the input, so nothing is lost. A store source
+  # rather than an out-of-store symlink: Claude Code never writes this file, so
+  # read-only is correct and an edit belongs in this repo.
+  home.file.".claude/keybindings.json".source = ../claude/keybindings.json;
+
   home.file.".claude/statusline.sh" = {
     source = ../claude/statusline.sh;
     executable = true;
