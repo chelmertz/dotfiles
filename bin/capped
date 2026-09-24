@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Run a command under a CPU quota, so a build cannot take the machine with it.
+#
+#   capped cargo test --lib
+#   capped nix develop --command ./something-heavy
+#
+# Why a cgroup and not a flag: `cargo -j N` and `[build] jobs` cap concurrent
+# *crate* compilations, which does nothing for a single large crate — rustc
+# fans out internally across codegen units. Measured on padelboard's Rust API:
+# one rustc process, 18-23 threads, with jobs = 4 already in effect. `nice`
+# lowers priority without lowering utilisation, so the fans spin either way.
+# A quota binds whatever the build spawns, whichever knob it used.
+#
+# 400% of 1400% available (14 cores). Override for a one-off:
+#   CAPPED_QUOTA=800% capped cargo build
+set -euo pipefail
+
+if [ "$#" -eq 0 ]; then
+  echo "usage: capped <command> [args...]" >&2
+  exit 2
+fi
+
+exec systemd-run --user --scope --quiet \
+  -p CPUQuota="${CAPPED_QUOTA:-400%}" \
+  -p CPUWeight="${CAPPED_WEIGHT:-20}" \
+  -- "$@"

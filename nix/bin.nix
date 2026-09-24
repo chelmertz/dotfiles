@@ -60,6 +60,11 @@ in
       executable = true;
     };
 
+    ".local/bin/capped" = {
+      source = ../bin/capped;
+      executable = true;
+    };
+
     ".local/bin/calc" = {
       source = ../bin/calc;
       executable = true;

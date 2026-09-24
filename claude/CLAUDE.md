@@ -91,6 +91,13 @@ project is a note the next project pays for again.
   any scripted or non-interactive command, bypass them instead of removing
   them: `command mv -f`, `\cp -f`. A scripted `mv` otherwise hangs on a prompt
   nobody can answer — two minutes were lost to exactly that on 2026-09-11.
+- **Run any Rust or Go build through `capped`** — `capped cargo test --lib`,
+  `capped nix develop --command ...`. It puts the command in a cgroup at 400%
+  of the 1400% available, which is the only thing that actually binds: `cargo
+  -j N` and `~/.cargo/config.toml`'s `[build] jobs = 4` cap concurrent *crate*
+  compilations, and a single large crate is one job whose rustc still fans out
+  to 18-23 threads. `nice` lowers priority, not utilisation. Measured on
+  padelboard's Rust API 2026-09-24, after the fans gave it away twice.
 - Go builds and tests need `CGO_ENABLED=0`. There is no gcc on PATH.
 - python3 **is** on PATH, deliberately: `nix/home.nix` puts
   `(python3.withPackages ...)` in `home.packages` for the 11 python scripts in
