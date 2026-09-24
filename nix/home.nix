@@ -187,6 +187,9 @@ in
     # keeps Ubuntu's /usr/share entries, which is where gamma finds them.
     XDG_DATA_DIRS = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}\${XDG_DATA_DIRS:+:}\${XDG_DATA_DIRS}";
     CDK_DISABLE_TELEMETRY = "1";
+    # nixpkgs' rustc ships no rust-src in its sysroot, so rust-analyzer
+    # cannot resolve std without being pointed at the sources.
+    RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
     # ghostty calls gtk_widget_set_cursor_from_name(widget, "text") for
     # the terminal area. The system default (DMZ-White) has no "text"
     # cursor and no Inherits= chain, so libXcursor lookup fails and GTK
@@ -243,6 +246,8 @@ in
     brightnessctl
     bruno
     cargo
+    rustc
+    rust-analyzer
     claude-code
     cloc
     copyq
