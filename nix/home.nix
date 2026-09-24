@@ -119,6 +119,7 @@ in
   imports = [
     ./options.nix
     ./jdk.nix
+    ./rust.nix
     ./zsh.nix
     ./git.nix
     ./bin.nix
