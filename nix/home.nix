@@ -1397,7 +1397,7 @@ in
       Description = "Node Exporter (textfile only)";
     };
     Service = {
-      ExecStart = "${pkgs.prometheus-node-exporter}/bin/node_exporter --collector.disable-defaults --collector.textfile --collector.textfile.directory=%h/.local/share/prometheus/textfile --web.listen-address=:9100";
+      ExecStart = "${pkgs.prometheus-node-exporter}/bin/node_exporter --collector.disable-defaults --collector.textfile --collector.textfile.directory=%h/.local/share/prometheus/textfile --web.listen-address=127.0.0.1:9100";
       Restart = "on-failure";
     };
     Install = {
@@ -1410,7 +1410,7 @@ in
       Description = "Blackbox Exporter";
     };
     Service = {
-      ExecStart = "${pkgs.prometheus-blackbox-exporter}/bin/blackbox_exporter --config.file=%h/.config/prometheus/blackbox.yml";
+      ExecStart = "${pkgs.prometheus-blackbox-exporter}/bin/blackbox_exporter --config.file=%h/.config/prometheus/blackbox.yml --web.listen-address=127.0.0.1:9115";
       Restart = "on-failure";
     };
     Install = {
@@ -1424,7 +1424,7 @@ in
       After = [ "blackbox-exporter.service" ];
     };
     Service = {
-      ExecStart = "${pkgs.prometheus}/bin/prometheus --config.file=%h/.config/prometheus/prometheus.yml --storage.tsdb.path=%h/.local/share/prometheus";
+      ExecStart = "${pkgs.prometheus}/bin/prometheus --config.file=%h/.config/prometheus/prometheus.yml --storage.tsdb.path=%h/.local/share/prometheus --web.listen-address=127.0.0.1:9090";
       Restart = "on-failure";
     };
     Install = {
@@ -1465,7 +1465,12 @@ in
       # failed with status 203/EXEC on NixOS. Going through a shell makes the
       # lookup use the PATH below, which names both hosts' locations.
       Environment = "PATH=/run/current-system/sw/bin:/usr/bin:/bin";
-      ExecStart = ''${pkgs.bash}/bin/bash -c "exec docker run --rm --name domain-exporter -p 9222:9222 docker.io/caarlos0/domain_exporter"'';
+      # The 127.0.0.1 in the publish spec is load-bearing. A bare `-p 9222:9222`
+      # writes a nat DNAT rule matching `! -i docker0`, so the port is reachable
+      # from every interface, and the packet is then FORWARDed straight to the
+      # container. networking.firewall only writes INPUT, so allowedTCPPorts
+      # never sees it and cannot close it.
+      ExecStart = ''${pkgs.bash}/bin/bash -c "exec docker run --rm --name domain-exporter -p 127.0.0.1:9222:9222 docker.io/caarlos0/domain_exporter"'';
       ExecStop = ''${pkgs.bash}/bin/bash -c "exec docker stop domain-exporter"'';
       Restart = "on-failure";
     };
