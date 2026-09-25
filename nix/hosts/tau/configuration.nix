@@ -259,6 +259,18 @@
 
   virtualisation.docker.enable = true;
 
+  # Runs beside the rootful daemon rather than replacing it: DOCKER_HOST picks
+  # which socket a shell talks to, so `unset DOCKER_HOST` is a complete
+  # rollback without a rebuild. The point of the exercise is dropping `ch` from
+  # the `docker` group — that group owns a socket that will bind-mount / into a
+  # privileged container, so it is root by another name — but the group and the
+  # rootful daemon only come off once the Testcontainers suites are green
+  # against this one.
+  virtualisation.docker.rootless = {
+    enable = true;
+    setSocketVariable = true;
+  };
+
   # ── Users ───────────────────────────────────────────────────────────────
   users.users.ch = {
     isNormalUser = true;
