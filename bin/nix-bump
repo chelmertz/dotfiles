@@ -5,8 +5,18 @@ DOTFILES=~/code/github/chelmertz/dotfiles
 
 # The bump itself dirties nix/flake.lock, so both steps would warn about the
 # dirty tree; home-manager takes the setting rather than the --no-warn-dirty flag.
-nix flake update --no-warn-dirty --flake "$DOTFILES/nix" &&
-    home-manager --option warn-dirty false switch
+nix flake update --no-warn-dirty --flake "$DOTFILES/nix"
+
+home-manager --option warn-dirty false switch
+
+# The same lock feeds nixosConfigurations, so the update above has already
+# chosen the next system generation. Building it here keeps the choice and the
+# apply in one step; leaving it pending means the next nixos-rebuild run for an
+# unrelated config edit silently carries a kernel bump with it. gamma has no
+# /etc/NIXOS and skips this.
+if [ -e /etc/NIXOS ]; then
+    sudo nixos-rebuild --option warn-dirty false switch --flake "$DOTFILES/nix#$(hostname)"
+fi
 
 # Collection is the nix-gc.timer's job now (nix.gc in home.nix, 14 days); keeping
 # it here too would silently apply a stricter policy on whichever ran last.
