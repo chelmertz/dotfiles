@@ -4,7 +4,7 @@ set -euo pipefail
 PROM_DIR="$HOME/.local/share/prometheus/textfile"
 
 # Failed systemd user units — per-unit metric + journal snippet file
-tmpfile="$PROM_DIR/systemd_failed.$$.prom"
+tmpfile="$PROM_DIR/systemd_failed.$$.prom.tmp"
 journal_file="$PROM_DIR/systemd_failed_journal.txt"
 cat > "$tmpfile" <<EOF
 # HELP systemd_user_unit_failed 1 if the systemd user unit is in failed state
@@ -26,7 +26,7 @@ fi
 mv "$tmpfile" "$PROM_DIR/systemd_failed.prom"
 
 # Filesystem usage per mount point (percentage used)
-tmpfile="$PROM_DIR/filesystem.$$.prom"
+tmpfile="$PROM_DIR/filesystem.$$.prom.tmp"
 cat > "$tmpfile" <<EOF
 # HELP filesystem_used_percent Percentage of filesystem used
 # TYPE filesystem_used_percent gauge
@@ -42,7 +42,7 @@ mv "$tmpfile" "$PROM_DIR/filesystem.prom"
 # happily unlinked and elly running happily with no token, both with
 # systemd_user_unit_failed at 0. These probe the credential itself. Each is
 # wrapped so a hang or a missing binary reports 0 rather than killing the run.
-tmpfile="$PROM_DIR/credentials.$$.prom"
+tmpfile="$PROM_DIR/credentials.$$.prom.tmp"
 cat > "$tmpfile" <<HDR
 # HELP credential_ok 1 if the service can authenticate, 0 if it needs a login
 # TYPE credential_ok gauge
@@ -80,3 +80,30 @@ else
 fi
 
 mv "$tmpfile" "$PROM_DIR/credentials.prom"
+
+# Unexpected TCP listeners. The breach that prompted this and the
+# domain-exporter publish looked identical from outside: a port on a routable
+# address that nobody meant to open. networking.firewall never sees docker's
+# published ports, so a rule in the config is not evidence a port is shut —
+# only looking is. The ports below are the deliberate ones; anything else is
+# counted and named in the companion file.
+allowed_tcp=(22 17500 27036)
+tmpfile="$PROM_DIR/listeners.$$.prom.tmp"
+listener_file="$PROM_DIR/listeners_unexpected.txt"
+cat > "$tmpfile" <<EOF
+# HELP listening_sockets_unexpected TCP listeners on a non-loopback address whose port is not declared
+# TYPE listening_sockets_unexpected gauge
+EOF
+> "$listener_file"
+unexpected=0
+while read -r addr proc; do
+  [ -n "$addr" ] || continue
+  port="${addr##*:}"
+  case " ${allowed_tcp[*]} " in
+    *" $port "*) continue ;;
+  esac
+  echo "$addr $proc" >> "$listener_file"
+  unexpected=$((unexpected + 1))
+done < <(ss -Htlnp 2>/dev/null | awk '{print $4, $6}' | grep -vE '^(127\.|\[::1\])' || true)
+echo "listening_sockets_unexpected $unexpected" >> "$tmpfile"
+mv "$tmpfile" "$PROM_DIR/listeners.prom"

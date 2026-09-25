@@ -1343,8 +1343,13 @@ in
             annotations:
               summary: "{{ $labels.instance }} is down"
 
+          # domain_exporter reports -1 when the WHOIS lookup fails, and -1 is
+          # below every threshold, so an unguarded comparison turns a broken
+          # probe into a permanent "expired" for both rules at once. .se
+          # rate-limits hard enough that this is the common case, not the rare
+          # one: matchi.se sat at -1 for the whole retention window.
           - alert: DomainExpirySoon
-            expr: domain_expiry_days < 50
+            expr: domain_expiry_days < 50 and domain_probe_success == 1
             for: 1h
             labels:
               severity: warning
@@ -1352,12 +1357,31 @@ in
               summary: "Domain {{ $labels.domain }} expires in {{ $value }} days"
 
           - alert: DomainExpiryCritical
-            expr: domain_expiry_days < 30
+            expr: domain_expiry_days < 30 and domain_probe_success == 1
             for: 1h
             labels:
               severity: critical
             annotations:
               summary: "Domain {{ $labels.domain }} expires in {{ $value }} days"
+
+          # A probe that cannot answer is its own fact, and says so in its own
+          # words rather than borrowing the expiry rule's. 6h because WHOIS
+          # rate-limiting clears on its own and a shorter window just flaps.
+          - alert: DomainProbeFailing
+            expr: domain_probe_success == 0
+            for: 6h
+            labels:
+              severity: warning
+            annotations:
+              summary: "WHOIS lookup for {{ $labels.domain }} has failed for 6h, so its expiry is unknown (not expired). Check: curl -s localhost:9222/probe?target={{ $labels.domain }}"
+
+          - alert: UnexpectedListener
+            expr: listening_sockets_unexpected > 0
+            for: 10m
+            labels:
+              severity: critical
+            annotations:
+              summary: "{{ $value }} TCP listener(s) on a routable address that nobody declared. Which: cat ~/.local/share/prometheus/textfile/listeners_unexpected.txt"
 
           - alert: CredentialExpired
             expr: credential_ok == 0
@@ -1412,6 +1436,24 @@ in
     Service = {
       ExecStart = "${pkgs.prometheus-blackbox-exporter}/bin/blackbox_exporter --config.file=%h/.config/prometheus/blackbox.yml --web.listen-address=127.0.0.1:9115";
       Restart = "on-failure";
+      # The one exporter that parses input from the open internet: it fetches
+      # whatever URL a target names, and runs as ch with the same reach over
+      # $HOME as anything else, ~/.ssh included. So home becomes an empty
+      # tmpfs and only its own config is bound back in. domain-exporter
+      # deliberately gets none of this: it is a docker client, and the thing
+      # that parses WHOIS runs inside the container.
+      ProtectHome = "tmpfs";
+      BindReadOnlyPaths = "%h/.config/prometheus";
+      ProtectSystem = "strict";
+      PrivateTmp = true;
+      NoNewPrivileges = true;
+      # AF_UNIX is not optional: Go's resolver reaches nscd over a unix socket,
+      # and without it probes fail to resolve rather than fail to connect,
+      # which reads like the target being down.
+      RestrictAddressFamilies = "AF_UNIX AF_INET AF_INET6";
+      RestrictNamespaces = true;
+      LockPersonality = true;
+      ProtectProc = "invisible";
     };
     Install = {
       WantedBy = [ "default.target" ];
