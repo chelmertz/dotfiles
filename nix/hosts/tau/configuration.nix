@@ -13,6 +13,12 @@
   # systemd-boot has no signed loader without lanzaboote, which is out of
   # scope for this baseline.
   boot.loader.systemd-boot.enable = true;
+  # Unset means unlimited, and the ESP is only pruned when a switch runs after
+  # nix-gc has dropped the profile links. Between those two the menu carries
+  # entries pointing at collected store paths. Each distinct kernel costs ~60M
+  # of the 1G ESP, so a bump that moves nixpkgs-stable weekly needs a bound
+  # that does not depend on timer ordering.
+  boot.loader.systemd-boot.configurationLimit = 10;
   boot.loader.efi.canTouchEfiVariables = true;
   boot.initrd.systemd.enable = true;
 
