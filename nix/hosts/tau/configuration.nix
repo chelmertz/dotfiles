@@ -313,6 +313,43 @@
     options = "--delete-older-than 14d";
   };
 
+  # ── Unattended upgrades ─────────────────────────────────────────────────
+  # Firefox and the kernel come from this config, so the security-relevant half
+  # of the machine is the half nix-bump only reaches when someone runs it.
+  #
+  # operation = "boot" stages the new generation as the default boot entry
+  # without activating it: nothing restarts under a running session, and a bad
+  # build is backed out by picking the previous entry in the menu. The cost is
+  # that it only lands on reboot.
+  #
+  # The flake is the pushed ref, not ~/code/..., because a root timer pointed at
+  # a working tree builds whatever is uncommitted there. This makes main
+  # deploy-on-push for tau.
+  #
+  # --recreate-lock-file re-resolves every input instead of reading the
+  # committed lock, which is the point: that lock only moves when nix-bump runs.
+  # nix refuses to write a lock back to a remote flake and errors rather than
+  # ignoring it, hence --no-write-lock-file.
+  #
+  # upgrade = false drops the --upgrade the module would otherwise append. It
+  # means `nix-channel --update`, and there are no channels here.
+  system.autoUpgrade = {
+    enable = true;
+    operation = "boot";
+    flake = "github:chelmertz/dotfiles?dir=nix";
+    flags = [
+      "--recreate-lock-file"
+      "--no-write-lock-file"
+    ];
+    upgrade = false;
+    # nix-gc.timer is weekly at midnight; keep the build off the same slot.
+    dates = "Sun 04:00";
+    randomizedDelaySec = "45min";
+    # A laptop is usually off at 04:00 on Sunday. Without this the run is
+    # simply skipped and the machine never upgrades.
+    persistent = true;
+  };
+
   # ── Foreign package formats ─────────────────────────────────────────────
   # An AppImage expects an FHS root and will not start on NixOS without this.
   # binfmt makes ./foo.AppImage work directly, as it does elsewhere.
