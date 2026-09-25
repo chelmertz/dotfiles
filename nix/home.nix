@@ -1498,6 +1498,11 @@ in
   systemd.user.services.domain-exporter = {
     Unit = {
       Description = "Domain Expiry Exporter";
+      # The daemon it talks to is now a user unit that starts with the session
+      # rather than a system one that is up before login, so the ordering has
+      # to be stated.
+      After = [ "docker.service" ];
+      Wants = [ "docker.service" ];
     };
     Service = {
       # The client must match the host daemon, so it cannot be a store path:
@@ -1506,7 +1511,11 @@ in
       # directories and ignores the unit's own PATH, so a bare `docker` here
       # failed with status 203/EXEC on NixOS. Going through a shell makes the
       # lookup use the PATH below, which names both hosts' locations.
-      Environment = "PATH=/run/current-system/sw/bin:/usr/bin:/bin";
+      # DOCKER_HOST is here rather than inherited: setSocketVariable exports it
+      # from environment.extraInit, which login shells read and systemd units
+      # do not. Without it this unit looks for a rootful socket that no longer
+      # exists. %t is the unit's XDG_RUNTIME_DIR.
+      Environment = "PATH=/run/current-system/sw/bin:/usr/bin:/bin DOCKER_HOST=unix://%t/docker.sock";
       # The 127.0.0.1 in the publish spec is load-bearing. A bare `-p 9222:9222`
       # writes a nat DNAT rule matching `! -i docker0`, so the port is reachable
       # from every interface, and the packet is then FORWARDed straight to the

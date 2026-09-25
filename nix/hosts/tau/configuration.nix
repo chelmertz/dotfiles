@@ -175,21 +175,24 @@
   services.printing = {
     enable = true;
     drivers = [ pkgs.hplip ];
+    # cups-browsed turns a printer advertisement from the network into a local
+    # queue built out of attributes the advertiser supplied — the 2024 CVE
+    # chain wrote executable directives into the generated PPD and they ran on
+    # the first job sent to that queue. It also keeps cupsd resident, which
+    # defeats startWhenNeeded (already true). Print dialogs find DNS-SD
+    # printers through avahi and cupsd's driverless backend without it; on the
+    # two occasions a year this matters, `lpadmin` by address is the fallback.
+    browsed.enable = false;
   };
   services.avahi = {
     enable = true;
     nssmdns4 = true;
     openFirewall = true;
-    # Publish this host's name, so `tau.local` resolves from any machine on
-    # the same network. Without it avahi only *discovers* (it was enabled for
-    # the printer) and tau could be reached only by an address that DHCP
-    # changes on every new network — an office LAN makes a remembered address
-    # and a subnet scan equally useless.
-    publish = {
-      enable = true;
-      addresses = true;
-      workstation = true;
-    };
+    # Deliberately not publishing. It was on so `tau.local` resolved from
+    # gamma without chasing a DHCP address, but the same broadcast hands this
+    # laptop's name and addresses to everyone on an office LAN, which is the
+    # reconnaissance step of the breach that prompted all this. Discovery
+    # (nssmdns4, for the printer) is outbound and stays.
   };
 
   # ── Login ───────────────────────────────────────────────────────────────
@@ -257,7 +260,11 @@
     };
   };
 
-  virtualisation.docker.enable = true;
+  # The rootful daemon is gone, not merely unused: its socket is root by
+  # another name for anyone in the `docker` group, and leaving it running
+  # while the group is empty is a loaded gun with the safety on. Images under
+  # /var/lib/docker are orphaned by this and re-pull into ~/.local/share/docker.
+  virtualisation.docker.enable = false;
 
   # Runs beside the rootful daemon rather than replacing it: DOCKER_HOST picks
   # which socket a shell talks to, so `unset DOCKER_HOST` is a complete
@@ -277,10 +284,11 @@
     shell = pkgs.zsh;
     # gamma's groups minus lpadmin, lxd and sambashare, which were unused.
     # video is for brightnessctl without sudo, input for keylog reading
-    # /dev/input/event*.
+    # /dev/input/event*. `docker` is absent on purpose: that group can mount /
+    # into a privileged container, so it is indistinguishable from wheel
+    # without the password. Rootless dockerd replaces it.
     extraGroups = [
       "wheel"
-      "docker"
       "video"
       "input"
       "networkmanager"
