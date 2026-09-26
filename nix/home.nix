@@ -1304,13 +1304,17 @@ in
           - targets:
             - localhost:9100
 
+      # matchi.se is deliberately absent. domain_exporter 1.25.0 cannot read a
+      # .se registration: RDAP declines, and its whois fallback parses the
+      # preamble instead of the date, failing with `could not parse date:
+      # "domain names under"` every time. It is also not mine to renew. The
+      # blackbox-http job still watches that it answers.
       - job_name: 'domain'
         metrics_path: /probe
         static_configs:
           - targets:
             - iamnearlythere.com
             - helmertz.com
-            - matchi.se
         relabel_configs:
           - source_labels: [__address__]
             target_label: __param_target
@@ -1343,11 +1347,10 @@ in
             annotations:
               summary: "{{ $labels.instance }} is down"
 
-          # domain_exporter reports -1 when the WHOIS lookup fails, and -1 is
-          # below every threshold, so an unguarded comparison turns a broken
-          # probe into a permanent "expired" for both rules at once. .se
-          # rate-limits hard enough that this is the common case, not the rare
-          # one: matchi.se sat at -1 for the whole retention window.
+          # domain_exporter reports -1 when the lookup fails, and -1 is below
+          # every threshold, so an unguarded comparison turns a broken probe
+          # into a permanent "expired" for both rules at once. matchi.se sat
+          # at -1 for a whole retention window that way.
           - alert: DomainExpirySoon
             expr: domain_expiry_days < 50 and domain_probe_success == 1
             for: 1h
