@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Run a command under a CPU quota, so a build cannot take the machine with it.
+# Run a command under a CPU and memory quota, so a build cannot take the
+# machine with it.
 #
 #   capped cargo test --lib
 #   capped nix develop --command ./something-heavy
@@ -11,8 +12,28 @@
 # lowers priority without lowering utilisation, so the fans spin either way.
 # A quota binds whatever the build spawns, whichever knob it used.
 #
+# Why memory and not just CPU: a CPU quota does nothing about memory pressure,
+# and memory pressure is what actually freezes the desktop. On 2026-09-27 a
+# `gremlins unleash --workers=3` run under `capped` drove the machine into a
+# thrash livelock — journald logging "Under memory pressure, flushing caches"
+# every second for a minute, input events dropped, no oom-kill, hard reboot the
+# only way out. MemoryMax makes the kernel kill the build's cgroup instead of
+# starving everything else; MemorySwapMax=0 keeps a build from pushing the
+# desktop into swap on its way there. 30 GiB total, so 12 leaves 18.
+#
+# Deliberately no MemoryHigh: it throttles rather than kills, and a cgroup
+# parked on its high watermark reproduces the freeze inside the cgroup instead
+# of preventing it. Measured the same day with MemoryHigh=200M/MemoryMax=256M:
+# 3105 `high` events, zero `oom_kill`, memory.pressure full avg10=98.99, the
+# process in D state with 0 s of CPU after two and a half minutes. A build that
+# hangs forever is the failure this script exists to stop, so the only limit
+# here is the one that kills.
+#
+# IOWeight is a share, not a ceiling: it only bites when something else wants
+# the disk, which is exactly when the desktop is the thing being starved.
+#
 # 400% of 1400% available (14 cores). Override for a one-off:
-#   CAPPED_QUOTA=800% capped cargo build
+#   CAPPED_QUOTA=800% CAPPED_MEM_MAX=20G capped cargo build
 set -euo pipefail
 
 if [ "$#" -eq 0 ]; then
@@ -23,4 +44,7 @@ fi
 exec systemd-run --user --scope --quiet \
   -p CPUQuota="${CAPPED_QUOTA:-400%}" \
   -p CPUWeight="${CAPPED_WEIGHT:-20}" \
+  -p MemoryMax="${CAPPED_MEM_MAX:-12G}" \
+  -p MemorySwapMax="${CAPPED_SWAP_MAX:-0}" \
+  -p IOWeight="${CAPPED_IO_WEIGHT:-20}" \
   -- "$@"
