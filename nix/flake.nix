@@ -33,6 +33,13 @@
       url = "github:chelmertz/serve";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # Over ssh rather than the github: shorthand, because the repository is
+    # private and nix has no GitHub token configured here — the ssh key it
+    # already uses for git is the credential that works.
+    triage = {
+      url = "git+ssh://git@github.com/chelmertz/triage";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -44,6 +51,7 @@
       claude-code,
       elly,
       serve,
+      triage,
       disko,
       nixos-hardware,
       ...
@@ -126,6 +134,7 @@
               claude-code.overlays.default
               elly.overlays.default
               serve.overlays.default
+              triage.overlays.default
             ];
             config = unfreeConfig;
           };

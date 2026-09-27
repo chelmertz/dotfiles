@@ -443,6 +443,9 @@ in
     sqls
     sql-formatter
     sqlitebrowser
+    # github.com/chelmertz/triage — review a folder file by file, then act on
+    # the decisions. One command: `triage <db>` indexes and opens the UI.
+    triage
     tree
     texliveSmall
     treemd
