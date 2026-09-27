@@ -64,6 +64,29 @@
     }
   ];
 
+  # nixpkgs enables systemd-oomd by default, but the service monitors nothing
+  # until a slice sets ManagedOOMMemoryPressure=kill, and none did. That is why
+  # it sat idle through the freeze on 2026-09-27: a mutation run drove the
+  # machine into a thrash livelock, journald logged "Under memory pressure,
+  # flushing caches" every second for a minute, input events were dropped, and
+  # a hard reboot was the only way out. `journalctl -b -1 -u systemd-oomd` for
+  # that boot holds two startup lines and nothing else, and there is no
+  # oom-kill line either: allocation never failed, so the kernel's own OOM
+  # killer had no trigger. The machine simply stopped making progress.
+  #
+  # These two make oomd watch the cgroups that can do that. User slices cover
+  # the desktop session and anything started from a terminal; the root slice
+  # covers system.slice, where nix builds run. Per systemd.resource-control(5),
+  # a cgroup over its limit means oomd "will select a descendant cgroup and
+  # send SIGKILL to all of the processes under it" — so one runaway dies
+  # instead of the machine stalling. The module's limit is 80% pressure, over
+  # the 30s in oomd.conf. nixpkgs notes Fedora enables this same pair.
+  #
+  # This is the backstop, not the first line: `bin/capped` caps what it wraps,
+  # and oomd catches everything launched outside it.
+  systemd.oomd.enableRootSlice = true;
+  systemd.oomd.enableUserSlices = true;
+
   # ── X session ───────────────────────────────────────────────────────────
   # gamma runs exactly this: gdm3 starting the i3 xsession. GDM rather than
   # lightdm because it is what gamma has and it handles fingerprint login.
