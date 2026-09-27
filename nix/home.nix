@@ -251,6 +251,12 @@ in
     claude-code
     cloc
     copyq
+    # czkawka_gui finds near-duplicate images by perceptual hash and lets each
+    # group be resolved by hand before anything is deleted. The -full variant is
+    # plain czkawka with ffmpeg on PATH, which is what enables the same search
+    # over video; ffmpeg is declared below, but the wrapper carries it rather
+    # than depending on who launched the GUI.
+    czkawka-full
     delve
     dos2unix
     # The CLI (`dropbox status`), not the daemon: nixpkgs splits them and both
@@ -271,6 +277,9 @@ in
     entr
     evince
     exercism
+    # Reads and writes EXIF; DateTimeOriginal is the tag Google Photos sorts by,
+    # and the one missing from most of ~/Dropbox/photos.
+    exiftool
     fd
     # All present on gamma from apt and assumed by scripts here: ffmpeg by
     # qt_to_mp4, mute_mp4 and record_screen; zenity by bin/uses for its
@@ -402,6 +411,7 @@ in
     qrencode
     ripdrag
     ripgrep
+    rmlint
     rofi
     rofimoji
     ruff
