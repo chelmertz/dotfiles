@@ -44,6 +44,16 @@
   as unknown. Do not reassemble the answer out of `gh` — that is the improvised
   path that produced the wrong list in the first place. `gh` is still right for
   one already-identified PR (a diff, a thread body, a workflow log).
+- **A brand-new PR is not in elly for several minutes**, and a forced
+  `POST /api/v0/prs/refresh` does not pull it in — the underlying `involves:`
+  search has to index it first. elly running but not listing a PR opened
+  moments ago is that, not a fault; go to `gh` for that PR by URL and say which
+  source answered.
+- **In `statusCheckRollup`, Buildkite rows are commit statuses, not checks**, so
+  their `conclusion` is always `null` and the verdict is in `.state`. Reading
+  `conclusion` alone makes a green PR look permanently pending. Ask for
+  `(.conclusion // .state)`. Cost one wrong "still building" call on
+  2026-09-23.
 - **Never put a red PR in a "please review" list.** It wastes the reviewer's
   time and is the fastest way to lose the next review.
 - **Being in elly is not being asked.** Its `involves:` search matches anything
@@ -98,6 +108,37 @@ project is a note the next project pays for again.
   compilations, and a single large crate is one job whose rustc still fans out
   to 18-23 threads. `nice` lowers priority, not utilisation. Measured on
   padelboard's Rust API 2026-09-24, after the fans gave it away twice.
+- **`capped` capped only CPU until 2026-09-27, and CPU was never what froze the
+  machine.** A `gremlins unleash --workers=3` mutation run *under `capped`*
+  drove tau into a thrash livelock: journald logging "Under memory pressure,
+  flushing caches" every second for a minute, input events dropped, X reporting
+  "your system is too slow", **no `oom-kill` line at all**, and a hard reboot
+  the only way out. Running it through `capped` was correct and insufficient.
+  `bin/capped` now also sets `MemoryMax=12G` (of 30), `MemorySwapMax=0` and
+  `IOWeight=20`. Needs a `home-manager switch` to reach `~/.local/bin`.
+- **`MemoryHigh` is a trap — never reach for it.** It throttles instead of
+  killing, so the cgroup parks on its watermark and stalls indefinitely: the
+  desktop survives and the build hangs forever, which is the same failure moved
+  one level down. Measured 2026-09-27 at `MemoryHigh=200M`/`MemoryMax=256M`:
+  3105 `high` events, **zero `oom_kill`**, `memory.pressure full avg10=98.99`,
+  the process in `D` state with 0 s of CPU after 2m27s. With `MemoryMax` alone
+  the same hog dies in under a second with exit 137. Cap with the limit that
+  kills.
+- **`systemd-oomd` runs on tau and, until 2026-09-27, monitored nothing.**
+  nixpkgs enables the service by default, but it only watches a cgroup whose
+  slice sets `ManagedOOMMemoryPressure=kill`, and none did — `oomctl` printed
+  empty "Swap Monitored CGroups" and "Memory Pressure Monitored CGroups" lists,
+  and `journalctl -b -1 -u systemd-oomd` across the whole freeze holds two
+  startup lines. A running oomd is not a working oomd; check `oomctl`, not
+  `systemctl is-active`. `systemd.oomd.enableRootSlice` and
+  `enableUserSlices` in `nix/hosts/tau/configuration.nix` opt the slices in
+  (kill at 80% pressure over 30s). Needs `sudo nixos-rebuild switch`, and sudo
+  on tau **asks for a password**, so I cannot run it — hand over the command.
+- **cgroups cannot cap network or disk space, so do not try.** cgroup v2 has no
+  bandwidth control (v1's `net_cls` is gone) and systemd's `IPAddressAllow` is
+  a firewall, not a shaper — throttle at the tool instead (`rsync --bwlimit`).
+  Disk fullness and inode exhaustion are filesystem quotas, not cgroup
+  controls; the guard there is a `df` precheck or `nix-collect-garbage`.
 - Go builds and tests need `CGO_ENABLED=0`. There is no gcc on PATH.
 - python3 **is** on PATH, deliberately: `nix/home.nix` puts
   `(python3.withPackages ...)` in `home.packages` for the 11 python scripts in
@@ -117,6 +158,13 @@ project is a note the next project pays for again.
   TPM theory 1Password could not have used. The wrapper is not always a script: flameshot's
   is a 20 KB ELF beside a 2.7 MB `.flameshot-wrapped`. Resolve it first — `/proc/<pid>/exe`
   of the running process, or a `.<name>-wrapped` sibling — then grep with `grep -a`.
+- **zsh does not word-split unquoted parameter expansions**, unlike bash. `IDS="1 2
+  3"; for i in $IDS` runs **once** with `i` set to the whole string, so a loop
+  that looks like three iterations silently becomes one malformed one. Use an
+  array — `IDS=($(...)); for i in "${IDS[@]}"` — or `${=IDS}` to force
+  splitting. Cost a false "the app is losing writes" bug hunt on 2026-09-27:
+  the server had correctly rejected `{"id":1052 1055 1056}` with a 400, and the
+  response had gone to /dev/null.
 - PATH differs between tool calls: a command that resolved a moment ago may not
   resolve in the next call. Check rather than assume.
 - Shell cwd does not persist between tool calls. Use absolute paths.
@@ -134,6 +182,14 @@ project is a note the next project pays for again.
   `GIT_TERMINAL_PROMPT=0`, `GIT_ASKPASS` to something that exits non-zero,
   `SSH_ASKPASS_REQUIRE=never` with `SSH_ASKPASS` unset, and `GIT_SSH_COMMAND`
   carrying `-oBatchMode=yes`. `bin/git-freshen` has the recipe.
+- The VPS (`root@45.142.177.125`) takes the **default** `~/.ssh/id_ed25519`
+  (ch@tau); `vps/modules/base.nix` on `main` authorises that key and nothing
+  else. `~/.ssh/config` used to pin `id_ed25519_gamma` with `IdentitiesOnly
+  yes` for that IP, which meant the working key was never offered and every
+  login died on `Permission denied (publickey)` — a failure that reads exactly
+  like an expired or missing key. Retired from the config on 2026-09-19; plain
+  `ssh root@45.142.177.125` works. mediabox still holds the gamma pin because
+  ch@tau is unverified there.
 - The `gh` token expires. The symptom is HTTP 401 on every `gh` call while git
   over SSH keeps working; `gh auth login -h github.com` is interactive, so I
   have to run it myself.
@@ -146,6 +202,23 @@ project is a note the next project pays for again.
   --oneline -- <path>` plus `git cat-file -e <session-start-sha>:<path>` says
   whether the path existed before you touched it. Three such commits landed
   under one session on 2026-09-14 and cost a clobber scare.
+- **That same committer can leave `~/p` corrupt, and nothing reports it.** Two
+  p-launcher sweeps landed in the same second on 2026-09-22 and the second was
+  interrupted mid-write, leaving four zero-length objects and `refs/heads/main`
+  pointing at one. The symptom is `fatal: bad object HEAD` from any git command
+  in `~/p`. Nothing surfaced it for 24 hours: the other timers kept running and
+  reporting success, and the journal has zero mentions of it. The repair is
+  `git -C ~/p update-ref refs/heads/main <previous reflog entry>`, then delete
+  the zero-length files under `.git/objects` (`git prune` cannot run while they
+  exist — it fails marking recent objects). The working tree is never touched,
+  so nothing is lost. `git -C ~/p rev-parse --verify -q HEAD^{commit}` is a
+  one-command detector worth having at session start.
+- **The clones under `~/p/m/<project>/` are tracked as gitlinks** — mode
+  160000 entries holding one commit SHA each, with no `.gitmodules`. Every
+  project does this; it is how `~/p` records where each clone sat without
+  ingesting repositories. Seven of them showing as `A` in `git status` is
+  normal, not a sweep swallowing whole repos. Checked with `git ls-files -s`
+  before acting on 2026-09-23; removing them was wrong and had to be undone.
 
 # Skills
 
