@@ -77,6 +77,10 @@
             "spotify"
             "vscode"
             "obsidian"
+            # Microsoft's web core fonts. Chromium asks for Arial, Times New
+            # Roman and Courier New by name for the CSS generics; see the note
+            # in fonts.nix.
+            "corefonts"
           ]
           || builtins.match "vscode-extension-.*" name != null;
       };
