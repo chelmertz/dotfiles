@@ -422,8 +422,9 @@ in
     shellcheck
     shfmt
     # github.com/chelmertz/sift — review a folder file by file, then act on
-    # the decisions. One command: `sift <db>` indexes and opens the UI. The
-    # overlay shadows nixpkgs' own sift, an unrelated grep alternative.
+    # the decisions. One command, no arguments: `sift` reviews ./sift.db in
+    # the directory it is run from. The overlay shadows nixpkgs' own sift, an
+    # unrelated grep alternative.
     sift
     (symlinkJoin {
       name = "signal-desktop";
