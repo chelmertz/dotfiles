@@ -161,7 +161,7 @@
         "nixpkgs": "nixpkgs",
         "nixpkgs-stable": "nixpkgs-stable",
         "serve": "serve",
-        "triage": "triage"
+        "sift": "sift"
       }
     },
     "serve": {
@@ -182,6 +182,27 @@
         "owner": "chelmertz",
         "repo": "serve",
         "type": "github"
+      }
+    },
+    "sift": {
+      "inputs": {
+        "flake-utils": "flake-utils",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1790580534,
+        "narHash": "sha256-NZjo+zDguHgFkxa4yBClsP59mOn+Ecu830pU9KAXdjE=",
+        "ref": "refs/heads/main",
+        "rev": "450ab0a8e0c5f8a63a38041ccb16c363dad787ae",
+        "revCount": 18,
+        "type": "git",
+        "url": "ssh://git@github.com/chelmertz/sift"
+      },
+      "original": {
+        "type": "git",
+        "url": "ssh://git@github.com/chelmertz/sift"
       }
     },
     "systems": {
@@ -212,27 +233,6 @@
         "owner": "nix-systems",
         "repo": "default",
         "type": "github"
-      }
-    },
-    "triage": {
-      "inputs": {
-        "flake-utils": "flake-utils",
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1790550462,
-        "narHash": "sha256-Qo4iEVq9yG0QgVYMThY8HFoUH4cWJZnWcrbQe1cIPFg=",
-        "ref": "refs/heads/main",
-        "rev": "aa37a6cf41228a3fd68ef41acba91b30108124ff",
-        "revCount": 17,
-        "type": "git",
-        "url": "ssh://git@github.com/chelmertz/triage"
-      },
-      "original": {
-        "type": "git",
-        "url": "ssh://git@github.com/chelmertz/triage"
       }
     }
   },

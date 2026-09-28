@@ -36,8 +36,8 @@
     # Over ssh rather than the github: shorthand, because the repository is
     # private and nix has no GitHub token configured here — the ssh key it
     # already uses for git is the credential that works.
-    triage = {
-      url = "git+ssh://git@github.com/chelmertz/triage";
+    sift = {
+      url = "git+ssh://git@github.com/chelmertz/sift";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -51,7 +51,7 @@
       claude-code,
       elly,
       serve,
-      triage,
+      sift,
       disko,
       nixos-hardware,
       ...
@@ -134,7 +134,7 @@
               claude-code.overlays.default
               elly.overlays.default
               serve.overlays.default
-              triage.overlays.default
+              sift.overlays.default
             ];
             config = unfreeConfig;
           };

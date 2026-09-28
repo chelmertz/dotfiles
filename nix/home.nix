@@ -421,6 +421,10 @@ in
     screenkey
     shellcheck
     shfmt
+    # github.com/chelmertz/sift — review a folder file by file, then act on
+    # the decisions. One command: `sift <db>` indexes and opens the UI. The
+    # overlay shadows nixpkgs' own sift, an unrelated grep alternative.
+    sift
     (symlinkJoin {
       name = "signal-desktop";
       paths = [ signal-desktop ];
@@ -443,9 +447,6 @@ in
     sqls
     sql-formatter
     sqlitebrowser
-    # github.com/chelmertz/triage — review a folder file by file, then act on
-    # the decisions. One command: `triage <db>` indexes and opens the UI.
-    triage
     tree
     texliveSmall
     treemd
