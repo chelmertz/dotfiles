@@ -607,15 +607,20 @@ in
         || ${pkgs.coreutils}/bin/install -m 644 ${readme} "$HOME/Dropbox/config/autorandr/README.md"
     '';
 
-  # Register the dotfiles-managed custom URI scheme handlers. `xdg-mime
-  # default` edits ~/.config/mimeapps.list in place, so the rest of that
-  # hand-curated file (firefox-as-default, signal, postman, …) is left alone —
-  # unlike `xdg.mimeApps`, which would take ownership of the whole file. The
-  # command is idempotent: re-running just re-asserts the same association.
-  home.activation.xdgSchemeHandlers = ''
+  # Register the dotfiles-managed default applications. `xdg-mime default`
+  # edits ~/.config/mimeapps.list in place, so the rest of that hand-curated
+  # file (firefox-as-default, signal, postman, …) is left alone — unlike
+  # `xdg.mimeApps`, which would take ownership of the whole file. The command
+  # is idempotent: re-running just re-asserts the same association.
+  #
+  # inode/directory is here because nothing claimed it and the fallback was
+  # whichever .desktop happened to win: baobab, the disk usage analyser, which
+  # is not a file manager and asserts its way to a crash on some trees.
+  home.activation.xdgDefaultApps = ''
     ${pkgs.xdg-utils}/bin/xdg-mime default prr-open.desktop x-scheme-handler/prr
     ${pkgs.xdg-utils}/bin/xdg-mime default claude-resume.desktop x-scheme-handler/claude-resume
     ${pkgs.xdg-utils}/bin/xdg-mime default com.mitchellh.ghostty.desktop x-scheme-handler/terminal
+    ${pkgs.xdg-utils}/bin/xdg-mime default yazi.desktop inode/directory
   '';
 
   programs.yazi = {
