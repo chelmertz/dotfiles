@@ -646,6 +646,51 @@ in
   # inode/directory is here because nothing claimed it and the fallback was
   # whichever .desktop happened to win: baobab, the disk usage analyser, which
   # is not a file manager and asserts its way to a crash on some trees.
+  # Firefox's tab strip and toolbar padding is browser.uidensity, not a font
+  # size: at the panel's true dpi the chrome is correctly sized and simply
+  # generous. 1 is compact. programs.firefox is deliberately not used -- it
+  # takes ownership of the whole profile, and these profiles carry years of
+  # extensions and logins. user.js is read at every start and overrides
+  # prefs.js, so Firefox keeps owning everything else in there.
+  #
+  # Profiles are found by looking for prefs.js rather than by reading
+  # profiles.ini. Every real profile has one, the directory names are random
+  # and differ on gamma, and a running Firefox rewrites profiles.ini under
+  # you: it moved the work profile out of its [Profile1] Path= entry midway
+  # through writing this, which a Path= scan silently missed.
+  home.activation.firefoxChrome =
+    let
+      userJs = pkgs.writeText "firefox-user.js" ''
+        // Written by home.activation.firefoxChrome in nix/home.nix of
+        // github.com/chelmertz/dotfiles. Edit it there, not here.
+        user_pref("browser.uidensity", 1);
+        // Make the same setting reachable from Customize Toolbar, so the
+        // choice can be changed by hand without going through about:config.
+        user_pref("browser.compactmode.show", true);
+      '';
+    in
+    lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+      ffRoot="$HOME/.mozilla/firefox"
+
+      if [ ! -d "$ffRoot" ]; then
+        ${pkgs.util-linux}/bin/logger -t firefox-chrome -p user.info -- "no $ffRoot; nothing to configure"
+      else
+        ffFound=0
+        while IFS= read -r ffPrefs; do
+          ffDir=$(${pkgs.coreutils}/bin/dirname "$ffPrefs")
+          ffFound=$((ffFound + 1))
+          ${pkgs.diffutils}/bin/cmp -s ${userJs} "$ffDir/user.js" \
+            || ${pkgs.coreutils}/bin/install -m 644 ${userJs} "$ffDir/user.js"
+        done < <(${pkgs.findutils}/bin/find "$ffRoot" -mindepth 2 -maxdepth 2 -name prefs.js)
+
+        if [ "$ffFound" = 0 ]; then
+          ${pkgs.util-linux}/bin/logger -t firefox-chrome -p user.warning -- "no Firefox profile under $ffRoot has a prefs.js; uidensity left alone"
+        else
+          ${pkgs.util-linux}/bin/logger -t firefox-chrome -p user.info -- "set browser.uidensity in $ffFound Firefox profile(s)"
+        fi
+      fi
+    '';
+
   home.activation.xdgDefaultApps = ''
     ${pkgs.xdg-utils}/bin/xdg-mime default prr-open.desktop x-scheme-handler/prr
     ${pkgs.xdg-utils}/bin/xdg-mime default claude-resume.desktop x-scheme-handler/claude-resume
