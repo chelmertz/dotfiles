@@ -1238,7 +1238,11 @@ in
         frame_width = 1;
         frame_color = "#292929";
         sort = true;
-        font = "Inter 16";
+        # Pango sizes are points, so this tracks Xft.dpi: at the old 78 dpi
+        # 16pt drew 17.3px, at the panel's true ~107 it drew 23.8 and a shared
+        # URL wrapped to four lines inside the fixed 360px width above. 12pt
+        # restores the previous size.
+        font = "Inter 12";
         line_height = 2;
         markup = "full";
         format = "<span size='small' alpha='60%%'>%a</span>\\n<b>%s</b>\\n<span alpha='75%%'>%b</span>";
