@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 {
   fonts.fontconfig.enable = true;
 
@@ -65,6 +65,29 @@
   # does. Arial is metric-compatible too and hints cleanly at that size. The
   # same rule maps Times and Courier onto Gyre faces, but those two render
   # fine, so they are deliberately left alone.
+  # Both font fixes in this file fail silently -- nothing errors, an app just
+  # renders wrongly, and only when someone opens it. Chromium resolves the CSS
+  # generics through Arial, Times New Roman and Courier New, so losing corefonts
+  # (a pname rename breaking the unfree allowlist would do it) leaves every
+  # Chromium generic with no font: Steam painted images and nothing else on
+  # 2026-09-28. Asserting the generics would not catch that -- fc-match returned
+  # DejaVu Sans for sans-serif the whole time Steam was blank -- so assert the
+  # three names Chromium actually asks for. Helvetica is the Notion fix above,
+  # which a new default font outranking Arial would undo. Warn rather than fail,
+  # so a nixpkgs-side font change cannot block an unrelated switch.
+  home.activation.fontResolutionCheck = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    fontExpect() {
+      got=$(${pkgs.fontconfig}/bin/fc-match -f '%{family}' "$1" 2>/dev/null)
+      if [ "$got" != "$2" ]; then
+        echo "fonts: '$1' resolves to '$got', expected '$2' -- see nix/fonts.nix" >&2
+      fi
+    }
+    fontExpect Arial             Arial
+    fontExpect "Times New Roman" "Times New Roman"
+    fontExpect "Courier New"     "Courier New"
+    fontExpect Helvetica         Arial
+  '';
+
   xdg.configFile."fontconfig/conf.d/51-helvetica-prefer-arial.conf".text = ''
     <?xml version="1.0"?>
     <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
