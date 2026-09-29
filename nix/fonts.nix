@@ -56,4 +56,23 @@
     # icon fonts
     material-design-icons
   ];
+
+  # fontconfig's stock 30-metric-aliases.conf lists TeX Gyre Heros as a
+  # metric-compatible Helvetica, and NixOS ships gyre-fonts in its default X11
+  # font set, so Helvetica resolved to it ahead of Arial. Heros sets the dot of
+  # its 'i' almost onto the stem at 16px, so "liabilities" reads as a picket
+  # fence on any page whose stack reaches Helvetica before Arial -- Notion's
+  # does. Arial is metric-compatible too and hints cleanly at that size. The
+  # same rule maps Times and Courier onto Gyre faces, but those two render
+  # fine, so they are deliberately left alone.
+  xdg.configFile."fontconfig/conf.d/51-helvetica-prefer-arial.conf".text = ''
+    <?xml version="1.0"?>
+    <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+    <fontconfig>
+      <alias binding="same">
+        <family>Helvetica</family>
+        <prefer><family>Arial</family></prefer>
+      </alias>
+    </fontconfig>
+  '';
 }
