@@ -88,6 +88,55 @@
     fontExpect Helvetica         Arial
   '';
 
+  # macOS and Windows answer the system-UI family names with a face drawn for
+  # screens (SF Pro, Segoe UI Variable). Linux answers with nothing, so a stack
+  # like Notion's -- ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI
+  # Variable Display", "Segoe UI", Helvetica, ..., Arial -- falls past every one
+  # of them to Helvetica and lands on Arial: a 1982 print grotesque with no
+  # optical sizing. Inter is drawn for UI at text sizes, which is the rung Linux
+  # is missing. Adwaita Sans is in the set because it is this desktop's declared
+  # font-name (gsettings org.gnome.desktop.interface) and is not installed, so
+  # it is how Firefox resolves system-ui. Firefox does not implement
+  # ui-sans-serif at all; Chromium-based apps do, hence claiming both.
+  xdg.configFile."fontconfig/conf.d/52-system-ui-inter.conf".text = ''
+    <?xml version="1.0"?>
+    <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+    <fontconfig>
+      <alias binding="same">
+        <family>system-ui</family>
+        <prefer><family>Inter</family></prefer>
+      </alias>
+      <alias binding="same">
+        <family>ui-sans-serif</family>
+        <prefer><family>Inter</family></prefer>
+      </alias>
+      <alias binding="same">
+        <family>-apple-system</family>
+        <prefer><family>Inter</family></prefer>
+      </alias>
+      <alias binding="same">
+        <family>BlinkMacSystemFont</family>
+        <prefer><family>Inter</family></prefer>
+      </alias>
+      <alias binding="same">
+        <family>Segoe UI</family>
+        <prefer><family>Inter</family></prefer>
+      </alias>
+      <alias binding="same">
+        <family>Segoe UI Variable Display</family>
+        <prefer><family>Inter</family></prefer>
+      </alias>
+      <alias binding="same">
+        <family>Segoe UI Variable Text</family>
+        <prefer><family>Inter</family></prefer>
+      </alias>
+      <alias binding="same">
+        <family>Adwaita Sans</family>
+        <prefer><family>Inter</family></prefer>
+      </alias>
+    </fontconfig>
+  '';
+
   xdg.configFile."fontconfig/conf.d/51-helvetica-prefer-arial.conf".text = ''
     <?xml version="1.0"?>
     <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
