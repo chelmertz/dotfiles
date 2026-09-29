@@ -1245,7 +1245,13 @@ in
         font = "Inter 12";
         line_height = 2;
         markup = "full";
-        format = "<span size='small' alpha='60%%'>%a</span>\\n<b>%s</b>\\n<span alpha='75%%'>%b</span>";
+        # The alphas were set when the font was 16pt. At 12pt the strokes are
+        # thinner, and light-on-dark thin strokes read as washed out well
+        # before the contrast ratio is actually low -- body text at 75% over
+        # #1e1e1e measures 8.87:1, comfortably past AA, and still looked dim.
+        # The body carries the content, so it gets the full foreground; the
+        # app name stays dimmer to keep the hierarchy, but not by as much.
+        format = "<span size='small' alpha='80%%'>%a</span>\\n<b>%s</b>\\n%b";
         alignment = "left";
         vertical_alignment = "center";
         show_age_threshold = 60;
@@ -1296,7 +1302,7 @@ in
         foreground = "#f7eeee";
         frame_color = "#a8383e";
         highlight = "#e5484d";
-        format = "<span size='small' foreground='#ffb3b3'>%a</span>\\n<b>%s</b>\\n<span alpha='80%%'>%b</span>";
+        format = "<span size='small' foreground='#ffb3b3'>%a</span>\\n<b>%s</b>\\n%b";
         timeout = 0;
       };
     };
