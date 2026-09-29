@@ -810,7 +810,13 @@ in
     settings = {
       theme = "dark:Catppuccin Frappe,light:Catppuccin Latte";
       font-family = "Go Mono";
-      font-size = 16;
+      # Points, so this tracks Xft.dpi like the i3 and dunst sizes: 16pt drew
+      # 17.3px at the old 78 dpi and 23.8 at the panel's true 107. Each ghostty
+      # window is its own process (bin/p-launcher gives each one an
+      # --x11-instance-name), so windows opened before a dpi change keep the
+      # old size and only new ones grow -- which is why this looked fine at
+      # first and wrong an hour later.
+      font-size = 12;
       cursor-style = "block";
       cursor-style-blink = false;
       # Stop ghostty's shell integration from sending DECSCUSR escapes that
