@@ -816,7 +816,11 @@ in
       # --x11-instance-name), so windows opened before a dpi change keep the
       # old size and only new ones grow -- which is why this looked fine at
       # first and wrong an hour later.
-      font-size = 11.5;
+      # Keep this an integer. 11.5 parsed fine and rendered badly: it put the
+      # cell at 10.08px wide, off the pixel grid, and glyph advances stopped
+      # lining up -- text came out unevenly spaced and smeared. 11 measures
+      # 9.6 x 19.2px cells and renders clean.
+      font-size = 11;
       cursor-style = "block";
       cursor-style-blink = false;
       # Stop ghostty's shell integration from sending DECSCUSR escapes that
