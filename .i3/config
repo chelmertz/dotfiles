@@ -268,8 +268,8 @@ hide_edge_borders smart
 
 # caps = ctrl (hold) / escape (tap) is now handled by keyd at the kernel level
 # (see keyd/default.conf), below evdev, so keylog captures the real Esc/Ctrl.
-# Only the Swedish layout stays here.
-exec_always --no-startup-id setxkbmap -layout se
+# Only the Swedish layout (nodeadkeys: ~ ` ´ ¨ ^ type at once) stays here.
+exec_always --no-startup-id setxkbmap -layout se -variant nodeadkeys
 
 exec_always --no-startup-id ~/.local/bin/set-wallpaper
 

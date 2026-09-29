@@ -94,9 +94,11 @@
   services.xserver.windowManager.i3.enable = true;
   services.displayManager.gdm.enable = true;
   services.displayManager.defaultSession = "none+i3";
-  # .i3/config also runs `setxkbmap -layout se`, which covers keyboards that
-  # appear after the session starts. This covers the greeter.
+  # .i3/config also runs `setxkbmap -layout se -variant nodeadkeys`, which
+  # covers keyboards that appear after the session starts. This covers the
+  # greeter. The two must stay equal.
   services.xserver.xkb.layout = "se";
+  services.xserver.xkb.variant = "nodeadkeys";
 
   # GDM starts the NixOS `none+i3` session, whose script reads no shell rc and
   # no ~/.profile, so nothing sourced home-manager's session variables: i3 ran
