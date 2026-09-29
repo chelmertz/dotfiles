@@ -88,6 +88,24 @@
     fontExpect Helvetica         Arial
   '';
 
+  # The fontconfig half of the subpixel settings in nix/home.nix's
+  # xresources.properties. Firefox and Chromium read these rather than the Xft
+  # resources, so both halves have to say the same thing. NixOS defaults rgba
+  # to "none", which leaves every glyph greyscale-antialiased and the lcdfilter
+  # setting doing nothing.
+  xdg.configFile."fontconfig/conf.d/53-subpixel.conf".text = ''
+    <?xml version="1.0"?>
+    <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+    <fontconfig>
+      <match target="font">
+        <edit name="rgba" mode="assign"><const>rgb</const></edit>
+      </match>
+      <match target="font">
+        <edit name="lcdfilter" mode="assign"><const>lcddefault</const></edit>
+      </match>
+    </fontconfig>
+  '';
+
   # macOS and Windows answer the system-UI family names with a face drawn for
   # screens (SF Pro, Segoe UI Variable). Linux answers with nothing, so a stack
   # like Notion's -- ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI

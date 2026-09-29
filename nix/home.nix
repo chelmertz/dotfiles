@@ -1075,13 +1075,27 @@ in
   };
 
   xresources.properties = {
-    # good for curved external monitor at home. 70 suited gamma's 15.6" panel;
-    # tau is the same 1920x1200 on 14", about 11% denser, so 78 keeps text the
-    # same physical size.
-    "Xft.dpi" = 78;
-    "rofi.dpi" = 78;
-    "*.dpi" = 78;
+    # DP-1 is 3440x1440 across 800mm, so 109 dpi; eDP-1 is 1920x1200 across
+    # 301mm, so 162. X11 carries one global value and per_monitor_dpi is off,
+    # so neither panel can be served exactly. 109 matches the external monitor
+    # this machine is actually worked on, and is the true figure for it; the
+    # previous 78 was below both, which left Firefox laying pages out smaller
+    # than intended and rasterising glyphs at fewer pixels than the panel has.
+    # Font sizes elsewhere are tuned against this number -- moving it means
+    # retuning them.
+    "Xft.dpi" = 109;
+    "rofi.dpi" = 109;
+    "*.dpi" = 109;
     "Xcursor.size" = 24;
+
+    # Subpixel rendering. These two were live in the X resource database but
+    # declared nowhere, so they would have disappeared on a fresh X start; the
+    # filter was set while rgba stayed "none", which made it a no-op. Xft is
+    # what GTK and rofi read. Firefox and Chromium read fontconfig instead, so
+    # nix/fonts.nix carries the same pair -- change them together or the two
+    # halves of the desktop disagree.
+    "Xft.rgba" = "rgb";
+    "Xft.lcdfilter" = "lcddefault";
   };
 
   home.file.".ideavimrc".text = ''
