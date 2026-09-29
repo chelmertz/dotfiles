@@ -206,17 +206,31 @@ in
     "org/gnome/desktop/interface" = {
       cursor-theme = "Yaru";
       cursor-size = 24;
+
+      # Undeclared until now, so these were GNOME's defaults: Adwaita Sans 11
+      # and Adwaita Mono 11, neither of which is installed. Sans landed on
+      # Inter via the alias in fonts.nix, but Mono fell through to DejaVu
+      # *Sans* -- a proportional face answering every GTK request for the
+      # system monospace. Firefox sizes its tab strip from font-name, so this
+      # is also what keeps the chrome sane now that dpi reports the panel's
+      # true 109: 9pt here is 13.6px against the 11.9px that 11pt gave at the
+      # old 78. Go Mono matches the ghostty setting below.
+      font-name = "Inter 9";
+      document-font-name = "Inter 10";
+      monospace-font-name = "Go Mono 9";
     };
   };
   xdg.configFile."gtk-3.0/settings.ini".text = ''
     [Settings]
     gtk-cursor-theme-name=Yaru
     gtk-cursor-theme-size=24
+    gtk-font-name=Inter 9
   '';
   xdg.configFile."gtk-4.0/settings.ini".text = ''
     [Settings]
     gtk-cursor-theme-name=Yaru
     gtk-cursor-theme-size=24
+    gtk-font-name=Inter 9
   '';
 
   # for standard packages, without any custom configuration; otherwise, remove from this list and do "program.myprogram = { enable = true; .. other options}"
