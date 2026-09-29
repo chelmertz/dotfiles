@@ -68,7 +68,7 @@ let
     bar {
         status_command i3blocks
         position top
-        font pango:Inter, Font Awesome 7 Free, Font Awesome 7 Free Solid, Font Awesome 7 Brands 15
+        font pango:Inter, Font Awesome 7 Free, Font Awesome 7 Free Solid, Font Awesome 7 Brands 11
         tray_output eDP-1
         tray_output primary
         tray_padding 4
