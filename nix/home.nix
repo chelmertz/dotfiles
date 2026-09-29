@@ -816,7 +816,7 @@ in
       # --x11-instance-name), so windows opened before a dpi change keep the
       # old size and only new ones grow -- which is why this looked fine at
       # first and wrong an hour later.
-      font-size = 12;
+      font-size = 11.5;
       cursor-style = "block";
       cursor-style-blink = false;
       # Stop ghostty's shell integration from sending DECSCUSR escapes that
