@@ -192,11 +192,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1790698329,
-        "narHash": "sha256-jlYzNJTCIFHucPbULFOBo9XJRZ0fG2OoL4ZO+8N6DAE=",
+        "lastModified": 1790719485,
+        "narHash": "sha256-bg2gDX9C69IXX04ReIoeDLhUOKt5jPaZSv4JpOJJyOA=",
         "ref": "refs/heads/main",
-        "rev": "4eda6204b5659546e5c40183878b4fe3df252bca",
-        "revCount": 37,
+        "rev": "9dabfb0303eca2a423b6810e8c618981fd7f95d0",
+        "revCount": 38,
         "type": "git",
         "url": "ssh://git@github.com/chelmertz/sift"
       },
