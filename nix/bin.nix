@@ -40,6 +40,11 @@ in
       executable = true;
     };
 
+    ".local/bin/autorandr-dpi" = {
+      source = ../bin/autorandr-dpi;
+      executable = true;
+    };
+
     ".local/bin/autotag.py" = {
       source = py ../bin/autotag.py;
       executable = true;

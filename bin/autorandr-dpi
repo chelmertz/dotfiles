@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+
+# Keep the X server's DPI on whichever panel is actually in use.
+#
+# X11 carries one global DPI and per_monitor_dpi is off, so docking between a
+# 109 dpi ultrawide and a 162 dpi laptop panel means one of them is always
+# wrong. xresources.properties in nix/home.nix declares the docked value as the
+# boot default; this hook corrects it on every autorandr switch.
+#
+# Only applications started after the merge read the new value -- X resources
+# are read at startup -- so this fixes what you open next, not what is already
+# open. That is still the common case when docking.
+#
+# Called from services.autorandr.hooks.postswitch in
+# nix/hosts/tau/configuration.nix. autorandr runs hooks from autorandr.service,
+# so everything printed here lands in the journal under this tag; nothing in
+# this script is allowed to fail the switch.
+set -u
+
+# autorandr --batch runs hooks in the user's session but not through a login
+# shell, so PATH cannot be assumed.
+export PATH="$HOME/.nix-profile/bin:$HOME/.local/bin:/run/current-system/sw/bin:$PATH"
+
+log() { logger -t autorandr-dpi -p "user.$1" -- "$2"; }
+
+if ! command -v xrandr >/dev/null || ! command -v xrdb >/dev/null; then
+    log err "xrandr or xrdb missing from PATH; leaving DPI alone"
+    exit 0
+fi
+
+read -r output dpi <<<"$(xrandr --query 2>/dev/null | awk '
+    / connected primary/ {
+        px = 0; mm = 0
+        for (i = 1; i <= NF; i++) {
+            if (px == 0 && $i ~ /^[0-9]+x[0-9]+\+/) { split($i, r, /[x+]/); px = r[1] }
+            if (mm == 0 && $i ~ /^[0-9]+mm$/)       { s = $i; sub("mm", "", s); mm = s }
+        }
+        if (px > 0 && mm > 0) { printf "%s %.0f\n", $1, px / (mm / 25.4) }
+        exit
+    }')"
+
+# No primary output, or a panel reporting 0mm (some docks and most projectors
+# do). Falling back to a guess would be worse than leaving the declared value.
+if [ -z "${dpi:-}" ]; then
+    log warning "no primary output with usable physical size; leaving DPI at its declared value"
+    exit 0
+fi
+
+# A plausible desktop range. Outside it the EDID is lying, which is common
+# enough on cheap displays to be worth refusing rather than acting on.
+if [ "$dpi" -lt 50 ] || [ "$dpi" -gt 400 ]; then
+    log warning "$output reports an implausible ${dpi} dpi; leaving DPI at its declared value"
+    exit 0
+fi
+
+if printf 'Xft.dpi: %s\n*.dpi: %s\nrofi.dpi: %s\n' "$dpi" "$dpi" "$dpi" | xrdb -merge 2>/dev/null; then
+    log info "set DPI to $dpi from $output"
+else
+    log err "xrdb -merge failed; DPI left at its declared value"
+fi
+
+exit 0

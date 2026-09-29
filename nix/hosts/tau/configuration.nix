@@ -132,8 +132,9 @@
   # The profiles themselves are deliberately not declared here. autorandr keys
   # a profile on the monitor's EDID, and an EDID carries that unit's serial
   # number, which this repository is public and should not carry. They stay in
-  # ~/.config/autorandr, which nix/home.nix points into Dropbox so they survive
-  # a reinstall — losing them was the only real argument for declaring them.
+  # ~/.config/autorandr, a plain local directory since 2026-09-29; nix/home.nix
+  # seeds it and logs to the journal when it is empty. Nothing backs it up, and
+  # losing it costs one hotplug per monitor to re-learn.
   services.autorandr = {
     enable = true;
     # Match a saved profile on EDID rather than on output name. This same Dell
@@ -159,6 +160,13 @@
       # the second plug matches on EDID and this hook does nothing.
       "20-learn-unknown" = ''
         exec $HOME/.local/bin/autorandr-learn
+      '';
+      # X11 carries one global DPI, so docking between the 109 dpi ultrawide
+      # and the 162 dpi laptop panel leaves one of them wrong. Only
+      # applications started after the switch read the new value, so this
+      # fixes what is opened next rather than what is already open.
+      "30-dpi" = ''
+        exec $HOME/.local/bin/autorandr-dpi
       '';
     };
   };
