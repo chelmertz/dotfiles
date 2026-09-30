@@ -215,7 +215,7 @@ in
       # system monospace. Firefox sizes its tab strip from font-name, so this
       # is also what keeps the chrome sane now that dpi reports the panel's
       # true 109: 9pt here is 13.6px against the 11.9px that 11pt gave at the
-      # old 78. Go Mono is what ghostty used before Comic Shanns.
+      # old 78. Go Mono matches the ghostty setting below.
       font-name = "Inter 9";
       document-font-name = "Inter 10";
       monospace-font-name = "Go Mono 9";
@@ -810,7 +810,7 @@ in
     };
     settings = {
       theme = "dark:Catppuccin Frappe,light:Catppuccin Latte";
-      font-family = "ComicShannsMono Nerd Font";
+      font-family = "Go Mono";
       # Points, so this tracks Xft.dpi like the i3 and dunst sizes: 16pt drew
       # 17.3px at the old 78 dpi and 23.8 at the panel's true 107. Each ghostty
       # window is its own process (bin/p-launcher gives each one an
