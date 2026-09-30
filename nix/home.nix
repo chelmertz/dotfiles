@@ -132,6 +132,7 @@ in
     ./spotify.nix
     ./mediabox.nix
     ./fonts.nix
+    ./audio.nix
     ./p-launcher.nix
     ./git-freshen.nix
   ];
