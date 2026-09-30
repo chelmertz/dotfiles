@@ -21,6 +21,7 @@
     font-awesome
     emacs-all-the-icons-fonts
     nerd-fonts.symbols-only
+    nerd-fonts.comic-shanns-mono
 
     # monospace / coding
     fira-code
