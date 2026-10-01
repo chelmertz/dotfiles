@@ -141,3 +141,34 @@ func TestRefreshLinksUnchangedIssueSkipsChecks(t *testing.T) {
 		t.Fatalf("the user's own open PR lost its checks: %v", checked)
 	}
 }
+
+// `p-launcher link add` and the menu reach the store through AddLink, which
+// stamped every URL github_pr. An issue linked that way slipped past the kind
+// guard above and reached `gh pr view <issue url>` on every refresh.
+func TestAddLinkIssueURLSkipsChecks(t *testing.T) {
+	s, now := linksFixture(t)
+	const issue = "https://github.com/o/r/issues/7"
+	if err := s.AddLink("m/a", issue); err != nil {
+		t.Fatal(err)
+	}
+	checked := map[string]bool{}
+	deps := linkDeps{me: "me", now: now,
+		gh: func(url, etag string) (ghPR, int, string, error) {
+			return ghPR{State: "open", Author: "me", CreatedAt: now.Add(-time.Hour)}, 200, `"e"`, nil
+		},
+		elly: func() (map[string]ellyPR, time.Time, error) { return nil, now, nil },
+		checks: func(url string) (string, time.Time, error) {
+			checked[url] = true
+			return "success", now, nil
+		},
+	}
+	if _, err := refreshLinks(s, deps); err != nil {
+		t.Fatal(err)
+	}
+	if checked[issue] {
+		t.Fatalf("gh pr view ran against an issue: %v", checked)
+	}
+	if !checked["https://github.com/o/r/pull/1"] {
+		t.Fatalf("the user's own open PR lost its checks: %v", checked)
+	}
+}

@@ -26,6 +26,7 @@ var migrations = []func(*sql.Tx) error{
 	migrate015,
 	migrate016,
 	migrate017,
+	migrate018,
 }
 
 // migrate015 moves the context high-water mark out of session_state, which
@@ -279,6 +280,15 @@ create index link_project on link (project_id);`)
 // view can say what it waits for.
 func migrate004(tx *sql.Tx) error {
 	_, err := tx.Exec(`alter table session_state add column reason text not null default ''`)
+	return err
+}
+
+// migrate018 repairs issue links stamped github_pr: AddLink, behind
+// `p-launcher link add` and the menu, used that kind for every URL, so an
+// issue reached `gh pr view` on each refresh and failed outside a git repo.
+func migrate018(tx *sql.Tx) error {
+	_, err := tx.Exec(`update link set kind = 'github_issue'
+		where kind = 'github_pr' and url like 'https://github.com/%/%/issues/%'`)
 	return err
 }
 

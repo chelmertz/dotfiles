@@ -253,3 +253,45 @@ func TestNotifyLog(t *testing.T) {
 		t.Fatalf("%q %v", b, err)
 	}
 }
+
+// migrate018 repairs issue links that AddLink stamped github_pr before it
+// read the kind from the URL.
+func TestMigrate018IssueKind(t *testing.T) {
+	db := openTestDB(t)
+	if err := migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`insert into project (path, name, namespace_id, first_seen_at) select 'm/a', 'a', id, '' from namespace where dir = 'm'`); err != nil {
+		t.Fatal(err)
+	}
+	for _, u := range []string{"https://github.com/o/r/issues/7", "https://github.com/o/r/pull/8", "u/pr"} {
+		if _, err := db.Exec(`insert into link (project_id, url, kind, opened_at) select id, ?, 'github_pr', '' from project`, u); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.Exec(`delete from meta where db_version >= 18`); err != nil {
+		t.Fatal(err)
+	}
+	if err := migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	rows, err := db.Query(`select url, kind from link`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var u, k string
+		if err := rows.Scan(&u, &k); err != nil {
+			t.Fatal(err)
+		}
+		got[u] = k
+	}
+	want := map[string]string{"https://github.com/o/r/issues/7": "github_issue", "https://github.com/o/r/pull/8": "github_pr", "u/pr": "github_pr"}
+	for u, k := range want {
+		if got[u] != k {
+			t.Errorf("%s: kind %q, want %q", u, got[u], k)
+		}
+	}
+}

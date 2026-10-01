@@ -509,10 +509,17 @@ func (s *Store) RecordPermission(sessionID, path, tool, rule string) error {
 	return nil
 }
 
-// AddLink attaches a pull-request URL to a project; a known URL is a no-op.
+// AddLink attaches a pull-request or issue URL to a project, taking the kind
+// from the URL (github_pr when it is neither); a known URL is a no-op.
 // opened_at is provisional until `links refresh` replaces it with GitHub's
 // created_at.
-func (s *Store) AddLink(path, url string) error { return s.AddLinkKind(path, url, "github_pr") }
+func (s *Store) AddLink(path, url string) error {
+	kind := "github_pr"
+	if ref, ok := parseGitHubURL(url); ok {
+		kind = ref.Kind
+	}
+	return s.AddLinkKind(path, url, kind)
+}
 
 // AddLinkKind is AddLink with an explicit kind (github_pr, github_issue).
 func (s *Store) AddLinkKind(path, url, kind string) error {
