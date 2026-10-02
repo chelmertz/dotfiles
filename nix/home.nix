@@ -695,6 +695,7 @@ in
   home.activation.xdgDefaultApps = ''
     ${pkgs.xdg-utils}/bin/xdg-mime default prr-open.desktop x-scheme-handler/prr
     ${pkgs.xdg-utils}/bin/xdg-mime default claude-resume.desktop x-scheme-handler/claude-resume
+    ${pkgs.xdg-utils}/bin/xdg-mime default claude-review.desktop x-scheme-handler/claude-review
     ${pkgs.xdg-utils}/bin/xdg-mime default com.mitchellh.ghostty.desktop x-scheme-handler/terminal
     ${pkgs.xdg-utils}/bin/xdg-mime default yazi.desktop inode/directory
   '';
@@ -870,6 +871,20 @@ in
     exec = "${config.home.homeDirectory}/bin/claude-resume-open %u";
     noDisplay = true;
     mimeType = [ "x-scheme-handler/claude-resume" ];
+  };
+
+  # Clickable claude-review://<owner>/<repo>/<number> links, emitted by the
+  # GitHub userscript in matchi-backend/scripts/claude-review: click to start
+  # or resume the Claude Code review session for that PR in its local clone.
+  # The binary is installed with `go install` from that module (not nix: the
+  # source is a private work repo), so it lives in ~/go/bin.
+  #
+  # Mime registration handled by home.activation.xdgDefaultApps.
+  xdg.desktopEntries.claude-review = {
+    name = "claude review";
+    exec = "${config.home.homeDirectory}/go/bin/claude-review %u";
+    noDisplay = true;
+    mimeType = [ "x-scheme-handler/claude-review" ];
   };
 
   home.file."bin/claude-resume-open".source = "${
