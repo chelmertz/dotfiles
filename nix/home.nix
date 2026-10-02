@@ -668,6 +668,10 @@ in
         // Make the same setting reachable from Customize Toolbar, so the
         // choice can be changed by hand without going through about:config.
         user_pref("browser.compactmode.show", true);
+        // Hand claude-review:// links (the GitHub userscript's button) to the
+        // xdg handler registered below; without this Firefox blocks the
+        // unknown scheme silently instead of asking.
+        user_pref("network.protocol-handler.expose.claude-review", false);
       '';
     in
     lib.hm.dag.entryAfter [ "linkGeneration" ] ''
