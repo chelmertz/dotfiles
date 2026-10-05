@@ -71,4 +71,12 @@ printf '@theme "%s"\n' "$rofi_theme" > "$rofi_config"
 ln -sfn "scheme-${rofi_theme#cards-}.conf" "$HOME/.config/i3/scheme.conf"
 i3-msg -q reload || echo "i3 reload failed; i3 keeps its previous scheme" >&2
 
+# Claude Code's theme is "custom:scheme" (claude/settings.json), whose base is
+# this file. Every running session watches ~/.claude/themes and repaints on a
+# write. Its "auto" theme follows ghostty too, but only picks plain dark/light,
+# never the -ansi variants.
+mkdir -p "$HOME/.claude/themes"
+printf '{"name": "Color scheme (ANSI)", "base": "%s-ansi"}\n' "${rofi_theme#cards-}" \
+	> "$HOME/.claude/themes/scheme.json"
+
 "$HOME/.local/bin/set-wallpaper"

@@ -145,7 +145,7 @@
       }
     ]
   },
-  "theme": "light-daltonized",
+  "theme": "custom:scheme",
   "outputStyle": "Terse",
   "tui": "fullscreen",
   "editorMode": "vim",
