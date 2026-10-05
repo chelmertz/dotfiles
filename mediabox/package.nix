@@ -10,7 +10,7 @@ buildGoModule {
 
   src = ./.;
 
-  vendorHash = "sha256-OB3lHD+HRSjDrm2axmWzff0BbsSo+y91e6kJSZWaSHA=";
+  vendorHash = "sha256-BzmdVgolrQ/jegnRrPsvikCqy7wRdSBrQsEyq7iAbnc=";
 
   subPackages = [ "." ];
 
