@@ -3,7 +3,7 @@ set -uo pipefail
 
 PROJECTS_FILE="$HOME/.config/i3/projects"
 URLS_DIR="$HOME/.config/i3/project-urls"
-PREFERRED_SLOTS=(1 4 5 8 3 6)
+PREFERRED_SLOTS=(2 4 5 8 3 6)
 SEP=" - "
 
 mkdir -p "$URLS_DIR"
@@ -222,7 +222,7 @@ handle_choice() {
 cmd_restore() {
     # Fixed workspace labels
     declare -A fixed_labels=(
-        [2]="browser"
+        [1]="browser"
         [7]="steam"
         [9]="slack"
         [10]="spotify"

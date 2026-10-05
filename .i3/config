@@ -2,8 +2,8 @@ set $mod Mod4
 
 # Define names for default workspaces for which we configure key bindings later on.
 # We use variables to avoid repeating the names in multiple places.
-set $ws1 "1"
-set $ws2 "2 - browser"
+set $ws1 "1 - browser"
+set $ws2 "2"
 set $ws3 "3"
 set $ws4 "4"
 set $ws5 "5"
@@ -97,7 +97,7 @@ bindsym $mod+a focus parent
 # focus the child container
 bindsym $mod+d focus child
 
-assign [class="firefox"] $ws2
+assign [class="firefox"] $ws1
 assign [class="(?i)slack"] $ws9
 assign [class="Element"] $ws9
 assign [class="steam"] $ws7
@@ -106,7 +106,7 @@ assign [class="steam"] $ws7
 # beat later, and the assign has already been skipped by then; for_window is
 # re-checked when WM_CLASS changes, so it catches that case. Same class of bug
 # as the Spotify note below (i3/i3#2060).
-for_window [class="firefox"] move to workspace $ws2
+for_window [class="firefox"] move to workspace $ws1
 for_window [class="Microsoft Teams - Preview"] move to workspace $ws10
 for_window [class="Yad"] floating enable
 # xev, getting keycodes etc
@@ -174,8 +174,8 @@ bindsym Shift+Print exec flameshot full -c -p ~/Dropbox/screenshots
 bindsym Ctrl+Shift+Print exec peek
 
 # switch to workspace
-bindsym $mod+1 exec --no-startup-id i3-project switch 1
-bindsym $mod+2 workspace number $ws2
+bindsym $mod+1 workspace number $ws1
+bindsym $mod+2 exec --no-startup-id i3-project switch 2
 bindsym $mod+3 exec --no-startup-id i3-project switch 3
 bindsym $mod+4 exec --no-startup-id i3-project switch 4
 bindsym $mod+5 exec --no-startup-id i3-project switch 5
@@ -188,8 +188,8 @@ bindsym $mod+0 workspace number $ws10
 # I want to use the F-keys for changing workspaces, but when playing (or using htop), those keys needs to be unbound
 mode "fkey" {
 	bindsym $mod+m mode "default"; exec notify-send "fkey mode off (mod + m)"
-	bindsym $mod+1 exec --no-startup-id i3-project switch 1
-	bindsym $mod+2 workspace number $ws2
+	bindsym $mod+1 workspace number $ws1
+	bindsym $mod+2 exec --no-startup-id i3-project switch 2
 	bindsym $mod+3 exec --no-startup-id i3-project switch 3
 	bindsym $mod+4 exec --no-startup-id i3-project switch 4
 	bindsym $mod+5 exec --no-startup-id i3-project switch 5
@@ -202,8 +202,8 @@ mode "fkey" {
 
 bindsym $mod+m mode "fkey"; exec notify-send "fkey mode on (mod + m)"
 
-bindsym F1 exec --no-startup-id i3-project switch 1
-bindsym F2 exec /home/ch/.local/bin/ror.py Firefox --workspace $ws2 firefox; workspace number $ws2
+bindsym F1 exec /home/ch/.local/bin/ror.py Firefox --workspace $ws1 firefox; workspace number $ws1
+bindsym F2 exec --no-startup-id i3-project switch 2
 bindsym F3 exec --no-startup-id i3-project switch 3
 bindsym F4 exec --no-startup-id i3-project switch 4
 # ~/p project launcher. One variable so the key and rofi's cancel binding
