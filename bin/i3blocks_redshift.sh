@@ -16,11 +16,11 @@ log() {
 toggle() {
 	if [[ "$state" = "on" ]] ; then
 		log redshift-disable
-		systemctl --user start redshift-disable.service
+		systemctl --user --no-block start redshift-disable.service
 		state="off"
 	else
 		log redshift-ensure
-		systemctl --user start redshift-ensure.service
+		systemctl --user --no-block start redshift-ensure.service
 		state="on"
 	fi
 }

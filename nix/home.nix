@@ -1129,7 +1129,7 @@ in
     };
     settings = {
       redshift = {
-        fade = 1;
+        fade = 0;
         gamma = 0.8;
         adjustment-method = "randr";
       };
