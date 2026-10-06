@@ -250,13 +250,15 @@
             pkgs.runCommand "unit-paths" { } "touch $out";
 
           git-freshen =
+            let
+              freshen = pkgs.callPackage ../git-freshen/package.nix { };
+            in
             pkgs.runCommand "git-freshen"
               {
                 nativeBuildInputs = [
                   pkgs.bash
                   pkgs.git
                   pkgs.coreutils
-                  pkgs.findutils
                   pkgs.gnused
                   pkgs.gnugrep
                   pkgs.gawk
@@ -264,7 +266,7 @@
                 ];
               }
               ''
-                bash ${./checks/git-freshen-test.sh} ${../bin/git-freshen}
+                bash ${./checks/git-freshen-test.sh} ${pkgs.lib.getExe freshen}
                 touch $out
               '';
 

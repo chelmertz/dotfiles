@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Regression test for bin/git-freshen. Every remote here is a path on disk, so
+# Regression test for git-freshen (the Go binary in git-freshen/; this suite
+# predates the port and is what proved it kept the old behaviour). Every remote here is a path on disk, so
 # the test exercises the real fetch path without a network.
 #
 # The rule the whole script exists to keep is "no write that is not a proven
 # fast-forward", so most of these assert what git-freshen *declines* to do.
 set -uo pipefail
 
-freshen=${1:?usage: git-freshen-test.sh /path/to/git-freshen}
+freshen=${1:?usage: git-freshen-test.sh /path/to/git-freshen-binary}
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 cd "$work" || exit 1
@@ -31,16 +32,8 @@ has() { # has <name> <expected-substring> <actual>
   case "$3" in *"$2"*) ok "$1" ;; *) bad "$1" "expected '$2' in: $3" ;; esac
 }
 
-# run invokes git-freshen through an explicit bash rather than its shebang:
-# the nix check sandbox has no /usr/bin/env, so `#!/usr/bin/env bash` cannot
-# resolve there and the script never starts. Silence from a run is a failure,
-# not an empty result - without this guard a script that did not execute at all
-# made twelve assertions fail against "", which reads as twelve bugs.
-# run invokes git-freshen through an explicit bash rather than its shebang:
-# the nix check sandbox has no /usr/bin/env, so `#!/usr/bin/env bash` cannot
-# resolve there and the script never starts.
 export GIT_FRESHEN_JOBS=4
-run() { bash "$freshen" "$@" "$work/roots" 2>"$work/stderr"; }
+run() { "$freshen" "$@" "$work/roots" 2>"$work/stderr"; }
 
 # guard turns silence into one clear failure. Without it a script that did not
 # start at all made twenty-three assertions fail against "", which reads as
@@ -215,7 +208,7 @@ chmod +x "$work/shim/git"
 ENVLOG=$work/gitenv
 export ENVLOG
 GIT_ASKPASS=/desktop/gui-askpass SSH_ASKPASS=/desktop/ssh-askpass \
-  PATH="$work/shim:$PATH" bash "$freshen" --one "$work/roots/behind" >/dev/null 2>&1
+  PATH="$work/shim:$PATH" "$freshen" "$work/roots/behind" >/dev/null 2>&1
 seen() { grep -m1 "^$1=" "$ENVLOG" | cut -d= -f2-; }
 
 is  'the desktop askpass is overridden' '' \
