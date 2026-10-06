@@ -273,6 +273,8 @@ in
     rustc
     rust-analyzer
     claude-code
+    # only for the YouTube Music app window (bin/ytmusic)
+    chromium
     cloc
     copyq
     # czkawka_gui finds near-duplicate images by perceptual hash and lets each

@@ -270,6 +270,11 @@ in
       executable = true;
     };
 
+    ".local/bin/i3blocks_ytmusic.sh" = {
+      source = ../bin/i3blocks_ytmusic.sh;
+      executable = true;
+    };
+
     ".local/bin/indentify.js" = {
       source = ../bin/indentify.js;
       executable = true;
@@ -524,6 +529,11 @@ in
 
     ".local/bin/youtube-mp3" = {
       source = ../bin/youtube-mp3;
+      executable = true;
+    };
+
+    ".local/bin/ytmusic" = {
+      source = ../bin/ytmusic;
       executable = true;
     };
 
