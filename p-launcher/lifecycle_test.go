@@ -522,3 +522,82 @@ func TestArchiveIsQuietAboutAProperProjectDirectory(t *testing.T) {
 		t.Fatalf("the nested clone should still be removed, got %v", c.RemovedClones)
 	}
 }
+
+func gitRun(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-c", "user.email=t@t", "-c", "user.name=t"}, args...)...)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v %s", args, err, out)
+	}
+}
+
+// Work that `git status` cannot see still has to keep a clone alive: a
+// commit on a branch that is not checked out, a stash, a worktree's edits.
+// A branch whose upstream is gone is the exception - that is a merged PR
+// whose GitHub branch was deleted, and keeping every such clone is how
+// archived projects would fill the disk.
+func TestArchiveSeesWorkOutsideTheCheckedOutBranch(t *testing.T) {
+	s := openTestStore(t)
+	root := t.TempDir()
+	dir := mk(t, root, "m/d")
+	if err := s.UpsertProjects(found("m/d")); err != nil {
+		t.Fatal(err)
+	}
+	origin := filepath.Join(t.TempDir(), "origin.git")
+	gitInit(t, origin)
+	gitRun(t, origin, "commit", "-q", "--allow-empty", "-m", "init")
+	clone := func(name string) string {
+		gitRun(t, dir, "clone", "-q", origin, name)
+		repo := filepath.Join(dir, name)
+		if err := os.WriteFile(filepath.Join(repo, ".git", "info", "exclude"), []byte(".claude/\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return repo
+	}
+
+	r := clone("side")
+	gitRun(t, r, "switch", "-q", "-c", "side")
+	gitRun(t, r, "commit", "-q", "--allow-empty", "-m", "only here")
+	gitRun(t, r, "switch", "-q", "-")
+
+	r = clone("stash")
+	if err := os.WriteFile(filepath.Join(r, "f"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, r, "stash", "-q", "-u")
+
+	r = clone("wtdirty")
+	gitRun(t, r, "worktree", "add", "-q", ".claude/worktrees/w")
+	if err := os.WriteFile(filepath.Join(r, ".claude", "worktrees", "w", "f"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	r = clone("wtdetached")
+	gitRun(t, r, "worktree", "add", "-q", "--detach", ".claude/worktrees/w")
+	gitRun(t, filepath.Join(r, ".claude", "worktrees", "w"), "commit", "-q", "--allow-empty", "-m", "only here")
+
+	r = clone("wtoutside")
+	gitRun(t, r, "worktree", "add", "-q", filepath.Join(dir, "elsewhere"))
+
+	r = clone("wtclean")
+	gitRun(t, r, "worktree", "add", "-q", ".claude/worktrees/w")
+
+	r = clone("merged")
+	gitRun(t, r, "switch", "-q", "-c", "pr")
+	gitRun(t, r, "commit", "-q", "--allow-empty", "-m", "squashed upstream")
+	gitRun(t, r, "push", "-q", "-u", "origin", "pr")
+	gitRun(t, origin, "branch", "-q", "-D", "pr")
+	gitRun(t, r, "fetch", "-q", "--prune")
+
+	cl, err := Archive(s, root, "m/d", "done", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"side", "stash", "wtdetached", "wtdirty", "wtoutside"}; !reflect.DeepEqual(cl.DirtyClones, want) {
+		t.Fatalf("dirty %v, want %v", cl.DirtyClones, want)
+	}
+	if want := []string{"merged", "wtclean"}; !reflect.DeepEqual(cl.RemovedClones, want) {
+		t.Fatalf("removed %v, want %v", cl.RemovedClones, want)
+	}
+}

@@ -66,7 +66,7 @@ type Checklist struct {
 	OpenLinks                []string
 	OpenIssues, ClosedIssues int
 	LiveSessions             int
-	DirtyClones              []string // clone dir names with uncommitted or unpushed work
+	DirtyClones              []string // clone dir names holding work found nowhere else (see unsaved)
 	RemovedClones            []string // clone dir names deleted because nothing in them was unsaved
 	KeptClones               int      // clones left on disk, and why, in KeptReason
 	KeptReason               string
@@ -101,7 +101,7 @@ func (c Checklist) Text() string {
 		fmt.Fprintf(&b, "%d live session(s) still running\n", c.LiveSessions)
 	}
 	if len(c.DirtyClones) > 0 {
-		fmt.Fprintf(&b, "clones with uncommitted or unpushed work: %s\n", strings.Join(c.DirtyClones, ", "))
+		fmt.Fprintf(&b, "clones with uncommitted, unpushed or stashed work: %s\n", strings.Join(c.DirtyClones, ", "))
 	}
 	if len(c.RemovedClones) > 0 {
 		fmt.Fprintf(&b, "removed %d clean clone(s): %s\n", len(c.RemovedClones), strings.Join(c.RemovedClones, ", "))
@@ -187,9 +187,9 @@ func Archive(s *Store, root, path, reason string, clip func(string) error) (Chec
 	return c, nil
 }
 
-// dirtyClones lists git checkouts one level below dir that have uncommitted
-// changes or commits not on their upstream. No upstream means no unpushed
-// check. Errors from git count as clean: this is a hint, not a gate.
+// dirtyClones lists git checkouts one level below dir that hold work found
+// nowhere else; see unsaved. Errors from git count as clean: this is a hint,
+// not a gate.
 func dirtyClones(dir string) []string {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -197,20 +197,58 @@ func dirtyClones(dir string) []string {
 	}
 	var out []string
 	for _, e := range entries {
-		if !e.IsDir() || !isDir(filepath.Join(dir, e.Name(), ".git")) {
-			continue
-		}
-		repo := filepath.Join(dir, e.Name())
-		if gitOut(repo, "status", "--porcelain") != "" {
-			out = append(out, e.Name())
-			continue
-		}
-		if n := gitOut(repo, "rev-list", "--count", "@{upstream}..HEAD"); n != "" && n != "0" {
+		if e.IsDir() && isDir(filepath.Join(dir, e.Name(), ".git")) && unsaved(filepath.Join(dir, e.Name())) {
 			out = append(out, e.Name())
 		}
 	}
 	sort.Strings(out)
 	return out
+}
+
+// unsaved reports whether repo holds work that exists nowhere else: changes
+// in the checkout or any of its worktrees, a stash, commits no remote has, or
+// a worktree outside the clone that deleting it would orphan. A branch whose
+// upstream is gone is skipped: that is a merged PR whose GitHub branch was
+// deleted, and a squash merge leaves its commits on no remote, so counting
+// them would keep nearly every clone forever.
+func unsaved(repo string) bool {
+	if gitOut(repo, "status", "--porcelain") != "" || gitOut(repo, "stash", "list") != "" {
+		return true
+	}
+	var tips []string
+	for _, line := range strings.Split(gitOut(repo, "for-each-ref", "--format=%(refname)%09%(upstream:track)", "refs/heads"), "\n") {
+		if ref, track, _ := strings.Cut(line, "\t"); ref != "" && track != "[gone]" {
+			tips = append(tips, ref)
+		}
+	}
+	self, err := filepath.EvalSymlinks(repo)
+	if err != nil {
+		self = repo
+	}
+	// Blocks are separated by blank lines; the first is the clone itself.
+	for i, block := range strings.Split(gitOut(repo, "worktree", "list", "--porcelain"), "\n\n") {
+		var path, head string
+		for _, line := range strings.Split(block, "\n") {
+			if v, ok := strings.CutPrefix(line, "worktree "); ok {
+				path = v
+			} else if v, ok := strings.CutPrefix(line, "HEAD "); ok {
+				head = v
+			} else if line == "detached" && head != "" {
+				tips = append(tips, head)
+			}
+		}
+		if i == 0 || path == "" || !isDir(path) {
+			continue
+		}
+		if !strings.HasPrefix(path, self+string(filepath.Separator)) || gitOut(path, "status", "--porcelain") != "" {
+			return true
+		}
+	}
+	if len(tips) == 0 {
+		return false
+	}
+	n := gitOut(repo, append(append([]string{"rev-list", "--count"}, tips...), "--not", "--remotes")...)
+	return n != "" && n != "0"
 }
 
 func gitOut(repo string, args ...string) string {
@@ -441,7 +479,7 @@ Empty is a good sign.>
 //
 // This is the only irreversible thing in this package, so it refuses more than
 // it does. A clone is removed only when dirtyClones did not name it, which
-// means no uncommitted changes and nothing unpushed, and only when no session
+// means nothing unsaved in it or its worktrees (see unsaved), and only when no session
 // is live anywhere in the project - someone working right now outranks the
 // archive they just typed. Anything that is not a git checkout is never
 // touched, so the project's own state files survive.
@@ -479,7 +517,7 @@ func removeSpentClones(dir string, dirty []string, liveSessions int) (removed []
 	}
 	sort.Strings(removed)
 	if kept > 0 {
-		reason = "uncommitted or unpushed work"
+		reason = "uncommitted, unpushed or stashed work"
 	}
 	return removed, kept, reason
 }
