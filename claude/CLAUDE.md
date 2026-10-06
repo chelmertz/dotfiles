@@ -230,7 +230,3 @@ project is a note the next project pays for again.
   so the brief silently promotes a later item and the real next step vanishes.
   Two such lines hid the top item in `m/c4-arch` (fixed 2026-09-14). Bold
   markers survive into the brief as literal asterisks — keep the item plain.
-- The superpowers `brainstorming` skill's hard gate — a design doc for every
-  project "regardless of perceived simplicity" — does not apply here. The
-  Decision making rules above win: smallest validation first, and a design doc
-  only when the work warrants one.
