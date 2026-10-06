@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+#
+# Usage: focus-or-return NAME CRITERIA COMMAND...
+#
+# Focus the window matching CRITERIA (i3 criteria without brackets, e.g.
+# 'instance="music.youtube.com"'), running COMMAND when no window matches.
+# Run again while that window has focus, it returns to the window focused
+# before, switching workspace if needed. NAME keeps the return marks of
+# different bindings apart.
+#
+# `focus` exits non-zero when no window matches, and con_id=__focused__ limits
+# the match to the focused window, so the first call asks "is it focused?".
+
+name=$1 criteria=$2
+shift 2
+# a leading underscore hides the mark from window titles
+mark="_return_$name"
+
+if i3-msg -q "[con_id=\"__focused__\" $criteria] focus" 2>/dev/null; then
+	i3-msg -q "[con_mark=\"^$mark\$\"] focus"
+	exit 0
+fi
+
+# a mark is unique, so this moves it off whatever window held it last
+i3-msg -q "mark --add $mark"
+i3-msg -q "[$criteria] focus" 2>/dev/null || exec "$@"

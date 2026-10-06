@@ -275,6 +275,11 @@ in
       executable = true;
     };
 
+    ".local/bin/focus-or-return" = {
+      source = ../bin/focus-or-return;
+      executable = true;
+    };
+
     ".local/bin/indentify.js" = {
       source = ../bin/indentify.js;
       executable = true;

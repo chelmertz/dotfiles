@@ -1,8 +1,12 @@
 #!/bin/sh
 
-# Raise the YouTube Music app window, or start it. Its own Chromium profile
+# Focus the YouTube Music app window, or start it. Its own Chromium profile
 # holds only the YT Music login, apart from any other browser use.
+#
+# i3's own focus command, not wmctrl: an _NET_ACTIVE_WINDOW request for a
+# window on another workspace only marks it urgent under i3's default
+# focus_on_window_activation.
 
-wmctrl -x -a music.youtube.com && exit 0
+i3-msg -q '[instance="music.youtube.com"] focus' 2>/dev/null && exit 0
 nohup chromium --user-data-dir="$HOME/.local/share/ytmusic-chromium" \
 	--app=https://music.youtube.com >/dev/null 2>&1 &

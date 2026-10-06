@@ -225,7 +225,6 @@ cmd_restore() {
         [1]="browser"
         [7]="steam"
         [9]="slack"
-        [10]="spotify"
     )
     for slot in "${!fixed_labels[@]}"; do
         local label="${fixed_labels[$slot]}"
