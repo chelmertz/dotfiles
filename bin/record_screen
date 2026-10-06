@@ -160,7 +160,7 @@ if $USE_MOUSE_HIGHLIGHT; then
 fi
 
 # -y overwrites without prompt (mktemp creates empty file)
-ffmpeg -y -f x11grab -s "${W}x${H}" -i ":0.0+${X},${Y}" "$tmpfile" &
+ffmpeg -y -f x11grab -s "${W}x${H}" -i ":0.0+${X},${Y}" "$tmpfile" 2>"$tmpfile.log" &
 FFMPEG_PID=$!
 
 echo $$ > "$PIDFILE"
@@ -198,6 +198,13 @@ wait "$FFMPEG_PID" 2>/dev/null
 # Recording done — clear indicator before the blocking dialogs
 cleanup
 trap - EXIT
+
+if [ "$STOP_REQUESTED" -eq 0 ]; then
+    notify-send -u critical "Screen Recording" "ffmpeg exited early:\n$(tail -n 3 "$tmpfile.log")"
+    rm -f "$tmpfile" "$tmpfile.log"
+    exit 1
+fi
+rm -f "$tmpfile.log"
 
 # Keep or throwaway dialog
 if zenity --question \

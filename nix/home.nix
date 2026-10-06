@@ -300,8 +300,9 @@ in
     # qt_to_mp4, mute_mp4 and record_screen; zenity by bin/uses for its
     # dialogs; pdfinfo (poppler) by bin/pdftitle. dig and mtr are already on
     # the http-monitor unit's own PATH, but not on a shell's, and that script
-    # exists to debug DNS by hand.
-    ffmpeg
+    # exists to debug DNS by hand. ffmpeg-full because plain ffmpeg is built
+    # without XCB and so lacks the x11grab input record_screen captures with.
+    ffmpeg-full
     zenity
     poppler-utils
     dnsutils
