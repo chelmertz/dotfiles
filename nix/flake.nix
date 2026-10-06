@@ -197,12 +197,6 @@
               tau.xdg.portal.extraPortals;
             pkgs.runCommand "color-scheme-plumbing" { } "touch $out";
 
-          # git-freshen writes to real repositories on a timer, so the thing
-          # worth asserting is what it declines to do. The suite builds a
-          # throwaway remote and one clone per refusal - dirty, diverged,
-          # mid-rebase, occupied, a local main that is ahead - and fails if any
-          # of them moved. Every gate in it has been shown failing under a
-          # mutation that removes the guard.
           # A systemd user unit that pins Environment=PATH keeps its
           # dependency list where the program's author never looks, and it has
           # drifted four times (GOTCHAS.md has the four). The fix is to wrap
@@ -248,27 +242,6 @@
               These units are in the Environment=PATH allowlist but no longer
               pin one: ${toString stale}. Remove them from the allowlist.'';
             pkgs.runCommand "unit-paths" { } "touch $out";
-
-          git-freshen =
-            let
-              freshen = pkgs.callPackage ../git-freshen/package.nix { };
-            in
-            pkgs.runCommand "git-freshen"
-              {
-                nativeBuildInputs = [
-                  pkgs.bash
-                  pkgs.git
-                  pkgs.coreutils
-                  pkgs.gnused
-                  pkgs.gnugrep
-                  pkgs.gawk
-                  pkgs.util-linux
-                ];
-              }
-              ''
-                bash ${./checks/git-freshen-test.sh} ${pkgs.lib.getExe freshen}
-                touch $out
-              '';
 
           i3-helpers =
             assert self.nixosConfigurations.tau.config.environment.localBinInPath;

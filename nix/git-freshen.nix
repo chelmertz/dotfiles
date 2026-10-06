@@ -3,8 +3,7 @@ let
   # git-freshen fetches every clone under ~/code and ~/p, fast-forwards what
   # can be fast-forwarded and removes finished worktrees. Its package comment
   # documents the rule it keeps (no write that is not a proven fast-forward);
-  # the tests are its Go tests, run by the build, plus `nix flake check`'s
-  # git-freshen attribute.
+  # its Go tests run in the package build, so a failing test fails the switch.
   git-freshen = pkgs.callPackage ../git-freshen/package.nix { };
 in
 {

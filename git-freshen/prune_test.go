@@ -23,9 +23,7 @@ func gitT(t *testing.T, dir string, args ...string) {
 // worktrees live where Claude Code puts them, under .claude/worktrees.
 func fixture(t *testing.T) (origin, clone string) {
 	t.Helper()
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not on PATH")
-	}
+	isolate(t)
 	tmp := t.TempDir()
 	origin, clone = filepath.Join(tmp, "origin"), filepath.Join(tmp, "clone")
 	if err := os.Mkdir(origin, 0o755); err != nil {

@@ -1,5 +1,4 @@
-# Package expression for git-freshen, wired in from nix/git-freshen.nix and
-# exercised by nix/flake.nix's git-freshen check.
+# Package expression for git-freshen, wired in from nix/git-freshen.nix.
 {
   lib,
   buildGoModule,
@@ -18,8 +17,8 @@ buildGoModule {
   # No dependencies outside the standard library.
   vendorHash = null;
 
-  # The prune tests build real repositories and worktrees; without git they
-  # would skip, and a build that skips them proves nothing.
+  # The tests build real repositories, remotes and worktrees, and fail
+  # outright without git.
   nativeCheckInputs = [ git ];
 
   nativeBuildInputs = [ makeWrapper ];
