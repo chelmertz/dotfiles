@@ -126,6 +126,9 @@ let
     "!${firefox}/*/extension-settings.json"
     "!${firefox}/*/extension-preferences.json"
     "!${firefox}/*/browser-extension-data"
+    # storage.sync: where Vimium, Dark Reader, Stylus and Refined GitHub keep
+    # their settings. Firefox Sync carries it too, but only while signed in.
+    "!${firefox}/*/storage-sync-v2.sqlite*"
     "!${firefox}/*/storage"
     "${firefox}/*/storage/*"
     "!${firefox}/*/storage/default"
