@@ -228,6 +228,10 @@
                 # Deliberately not store-pinned: the docker client must match the
                 # host daemon, so it has to come from the system profile.
                 domain-exporter = "docker client must match the host daemon";
+                # home-manager's restic module writes PATH=<openssh>/bin itself so
+                # restic can reach an sftp: repository; not ours to wrap.
+                restic-backups-vps = "home-manager restic module pins openssh";
+                restic-backups-mediabox = "home-manager restic module pins openssh";
               };
               unexpected = lib.subtractLists (lib.attrNames allowed) pinned;
               stale = lib.subtractLists pinned (lib.attrNames allowed);

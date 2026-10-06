@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Write one repository's backup state for node-exporter's textfile collector.
+# Run as the restic unit's ExecStopPost, so it sees how the run ended in
+# $SERVICE_RESULT and inherits the unit's RESTIC_REPOSITORY and password.
+#
+# A failed run keeps the previous last-success timestamp rather than dropping
+# it: the staleness alert is what reports the failure, and it can only do that
+# while the timestamp of the last good run is still there to age.
+#
+# Usage: restic-metrics <repo-name>
+set -euo pipefail
+
+repo="$1"
+dir="$HOME/.local/share/prometheus/textfile"
+out="$dir/restic_$repo.prom"
+tmp="$dir/restic_$repo.$$.prom.tmp"
+now=$(date +%s)
+
+prev_success=$(sed -n 's/^restic_backup_last_success_timestamp_seconds{[^}]*} //p' "$out" 2>/dev/null || true)
+ok=0
+if [ "${SERVICE_RESULT:-}" = "success" ]; then
+  ok=1
+  prev_success=$now
+fi
+
+{
+  echo "# HELP restic_backup_last_run_timestamp_seconds When the backup unit last finished, either way."
+  echo "restic_backup_last_run_timestamp_seconds{repo=\"$repo\"} $now"
+  echo "restic_backup_last_run_success{repo=\"$repo\"} $ok"
+  if [ -n "$prev_success" ]; then
+    echo "restic_backup_last_success_timestamp_seconds{repo=\"$repo\"} $prev_success"
+  fi
+  if [ "$ok" = 1 ]; then
+    # The snapshot's own summary (restic 0.17+): what this run added. The
+    # changed-file count is the one an integrity alert watches, since ~/sync
+    # rarely changes and a sudden flood of modified files means something is
+    # rewriting them.
+    restic snapshots --latest 1 --json | jq -r --arg r "$repo" '
+      .[-1].summary // empty
+      | "restic_snapshot_files_new{repo=\"\($r)\"} \(.files_new)",
+        "restic_snapshot_files_changed{repo=\"\($r)\"} \(.files_changed)",
+        "restic_snapshot_data_added_bytes{repo=\"\($r)\"} \(.data_added)",
+        "restic_snapshot_total_files{repo=\"\($r)\"} \(.total_files_processed)",
+        "restic_snapshot_total_bytes{repo=\"\($r)\"} \(.total_bytes_processed)"'
+  fi
+} > "$tmp"
+mv "$tmp" "$out"

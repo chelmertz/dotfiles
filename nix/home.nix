@@ -135,6 +135,7 @@ in
     ./audio.nix
     ./p-launcher.nix
     ./git-freshen.nix
+    ./restic.nix
   ];
 
   xsession.windowManager.i3 = {
@@ -1560,6 +1561,30 @@ in
               severity: critical
             annotations:
               summary: "Systemd user unit {{ $labels.unit }} failed. Journal: cat ~/.local/share/prometheus/textfile/systemd_failed_journal.txt"
+
+          # The VPS repository is reachable from anywhere, so a day and a half
+          # without a good run means the backup is broken. mediabox is only
+          # reachable at home and its runs are skipped elsewhere, so it gets a
+          # week before it counts as stale.
+          - alert: BackupStale
+            expr: |
+              time() - restic_backup_last_success_timestamp_seconds{repo="vps"} > 36 * 3600
+              or time() - restic_backup_last_success_timestamp_seconds{repo="mediabox"} > 7 * 86400
+            for: 15m
+            labels:
+              severity: critical
+            annotations:
+              summary: "No successful restic backup to {{ $labels.repo }} for {{ $value | humanizeDuration }}. Journal: journalctl --user -u restic-backups-{{ $labels.repo }}"
+
+          # A repository that has never written a metric is not stale, it is
+          # absent, and the rule above cannot see it.
+          - alert: BackupMissing
+            expr: absent(restic_backup_last_run_timestamp_seconds{repo="vps"}) or absent(restic_backup_last_run_timestamp_seconds{repo="mediabox"})
+            for: 2d
+            labels:
+              severity: warning
+            annotations:
+              summary: "A restic repository has never reported a run. Check: systemctl --user list-timers 'restic-*'"
 
           - alert: FilesystemAlmostFull
             expr: filesystem_used_percent > 90

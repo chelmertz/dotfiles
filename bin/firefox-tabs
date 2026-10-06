@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""Print the URLs of every open tab in a Firefox profile, one per line.
+
+The session file holds far more than the tabs: form contents, scroll
+positions, session cookies. The backup takes only the addresses, so this reads
+the session and writes nothing else out. Windows are separated by a blank line.
+
+Firefox stores the session as "mozlz4": an 8-byte magic, the decompressed size,
+then one raw LZ4 block. Nothing installed decodes that, and the block format is
+small enough to read here rather than pull in a library for it.
+
+Usage: firefox-tabs <profile-dir>
+"""
+
+import json
+import os
+import struct
+import sys
+
+MAGIC = b"mozLz40\0"
+
+
+def lz4_block(src, size):
+    dst = bytearray()
+    i = 0
+    while i < len(src):
+        token = src[i]
+        i += 1
+        lit = token >> 4
+        if lit == 15:
+            while True:
+                b = src[i]
+                i += 1
+                lit += b
+                if b != 255:
+                    break
+        dst += src[i:i + lit]
+        i += lit
+        if i >= len(src):
+            break
+        offset = src[i] | (src[i + 1] << 8)
+        i += 2
+        match = token & 15
+        if match == 15:
+            while True:
+                b = src[i]
+                i += 1
+                match += b
+                if b != 255:
+                    break
+        match += 4
+        start = len(dst) - offset
+        for k in range(match):
+            dst.append(dst[start + k])
+    if len(dst) != size:
+        raise ValueError("decompressed %d bytes, header says %d" % (len(dst), size))
+    return bytes(dst)
+
+
+def read_mozlz4(path):
+    with open(path, "rb") as f:
+        data = f.read()
+    if data[:8] != MAGIC:
+        raise ValueError("%s is not mozlz4" % path)
+    (size,) = struct.unpack("<I", data[8:12])
+    return lz4_block(data[12:], size)
+
+
+def session_file(profile):
+    # recovery.jsonlz4 is rewritten every few seconds while Firefox runs;
+    # sessionstore.jsonlz4 is what a clean shutdown leaves behind.
+    for rel in ("sessionstore-backups/recovery.jsonlz4", "sessionstore.jsonlz4"):
+        p = os.path.join(profile, rel)
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def main():
+    if len(sys.argv) != 2:
+        sys.exit(__doc__.strip().splitlines()[-1])
+    path = session_file(sys.argv[1])
+    if path is None:
+        sys.exit("no session file in %s" % sys.argv[1])
+    session = json.loads(read_mozlz4(path))
+    windows = []
+    for win in session.get("windows", []):
+        urls = []
+        for tab in win.get("tabs", []):
+            entries = tab.get("entries", [])
+            if not entries:
+                continue
+            # index is 1-based and names the entry the tab is showing, not the
+            # newest one in its back/forward history.
+            idx = min(max(tab.get("index", len(entries)), 1), len(entries))
+            url = entries[idx - 1].get("url")
+            if url:
+                urls.append(url)
+        windows.append(urls)
+    print("\n\n".join("\n".join(w) for w in windows if w))
+
+
+if __name__ == "__main__":
+    main()
