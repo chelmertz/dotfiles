@@ -67,6 +67,10 @@ let
     "${home}/.local/share/flatpak"
     "${home}/.local/share/Trash"
     "${home}/.local/share/prometheus"
+    # Slack re-downloads everything from its servers, and most of it is the
+    # work workspace. Flatpak apps keep their own caches (Sober's is 705 MB).
+    "${home}/.config/Slack"
+    "${home}/.var/app/*/cache"
     "${home}/.dropbox-dist"
 
     # Build output, wherever it sits. Cargo's target/ and other tools that
