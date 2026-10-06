@@ -194,11 +194,6 @@ in
       executable = true;
     };
 
-    ".local/bin/focus_spotify.sh" = {
-      source = ../bin/focus_spotify.sh;
-      executable = true;
-    };
-
     ".local/bin/format-bytes" = {
       source = ../bin/format-bytes;
       executable = true;
@@ -262,11 +257,6 @@ in
 
     ".local/bin/i3blocks_screenlayout.sh" = {
       source = ../bin/i3blocks_screenlayout.sh;
-      executable = true;
-    };
-
-    ".local/bin/i3blocks_spotify.sh" = {
-      source = ../bin/i3blocks_spotify.sh;
       executable = true;
     };
 
@@ -362,11 +352,6 @@ in
 
     ".local/bin/i3blocks_keylog.sh" = {
       source = ../bin/i3blocks_keylog.sh;
-      executable = true;
-    };
-
-    ".local/bin/rofi_spotify_rate.sh" = {
-      source = ../bin/rofi_spotify_rate.sh;
       executable = true;
     };
 

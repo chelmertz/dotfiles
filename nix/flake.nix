@@ -5,7 +5,7 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     # The system layer follows stable, as mediabox does. Unfree GUI apps are
     # not on cache.nixos.org and rebuild locally on every bump, the same
-    # reason the overlay below takes spotify and vscode from here.
+    # reason the overlay below takes vscode from here.
     nixpkgs-stable.url = "github:nixos/nixpkgs/nixos-26.05";
     disko = {
       url = "github:nix-community/disko";
@@ -77,7 +77,6 @@
             "firefox-bin"
             "firefox-bin-unwrapped"
             "slack"
-            "spotify"
             "vscode"
             "obsidian"
             # Microsoft's web core fonts. Chromium asks for Arial, Times New
@@ -119,7 +118,6 @@
               # 1.4G for vscode alone. Stable lags a release behind but rebuilds rarely.
               (final: prev: {
                 inherit (pkgsStable)
-                  spotify
                   vscode
                   ;
               })
@@ -221,7 +219,6 @@
               allowed = {
                 # The script lives in another repo; there is nothing of ours to wrap.
                 mediabox-settings = "external script (mediaserver repo)";
-                spotify-backup = "external script (spotify repo)";
                 # Inline writeShellScript: the list is three lines from the fork
                 # sites, so it is not kept anywhere the author misses.
                 p-launcher-backup = "inline script, list is beside the forks";

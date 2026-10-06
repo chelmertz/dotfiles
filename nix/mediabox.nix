@@ -11,7 +11,7 @@
   # else is. This pulls them into chelmertz/mediaserver on a timer instead, so a
   # working configuration stays recoverable and changes show up in git.
   #
-  # The script lives in its own repo, matching how spotify.nix does it.
+  # The script lives in its own repo.
   systemd.user.services.mediabox-settings = {
     Unit.Description = "Snapshot mediabox Kodi/RetroArch settings into git";
     Service = {

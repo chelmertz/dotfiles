@@ -11,7 +11,7 @@
   changes nothing on the machine. On tau, changes under `nix/hosts/tau/` are the
   exception: they need `sudo nixos-rebuild switch --flake ~/.config/home-manager#tau`.
 - `nixpkgs` tracks nixos-unstable, `nixpkgs-stable` tracks the current NixOS release.
-  An overlay in `nix/flake.nix` takes spotify and vscode from `pkgsStable` because
+  An overlay in `nix/flake.nix` takes vscode from `pkgsStable` because
   unfree packages are not on cache.nixos.org and every bump rebuilds them locally.
   Slack is deliberately on unstable: the stable build crashed. Move an app between
   channels by adding or removing it from that `inherit (pkgsStable)` list.

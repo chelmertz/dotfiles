@@ -105,14 +105,12 @@ assign [class="steam"] $ws7
 # assign only runs when the window is mapped. Firefox sometimes sets WM_CLASS a
 # beat later, and the assign has already been skipped by then; for_window is
 # re-checked when WM_CLASS changes, so it catches that case. Same class of bug
-# as the Spotify note below (i3/i3#2060).
+# as i3/i3#2060.
 for_window [class="firefox"] move to workspace $ws1
 for_window [class="Microsoft Teams - Preview"] move to workspace $ws10
 for_window [class="Yad"] floating enable
 # xev, getting keycodes etc
 for_window [title="Event Tester"] floating enable
-# cannot use assign, see https://github.com/i3/i3/issues/2060 (prob the same above, for Teams)
-for_window [class="Spotify"] move to workspace $ws10
 
 # Obsidian renamed its WM_CLASS from "obsidian" to "md.Obsidian" in 1.13.x, so
 # match case-insensitively on the substring instead of pinning the exact class.

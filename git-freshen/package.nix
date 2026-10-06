@@ -26,8 +26,8 @@ buildGoModule {
   # Wrapped with everything it forks rather than the unit pinning a PATH, for
   # the reason nix/p-launcher.nix spells out: four units in this repo have been
   # broken by a PATH kept in a file the program's author never opens. openssh
-  # is here because it is *not* in home.packages - the same absence that broke
-  # spotify-backup - and a git-freshen with no ssh would report every checkout
+  # is here because it is *not* in home.packages - the same absence that once broke
+  # a backup unit - and a git-freshen with no ssh would report every checkout
   # as a fetch failure. coreutils supplies `false`, the askpass that refuses.
   # --suffix, so an interactive session's own PATH still wins.
   postInstall = ''

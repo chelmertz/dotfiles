@@ -129,7 +129,6 @@ in
     ./vscode.nix
     ./obsidian.nix
     ./mpv.nix
-    ./spotify.nix
     ./mediabox.nix
     ./fonts.nix
     ./audio.nix
@@ -473,7 +472,6 @@ in
       '';
     })
     slop
-    spotify
     sqlite
     sqls
     sql-formatter
