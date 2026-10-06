@@ -181,7 +181,7 @@ project is a note the next project pays for again.
   GTK dialog - a background job hung on one on 2026-09-13. Shut all four doors:
   `GIT_TERMINAL_PROMPT=0`, `GIT_ASKPASS` to something that exits non-zero,
   `SSH_ASKPASS_REQUIRE=never` with `SSH_ASKPASS` unset, and `GIT_SSH_COMMAND`
-  carrying `-oBatchMode=yes`. `bin/git-freshen` has the recipe.
+  carrying `-oBatchMode=yes`. `noninteractiveAuth` in `git-freshen/main.go` has the recipe.
 - The VPS (`root@45.142.177.125`) takes the **default** `~/.ssh/id_ed25519`
   (ch@tau); `vps/modules/base.nix` on `main` authorises that key and nothing
   else. `~/.ssh/config` used to pin `id_ed25519_gamma` with `IdentitiesOnly
