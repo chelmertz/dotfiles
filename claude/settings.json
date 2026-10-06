@@ -158,8 +158,8 @@
   },
   "enabledPlugins": {
     "gopls-lsp@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true,
-    "product-management@knowledge-work-plugins": true
+    "superpowers@claude-plugins-official": false,
+    "product-management@knowledge-work-plugins": false
   },
   "extraKnownMarketplaces": {
     "knowledge-work-plugins": {
