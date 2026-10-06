@@ -123,6 +123,8 @@ for_window [class="(?i)obsidian"] move scratchpad; [class="(?i)obsidian"] scratc
 bindsym Insert exec --no-startup-id ~/.local/bin/toggle-obsidian-scratchpad
 # for the F96 keyboard
 bindsym KP_Add exec --no-startup-id ~/.local/bin/toggle-obsidian-scratchpad
+# Slot 6 is still reachable via $mod+6.
+bindsym F6 exec --no-startup-id ~/.local/bin/toggle-obsidian-scratchpad
 
 # new keychron k8 pro keyboard, prior=page up, next=page down
 # elly
@@ -211,7 +213,6 @@ bindsym F4 exec --no-startup-id i3-project switch 4
 # reachable via $mod+5. stderr goes to the journal: journalctl --user -t p-launcher
 set $p_launcher_key F5
 bindsym $p_launcher_key exec --no-startup-id systemd-cat -t p-launcher p-launcher menu --toggle-key $p_launcher_key
-bindsym F6 exec --no-startup-id i3-project switch 6
 bindsym F7 exec /home/ch/.local/bin/ror.py steam steam; workspace number $ws7
 bindsym F8 exec --no-startup-id i3-project switch 8
 bindsym F9 exec --no-startup-id /home/ch/.local/bin/ror.py Slack slack; workspace number $ws9
