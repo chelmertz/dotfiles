@@ -7,14 +7,31 @@ status=$(playerctl --player chromium status)
 [ $? -ne 0 ] && exit 0
 [ "Stopped" = "$status" ] && exit 0
 
+# Chromium keeps reporting the old status for ~0.1s after a skip, then Stopped
+# with no metadata for ~0.4s while it changes track. Printing in that gap
+# empties the block until the next interval, so wait for the gap to open
+# (it never does when previous only restarts the track) and then to close.
+skip() {
+	playerctl --player chromium "$1"
+	for _ in {1..10}; do
+		sleep 0.05
+		[ "Stopped" = "$(playerctl --player chromium status 2>/dev/null)" ] && break
+	done
+	for _ in {1..40}; do
+		status=$(playerctl --player chromium status 2>/dev/null)
+		[[ -n "$status" && "Stopped" != "$status" ]] && break
+		sleep 0.05
+	done
+	# play, not play-pause: the app may already have started the new track
+	[ "Paused" = "$status" ] && playerctl --player chromium play && status=Playing
+}
+
 if [[ "$BLOCK_BUTTON" -eq 1 ]]; then
-	playerctl --player chromium previous
-	[ "Paused" = "$status" ] && playerctl --player chromium play-pause
+	skip previous
 elif [[ "$BLOCK_BUTTON" -eq 2 ]]; then
 	playerctl --player chromium play-pause
 elif [[ "$BLOCK_BUTTON" -eq 3 ]]; then
-	playerctl --player chromium next
-	[ "Paused" = "$status" ] && playerctl --player chromium play-pause
+	skip next
 elif [[ "$BLOCK_BUTTON" -eq 4 || "$BLOCK_BUTTON" -eq 5 ]]; then
 	# liking happens by hand in the app
 	ytmusic &>/dev/null
