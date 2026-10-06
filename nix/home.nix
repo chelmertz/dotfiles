@@ -319,6 +319,8 @@ in
     ff2mpv-go
     feh
     figlet
+    # MIME sniffing for bin/pbcopy, which copies images as images.
+    file
     vivid
     elly
     flameshot
