@@ -220,12 +220,21 @@ in
       document-font-name = "Inter 10";
       monospace-font-name = "Go Mono 9";
     };
+    # The "drop" on a failed Ctrl+F in Firefox and similar app-level bells
+    # are libcanberra event sounds (bell.oga from sound-theme-freedesktop).
+    # bin/rofi_timer.sh calls paplay directly and is unaffected.
+    "org/gnome/desktop/sound" = {
+      event-sounds = false;
+      input-feedback-sounds = false;
+    };
   };
   xdg.configFile."gtk-3.0/settings.ini".text = ''
     [Settings]
     gtk-cursor-theme-name=Yaru
     gtk-cursor-theme-size=24
     gtk-font-name=Inter 9
+    gtk-enable-event-sounds=0
+    gtk-enable-input-feedback-sounds=0
   '';
   xdg.configFile."gtk-4.0/settings.ini".text = ''
     [Settings]
@@ -673,6 +682,8 @@ in
         // xdg handler registered below; without this Firefox blocks the
         // unknown scheme silently instead of asking.
         user_pref("network.protocol-handler.expose.claude-review", false);
+        // No beep when find-in-page has no match.
+        user_pref("accessibility.typeaheadfind.enablesound", false);
       '';
     in
     lib.hm.dag.entryAfter [ "linkGeneration" ] ''
