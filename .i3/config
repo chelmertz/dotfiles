@@ -34,9 +34,10 @@ exec --no-startup-id xss-lock --transfer-sleep-lock -- sh -c 'p-launcher desktop
 # and nm-applet is a desktop environment-independent system tray GUI for it.
 exec_always --no-startup-id nm-applet
 
-# Use pactl to adjust volume in PulseAudio.
-bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume @DEFAULT_SINK@ +10%
-bindsym XF86AudioLowerVolume exec --no-startup-id pactl set-sink-volume @DEFAULT_SINK@ -10%
+# Use pactl to adjust volume in PulseAudio. 2%, not 10%: the scale is cubic, so
+# at a quiet 20% a 10% step was +10 dB, roughly twice as loud.
+bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume @DEFAULT_SINK@ +2%
+bindsym XF86AudioLowerVolume exec --no-startup-id pactl set-sink-volume @DEFAULT_SINK@ -2%
 bindsym XF86AudioMute exec --no-startup-id pactl set-sink-mute @DEFAULT_SINK@ toggle
 bindsym XF86AudioMicMute exec --no-startup-id pactl set-source-mute @DEFAULT_SOURCE@ toggle
 
@@ -215,7 +216,7 @@ bindsym F7 exec /home/ch/.local/bin/ror.py steam steam; workspace number $ws7
 bindsym F8 exec --no-startup-id i3-project switch 8
 # Focus Slack, on its own workspace; again returns to the previous window.
 # A cold start also switches to workspace 9, where the assign above puts it.
-bindsym F9 exec --no-startup-id ~/.local/bin/focus-or-return slack 'class="(?i)slack"' sh -c 'slack & i3-msg -q workspace number 9'
+bindsym F9 exec --no-startup-id ~/.local/bin/focus-or-return slack 'class="(?i)slack"' sh -c 'slack & i3-msg -q workspace number $ws9'
 # Focus YouTube Music (starting it if needed); again returns to the previous window.
 bindsym F10 exec --no-startup-id ~/.local/bin/focus-or-return ytmusic 'instance="music.youtube.com"' ~/.local/bin/ytmusic
 
