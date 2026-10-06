@@ -653,9 +653,14 @@ in
 
   # Register the dotfiles-managed default applications. `xdg-mime default`
   # edits ~/.config/mimeapps.list in place, so the rest of that hand-curated
-  # file (firefox-as-default, signal, postman, …) is left alone — unlike
-  # `xdg.mimeApps`, which would take ownership of the whole file. The command
-  # is idempotent: re-running just re-asserts the same association.
+  # file is left alone — unlike `xdg.mimeApps`, which would take ownership of
+  # the whole file. The command is idempotent: re-running just re-asserts the
+  # same association.
+  #
+  # Web links are pinned to Firefox because nothing else does it: with no
+  # entry, xdg-open takes the first .desktop claiming them, and this profile's
+  # share/ is searched before the system's, so installing chromium here (for
+  # the YouTube Music window) silently made it the browser.
   #
   # inode/directory is here because nothing claimed it and the fallback was
   # whichever .desktop happened to win: baobab, the disk usage analyser, which
@@ -717,6 +722,7 @@ in
     ${pkgs.xdg-utils}/bin/xdg-mime default claude-review.desktop x-scheme-handler/claude-review
     ${pkgs.xdg-utils}/bin/xdg-mime default com.mitchellh.ghostty.desktop x-scheme-handler/terminal
     ${pkgs.xdg-utils}/bin/xdg-mime default yazi.desktop inode/directory
+    ${pkgs.xdg-utils}/bin/xdg-mime default firefox.desktop x-scheme-handler/http x-scheme-handler/https text/html
   '';
 
   programs.yazi = {
