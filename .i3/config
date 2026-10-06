@@ -215,7 +215,9 @@ set $p_launcher_key F5
 bindsym $p_launcher_key exec --no-startup-id systemd-cat -t p-launcher p-launcher menu --toggle-key $p_launcher_key
 bindsym F7 exec /home/ch/.local/bin/ror.py steam steam; workspace number $ws7
 bindsym F8 exec --no-startup-id i3-project switch 8
-bindsym F9 exec --no-startup-id /home/ch/.local/bin/ror.py Slack slack; workspace number $ws9
+# Focus Slack, on its own workspace; again returns to the previous window.
+# A cold start also switches to workspace 9, where the assign above puts it.
+bindsym F9 exec --no-startup-id ~/.local/bin/focus-or-return slack 'class="(?i)slack"' sh -c 'slack & i3-msg -q workspace number 9'
 # Focus YouTube Music (starting it if needed); again returns to the previous window.
 bindsym F10 exec --no-startup-id ~/.local/bin/focus-or-return ytmusic 'instance="music.youtube.com"' ~/.local/bin/ytmusic
 
