@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 )
@@ -191,5 +192,47 @@ func TestDiscoverDepth(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("got %v, want %v", got, want)
 		}
+	}
+}
+
+// mergedRemotely is a clone with an idle-looking worktree whose PR branch was
+// squash-merged and deleted on origin - after the clone last fetched, so only
+// a run that fetches first can see that it is finished.
+func mergedRemotely(t *testing.T) (origin, clone, wt string) {
+	t.Helper()
+	origin, clone = fixture(t)
+	wt = addWorktree(t, clone, "pr")
+	gitT(t, wt, "commit", "-q", "--allow-empty", "-m", "squashed upstream")
+	gitT(t, wt, "push", "-q", "-u", "origin", "HEAD")
+	gitT(t, origin, "branch", "-q", "-D", "pr")
+	if got := git(clone, "for-each-ref", "--format=%(upstream:track)", "refs/heads/pr"); got == "[gone]" {
+		t.Fatal("fixture already knows the branch is gone; the test would prove nothing")
+	}
+	return origin, clone, wt
+}
+
+func TestRunFetchesBeforeJudgingMerged(t *testing.T) {
+	_, clone, wt := mergedRemotely(t)
+	recs := config{now: time.Now().Add(idleAfter + time.Hour), timeout: 30 * time.Second}.all([]string{clone}, 2)
+	if r := recs[strings.TrimPrefix(wt, "/")]; r.status != "pruned" {
+		t.Fatalf("worktree record %+v, all %+v", r, recs)
+	}
+	if exists(wt) {
+		t.Fatal("worktree still on disk")
+	}
+}
+
+// A failed fetch leaves refs as stale as they were, and merged-ness read from
+// stale refs is a guess, so that clone prunes nothing until a fetch succeeds.
+func TestRunPrunesNothingAfterAFailedFetch(t *testing.T) {
+	_, clone, wt := mergedRemotely(t)
+	gitT(t, clone, "fetch", "-q", "--prune") // it now knows the branch is gone...
+	gitT(t, clone, "remote", "set-url", "origin", filepath.Join(t.TempDir(), "missing"))
+	recs := config{now: time.Now().Add(idleAfter + time.Hour), timeout: 30 * time.Second}.all([]string{clone}, 2)
+	if r := recs[strings.TrimPrefix(clone, "/")]; r.fetch != "failed" {
+		t.Fatalf("clone record %+v", r)
+	}
+	if !exists(wt) { // ...but this run could not confirm it
+		t.Fatal("pruned on stale refs")
 	}
 }

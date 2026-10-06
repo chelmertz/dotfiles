@@ -11,7 +11,7 @@ import (
 // removed. A worktree created a moment ago is clean and level with main, which
 // is indistinguishable from a finished one, so without this the next hourly run
 // would remove it before anyone had used it.
-const idleAfter = 3 * 24 * time.Hour
+const idleAfter = 7 * 24 * time.Hour
 
 // prune removes the linked worktrees of repo that are finished with: idle for
 // idleAfter, no process inside, nothing in progress, clean (untracked files

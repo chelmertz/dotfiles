@@ -150,18 +150,7 @@ func run(args []string) int {
 	}
 	fmt.Fprintf(os.Stderr, "git-freshen: %d checkouts under %s%s\n", len(repos), strings.Join(shown, " "), suffix)
 
-	// Two passes. Pruning waits for every fetch, because "merged" is read
-	// from remote-tracking refs the first pass refreshes, and because a
-	// worktree must not be removed while another worker is fast-forwarding it.
-	recs := map[string]record{}
-	var mu sync.Mutex
-	add := func(r record) { mu.Lock(); recs[r.path] = r; mu.Unlock() }
-	forEach(repos, jobs, func(repo string) { add(cfg.freshen(repo)) })
-	forEach(repos, jobs, func(repo string) {
-		for _, r := range cfg.prune(repo) {
-			add(r)
-		}
-	})
+	recs := cfg.all(repos, jobs)
 
 	// Sorted so two runs can be diffed, and so the statuses needing a human
 	// group together above the "current" bulk.
@@ -197,6 +186,31 @@ func run(args []string) int {
 		fmt.Fprintf(os.Stderr, "  %-15s %d\n", "fetch-failed", fetchFailed)
 	}
 	return 0
+}
+
+// all runs both passes. Pruning waits for every fetch, because "merged" is
+// read from remote-tracking refs the first pass refreshes, and because a
+// worktree must not be removed while another worker is fast-forwarding it. A
+// clone whose fetch failed prunes nothing that run: its refs are stale, and
+// merged-ness read from stale refs is a guess.
+func (c config) all(repos []string, jobs int) map[string]record {
+	recs := map[string]record{}
+	var mu sync.Mutex
+	add := func(r record) { mu.Lock(); recs[r.path] = r; mu.Unlock() }
+	forEach(repos, jobs, func(repo string) { add(c.freshen(repo)) })
+	fetched := map[string]bool{}
+	for _, repo := range repos {
+		fetched[repo] = recs[c.rel(repo)].fetch == "ok"
+	}
+	forEach(repos, jobs, func(repo string) {
+		if !fetched[repo] {
+			return
+		}
+		for _, r := range c.prune(repo) {
+			add(r)
+		}
+	})
+	return recs
 }
 
 func die(format string, a ...any) int {
@@ -266,7 +280,7 @@ func discover(roots []string) []string {
 // so all four are shut - askpass, the ssh askpass the agent would use, ssh's
 // own interactive fallback, and the terminal.
 func noninteractiveAuth() {
-	os.Setenv("GIT_TERMINAL_PROMPT", "0")
+	_ = os.Setenv("GIT_TERMINAL_PROMPT", "0")
 	// A helper that exits non-zero makes git fail the fetch immediately
 	// instead of retrying with an empty answer, which is what `true` would do.
 	askpass := os.Getenv("GIT_FRESHEN_ASKPASS")
@@ -276,14 +290,14 @@ func noninteractiveAuth() {
 			askpass = p
 		}
 	}
-	os.Setenv("GIT_ASKPASS", askpass)
-	os.Setenv("SSH_ASKPASS_REQUIRE", "never")
-	os.Unsetenv("SSH_ASKPASS")
+	_ = os.Setenv("GIT_ASKPASS", askpass)
+	_ = os.Setenv("SSH_ASKPASS_REQUIRE", "never")
+	_ = os.Unsetenv("SSH_ASKPASS")
 	ssh := os.Getenv("GIT_SSH_COMMAND")
 	if ssh == "" {
 		ssh = "ssh"
 	}
-	os.Setenv("GIT_SSH_COMMAND", ssh+" -oBatchMode=yes -oConnectTimeout=10")
+	_ = os.Setenv("GIT_SSH_COMMAND", ssh+" -oBatchMode=yes -oConnectTimeout=10")
 }
 
 func (c config) rel(path string) string {
