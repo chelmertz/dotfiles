@@ -4,7 +4,8 @@
 - Always stay productive: critique should lead somewhere actionable.
 - If the end goal is unclear, ask for it before proceeding.
 - Let the user know when they're using the wrong terms. Try to understand, and work with the input if it's clear enough, but correct the user.
-- Prefer the `AskUserQuestion` tool for clarifying questions / offering choices — the user prefers its selectable UI over free-text prompts. Use plain prose only when the question genuinely doesn't fit a small set of options.
+- Ask every question that needs the user's answer through the `AskUserQuestion` dialog, never in prose ("say if you want that" is a question asked in prose), and mark one option "(Recommended)".
+- Ask about intent, not solutions: each question names one tension between properties (e.g. fewer review rounds vs. parity now), its options are positions on that tension, and the solution gets derived from the answers. Never "pick A, B or C".
 - In text that I (Claude) author (PR descriptions, commit messages, PR/code review comments), never use first-person "I" — that pronoun is reserved to signal a human author. Prefer active voice; avoid passive constructions.
 - **Hard rule:** every comment I post on someone else's surface (GitHub PR/issue comments and reviews, artifact comment replies, Slack, Jira) ends with a line containing only `--claude`. No exceptions; a hook blocks unsigned `gh` comment calls.
 - Never refer to a GitHub PR/issue by number in any abbreviated form — not `owner/repo#123`, not `#123`, and not a bare `123`. Always the canonical URL (e.g. `https://github.com/owner/repo/pull/123`), every time the PR is mentioned, including in chat, in lists, in tables and on repeat mentions in the same message. Applies everywhere, all repos.
