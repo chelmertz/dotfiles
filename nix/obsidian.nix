@@ -1,6 +1,6 @@
 { pkgs, lib, ... }:
 let
-  vaultPath = "Dropbox/notes";
+  vaultPath = "sync/notes";
 
   plugins = [
     {
@@ -280,7 +280,7 @@ let
   dagbokCss = builtins.readFile ../obsidian/snippets/dagbok.css;
   vimrc = builtins.readFile ../obsidian/vimrc;
 
-  # ── Daily template lives ONLY in the vault (Dropbox), not in ───
+  # ── Daily template lives ONLY in the vault (~/sync), not in ────
   # the dotfiles repo. Contains personal data (team member names).
   # Seeded once if missing, then never overwritten by nix.
   defaultTemplate = ''
@@ -403,7 +403,7 @@ in
         echo '${templaterSettingsJson}' > "$VAULT/.obsidian/plugins/templater-obsidian/data.json"
 
         # Seed daily template ONLY if missing (contains personal data,
-        # lives in Dropbox, not in dotfiles repo)
+        # lives in ~/sync, not in dotfiles repo)
         if [ ! -f "$VAULT/templates/daily.md" ]; then
           cat > "$VAULT/templates/daily.md" << 'TPLEOF'
     ${defaultTemplate}
