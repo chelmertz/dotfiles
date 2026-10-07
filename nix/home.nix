@@ -1142,29 +1142,36 @@ in
     '';
   };
 
+  # Warm from 21:00 to 05:00 by the clock, not the sun, and fully neutral
+  # (6500K, gamma 1) in between. The unit stays enabled, so `home-manager
+  # switch` and login start it -- which is harmless only because daytime is
+  # neutral. A daytime 5700K/0.8 used to make every switch look like redshift
+  # "turning on".
   services.redshift = {
     enable = true;
     temperature = {
-      day = 5700;
+      day = 6500;
       night = 3500;
     };
     settings = {
       redshift = {
         fade = 0;
-        gamma = 0.8;
+        gamma-day = 1.0;
+        gamma-night = 0.8;
+        dawn-time = "05:00";
+        dusk-time = "21:00";
         adjustment-method = "randr";
       };
     };
-    # One decimal, not seven: this repository is public, and seven decimals is
-    # a street address. Redshift only needs the latitude accurate enough to
-    # compute sunset, where a tenth of a degree is well under a minute.
+    # Unused while dawn-time/dusk-time are set, but the module's manual
+    # location provider requires them. One decimal: this repository is public.
     latitude = 57.7;
     longitude = 12.1;
   };
 
-  # Safety net: if redshift was toggled off via i3blocks during the day,
-  # re-start it at 21:00. Timers can't target another service directly,
-  # so we need this oneshot wrapper to start redshift.service.
+  # Safety net: if redshift was toggled off via i3blocks, re-start it at 21:00.
+  # Timers can't target another service directly, so we need this oneshot
+  # wrapper to start redshift.service.
   # i3blocks_redshift.sh routes clicks through here too, so every attempt --
   # timer or click -- lands under `journalctl --user -t redshift-ensure`.
   systemd.user.services.redshift-ensure = {
@@ -1195,12 +1202,6 @@ in
         "${pkgs.systemd}/bin/systemctl --user stop redshift.service"
       ];
     };
-  };
-
-  systemd.user.timers.redshift-disable = {
-    Unit.Description = "Stop redshift by 06:00";
-    Timer.OnCalendar = "*-*-* 06:00:00";
-    Install.WantedBy = [ "timers.target" ];
   };
 
   xresources.properties = {
