@@ -93,9 +93,6 @@ let
     "${home}/.docker"
     # ~/p's own repository tracks m/ as well.
     "${home}/p/.git"
-    # Until its photo and review staging folders are gone; they hold 8.8 GB
-    # that is either already in ~/sync and Google Photos or about to be deleted.
-    "${home}/p/personal/cancel-dropbox"
 
     # Steam: games re-download. Keep the per-game Proton prefixes, where
     # Windows games save, and the account's own userdata. Native games save
