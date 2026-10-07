@@ -171,7 +171,7 @@ bindsym $mod+space exec ~/.local/bin/rofi.sh
 # help text about "enter" that doesn't work for me)
 bindsym Print exec flameshot gui
 # -c copies image to clipboard
-bindsym Shift+Print exec flameshot full -c -p ~/Dropbox/screenshots
+bindsym Shift+Print exec flameshot full -c -p ~/sync/screenshots
 bindsym Ctrl+Shift+Print exec peek
 
 # switch to workspace
@@ -288,4 +288,4 @@ exec_always --no-startup-id xset r rate 200 25
 exec --no-startup-id xset s off -dpms
 
 exec --no-startup-id ~/.local/bin/i3-project restore
-exec --no-startup-id ~/.nix-profile/bin/obsidian --open-vault ~/Dropbox/notes
+exec --no-startup-id ~/.nix-profile/bin/obsidian --open-vault ~/sync/notes

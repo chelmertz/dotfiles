@@ -8,7 +8,7 @@
 #   d html      - export all entries to HTML
 #   d watch     - watch for changes to this script and auto-refresh browser
 
-DBFILE="$HOME/Dropbox/d.sqlite3"
+DBFILE="$HOME/sync/d.sqlite3"
 D_PREVIEW_DIR="$HOME/Downloads/d-preview"
 mkdir -p "$D_PREVIEW_DIR"
 

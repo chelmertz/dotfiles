@@ -10,7 +10,7 @@ def cmp(x, y):
     return (x > y) - (x < y)
 
 
-work_file = "/home/ch/Dropbox/orgzly/matchi.org"
+work_file = "/home/ch/sync/orgzly/matchi.org"
 org = load(work_file)
 terminal_states = set(["WONT", "DONE"])
 

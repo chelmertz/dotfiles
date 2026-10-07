@@ -38,10 +38,10 @@ done
 mv "$tmpfile" "$PROM_DIR/filesystem.prom"
 
 # Credential health. A systemd unit being active says nothing about whether the
-# thing inside it can authenticate: the tau migration had dropbox running
-# happily unlinked and elly running happily with no token, both with
-# systemd_user_unit_failed at 0. These probe the credential itself. Each is
-# wrapped so a hang or a missing binary reports 0 rather than killing the run.
+# thing inside it can authenticate: the tau migration had elly running
+# happily with no token, with systemd_user_unit_failed at 0. These probe the
+# credential itself. Each is wrapped so a hang or a missing binary reports 0
+# rather than killing the run.
 tmpfile="$PROM_DIR/credentials.$$.prom.tmp"
 cat > "$tmpfile" <<HDR
 # HELP credential_ok 1 if the service can authenticate, 0 if it needs a login
@@ -66,17 +66,6 @@ if [ -f "$elly_db" ] && [ "$(timeout 20 sqlite3 "$elly_db" 'select count(*) from
   echo 'credential_ok{service="elly"} 1' >> "$tmpfile"
 else
   echo 'credential_ok{service="elly"} 0' >> "$tmpfile"
-fi
-
-# `dropbox status` is still not the probe, though dropbox-cli now provides it
-# for real. It reports sync state, not whether an account is attached, and it
-# prints a bare "Connecting..." for the first seconds after the daemon starts,
-# which a probe would read as failure. The daemon creates instance1/sync only
-# once an account is attached, so test for that instead.
-if [ -d "$HOME/.dropbox/instance1/sync" ]; then
-  echo 'credential_ok{service="dropbox"} 1' >> "$tmpfile"
-else
-  echo 'credential_ok{service="dropbox"} 0' >> "$tmpfile"
 fi
 
 mv "$tmpfile" "$PROM_DIR/credentials.prom"

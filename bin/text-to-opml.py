@@ -17,7 +17,7 @@ for line in sys.stdin.readlines():
 
     
 # this expects something like
-# cat ~/Dropbox/orgzly/feeds.org
+# cat ~/sync/orgzly/feeds.org
 # as input, where one line can be something like
 # *** http://asdf.com/feed
 

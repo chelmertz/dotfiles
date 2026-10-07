@@ -58,4 +58,4 @@ else
 	url="https://www.youtube.com/watch?v=$youtube_id" 
 fi
 
-yt-dlp --paths home:~/Dropbox/music --format ba --extract-audio --audio-format mp3 "$url"
+yt-dlp --paths home:~/sync/music --format ba --extract-audio --audio-format mp3 "$url"

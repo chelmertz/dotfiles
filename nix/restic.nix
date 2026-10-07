@@ -71,7 +71,6 @@ let
     # work workspace. Flatpak apps keep their own caches (Sober's is 705 MB).
     "${home}/.config/Slack"
     "${home}/.var/app/*/cache"
-    "${home}/.dropbox-dist"
 
     # Build output, wherever it sits. Cargo's target/ and other tools that
     # write a CACHEDIR.TAG are caught by --exclude-caches instead.

@@ -290,11 +290,6 @@ in
       executable = true;
     };
 
-    ".local/bin/orgzly_dropbox_conflict.sh" = {
-      source = ../bin/orgzly_dropbox_conflict.sh;
-      executable = true;
-    };
-
     ".local/bin/pbcopy" = {
       source = ../bin/pbcopy;
       executable = true;

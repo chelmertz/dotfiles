@@ -3,7 +3,7 @@
 title=$(pdfinfo "$1" | grep -E "^Title:" | tr -s ' ' | cut -d ' ' -f2-)
 lower=$(echo -n "$title" | tr '[:upper:]' '[:lower:]')
 snake=$(echo -n "$lower" | tr ' ' '_')
-with_dir=$(echo -n "/home/ch/Dropbox/books_papers_articles/$snake.pdf")
+with_dir=$(echo -n "/home/ch/sync/books_papers_articles/$snake.pdf")
 
 if [ -f "$with_dir" ]; then
 	echo "'$with_dir' already exists"

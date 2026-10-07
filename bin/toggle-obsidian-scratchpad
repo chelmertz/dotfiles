@@ -7,7 +7,7 @@ i3-msg '[class="(?i)obsidian"] scratchpad show, resize set 1800 1000'
 # Checking i3's tree instead of pgrep avoids the latency of process
 # scanning on every keypress — the happy path (line 4) is instant.
 if ! i3-msg -t get_tree | grep -qi '"class":"[^"]*obsidian'; then
-    ~/.nix-profile/bin/obsidian --open-vault ~/Dropbox/notes &
+    ~/.nix-profile/bin/obsidian --open-vault ~/sync/notes &
     sleep 2
     i3-msg '[class="(?i)obsidian"] scratchpad show, resize set 1800 1000'
 fi

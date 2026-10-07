@@ -285,13 +285,6 @@ in
     czkawka-full
     delve
     dos2unix
-    # The CLI (`dropbox status`), not the daemon: nixpkgs splits them and both
-    # ship bin/dropbox, so only one can own the name. The daemon is reached by
-    # store path from systemd.user.services.dropbox below and never needs to be
-    # on PATH. With it here instead, `dropbox status` started a second daemon in
-    # the foreground, and that instance took over dropbox.pid and
-    # command_socket from the running one before it was killed.
-    dropbox-cli
     (symlinkJoin {
       name = "element-desktop";
       paths = [ element-desktop ];
@@ -304,7 +297,7 @@ in
     evince
     exercism
     # Reads and writes EXIF; DateTimeOriginal is the tag Google Photos sorts by,
-    # and the one missing from most of ~/Dropbox/photos.
+    # and the one missing from most of ~/sync/photos.
     exiftool
     fd
     # All present on gamma from apt and assumed by scripts here: ffmpeg by
@@ -588,12 +581,9 @@ in
   # autorandr's profiles live in ~/.config/autorandr as a plain local
   # directory. They are not in this repository, because a profile is keyed on
   # the monitor's EDID and an EDID carries that unit's serial number, which a
-  # public repository should not. They are no longer in Dropbox either: a
-  # hotplug should not depend on a sync client being alive, and that account is
-  # going away. The cost is the one gamma paid -- its three profiles sat in
-  # $HOME unused for years and survived the move only because someone had
-  # archived them by hand -- so the README written below says to back the
-  # directory up. Losing it is recoverable: the next hotplug re-learns.
+  # public repository should not. They moved out of Dropbox on 2026-09-29 and
+  # restic (nix/restic.nix) backs them up with the rest of $HOME. Losing them
+  # is recoverable anyway: the next hotplug re-learns.
   home.activation.autorandrProfiles =
     let
       readme = pkgs.writeText "autorandr-profiles-README.md" ''
@@ -610,9 +600,8 @@ in
         of every output the profile applies to, `config` the xrandr geometry.
 
         They are not in the dotfiles repo because an EDID contains the
-        display's serial number and that repo is public. **Nothing backs this
-        directory up.** Point whatever replaces Dropbox at it, or accept that
-        a reinstall starts from zero.
+        display's serial number and that repo is public. The daily restic
+        backup of $HOME (`nix/restic.nix`) covers it.
 
         Profiles named `learned-<hash>` were written by `bin/autorandr-learn`
         on the first hotplug of a monitor autorandr had not seen; the hash is
@@ -624,20 +613,8 @@ in
     in
     lib.hm.dag.entryAfter [ "linkGeneration" ] ''
       autorandrDir="$HOME/.config/autorandr"
-      autorandrLegacy="$HOME/Dropbox/config/autorandr"
 
       mkdir -p "$autorandrDir"
-
-      # One-time lift out of Dropbox, and only while the local directory holds
-      # no profile of its own, so a stale Dropbox copy can never overwrite what
-      # this machine has learned since.
-      if [ -d "$autorandrLegacy" ] && [ -z "$(find "$autorandrDir" -mindepth 1 -maxdepth 1 -type d -print -quit)" ]; then
-        if ${pkgs.coreutils}/bin/cp -rn "$autorandrLegacy"/. "$autorandrDir"/ 2>/dev/null; then
-          ${pkgs.util-linux}/bin/logger -t autorandr-profiles -p user.notice -- "migrated profiles out of $autorandrLegacy into $autorandrDir"
-        else
-          ${pkgs.util-linux}/bin/logger -t autorandr-profiles -p user.err -- "could not migrate profiles out of $autorandrLegacy; $autorandrDir left empty"
-        fi
-      fi
 
       ${pkgs.diffutils}/bin/cmp -s ${readme} "$autorandrDir/README.md" \
         || ${pkgs.coreutils}/bin/install -m 644 ${readme} "$autorandrDir/README.md"
@@ -747,42 +724,42 @@ in
   xdg.configFile."yazi/keymap.toml".text = ''
     [[mgr.prepend_keymap]]
     on = [",", "g"]
-    run = "shell -- mv %s ~/Dropbox/inspiration/gui/"
+    run = "shell -- mv %s ~/sync/inspiration/gui/"
     desc = "Move to gui"
 
     [[mgr.prepend_keymap]]
     on = [",", "s"]
-    run = "shell -- mv %s ~/Dropbox/photos/gaming/"
+    run = "shell -- mv %s ~/sync/photos/gaming/"
     desc = "Move to gaming"
 
     [[mgr.prepend_keymap]]
     on = [",", "f"]
-    run = "shell -- mv %s ~/Dropbox/photos/movies/"
+    run = "shell -- mv %s ~/sync/photos/movies/"
     desc = "Move to movies"
 
     [[mgr.prepend_keymap]]
     on = [",", "p"]
-    run = "shell -- mv %s ~/Dropbox/photos/"
+    run = "shell -- mv %s ~/sync/photos/"
     desc = "Move to photos"
 
     [[mgr.prepend_keymap]]
     on = [",", "c"]
-    run = "shell -- mv %s ~/Dropbox/inspiration/typography_colors_patterns/"
+    run = "shell -- mv %s ~/sync/inspiration/typography_colors_patterns/"
     desc = "Move to colors/patterns"
 
     [[mgr.prepend_keymap]]
     on = [",", "o"]
-    run = "shell -- mv %s ~/Dropbox/orgzly/"
+    run = "shell -- mv %s ~/sync/orgzly/"
     desc = "Move to orgzly"
 
     [[mgr.prepend_keymap]]
     on = [",", "w"]
-    run = "shell -- mv %s ~/Dropbox/wallpapers/"
+    run = "shell -- mv %s ~/sync/wallpapers/"
     desc = "Move to wallpapers"
 
     [[mgr.prepend_keymap]]
     on = [",", "m"]
-    run = "shell -- mv %s ~/Dropbox/matchi/"
+    run = "shell -- mv %s ~/sync/matchi/"
     desc = "Move to matchi"
   '';
 
@@ -1557,7 +1534,7 @@ in
             labels:
               severity: warning
             annotations:
-              summary: "{{ $labels.service }} cannot authenticate. gh: gh auth login | elly: open http://localhost:9876 and paste a PAT | dropbox: journalctl --user -u dropbox and follow the link URL"
+              summary: "{{ $labels.service }} cannot authenticate. gh: gh auth login | elly: open http://localhost:9876 and paste a PAT"
 
           - alert: SystemdUserUnitFailed
             expr: systemd_user_unit_failed == 1
@@ -1719,28 +1696,6 @@ in
     };
     Install = {
       WantedBy = [ "default.target" ];
-    };
-  };
-
-  systemd.user.services.dropbox = {
-    Unit = {
-      Description = "Dropbox";
-      # Same graphical-session ordering as flameshot below.
-      After = [ "graphical-session.target" ];
-      PartOf = [ "graphical-session.target" ];
-    };
-    Service = {
-      # Was %h/.dropbox-dist/dropboxd, the proprietary daemon that Ubuntu's
-      # dropbox package downloads into $HOME on first run. Nothing puts it
-      # there on NixOS, so the unit died with 203/EXEC in a restart loop.
-      # nixpkgs ships the same daemon inside a bubblewrap FHS environment,
-      # which is a real store path and survives a fresh machine.
-      ExecStart = "${pkgs.dropbox}/bin/dropbox";
-      Restart = "on-failure";
-      RestartSec = 10;
-    };
-    Install = {
-      WantedBy = [ "graphical-session.target" ];
     };
   };
 

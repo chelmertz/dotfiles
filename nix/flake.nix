@@ -66,16 +66,11 @@
           in
           builtins.elem name [
             "claude-code"
-            "dropbox"
             # jetbrains.idea (IntelliJ IDEA Ultimate). nixpkgs moved it to
             # pkgs/by-name/in/intellij-idea on the 2026-09-26 bump and its pname
             # went from "idea" to this; the old spelling matched nothing and the
             # switch failed on an unfree refusal.
             "intellij-idea"
-            # dropbox's FHS environment bundles a browser for its login flow;
-            # it is not the Firefox the system installs.
-            "firefox-bin"
-            "firefox-bin-unwrapped"
             "slack"
             "vscode"
             "obsidian"
