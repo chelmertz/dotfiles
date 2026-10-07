@@ -153,6 +153,13 @@ project is a note the next project pays for again.
   and `i3-msg mode "default"` leaves it. `$mod+m` toggles `fkey` and is the
   only way in or out. The bar indicator is urgent red since 2026-09-14; before
   that it was inactive-window grey on the bar background and unreadable.
+- **`pgrep -f <name>` on a nix-wrapped program returns the wrapper, not the
+  process doing the work.** Killing what it returns leaves the real binary
+  running and its port bound, which reads exactly like "the kill did not take".
+  Signal the pid the program itself recorded — for sift that is the one inside
+  `sift.db.lock`. Cost two rounds on 2026-09-29. Related: a `pkill -f "wget.*X"`
+  inside a compound command matches the *enclosing shell*, whose command line
+  contains both words, so the command kills itself before starting.
 - `bin/<app>` in a nix store path is usually a wrapper, not the program. Grepping it for a
   symbol returns nothing, which reads exactly like "this build lacks that feature" — it
   cost one wrong conclusion about p-launcher and nearly bought a `nixos-rebuild` chasing a
