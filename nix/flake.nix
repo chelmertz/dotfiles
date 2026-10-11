@@ -40,6 +40,12 @@
       url = "git+ssh://git@github.com/chelmertz/sift";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # For outline-edit (edit notes.helmertz.com documents in neovim). Private, so ssh
+    # like sift. Deliberately no nixpkgs follows: the tool must be built against the
+    # exact Outline package the VPS runs, which the vps flake's own pin decides, and it
+    # refuses to run when the two differ. After an Outline bump is deployed, run
+    # `nix flake update vps` here.
+    vps.url = "git+ssh://git@github.com/chelmertz/vps";
   };
 
   outputs =
@@ -52,6 +58,7 @@
       elly,
       serve,
       sift,
+      vps,
       disko,
       nixos-hardware,
       ...
@@ -135,6 +142,7 @@
               elly.overlays.default
               serve.overlays.default
               sift.overlays.default
+              (final: prev: { outline-edit = vps.packages.${system}.outline-edit; })
             ];
             config = unfreeConfig;
           };

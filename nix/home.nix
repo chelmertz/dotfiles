@@ -254,6 +254,10 @@ in
       # only: gamma is being retired and this is a large unfree download that
       # rebuilds locally. Per-project JDKs come from direnv, not from here.
       pkgs.jetbrains.idea
+      # Edit notes.helmertz.com (Outline) documents as Markdown in neovim; no
+      # argument browses them in fzf. NixOS only: it carries the VPS's Outline
+      # package, which is unfree and builds locally rather than from the cache.
+      pkgs.outline-edit
     ]
     ++ (with pkgs; [
     acpi
