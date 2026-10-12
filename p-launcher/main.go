@@ -35,7 +35,7 @@ func (e *hintError) Unwrap() error { return e.cause }
 // usageText is the one-line synopsis, "usage: " then every verb separated by
 // " | ". printHelp splits it on that separator, so a new verb is added here
 // and nowhere else.
-const usageText = "usage: p-launcher list [--all] | open <ns/name> | create <ns/name> [--no-open] | describe <ns/name> <text> | adopt <ns/name> <cwd-prefix> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | links seen <ns/name> | menu [--toggle-key KEY] | hook | session-brief | desktop lock|unlock | tend [--dry-run] [--max N] | kv get <key> | kv set <key> <value> | backup [DIR] | brief [--dry-run] [--force] [--show] | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open] | help"
+const usageText = "usage: p-launcher list [--all] | open <ns/name> | create <ns/name> [--no-open] | describe <ns/name> <text> | adopt <ns/name> <cwd-prefix> | archive <ns/name> [--reason done|scrapped|deprioritized|elsewhere] | link add <ns/name> <url> | links refresh | links seen <ns/name> | menu [--toggle-key KEY] | hook | session-brief | desktop lock|unlock | tend [--dry-run] [--max N] | wait <pr-url> checks|review|merge <next step> | wait list | kv get <key> | kv set <key> <value> | backup [DIR] | brief [--dry-run] [--force] [--show] | report [--demo] [--range 7d|30d|90d] [--theme dark|light] [--out DIR] [--open] | help"
 
 // usage rejects an invocation and records it: the notification alone never
 // said which arguments were wrong or which session passed them.
@@ -147,6 +147,10 @@ func run(args []string) error {
 			default:
 				return usage(args)
 			}
+		}
+	case "wait":
+		if !(len(args) == 2 && args[1] == "list") && len(args) < 4 {
+			return usage(args)
 		}
 	case "ctx":
 		if len(args) != 2 {
@@ -294,7 +298,7 @@ func run(args []string) error {
 		// detection reads these (session_id "desktop", no project).
 		return s.RecordSessionEvent(SessionEvent{SessionID: desktopSession, Kind: args[1]})
 	case "tend":
-		deps := tendDeps{now: time.Now(), notify: notifyInfo, launch: func(dir, tag, prompt string) error {
+		deps := tendDeps{now: time.Now(), notify: notifyInfo, checks: ghChecks, launch: func(dir, tag, prompt string) error {
 			cmd, err := launch(dir, tag, prompt, "tend")
 			if err != nil {
 				return err
@@ -303,6 +307,20 @@ func run(args []string) error {
 			return nil
 		}}
 		return runTend(s, root, tendDry, tendMax, deps, ghLastComment, os.Stdout)
+	case "wait":
+		if args[1] == "list" {
+			return listWaits(s, time.Now(), os.Stdout)
+		}
+		cwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		path, err := addWait(s, root, cwd, args[1], args[2], strings.Join(args[3:], " "), ghChecks, time.Now())
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Waiting on %s %s for %s. tend checks every 10 minutes: with no session open here it starts a fresh one with your next step, otherwise it notifies. End your turn now; if context is high, run the handoff skill first.\n", args[1], args[2], path)
+		return nil
 	case "backup":
 		// nightly from the systemd timer; the dated copies live under ~/p so
 		// the Drive sync carries them, the live DB never does

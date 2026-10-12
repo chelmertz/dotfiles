@@ -27,6 +27,7 @@ var migrations = []func(*sql.Tx) error{
 	migrate016,
 	migrate017,
 	migrate018,
+	migrate019,
 }
 
 // migrate015 moves the context high-water mark out of session_state, which
@@ -280,6 +281,27 @@ create index link_project on link (project_id);`)
 // view can say what it waits for.
 func migrate004(tx *sql.Tx) error {
 	_, err := tx.Exec(`alter table session_state add column reason text not null default ''`)
+	return err
+}
+
+// migrate019 holds the waits a session registers instead of polling CI or
+// reviews from inside its own context. tend resolves them; outcome is
+// success|failure (checks), review, merged, closed or expired. saw_pending
+// records that the checks were seen running after the wait began, because a
+// commit status (Buildkite) carries no completion time to compare against.
+func migrate019(tx *sql.Tx) error {
+	_, err := tx.Exec(`create table if not exists wait (
+  id          integer primary key,
+  project_id  integer not null references project(id),
+  url         text not null,
+  cond        text not null,
+  note        text not null,
+  created_at  text not null,
+  saw_pending integer not null default 0,
+  resolved_at text,
+  outcome     text not null default ''
+);
+create index if not exists wait_open on wait (resolved_at)`)
 	return err
 }
 

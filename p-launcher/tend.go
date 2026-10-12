@@ -138,6 +138,9 @@ func tendPrompt(url, reason string) string {
 type tendDeps struct {
 	launch func(dir, tag, prompt string) error
 	notify func(msg string)
+	// checks folds a PR's CI state; waits on checks read it fresh. Nil
+	// leaves those waits pending.
+	checks func(url string) (string, time.Time, error)
 	now    time.Time
 	// me is the GitHub login to treat as the user's; empty asks gh. Only a
 	// test sets it, and only because the two caps cannot be exercised
@@ -276,10 +279,6 @@ func loadTendCfg(s *Store, me string, now time.Time) (tendCfg, error) {
 // runTend is the subcommand: decide, print, and unless dry, apply. Signed
 // own replies are checked only for links that would act (one gh call each).
 func runTend(s *Store, root string, dry bool, max int, d tendDeps, lastComment func(url string) (string, error), stdout io.Writer) error {
-	links, err := loadTendLinks(s)
-	if err != nil {
-		return err
-	}
 	me := d.me
 	if me == "" {
 		me = ghLogin()
@@ -289,6 +288,22 @@ func runTend(s *Store, root string, dry bool, max int, d tendDeps, lastComment f
 		return err
 	}
 	live, err := liveProjects(s, root, procRoot, d.now)
+	if err != nil {
+		return err
+	}
+	// Waits first: a resumed session stamps its link as tended and counts
+	// against the cap, so both are read after it.
+	launched, err := runWaits(s, root, dry, cfg, live, d, stdout)
+	if err != nil {
+		return err
+	}
+	for p := range launched {
+		live[p] = true
+	}
+	if cfg, err = loadTendCfg(s, me, d.now); err != nil {
+		return err
+	}
+	links, err := loadTendLinks(s)
 	if err != nil {
 		return err
 	}

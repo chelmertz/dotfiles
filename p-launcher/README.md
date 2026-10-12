@@ -21,6 +21,11 @@ things to run at once.
 - `links refresh` and `tend` (on a systemd user timer) track PR links via
   GitHub and elly, and can start a Claude session to address review feedback
   once enabled.
+- `wait <pr-url> checks|review|merge <next step>` is what a session runs
+  instead of polling (`claude-no-poll-hook` blocks the polling inside `~/p`).
+  `tend` resolves waits before its own pass: a fresh session with the next
+  step when none is open in the project, a notification otherwise. `wait list`
+  shows the open ones.
 
 Design notes and the handoff live outside this repo, in
 `~/p/personal/p-launcher/`. Tests: `go test ./...`; screenshot goldens with

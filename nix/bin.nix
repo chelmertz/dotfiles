@@ -482,6 +482,11 @@ in
       executable = true;
     };
 
+    ".local/bin/claude-no-poll-hook" = {
+      source = py ../bin/claude-no-poll-hook;
+      executable = true;
+    };
+
     ".local/bin/toggle-obsidian-scratchpad" = {
       source = ../bin/toggle-obsidian-scratchpad;
       executable = true;

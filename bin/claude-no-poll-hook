@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""PreToolUse hook (matcher: Bash): inside a ~/p project, refuse commands that
+poll CI or a PR from the session, and point at `p-launcher wait` instead.
+
+padelboard's transcripts (2026-09-16..10-07) hold 324 until/while loops, 154
+sleeps and 55 `--watch` calls. They burn the context the fix needs, and two
+watchers outlived their session until the user asked "killem?". A registered
+wait costs nothing while it waits: tend resolves it every 10 minutes and opens
+a fresh session with the next step, or notifies when a window is still open.
+
+Blocked:
+    gh run watch 123
+    gh pr checks 42 --watch
+    sleep 300            (anything from 60 s up)
+    until gh pr checks 42 | grep -q pass; do sleep 30; done
+    while true; do gh run list ...; sleep 20; done
+
+Allowed:
+    sleep 5              (waiting for a local server)
+    gh pr checks 42      (one look)
+
+Exit 2 blocks the tool call; stderr goes back to Claude.
+Escape hatch for the user only: CLAUDE_NO_POLL=0.
+"""
+import json
+import os
+import re
+import sys
+
+# A command at the start of a segment: line start, or after ; && || | ( or a
+# loop keyword. Mirrors the sibling hooks, so the words inside a heredoc or a
+# quoted string are not commands.
+SEG = r"(?:^|[;&|(]\s*|\b(?:do|then)\s+)\s*"
+WATCH = re.compile(SEG + r"gh\s+(?:run\s+watch\b|pr\s+checks\b[^;&|\n]*--watch\b)", re.MULTILINE)
+SLEEP = re.compile(SEG + r"sleep\s+(\d+(?:\.\d+)?)([smhd]?)\b", re.MULTILINE)
+LOOP = re.compile(SEG + r"(?:until|while)\b(.*?)\bdone\b", re.MULTILINE | re.DOTALL)
+UNIT = {"": 1, "s": 1, "m": 60, "h": 3600, "d": 86400}
+
+GUIDANCE = """Do not poll CI or reviews from the session. Register a wait and end your turn:
+
+    p-launcher wait <pr-url> checks|review|merge "<what to do when it clears>"
+
+tend checks every 10 minutes. With no session open in this project it starts a
+fresh one with that next step (fix, push and reply allowed; no new PRs or review
+requests); otherwise it sends a desktop notification. `p-launcher wait list`
+shows what is pending. One look (`gh pr checks <n>`) is fine.
+
+User escape hatch: CLAUDE_NO_POLL=0."""
+
+
+def reason(command):
+    if WATCH.search(command):
+        return "watches a PR or run until it finishes"
+    for m in SLEEP.finditer(command):
+        if float(m.group(1)) * UNIT[m.group(2)] >= 60:
+            return f"sleeps {m.group(1)}{m.group(2) or 's'}"
+    for m in LOOP.finditer(command):
+        if re.search(r"\bgh\s", m.group(1)):
+            return "loops on gh until something changes"
+    return None
+
+
+def in_project(cwd):
+    root = os.path.join(os.path.expanduser("~"), "p") + os.sep
+    rel = cwd[len(root):] if cwd.startswith(root) else ""
+    return len([p for p in rel.split(os.sep) if p]) >= 2
+
+
+def main():
+    if os.environ.get("CLAUDE_NO_POLL") == "0":
+        return
+    try:
+        payload = json.load(sys.stdin)
+    except Exception:
+        return  # fail open on anything unparseable, like the sibling hooks
+    if payload.get("tool_name") != "Bash" or not in_project(payload.get("cwd") or ""):
+        return
+    why = reason((payload.get("tool_input") or {}).get("command") or "")
+    if why:
+        print(f"[claude-no-poll-hook]: this command {why}.", file=sys.stderr)
+        print(GUIDANCE, file=sys.stderr)
+        sys.exit(2)
+
+
+if __name__ == "__main__":
+    main()
