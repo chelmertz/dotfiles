@@ -346,11 +346,11 @@
         "workout": "workout"
       },
       "locked": {
-        "lastModified": 1791752648,
-        "narHash": "sha256-giR3WqfrbKFhu0l9Q5dM69y3xHdefgSyUKdQw9Hy1ks=",
+        "lastModified": 1791824624,
+        "narHash": "sha256-eriQa3rPDyGv/ilaslHbxGktp2icrSfhTUYHBmuh9do=",
         "ref": "refs/heads/main",
-        "rev": "0121fa5c2175884533a919de240fdb1ce15e236c",
-        "revCount": 115,
+        "rev": "7c78f8493b5bd8553b39631bec88683d7528835e",
+        "revCount": 116,
         "type": "git",
         "url": "ssh://git@github.com/chelmertz/vps"
       },
