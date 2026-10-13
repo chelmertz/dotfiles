@@ -816,7 +816,7 @@ in
       '';
     };
     settings = {
-      theme = "dark:Catppuccin Frappe,light:Catppuccin Latte";
+      theme = "dark:Moonfly,light:Catppuccin Latte";
       font-family = "Go Mono";
       # Points, so this tracks Xft.dpi like the i3 and dunst sizes: 16pt drew
       # 17.3px at the old 78 dpi and 23.8 at the panel's true 107. Each ghostty
