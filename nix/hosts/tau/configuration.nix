@@ -64,6 +64,14 @@
     }
   ];
 
+  # zram swaps into compressed RAM, so faulting a page back in costs
+  # microseconds instead of a read from the swapfile. With the swapfile alone,
+  # every spike (nix-daemon peaked at 8.3G on top of a ~17G desktop) left GBs of
+  # idle tabs and terminals on disk, and switching back to one stalled the
+  # whole UI while it paged in: 6.6G sat in the swapfile on 2026-10-14 with
+  # 13G free. Priority 5 beats the swapfile's -2, so it is only the overflow.
+  zramSwap.enable = true;
+
   # nixpkgs enables systemd-oomd by default, but the service monitors nothing
   # until a slice sets ManagedOOMMemoryPressure=kill, and none did. That is why
   # it sat idle through the freeze on 2026-09-27: a mutation run drove the
@@ -434,7 +442,18 @@
   services.flatpak.enable = true;
 
   # ── Applications Ubuntu supplied ────────────────────────────────────────
-  programs.firefox.enable = true;
+  programs.firefox = {
+    enable = true;
+    # Unload least-recently-used tabs (idle at least 10 min) instead of letting
+    # them push the desktop into swap. Off by default on Linux. The threshold is
+    # MemAvailable as a percentage of RAM: 25% of 30G starts unloading below
+    # ~7.7G available, well before the kernel would swap. A tab reloads when
+    # next selected; about:unloads lists the order and what got unloaded.
+    preferences = {
+      "browser.tabs.unloadOnLowMemory" = true;
+      "browser.low_commit_space_threshold_percent" = 25;
+    };
+  };
   programs._1password.enable = true;
   programs._1password-gui = {
     enable = true;
