@@ -72,6 +72,15 @@
   # 13G free. Priority 5 beats the swapfile's -2, so it is only the overflow.
   zramSwap.enable = true;
 
+  # nixos-hardware's laptop module turns TLP on, and TLP's built-in default is
+  # PLATFORM_PROFILE_ON_AC=performance. USB-C power from the monitor counts as
+  # AC, so tau ran the firmware's performance profile all day and every short
+  # spike (a Slack burst, a nix eval) spun the fan up. balanced still boosts to
+  # full clock on demand; it only caps sustained power. Untested for gaming: if
+  # Borderlands 2 drops frames, `echo performance | sudo tee
+  # /sys/firmware/acpi/platform_profile` for the session.
+  services.tlp.settings.PLATFORM_PROFILE_ON_AC = "balanced";
+
   # nixpkgs enables systemd-oomd by default, but the service monitors nothing
   # until a slice sets ManagedOOMMemoryPressure=kill, and none did. That is why
   # it sat idle through the freeze on 2026-09-27: a mutation run drove the
