@@ -141,6 +141,13 @@ project is a note the next project pays for again.
   Disk fullness and inode exhaustion are filesystem quotas, not cgroup
   controls; the guard there is a `df` precheck or `nix-collect-garbage`.
 - Go builds and tests need `CGO_ENABLED=0`. There is no gcc on PATH.
+- **The LSP tool has no Go server, on purpose.** `gopls-lsp@claude-plugins-official`
+  is `false` in `~/.claude/settings.json` since 2026-10-14: every session kept its
+  own gopls alive for days (1.8G resident plus 400M swapped for one, 2.7G across
+  three), which helped push tau into swap daily. For Go navigation use
+  `gopls definition|references|check` through Bash — it is on PATH and each
+  call exits when done — or grep and `go vet`. Do not re-enable the plugin
+  unprompted.
 - python3 **is** on PATH, deliberately: `nix/home.nix` puts
   `(python3.withPackages ...)` in `home.packages` for the 11 python scripts in
   `bin/`. Scripts installed to `~/.local/bin` still get their shebang pinned to
