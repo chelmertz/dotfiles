@@ -856,7 +856,6 @@ in
 
       resize-overlay = "never";
       window-save-state = "never";
-      scrollback-limit = 50000000;
       auto-update = "off";
       # The Linux default binds ctrl+enter to toggle_fullscreen, which eats the
       # key before TUIs see it. i3 handles fullscreen; unbind passes the key
