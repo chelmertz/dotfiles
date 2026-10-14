@@ -155,8 +155,10 @@ project is a note the next project pays for again.
   indeterminate OSC 9;4 progress bar is cleared: every ghostty window where a
   Claude session had worked woke ~60 times/s for days, picom recomposited every
   frame and the i915 flip worker showed up as 70% iowait. Measured 2026-10-14;
-  a fresh idle window sits at 1/s. Windows already in that state stay there
-  until they are closed. Re-enable only once a ghostty release fixes it.
+  a fresh idle window sits at 1/s. A stuck window recovers without a restart:
+  write `\033]9;4;1;50\007`, then `\033]9;4;0\007` a second later, to its
+  pty (`readlink /proc/<claude pid>/fd/1`). Re-enable only once a ghostty
+  release fixes it.
 - python3 **is** on PATH, deliberately: `nix/home.nix` puts
   `(python3.withPackages ...)` in `home.packages` for the 11 python scripts in
   `bin/`. Scripts installed to `~/.local/bin` still get their shebang pinned to
