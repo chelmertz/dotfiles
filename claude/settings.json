@@ -161,7 +161,7 @@
     "padding": 0
   },
   "enabledPlugins": {
-    "gopls-lsp@claude-plugins-official": true,
+    "gopls-lsp@claude-plugins-official": false,
     "superpowers@claude-plugins-official": false,
     "product-management@knowledge-work-plugins": false
   },
