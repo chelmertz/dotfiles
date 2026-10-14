@@ -177,5 +177,6 @@
     "superpowers:writing-plans": "user-invocable-only",
     "superpowers:executing-plans": "user-invocable-only"
   },
-  "autoCompactWindow": "500k"
+  "autoCompactWindow": "500k",
+  "terminalProgressBarEnabled": false
 }
