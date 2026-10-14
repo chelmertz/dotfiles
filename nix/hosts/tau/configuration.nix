@@ -78,7 +78,11 @@
   # spike (a Slack burst, a nix eval) spun the fan up. balanced still boosts to
   # full clock on demand; it only caps sustained power. Untested for gaming: if
   # Borderlands 2 drops frames, `echo performance | sudo tee
-  # /sys/firmware/acpi/platform_profile` for the session.
+  # /sys/firmware/acpi/platform_profile` for the session. Measured 2026-10-14
+  # under performance: 3.87 GHz on cpu0 and 71-73 C at ~3% average CPU load,
+  # with no single process above a 3% lifetime average. The monitor offers
+  # 94 W (20 V x 4.7 A) over USB-PD, against the laptop's 65 W charger, so
+  # power was never the limit.
   services.tlp.settings.PLATFORM_PROFILE_ON_AC = "balanced";
 
   # nixpkgs enables systemd-oomd by default, but the service monitors nothing
