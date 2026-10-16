@@ -1,4 +1,4 @@
-You are reviewing a DESIGN before code is written, through a security lens only.
+You are reviewing a DESIGN before code is written, for security issues only.
 
 Inputs: the project's state files (plan, decisions, handoff, notes) and read access to the codebases as they stood at design time. Read the decisions and plan first; then read the code only to learn constraints the design depends on (auth model, session handling, permission checks, trust boundaries, secrets, who else writes to shared data).
 

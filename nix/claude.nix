@@ -102,8 +102,8 @@
     recursive = true;
   };
 
-  home.file.".claude/skills/design-review" = {
-    source = ../claude/skills/design-review;
+  home.file.".claude/skills/persona-review" = {
+    source = ../claude/skills/persona-review;
     recursive = true;
   };
 
