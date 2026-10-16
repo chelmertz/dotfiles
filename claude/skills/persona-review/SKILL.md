@@ -19,6 +19,15 @@ review stays with `/code-review` and `/security-review`.
   newest `*-persona-review.md` in the project folder, if any. Without a
   design review this is an adversarial review whose yield is untested; say so
   in the output.
+- **A clone is required in PR mode.** The diff alone hides the code around
+  it, so no finding about it can be verified. Read the PR head from a clone
+  of its repository (`git fetch <remote> pull/<n>/head`, then
+  `git show FETCH_HEAD:<path>`); without one, stop and say so rather than
+  review the diff alone.
+- **Outside a `~/p` project** (a review session started in a bare clone):
+  write no file. Findings go back to the caller, whose instructions decide
+  where they are posted, and the caller's working rules (a read-only
+  checkout, how to read the PR head) go to every reviewer verbatim.
 - Personas: the argument's list, else the project `CLAUDE.md` line
   `personas: a, b`, else `security, assumptions`. Never more than three:
   reading cost grows with every persona and precision drops.
@@ -42,7 +51,7 @@ review stays with `/code-review` and `/security-review`.
 
 ## Output
 
-Write one file to the project folder:
+Inside a `~/p` project, write one file to the project folder:
 `<YYYY-MM-DD>-<topic>-persona-review.md`. Per finding: the decision it
 attaches to, the failure scenario, what to decide instead, and who decides.
 
@@ -55,7 +64,8 @@ attaches to, the failure scenario, what to decide instead, and who decides.
   comments on that surface (verify, then post, signed); decisions the diff
   breaks are listed against the persona-review line they break.
 
-Everything stays local until the user posts it. Personas do not argue to a
+Posted comments never name this skill or a persona: they are personal
+tooling, and a finding stands on its own. Personas do not argue to a
 consensus: debate talks down the lone dissent, which is the finding worth
 having.
 

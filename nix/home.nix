@@ -892,6 +892,23 @@ in
     mimeType = [ "x-scheme-handler/claude-review" ];
   };
 
+  # The tool's per-user config. review_prompt replaces its built-in prompt
+  # entirely, so the read-only rules and the signature are restated here;
+  # the tool appends its own posting policy and clean-round instructions.
+  # Adds the persona-review skill (claude/skills/persona-review) to the
+  # adversarial review, first round only: personas cost minutes per run.
+  xdg.configFile."claude-review/config.json".text = builtins.toJSON {
+    post_without_asking = true;
+    review_prompt = ''
+      Perform an adversarial code review of {url}.
+
+      Work read-only against this checkout: do not check out, switch branch, stash, reset or edit anything in the working tree. Get the PR itself from GitHub: `gh pr view {number}`, `gh pr diff {number}`, and `git fetch {remote} pull/{number}/head` followed by `git show FETCH_HEAD:<path>` for file contents at the PR head. Use this repository for context.
+
+      On the first round, also run the persona-review skill on {url}: start its persona reviewers in parallel with your own pass and give them these same read-only rules. Merge their findings with yours into one set and verify each against the code at the PR head before posting; drop any you cannot verify. On later rounds do not rerun the personas; re-check their earlier findings like any other.
+
+      Sign every comment you post with a line containing only `--claude`.'';
+  };
+
   home.file."bin/claude-resume-open".source = "${
     pkgs.writeShellApplication {
       name = "claude-resume-open";
