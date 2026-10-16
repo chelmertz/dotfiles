@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,6 +34,9 @@ func Create(s *Store, root, path string) (string, error) {
 	}
 	dir := filepath.Join(nsDir, seg[1])
 	if err := os.Mkdir(dir, 0o755); err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return "", fmt.Errorf("project %s already exists", path)
+		}
 		return "", fmt.Errorf("create %s: %w", dir, err)
 	}
 	// The skeleton is the layout the `project-state` skill defines: a fresh

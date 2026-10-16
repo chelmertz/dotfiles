@@ -155,6 +155,9 @@ func TestMainMenuExtraHint(t *testing.T) {
 	if strings.Contains(mesg, "Alt+l") || !strings.Contains(plain, "-kb-custom-3\x00Alt+l") {
 		t.Fatalf("without a URL the chord stays registered but is not advertised: %q", plain)
 	}
+	if !strings.Contains(mesg, "Ctrl+Enter creates typed") {
+		t.Fatalf("rofi's kb-accept-custom must be advertised: %q", mesg)
+	}
 	withURL := strings.Join(mainMenuExtra("https://github.com/o/r/pull/7\n"), "\x00")
 	if !strings.Contains(withURL, "\nAlt+l links github.com/o/r/pull/7 to highlighted") && !strings.Contains(withURL, `">Alt+l links github.com/o/r/pull/7 to`) {
 		t.Fatalf("%q", withURL)

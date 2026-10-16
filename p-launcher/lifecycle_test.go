@@ -601,3 +601,16 @@ func TestArchiveSeesWorkOutsideTheCheckedOutBranch(t *testing.T) {
 		t.Fatalf("removed %v, want %v", cl.RemovedClones, want)
 	}
 }
+
+func TestCreateDuplicate(t *testing.T) {
+	s := openTestStore(t)
+	root := t.TempDir()
+	mk(t, root, "m/foobar")
+	if _, err := Create(s, root, "m/foo"); err != nil {
+		t.Fatalf("a name that is a substring of another must be creatable: %v", err)
+	}
+	_, err := Create(s, root, "m/foo")
+	if err == nil || err.Error() != "project m/foo already exists" {
+		t.Fatalf("got %v", err)
+	}
+}

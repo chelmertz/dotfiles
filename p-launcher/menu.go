@@ -165,7 +165,10 @@ const (
 // hint appears only when the clipboard holds a GitHub URL, on a second line
 // naming it (host-less, truncated), so the chord is offered when it can act.
 func mainMenuExtra(clip string) []string {
-	mesg := `<span alpha="60%">Alt+a archived · Alt+r report · ns/name creates</span>`
+	// Ctrl+Return is rofi's own kb-accept-custom: it returns the typed text
+	// even when the fuzzy match highlights a row, so it creates "foo" while
+	// "foobar" exists. Plain Return on a matchless name creates too.
+	mesg := `<span alpha="60%">Alt+a archived · Alt+r report · Ctrl+Enter creates typed</span>`
 	if ref, ok := parseGitHubURL(clip); ok {
 		mesg += "\n" + `<span alpha="60%">Alt+l links ` + html.EscapeString(truncate(strings.TrimPrefix(ref.URL, "https://"), 40)) + ` to highlighted</span>`
 	}
