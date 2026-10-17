@@ -195,6 +195,10 @@
         replace = "🎉";
       }
       {
+        trigger = "::scream";
+        replace = "😱";
+      }
+      {
         trigger = "<->";
         replace = "⇔";
       }
