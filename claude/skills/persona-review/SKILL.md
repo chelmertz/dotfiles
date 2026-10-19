@@ -1,6 +1,6 @@
 ---
 name: persona-review
-description: Use when the user asks to review a design, plan or PR "with the personas", types /persona-review, or has just written a *-design.md or *-plan.md and wants it checked before code is written. Runs blind persona reviewers (security, stakeholder assumptions) in parallel, merges and verifies their findings locally, and writes one review file. With a PR URL it reviews the diff and checks it against the project's earlier persona review.
+description: Use when the user asks to review a design, plan or PR "with the personas", types /persona-review, or has just written a *-design.md or *-plan.md and wants it checked before code is written. Runs blind persona reviewers (security, stakeholder assumptions, lifecycle state model) in parallel, merges and verifies their findings locally, and writes one review file. With a PR URL it reviews the diff and checks it against the project's earlier persona review.
 argument-hint: "<design file | PR URL> [persona,persona]"
 ---
 
@@ -29,8 +29,8 @@ review stays with `/code-review` and `/security-review`.
   where they are posted, and the caller's working rules (a read-only
   checkout, how to read the PR head) go to every reviewer verbatim.
 - Personas: the argument's list, else the project `CLAUDE.md` line
-  `personas: a, b`, else `security, assumptions`. Never more than three:
-  reading cost grows with every persona and precision drops.
+  `personas: a, b`, else `security, assumptions, state-model`. Never more
+  than three: reading cost grows with every persona and precision drops.
 
 ## Run
 
@@ -38,7 +38,8 @@ review stays with `/code-review` and `/security-review`.
    security persona runs **twice**, independently: single runs vary a lot and
    the union of two catches what either alone misses. `assumptions` runs
    once: its misses come from requirements nobody wrote down, which no
-   rerun can find.
+   rerun can find. `state-model` runs once: in its backtest, each run
+   found every hit the other did, at least in part.
 2. Each reviewer gets: its persona file verbatim, the input, read access to the
    project's state files and clones, and the instruction to write findings
    to a scratch file and return them. Reviewers never see each other's

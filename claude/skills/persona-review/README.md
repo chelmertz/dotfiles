@@ -36,9 +36,9 @@ handoff checklist's history (156 items added, 115 dropped, 2 reopened):
 
 ## The backtest
 
-The design state was snapshotted from git history at a date before any code,
-and a separate agent built the ground truth from what review later found. Each
-persona then ran blind against the snapshot.
+For each fixture, the design state was snapshotted from git history at a date
+before any code, and a separate agent built the ground truth from what review
+later found. Each persona then ran blind against the snapshot.
 
 - **security:** 6/8 of the new design-level findings on the first run, but its
   prompt had borrowed two phrases from the ground truth. With those phrases
@@ -50,8 +50,17 @@ persona then ran blind against the snapshot.
   product was being retired. The two misses were requirements never written
   down as decisions, which no prompt over the docs can find. Admitted on cost,
   not hit rate.
+- **state-model** (a second fixture, an authentication rollout design): a
+  state × event reviewer, added because neither persona above reads a design
+  for undefined lifecycle rules. 2/5 lifecycle items over two runs, and 3 hits
+  plus 2 partials of 11 overall; the `assumptions` control on the same input
+  scored 0 hits. One hit was the costliest defect, a login path that skipped
+  the new check entirely. Admitted on cost, not hit rate. Known blind spots:
+  it drops cells the design lists as open questions even when the design
+  leans to the wrong answer, and it does not model a rollout across
+  environments as an entity with states.
 
-The fixture holds work data and is kept outside this repo.
+The fixtures hold work data and are kept outside this repo.
 
 ## Not yet tested
 
