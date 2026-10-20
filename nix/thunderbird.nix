@@ -172,6 +172,13 @@ lib.mkIf config.dotfiles.nixos {
         "extensions.nostalgy.keys.copy" = "L";
         "extensions.nostalgy.keys.hide_folders" = "(disabled)";
         "extensions.nostalgy.keys.convert_rule" = "(disabled)";
+        # Headers only: a message body is fetched when opened. The defaults copy
+        # every folder, All Mail included, and index it for global search,
+        # which took over a gigabyte of memory and steady CPU on the first
+        # sync. Gmail web covers deep search.
+        "mail.server.default.offline_download" = false;
+        "mail.server.default.autosync_offline_stores" = false;
+        "mailnews.database.global.indexer.enabled" = false;
       };
     };
   };
