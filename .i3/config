@@ -11,7 +11,7 @@ set $ws6 "6"
 set $ws7 "7 - steam"
 set $ws8 "8"
 set $ws9 "9 - slack"
-set $ws10 "10"
+set $ws10 "10 - mail"
 
 # Font for window titles. Will also be used by the bar unless a different font
 # is used in the bar {} block below.
@@ -102,6 +102,7 @@ assign [class="firefox"] $ws1
 assign [class="(?i)slack"] $ws9
 assign [class="Element"] $ws9
 assign [class="steam"] $ws7
+assign [class="(?i)thunderbird"] $ws10
 
 # assign only runs when the window is mapped. Firefox sometimes sets WM_CLASS a
 # beat later, and the assign has already been skipped by then; for_window is
@@ -213,12 +214,14 @@ bindsym F4 exec --no-startup-id i3-project switch 4
 set $p_launcher_key F5
 bindsym $p_launcher_key exec --no-startup-id systemd-cat -t p-launcher p-launcher menu --toggle-key $p_launcher_key
 bindsym F7 exec /home/ch/.local/bin/ror.py steam steam; workspace number $ws7
-bindsym F8 exec --no-startup-id i3-project switch 8
 # Focus Slack, on its own workspace; again returns to the previous window.
 # A cold start also switches to workspace 9, where the assign above puts it.
 bindsym F9 exec --no-startup-id ~/.local/bin/focus-or-return slack 'class="(?i)slack"' sh -c 'slack & i3-msg -q workspace number $ws9'
 # Focus YouTube Music (starting it if needed); again returns to the previous window.
-bindsym F10 exec --no-startup-id ~/.local/bin/focus-or-return ytmusic 'instance="music.youtube.com"' ~/.local/bin/ytmusic
+# Project slot 8 gave up F8 for it on 2026-10-21; $mod+8 still reaches it.
+bindsym F8 exec --no-startup-id ~/.local/bin/focus-or-return ytmusic 'instance="music.youtube.com"' ~/.local/bin/ytmusic
+# Focus Thunderbird, on its own workspace like Slack; again returns.
+bindsym F10 exec --no-startup-id ~/.local/bin/focus-or-return thunderbird 'class="(?i)thunderbird"' sh -c 'thunderbird & i3-msg -q workspace number $ws10'
 
 # move focused container to workspace
 bindsym $mod+Shift+1 move container to workspace number $ws1

@@ -135,6 +135,7 @@ in
     ./p-launcher.nix
     ./git-freshen.nix
     ./restic.nix
+    ./thunderbird.nix
   ];
 
   xsession.windowManager.i3 = {
