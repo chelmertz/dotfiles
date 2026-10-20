@@ -230,6 +230,22 @@
         "type": "github"
       }
     },
+    "private-dotfiles": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792535315,
+        "narHash": "sha256-oPry7LyqOIoWq8WVBxVHUxkKsc4is+LzwetDQH5M4ng=",
+        "ref": "refs/heads/main",
+        "rev": "31f6f00f97022326882c04e5d159075fe6c548c5",
+        "revCount": 2,
+        "type": "git",
+        "url": "ssh://git@github.com/chelmertz/private-dotfiles"
+      },
+      "original": {
+        "type": "git",
+        "url": "ssh://git@github.com/chelmertz/private-dotfiles"
+      }
+    },
     "root": {
       "inputs": {
         "claude-code": "claude-code",
@@ -239,6 +255,7 @@
         "nixos-hardware": "nixos-hardware",
         "nixpkgs": "nixpkgs",
         "nixpkgs-stable": "nixpkgs-stable",
+        "private-dotfiles": "private-dotfiles",
         "serve": "serve",
         "sift": "sift",
         "vps": "vps"

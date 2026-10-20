@@ -509,8 +509,34 @@
               # Powerlevel10k config (theme loaded via plugins)
               [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
-              # Private/local config
-              test -f ~/.shrc-local && source ~/.shrc-local
+              export JAVA_TOOL_OPTIONS="-Xmx12G -XX:MaxMetaspaceSize=2G"
+              export ANDROID_HOME=$HOME/Android/Sdk/
+
+              showawsenv() {
+                env | grep ^AWS_ | while read line; do echo "$line"; done
+              }
+              removeawsenv() {
+                env | grep ^AWS_ | sed 's/=.*//' | while read line; do unset "$line"; done
+              }
+              startawssession() {
+                removeawsenv
+                aws-vault exec $1 -- env | grep ^AWS_ | while read line; do export "$line"; done
+              }
+              setawscredentials() {
+                startawssession $1
+                echo "[$1]" >~/.aws/credentials
+                echo "aws_access_key_id=$AWS_ACCESS_KEY_ID" >>~/.aws/credentials
+                echo "aws_secret_access_key=$AWS_SECRET_ACCESS_KEY" >>~/.aws/credentials
+                echo "aws_session_token=$AWS_SESSION_TOKEN" >>~/.aws/credentials
+              }
+
+              # Work names live in the private-dotfiles clone and credentials in
+              # a mode-600 file outside any repo; a missing one says so instead
+              # of leaving variables silently unset.
+              for f in ~/code/github/chelmertz/private-dotfiles/shrc ~/.config/secrets/work.env; do
+                if [[ -r $f ]]; then source $f; else print -u2 "zshrc: $f missing, see private-dotfiles README"; fi
+              done
+              unset f
       ''
     ];
   };

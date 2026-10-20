@@ -34,8 +34,9 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     # Over ssh rather than the github: shorthand, because the repository is
-    # private and nix has no GitHub token configured here — the ssh key it
-    # already uses for git is the credential that works.
+    # private. The GitHub token in ~/.config/nix/access-tokens.conf is not
+    # relied on for that (it may be missing on a fresh machine or expire); the
+    # ssh key nix already uses for git is the credential that works.
     sift = {
       url = "git+ssh://git@github.com/chelmertz/sift";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -46,6 +47,15 @@
     # refuses to run when the two differ. After an Outline bump is deployed, run
     # `nix flake update vps` here.
     vps.url = "git+ssh://git@github.com/chelmertz/vps";
+    # What this public repo needs but must not publish: work names, the work
+    # email address, ~/.claude/CLAUDE.md. Not a flake, just files; modules get
+    # it as the `private-dotfiles` argument. Missing or unreachable fails the
+    # build, which is the point. After pushing a change there, run
+    # `nix flake update private-dotfiles`.
+    private-dotfiles = {
+      url = "git+ssh://git@github.com/chelmertz/private-dotfiles";
+      flake = false;
+    };
   };
 
   outputs =
@@ -59,6 +69,7 @@
       serve,
       sift,
       vps,
+      private-dotfiles,
       disko,
       nixos-hardware,
       ...
@@ -150,6 +161,7 @@
             extraModules:
             home-manager.lib.homeManagerConfiguration {
               inherit pkgs;
+              extraSpecialArgs = { inherit private-dotfiles; };
               modules = [ ./home.nix ] ++ extraModules;
             };
         in

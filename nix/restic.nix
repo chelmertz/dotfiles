@@ -88,6 +88,7 @@ let
     "${home}/code/matchi"
     "${home}/p/m"
     "${home}/.aws"
+    "${home}/.config/secrets/work.env"
     "${home}/.kube"
     "${home}/.docker"
     # ~/p's own repository tracks m/ as well.

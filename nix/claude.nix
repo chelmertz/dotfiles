@@ -14,14 +14,17 @@
   # path would break those writes. Keys present in ../claude/settings.json
   # win; every other key in the live file is kept.
   #
-  # ~/.claude/CLAUDE.md is an out-of-store symlink into this clone, not a copy
-  # and not a store path: it is edited by hand (and by Claude, which is told to
-  # put machine and toolchain traps there), so edits have to land in the
-  # working tree where a commit can pick them up. A store symlink would be
-  # read-only and a copy-on-activation would overwrite whatever was added since
-  # the last switch. Checked 2026-09-13 before publishing: it names no
-  # employer, customer, host or credential - only working preferences and
-  # NixOS facts.
+  # ~/.claude/CLAUDE.md is an out-of-store symlink into the private-dotfiles
+  # clone, not a copy and not a store path: it is edited by hand (and by
+  # Claude, which is told to put machine and toolchain traps there), so edits
+  # have to land in a working tree where a commit can pick them up. A store
+  # symlink would be read-only and a copy-on-activation would overwrite
+  # whatever was added since the last switch. The private file imports the
+  # public half (../claude/CLAUDE.md) with an @-line, so sessions that append
+  # to ~/.claude/CLAUDE.md write to the private repo by default and only
+  # curated notes reach this one. Split 2026-10-21, once the file had come to
+  # name work projects; what was published before stays in this repo's
+  # history.
   #
   # The permissions allowlist stays out. Not for secrecy - it names none
   # either - but because the merge below replaces arrays, so versioning it
@@ -40,7 +43,7 @@
   '';
 
   home.file.".claude/CLAUDE.md".source =
-    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/dotfiles/claude/CLAUDE.md";
+    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/code/github/chelmertz/private-dotfiles/CLAUDE.md";
 
   # Output styles change the system prompt itself, which is why register and
   # response shape live here rather than in CLAUDE.md: CLAUDE.md arrives as

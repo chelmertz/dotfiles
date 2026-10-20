@@ -195,7 +195,6 @@ unz() {
   fi
 }
 
-test -f ~/.shrc-local && source ~/.shrc-local
 
 # `xset q` for viewing keypress rates
 # lower the initial keypress delay:

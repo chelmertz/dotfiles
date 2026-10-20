@@ -27,43 +27,6 @@
 - Keep branches independent. Preference order: independent PRs, then smaller PRs, then stacked PRs. Stacking is acceptable only when it genuinely helps a reviewer chunk their work — never as a substitute for untangling a dependency.
 - Two PRs that each need the other to land first is a failure to spot; if a dependency is unavoidable, name it in the description and say which order to merge.
 
-# PR status: ask elly, never infer it from `gh`
-
-- **`reviewDecision` does not say whose turn it is.** It reports only whether an
-  approving review exists — not failing checks, not who owes the next reply. On
-  2026-09-16 four PRs went to a reviewer as "waiting on you": two were red (11
-  and 10 failing checks) and two had 4 and 8 threads whose last comment was
-  mine. All four read `REVIEW_REQUIRED`, so the list looked right and was wrong
-  in every row. `claude-pr-status-hook` now blocks that query.
-- **elly already knows.** It polls every PR every 5 minutes and stores
-  `ThreadsActionable` (> 0 means I owe the reply), `LastPrCommenter`,
-  `RereviewFrom` and `ChecksState`/`ChecksFailing`. Read
-  `curl -s localhost:9876/api/v0/prs`; the `pr-status` skill has the ordering
-  that decides whose turn it is. `p-launcher session-brief` reads the same
-  database, so the two can never disagree.
-- **A failed elly call means the state is unknown**, and unknown gets reported
-  as unknown. Do not reassemble the answer out of `gh` — that is the improvised
-  path that produced the wrong list in the first place. `gh` is still right for
-  one already-identified PR (a diff, a thread body, a workflow log).
-- **A brand-new PR is not in elly for several minutes**, and a forced
-  `POST /api/v0/prs/refresh` does not pull it in — the underlying `involves:`
-  search has to index it first. elly running but not listing a PR opened
-  moments ago is that, not a fault; go to `gh` for that PR by URL and say which
-  source answered.
-- **In `statusCheckRollup`, Buildkite rows are commit statuses, not checks**, so
-  their `conclusion` is always `null` and the verdict is in `.state`. Reading
-  `conclusion` alone makes a green PR look permanently pending. Ask for
-  `(.conclusion // .state)`. Cost one wrong "still building" call on
-  2026-09-23.
-- **Never put a red PR in a "please review" list.** It wastes the reviewer's
-  time and is the fastest way to lose the next review.
-- **Being in elly is not being asked.** Its `involves:` search matches anything
-  I authored, was assigned, was mentioned on or commented on, so most of the
-  list is other people's PRs I merely touched. A review is owed only when my
-  login is in `ReviewRequestedFromUsers` or `RereviewFrom`; everything else is
-  nobody's turn and belongs in no "on you" list. Seven of sixteen rows were
-  this on 2026-09-17.
-
 # Claims about code
 - A comment, doc or commit message that asserts how code behaves **elsewhere** — another repo, another PR, another file — is a claim to verify before writing, not after. Open the file. `git show origin/main:path` costs one command; a wrong claim in a doc outlives the PR and gets trusted.
 - Never write a planned state in the present tense. If the thing that makes it true has not merged, say so and name it: "PR X adds them; until it merges, …". Two separate defects in one initiative came from describing intended wiring as existing wiring.
@@ -108,7 +71,7 @@ project is a note the next project pays for again.
   -j N` and `~/.cargo/config.toml`'s `[build] jobs = 4` cap concurrent *crate*
   compilations, and a single large crate is one job whose rustc still fans out
   to 18-23 threads. `nice` lowers priority, not utilisation. Measured on
-  padelboard's Rust API 2026-09-24, after the fans gave it away twice.
+  a Rust API build 2026-09-24, after the fans gave it away twice.
 - **`capped` capped only CPU until 2026-09-27, and CPU was never what froze the
   machine.** A `gremlins unleash --workers=3` mutation run *under `capped`*
   drove tau into a thrash livelock: journald logging "Under memory pressure,
@@ -208,14 +171,6 @@ project is a note the next project pays for again.
   `GIT_TERMINAL_PROMPT=0`, `GIT_ASKPASS` to something that exits non-zero,
   `SSH_ASKPASS_REQUIRE=never` with `SSH_ASKPASS` unset, and `GIT_SSH_COMMAND`
   carrying `-oBatchMode=yes`. `noninteractiveAuth` in `git-freshen/main.go` has the recipe.
-- The VPS (`root@45.142.177.125`) takes the **default** `~/.ssh/id_ed25519`
-  (ch@tau); `vps/modules/base.nix` on `main` authorises that key and nothing
-  else. `~/.ssh/config` used to pin `id_ed25519_gamma` with `IdentitiesOnly
-  yes` for that IP, which meant the working key was never offered and every
-  login died on `Permission denied (publickey)` — a failure that reads exactly
-  like an expired or missing key. Retired from the config on 2026-09-19; plain
-  `ssh root@45.142.177.125` works. mediabox still holds the gamma pin because
-  ch@tau is unverified there.
 - The `gh` token expires. The symptom is HTTP 401 on every `gh` call while git
   over SSH keeps working; `gh auth login -h github.com` is interactive, so I
   have to run it myself.
@@ -254,5 +209,5 @@ project is a note the next project pays for again.
 - `p-launcher session-brief` only recognises `- [ ]` with the space. A `- []`
   item still counts toward `Progress: x/y` but is never picked as `Next step`,
   so the brief silently promotes a later item and the real next step vanishes.
-  Two such lines hid the top item in `m/c4-arch` (fixed 2026-09-14). Bold
+  Two such lines hid the top item in one project (fixed 2026-09-14). Bold
   markers survive into the brief as literal asterisks — keep the item plain.
