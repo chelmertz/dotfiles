@@ -1318,7 +1318,10 @@ in
         height = "(0, 240)";
         origin = "top-right";
         offset = "(16, 52)";
-        scale = 0;
+        # 0 auto-detects from the monitor's physical dpi: eDP-1 is ~162, so
+        # dunst drew at 1.7x on the 109-dpi DP-1 too. Fonts already track
+        # Xft.dpi, so no extra scaling is wanted.
+        scale = 1;
         notification_limit = 0;
         gap_size = 0;
         separator_height = 1;
