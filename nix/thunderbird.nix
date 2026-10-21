@@ -70,6 +70,10 @@ let
         # selected messages only, so a collapsed thread row would move one
         # message and leave the rest of the conversation in Inbox.
         x = "cmd:cmd_selectThread";
+        # Page the open message while focus stays in the list, via the two
+        # builtins the patch below adds.
+        pagedown = "tbkeys:messagePageDown";
+        pageup = "tbkeys:messagePageUp";
       };
       singles = lib.stringToCharacters "0123456789abcfjkmoprstuwx#][";
     in
@@ -85,6 +89,21 @@ let
       s, n = re.subn(r"mainkeys: `[^`]*`", lambda _: "mainkeys: `" + ${builtins.toJSON (builtins.toJSON tbkeysMain)} + "`", s, count=1)
       assert n == 1, "tbkeys-lite: default mainkeys block not found, the add-on changed"
       open("background.js", "w").write(s)
+
+      # Thunderbird's Space is cmd_space, which pages up when the event it gets
+      # has shiftKey set. tbkeys-lite's cmd: bindings pass no event and its eval
+      # is disabled, so the up direction needs a builtin of its own.
+      s = open("implementation.js").read()
+      old = "var builtins = {\n"
+      assert s.count(old) == 1, "tbkeys-lite: builtins object not found, the add-on changed"
+      s = s.replace(old, old + """  messagePageDown: function (win) {
+          win.goDoCommand("cmd_space", { shiftKey: false });
+        },
+        messagePageUp: function (win) {
+          win.goDoCommand("cmd_space", { shiftKey: true });
+        },
+      """)
+      open("implementation.js", "w").write(s)
       EOF
     '';
   };
