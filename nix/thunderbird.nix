@@ -218,6 +218,12 @@ lib.mkIf config.dotfiles.nixos {
         # list for j/k. At the bottom, Space stops instead of jumping to the next
         # unread message.
         "mail.advance_on_spacebar" = false;
+        # Dates from LC_TIME (sv_SE: 2026-09-25 13:28) instead of the app's
+        # en-US locale.
+        "intl.regional_prefs.use_os_locales" = true;
+        # Gmail filters spam on the server. Thunderbird's own classifier
+        # guessed again on top and flagged ordinary mail as junk.
+        "mail.server.default.spamLevel" = 0;
       };
     };
   };
