@@ -104,6 +104,16 @@ let
         },
       """)
       open("implementation.js", "w").write(s)
+
+      # Mousetrap listens on the main window in the bubbling phase, so the
+      # message list sees PageUp/PageDown first, moves the selection and loads
+      # another message before the binding runs. Capturing lets tbkeys act
+      # first; a handled key returns false, which stops it there.
+      s = open("modules/mousetrap.js").read()
+      old = "object.addEventListener(type, callback, false);"
+      assert s.count(old) == 1, "tbkeys-lite: Mousetrap _addEvent changed"
+      s = s.replace(old, "object.addEventListener(type, callback, true);")
+      open("modules/mousetrap.js", "w").write(s)
       EOF
     '';
   };
