@@ -49,6 +49,7 @@
   - Web things: mocked UX
   - Infra things: test-env-only e2e, no storage, minimal parts, hardcoding fine
   - Only expand scope after the core idea is validated.
+- **Security-shaped work gets a design note and `/persona-review` before the first code edit.** Anything that adds or changes a role, grant, network rule, secret, authentication path or data exposed to another system: write a short `*-design.md` (what gets access to what, and why), run `/persona-review` on it, then code. Its security persona is the only one with real design-time yield in the backtest. In https://github.com/matchiapp/matchi-backend/pull/3999, review caught a blanket `GRANT SELECT` over credential columns and a security-group rule opening the writer endpoint, and both are decisions a design note would have stated. Nothing enforces this; `claude-security-gate-hook` enforces only the code-level `/security-review` before `gh pr create`.
 
 # Collaboration
 - Implement the whole thing by default. The user opts in to writing code themselves case by case, and will say so when they want it — don't hold work back or carve out pieces for them unprompted.

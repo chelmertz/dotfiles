@@ -35,6 +35,10 @@
           {
             "type": "command",
             "command": "claude-no-poll-hook"
+          },
+          {
+            "type": "command",
+            "command": "claude-security-gate-hook"
           }
         ]
       },
@@ -144,6 +148,15 @@
             "command": "p-launcher hook",
             "async": true,
             "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-security-gate-hook"
           }
         ]
       }

@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+"""Refuse `gh pr create` until /security-review has run on the branch.
+
+Two registrations, one script:
+    PreToolUse  (matcher: Bash)  blocks `gh pr create` on an unreviewed branch
+    PostToolUse (matcher: Skill) records the branch when security-review loads
+
+https://github.com/matchiapp/matchi-backend/pull/3999 reached review with
+Metabase granted SELECT on password hashes, OAuth client secrets and
+notification tokens, a security-group rule that opened the writer endpoint,
+and a role password sent to Postgres in plaintext. All of them were caught
+by a reviewer or the CI bot, a round each, and a review before the PR was
+opened would likely have caught them first.
+
+The record is `git config branch.<name>.claudeSecurityReviewed <sha>` in the
+clone, set when the skill is invoked, so it proves the review was started on
+that branch, not that its findings were fixed. Commits after the review do
+not re-arm the gate: fixing the findings is the expected next step, and a
+gate keyed on HEAD would demand a new review for every fix.
+
+Blocked (on a branch with no record):
+    gh pr create --title ...
+    cd /path/to/clone && gh pr create --draft ...
+
+Exit 2 blocks the tool call; stderr goes back to Claude.
+Escape hatch for the user only: CLAUDE_SECURITY_GATE=0.
+"""
+import json
+import os
+import re
+import subprocess
+import sys
+
+# Same segment rule as the sibling hooks: a heredoc or quoted string that
+# mentions `gh pr create` is not a command.
+SEG = r"(?:^|[;&|(]\s*)\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*"
+PR_CREATE = re.compile(SEG + r"gh\s+pr\s+create\b([^;&|\n]*)", re.MULTILINE)
+CD = re.compile(SEG + r"cd\s+(\"[^\"]+\"|'[^']+'|\S+)", re.MULTILINE)
+HEAD_FLAG = re.compile(r"(?:--head|-H)[=\s]+(\S+)")
+KEY = "claudeSecurityReviewed"
+
+GUIDANCE = """Run the security review before opening the PR. Invoke the Skill tool with
+skill "security-review" and args naming the clone ({repo}) and the branch
+({branch}); review the branch's diff against its base from that clone. Fix
+or answer every finding, then run `gh pr create` again. The invocation is
+recorded against the branch, so later fix commits do not re-arm this gate.
+
+User escape hatch: CLAUDE_SECURITY_GATE=0."""
+
+
+def git(repo, *args):
+    r = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def unquote(s):
+    return s[1:-1] if s[:1] in "\"'" else s
+
+
+def repo_for(command, cwd, end):
+    """The directory gh runs in: the last `cd` before the gh call, else cwd."""
+    path = cwd
+    for m in CD.finditer(command, 0, end):
+        target = os.path.expanduser(unquote(m.group(1)))
+        path = os.path.join(path, target)
+    return path
+
+
+def gate(payload):
+    command = (payload.get("tool_input") or {}).get("command") or ""
+    m = PR_CREATE.search(command)
+    if not m:
+        return
+    repo = repo_for(command, payload.get("cwd") or os.getcwd(), m.start())
+    head = HEAD_FLAG.search(m.group(1))
+    branch = head.group(1).split(":")[-1] if head else git(repo, "branch", "--show-current")
+    if not branch or not git(repo, "rev-parse", "--git-dir"):
+        return  # not a clone we can read: fail open, like the sibling hooks
+    if git(repo, "config", f"branch.{branch}.{KEY}"):
+        return
+    print(f"[claude-security-gate-hook]: no security review recorded for {branch}.", file=sys.stderr)
+    print(GUIDANCE.format(repo=git(repo, "rev-parse", "--show-toplevel"), branch=branch), file=sys.stderr)
+    sys.exit(2)
+
+
+def record(payload):
+    tool_input = payload.get("tool_input") or {}
+    if (tool_input.get("skill") or "").split(":")[-1] != "security-review":
+        return
+    cwd = payload.get("cwd") or os.getcwd()
+    # The args name the clone when the session runs outside it.
+    candidates = [os.path.expanduser(w) for w in (tool_input.get("args") or "").split()]
+    repo = next((c for c in candidates if os.path.isdir(c) and git(c, "rev-parse", "--git-dir")), cwd)
+    branch = git(repo, "branch", "--show-current")
+    if branch:
+        git(repo, "config", f"branch.{branch}.{KEY}", git(repo, "rev-parse", "HEAD"))
+
+
+def main():
+    if os.environ.get("CLAUDE_SECURITY_GATE") == "0":
+        return
+    try:
+        payload = json.load(sys.stdin)
+    except Exception:
+        return
+    if payload.get("tool_name") == "Bash" and payload.get("hook_event_name") == "PreToolUse":
+        gate(payload)
+    elif payload.get("tool_name") == "Skill" and payload.get("hook_event_name") == "PostToolUse":
+        record(payload)
+
+
+if __name__ == "__main__":
+    main()

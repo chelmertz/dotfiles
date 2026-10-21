@@ -488,6 +488,11 @@ in
       executable = true;
     };
 
+    ".local/bin/claude-security-gate-hook" = {
+      source = py ../bin/claude-security-gate-hook;
+      executable = true;
+    };
+
     ".local/bin/toggle-obsidian-scratchpad" = {
       source = ../bin/toggle-obsidian-scratchpad;
       executable = true;
