@@ -179,6 +179,10 @@ lib.mkIf config.dotfiles.nixos {
         "mail.server.default.offline_download" = false;
         "mail.server.default.autosync_offline_stores" = false;
         "mailnews.database.global.indexer.enabled" = false;
+        # Space and Shift+Space page the open message while focus stays in the
+        # list for j/k. At the bottom, Space stops instead of jumping to the next
+        # unread message.
+        "mail.advance_on_spacebar" = false;
       };
     };
   };
