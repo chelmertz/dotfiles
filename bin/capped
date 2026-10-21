@@ -32,8 +32,21 @@
 # IOWeight is a share, not a ceiling: it only bites when something else wants
 # the disk, which is exactly when the desktop is the thing being starved.
 #
+# taskset keeps builds off the P-cores. A quota limits CPU time, not heat:
+# on tau's Core Ultra 7 155U (cpus 0-3 are the 4.8 GHz P-core threads, 4-11
+# E-cores at 3.8, 12-13 LP E-cores at 2.1) a 400% build lands on the P-cores at
+# full turbo, the package hits 100-101 C and throttles every core, the
+# desktop's included. Measured 2026-10-21 under a `go build` batch: 586k
+# package throttle events since boot, typing lag in the terminal. The E-core
+# list comes from /sys/devices/cpu_atom/cpus; a non-hybrid CPU has no such
+# file and keeps every core.
+# Affinity, not the scope's AllowedCPUs: user@.service is not delegated the
+# cpuset controller, so AllowedCPUs is accepted and silently does nothing.
+# Children inherit the mask.
+#
 # 400% of 1400% available (14 cores). Override for a one-off:
 #   CAPPED_QUOTA=800% CAPPED_MEM_MAX=20G capped cargo build
+#   CAPPED_CPUS=0-13 capped cargo build    # P-cores too
 set -euo pipefail
 
 if [ "$#" -eq 0 ]; then
@@ -41,10 +54,12 @@ if [ "$#" -eq 0 ]; then
   exit 2
 fi
 
+cpus=${CAPPED_CPUS:-$(cat /sys/devices/cpu_atom/cpus 2>/dev/null || echo "0-$(($(nproc --all) - 1))")}
+
 exec systemd-run --user --scope --quiet \
   -p CPUQuota="${CAPPED_QUOTA:-400%}" \
   -p CPUWeight="${CAPPED_WEIGHT:-20}" \
   -p MemoryMax="${CAPPED_MEM_MAX:-12G}" \
   -p MemorySwapMax="${CAPPED_SWAP_MAX:-0}" \
   -p IOWeight="${CAPPED_IO_WEIGHT:-20}" \
-  -- "$@"
+  -- taskset -c "$cpus" "$@"
