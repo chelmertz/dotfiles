@@ -42,6 +42,12 @@ let
         mkdir -p "$out/${extensionDir}" work
         cd work
         unzip -q "$src"
+        # The manifest's strict_max_version is a cap written at release time;
+        # addons.thunderbird.net raises it as Thunderbird ships, but only for
+        # installs from there. Kept, it turns the add-on off at the first
+        # Thunderbird bump (tbkeys-lite said 156.*, nixpkgs moved to 157).
+        ${pkgs.jq}/bin/jq 'del(.browser_specific_settings.gecko.strict_max_version, .applications.gecko.strict_max_version)' manifest.json > manifest.json.new
+        mv manifest.json.new manifest.json
         ${patch}
         zip -qr -X "$out/${extensionDir}/${addonId}.xpi" .
       '';
