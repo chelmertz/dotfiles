@@ -1765,6 +1765,18 @@ in
     };
   };
 
+  # flameshot.ini is owned by flameshot, which rewrites it from its config
+  # window, so services.flameshot.settings (a read-only store symlink) would
+  # break that. Assert only the keys that matter, like firefoxChrome does.
+  # savePathFixed makes `flameshot gui`'s save go straight to savePath instead
+  # of a file picker; Shift+Print's `full -p` never needed it.
+  home.activation.flameshotSettings = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    fsIni="$HOME/.config/flameshot/flameshot.ini"
+    mkdir -p "$(dirname "$fsIni")"
+    ${pkgs.crudini}/bin/crudini --ini-options=nospace --set "$fsIni" General savePath "$HOME/sync/screenshots"
+    ${pkgs.crudini}/bin/crudini --ini-options=nospace --set "$fsIni" General savePathFixed true
+  '';
+
   systemd.user.services.elly = lib.mkIf ellyEnabled {
     Unit = {
       Description = "Elly - Github PR dashbaord";
