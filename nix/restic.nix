@@ -102,6 +102,11 @@ let
     "!${home}/.local/share/Steam/steamapps"
     "${home}/.local/share/Steam/steamapps/*"
     "!${home}/.local/share/Steam/steamapps/compatdata"
+    # Launchers run as non-Steam games (Battle.net) install their games
+    # inside the prefix; those re-download too, and their saves live
+    # server-side or under users/steamuser, which stays.
+    "${home}/.local/share/Steam/steamapps/compatdata/*/pfx/drive_c/Program Files"
+    "${home}/.local/share/Steam/steamapps/compatdata/*/pfx/drive_c/Program Files (x86)"
 
     # Claude Code: transcripts mix work and personal and expire after 30 days
     # anyway. Keep skills, settings and the memory of non-work projects.
