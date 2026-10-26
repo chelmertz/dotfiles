@@ -176,7 +176,8 @@ bindsym Shift+Print exec flameshot full -c -p ~/sync/screenshots
 bindsym Ctrl+Shift+Print exec peek
 
 # switch to workspace; pressing the current workspace's key again returns
-# to the previous one
+# to the previous one. Script-driven switches and moves opt out with
+# --no-auto-back-and-forth, or a raise that already landed there bounces away.
 workspace_auto_back_and_forth yes
 bindsym $mod+1 workspace number $ws1
 bindsym $mod+2 workspace number $ws2
@@ -206,7 +207,7 @@ mode "fkey" {
 
 bindsym $mod+m mode "fkey"; exec notify-send "fkey mode on (mod + m)"
 
-bindsym F1 exec /home/ch/.local/bin/ror.py Firefox --workspace $ws1 firefox; workspace number $ws1
+bindsym F1 exec /home/ch/.local/bin/ror.py Firefox --workspace $ws1 firefox; workspace --no-auto-back-and-forth number $ws1
 bindsym F2 workspace number $ws2
 bindsym F3 workspace number $ws3
 bindsym F4 workspace number $ws4
@@ -215,29 +216,29 @@ bindsym F4 workspace number $ws4
 # reachable via $mod+5. stderr goes to the journal: journalctl --user -t p-launcher
 set $p_launcher_key F5
 bindsym $p_launcher_key exec --no-startup-id systemd-cat -t p-launcher p-launcher menu --toggle-key $p_launcher_key
-bindsym F7 exec /home/ch/.local/bin/ror.py steam steam; workspace number $ws7
+bindsym F7 exec /home/ch/.local/bin/ror.py steam steam; workspace --no-auto-back-and-forth number $ws7
 # Focus the wee (weechat/wee-slack) terminal on its own workspace; again
 # returns to the previous window. A cold start opens it as a ghostty window
 # with a matchable class and switches to workspace 9, where the assign puts it.
 # The Slack desktop app stays installed for huddles but no longer owns F9.
-bindsym F9 exec --no-startup-id ~/.local/bin/focus-or-return wee 'class="org.weechat.wee"' sh -c 'ghostty --class=org.weechat.wee -e wee & i3-msg -q workspace number $ws9'
+bindsym F9 exec --no-startup-id ~/.local/bin/focus-or-return wee 'class="org.weechat.wee"' sh -c 'ghostty --class=org.weechat.wee -e wee & i3-msg -q -- workspace --no-auto-back-and-forth number $ws9'
 # Focus YouTube Music (starting it if needed); again returns to the previous window.
 # Project slot 8 gave up F8 for it on 2026-10-21; $mod+8 still reaches it.
 bindsym F8 exec --no-startup-id ~/.local/bin/focus-or-return ytmusic 'instance="music.youtube.com"' ~/.local/bin/ytmusic
 # Focus Thunderbird, on its own workspace like Slack; again returns.
-bindsym F10 exec --no-startup-id ~/.local/bin/focus-or-return thunderbird 'class="(?i)thunderbird"' sh -c 'thunderbird & i3-msg -q workspace number $ws10'
+bindsym F10 exec --no-startup-id ~/.local/bin/focus-or-return thunderbird 'class="(?i)thunderbird"' sh -c 'thunderbird & i3-msg -q -- workspace --no-auto-back-and-forth number $ws10'
 
 # move focused container to workspace
-bindsym $mod+Shift+1 move container to workspace number $ws1
-bindsym $mod+Shift+2 move container to workspace number $ws2
-bindsym $mod+Shift+3 move container to workspace number $ws3
-bindsym $mod+Shift+4 move container to workspace number $ws4
-bindsym $mod+Shift+5 move container to workspace number $ws5
-bindsym $mod+Shift+6 move container to workspace number $ws6
-bindsym $mod+Shift+7 move container to workspace number $ws7
-bindsym $mod+Shift+8 move container to workspace number $ws8
-bindsym $mod+Shift+9 move container to workspace number $ws9
-bindsym $mod+Shift+0 move container to workspace number $ws10
+bindsym $mod+Shift+1 move container to workspace --no-auto-back-and-forth number $ws1
+bindsym $mod+Shift+2 move container to workspace --no-auto-back-and-forth number $ws2
+bindsym $mod+Shift+3 move container to workspace --no-auto-back-and-forth number $ws3
+bindsym $mod+Shift+4 move container to workspace --no-auto-back-and-forth number $ws4
+bindsym $mod+Shift+5 move container to workspace --no-auto-back-and-forth number $ws5
+bindsym $mod+Shift+6 move container to workspace --no-auto-back-and-forth number $ws6
+bindsym $mod+Shift+7 move container to workspace --no-auto-back-and-forth number $ws7
+bindsym $mod+Shift+8 move container to workspace --no-auto-back-and-forth number $ws8
+bindsym $mod+Shift+9 move container to workspace --no-auto-back-and-forth number $ws9
+bindsym $mod+Shift+0 move container to workspace --no-auto-back-and-forth number $ws10
 
 bindsym $mod+x move workspace to output right
 
