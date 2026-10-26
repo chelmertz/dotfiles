@@ -1,26 +1,28 @@
 --- a/wee_slack.py
 +++ b/wee_slack.py
-@@ -521,6 +521,8 @@
+@@ -519,6 +519,9 @@
          self.weechat_controller = WeechatController(self)
          self.previous_buffer = ""
          self.reply_buffer = {}
 +        self.http_inflight = 0
 +        self.http_waiting = []
++        self.http_log = open_request_log()
          self.cmds = get_functions_with_prefix("command_")
          self.proc = get_functions_with_prefix("process_")
          self.handlers = get_functions_with_prefix("handle_")
-@@ -734,6 +736,10 @@
+@@ -732,6 +735,11 @@
          where the request originated and route properly.
          """
          request_metadata = self.retrieve_context(data)
 +        if return_code != w.WEECHAT_HOOK_PROCESS_RUNNING:
 +            self.http_inflight -= 1
++            log_request(self, request_metadata, return_code)
 +            if self.http_waiting:
 +                self.queue.insert(0, self.http_waiting.pop(0))
          dbg(
              "RECEIVED CALLBACK with request of {} id of {} and  code {} of length {}".format(
                  request_metadata.request,
-@@ -828,6 +834,9 @@
+@@ -826,6 +834,9 @@
              if isinstance(j, SlackRequest):
                  if j.should_try():
                      if j.retry_ready():
@@ -30,7 +32,7 @@
                          local_process_async_slack_api_request(j, self)
                      else:
                          self.slow_queue.append(j)
-@@ -954,6 +963,11 @@
+@@ -952,6 +963,34 @@
  
  ###### New Local Processors
  
@@ -39,10 +41,41 @@
 +# At 8, a cold start sat at the cap for 90 s; Slack's 429s are retried.
 +MAX_INFLIGHT_HTTP = 16
 +
++
++def open_request_log():
++    # One line per finished request, rewritten every start, so the time a
++    # load takes can be split into queueing and network.
++    path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "wee-requests.log")
++    try:
++        log = open(path, "w", buffering=1)
++    except OSError:
++        return None
++    log.write("end request channel code queued_s net_s inflight waiting queue\n")
++    return log
++
++
++def log_request(router, request, return_code):
++    if not router.http_log:
++        return
++    now = time.time()
++    sent = getattr(request, "sent_at", now)
++    router.http_log.write("%.3f %s %s %s %.3f %.3f %d %d %d\n" % (
++        now, request.request, request.post_data.get("channel", "-"), return_code,
++        sent - request.start_time, now - sent, router.http_inflight,
++        len(router.http_waiting), len(router.queue)))
++
  
  def local_process_async_slack_api_request(request, event_router):
      """
-@@ -979,6 +993,7 @@
+@@ -967,6 +1006,7 @@
+             )
+         )
+         request.tried()
++        request.sent_at = time.time()
+         options = request.options()
+         options["header"] = "1"
+         context = event_router.store_context(request)
+@@ -977,6 +1017,7 @@
              "receive_httprequest_callback",
              context,
          )

@@ -122,6 +122,8 @@ os.write(fd, b"/print MENU-CLOSED\r")
 pump(1)
 os.write(fd, b"\x0b")  # Ctrl+K: /go
 pump(1)
+os.write(fd, b"ho")  # filtering, as Esc usually comes after typing
+pump(1)
 os.write(fd, ESC)
 pump(1)
 os.write(fd, b"/print GO-CLOSED\r")
