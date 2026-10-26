@@ -1213,20 +1213,34 @@ in
     longitude = 12.1;
   };
 
-  # Safety net: if redshift was toggled off via i3blocks, re-start it at 21:00.
+  # "Off" is a pause, not a stop. redshift toggles itself on SIGUSR1, so the
+  # service keeps running and `home-manager switch` leaves it alone: sd-switch
+  # starts every inactive unit graphical-session.target wants, unchanged or
+  # not, so a stopped redshift came back on with every switch. The pause flag
+  # records the toggled-off state; any (re)start clears it, since redshift
+  # always starts on.
+  systemd.user.services.redshift.Service.ExecStartPre = "${pkgs.coreutils}/bin/rm -f %t/redshift-paused";
+
+  # Safety net: if redshift was toggled off via i3blocks, turn it on at 21:00.
   # Timers can't target another service directly, so we need this oneshot
-  # wrapper to start redshift.service.
-  # i3blocks_redshift.sh routes clicks through here too, so every attempt --
-  # timer or click -- lands under `journalctl --user -t redshift-ensure`.
+  # wrapper. i3blocks_redshift.sh routes clicks through here too, so every
+  # attempt -- timer or click -- lands under `journalctl --user -t redshift-ensure`.
   systemd.user.services.redshift-ensure = {
-    Unit.Description = "Ensure redshift is running";
+    Unit.Description = "Ensure redshift is on";
     Service = {
       Type = "oneshot";
       SyslogIdentifier = "redshift-ensure";
-      ExecStart = [
-        "${pkgs.coreutils}/bin/echo starting redshift.service"
-        "${pkgs.systemd}/bin/systemctl --user start redshift.service"
-      ];
+      ExecStart = pkgs.writeShellScript "redshift-ensure" ''
+        if ! ${pkgs.systemd}/bin/systemctl --user is-active --quiet redshift.service; then
+          echo starting redshift.service
+          exec ${pkgs.systemd}/bin/systemctl --user start redshift.service
+        fi
+        if [ -e "$XDG_RUNTIME_DIR/redshift-paused" ]; then
+          echo resuming redshift.service
+          ${pkgs.systemd}/bin/systemctl --user kill -s USR1 redshift.service
+          ${pkgs.coreutils}/bin/rm -f "$XDG_RUNTIME_DIR/redshift-paused"
+        fi
+      '';
     };
   };
 
@@ -1237,14 +1251,18 @@ in
   };
 
   systemd.user.services.redshift-disable = {
-    Unit.Description = "Stop redshift";
+    Unit.Description = "Pause redshift";
     Service = {
       Type = "oneshot";
       SyslogIdentifier = "redshift-disable";
-      ExecStart = [
-        "${pkgs.coreutils}/bin/echo stopping redshift.service"
-        "${pkgs.systemd}/bin/systemctl --user stop redshift.service"
-      ];
+      ExecStart = pkgs.writeShellScript "redshift-disable" ''
+        if ${pkgs.systemd}/bin/systemctl --user is-active --quiet redshift.service \
+          && [ ! -e "$XDG_RUNTIME_DIR/redshift-paused" ]; then
+          echo pausing redshift.service
+          ${pkgs.systemd}/bin/systemctl --user kill -s USR1 redshift.service
+          ${pkgs.coreutils}/bin/touch "$XDG_RUNTIME_DIR/redshift-paused"
+        fi
+      '';
     };
   };
 

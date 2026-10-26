@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 
+# Off is a pause (SIGUSR1) flagged in the runtime dir, not a stopped unit; see
+# redshift-disable in nix/home.nix for why.
 state="off"
-if systemctl --user is-active --quiet redshift.service; then
+if systemctl --user is-active --quiet redshift.service &&
+	[[ ! -e "$XDG_RUNTIME_DIR/redshift-paused" ]]; then
 	state="on"
 fi
 
