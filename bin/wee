@@ -27,6 +27,7 @@ setup='/set plugins.var.python.slack.background_load_all_history false
 /set weechat.completion.partial_completion_other on
 /set weechat.bar.buflist.position right
 /set weechat.bar.buflist.size_max 32
+/set buflist.look.sort ~short_name
 /set weechat.bar.input.items mode_indicator+[input_prompt]+(away),[input_search],[input_paste],input_text
 /key bind ctrl-k /go
 /key bind meta-ret /input insert \n'

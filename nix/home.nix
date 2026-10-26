@@ -481,7 +481,6 @@ in
         scripts = with weechatScripts; [
           wee-slack
           weechat-go
-          weechat-autosort
           weechat-notify-send
           url_hint
         ];
