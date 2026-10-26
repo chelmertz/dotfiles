@@ -30,6 +30,11 @@ with open(os.path.join(stubs, "slack-session-ensure"), "w") as f:
     f.write("#!/bin/sh\n")
 os.chmod(os.path.join(stubs, "slack-session-ensure"), 0o755)
 os.makedirs(os.path.join(tmp, "run"), mode=0o700)
+# A token list of "," (empty is "unset", which restores the placeholder):
+# wee-slack connects to zero teams instead of trying its
+# placeholder token and printing ERROR lines, which wee counts as a broken start.
+with open(os.path.join(weedir, "plugins.conf"), "w") as f:
+    f.write('[var]\npython.slack.slack_api_token = ","\n')
 
 # Logs the hint bar's height whenever it changes, so the run can assert the
 # message menu stays compact on a huge message.
@@ -133,6 +138,13 @@ pump(1)
 error_chip_drawn = b"1 error" in screen
 os.write(fd, b"/buffer core.weechat\r")
 pump(0.5)
+# A start that prints an error must stay on core, where it is visible.
+os.write(fd, b"/print Connecting to 1 slack team.\r")
+pump(0.3)
+os.write(fd, b"/print -core =!=\\tSELFTEST startup error\r")
+pump(0.3)
+os.write(fd, b"/print Connected to Slack team T1 (a) with username x\r")
+pump(1)
 os.write(fd, b"/logger flush\r")
 pump(1)
 os.write(fd, b"/quit\r")
@@ -160,8 +172,9 @@ for mark in ("MENU-CLOSED", "GO-CLOSED"):
         print("Esc did not close it:", mark)
         failed = True
 bufs = [l.rsplit("=", 1)[1] for l in log if "\tCURBUF=" in l]
-if "core.homeprobe" not in bufs:
-    print("did not move to the home buffer once connected:", bufs)
+if bufs.count("core.homeprobe") != 1:
+    print("expected one move to the home buffer (clean start) and none after"
+          " a start with errors:", bufs)
     failed = True
 heights = [int(l.rsplit("=", 1)[1]) for l in log if "\tBARHEIGHT=" in l]
 if not heights or max(heights) < 2:

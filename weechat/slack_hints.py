@@ -279,11 +279,11 @@ def menu_rows():
 
 
 def core_print_cb(data, buffer, date, tags, displayed, highlight, prefix, message):
-    # wee moves off the core buffer once connected, so errors printed there
-    # (script tracebacks, wee-slack's ERROR lines, weechat's =!= prefix) are
-    # counted on the bar until the core buffer is looked at again.
-    if w.buffer_get_string(w.current_buffer(), "full_name") == "core.weechat":
-        return w.WEECHAT_RC_OK
+    # Errors printed in core (script tracebacks, wee-slack's ERROR lines,
+    # weechat's =!= prefix) are counted until the core buffer is switched to:
+    # the bar shows the count, and connected_cb will not move a start that
+    # had errors off core. Kept apart from the bar item, which can itself be
+    # what crashes.
     if (w.string_remove_color(prefix, "").strip() == "=!="
             or "Traceback" in message or message.startswith("ERROR")):
         state["errors"] += 1
@@ -332,10 +332,12 @@ def connected_cb(data, buffer, date, tags, displayed, highlight, prefix, message
     state["on_time"] = 0
     # /query needs a team, which the core buffer has none of: once every team
     # is up, move from core to plugins.var.wee.home_buffer (set in bin/wee).
-    # Anyone who has already moved stays put.
+    # Anyone who has already moved stays put, and a start that printed errors
+    # stays on core so they are seen, as they were before this switch existed.
     home = w.config_string(w.config_get("plugins.var.wee.home_buffer"))
     current = w.buffer_get_string(w.current_buffer(), "full_name")
-    if home and state["connected"] >= state["expected"] and current == "core.weechat":
+    if (home and not state["errors"] and current == "core.weechat"
+            and state["connected"] >= state["expected"]):
         w.command("", "/buffer " + home)
     w.bar_item_update("slack_hints")
     return w.WEECHAT_RC_OK
