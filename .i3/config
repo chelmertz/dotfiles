@@ -10,7 +10,7 @@ set $ws5 "5"
 set $ws6 "6"
 set $ws7 "7 - steam"
 set $ws8 "8"
-set $ws9 "9 - slack"
+set $ws9 "9 - chat"
 set $ws10 "10 - mail"
 
 # Font for window titles. Will also be used by the bar unless a different font
@@ -100,6 +100,7 @@ bindsym $mod+d focus child
 
 assign [class="firefox"] $ws1
 assign [class="(?i)slack"] $ws9
+assign [class="org.weechat.wee"] $ws9
 assign [class="Element"] $ws9
 assign [class="steam"] $ws7
 assign [class="(?i)thunderbird"] $ws10
@@ -214,9 +215,11 @@ bindsym F4 exec --no-startup-id i3-project switch 4
 set $p_launcher_key F5
 bindsym $p_launcher_key exec --no-startup-id systemd-cat -t p-launcher p-launcher menu --toggle-key $p_launcher_key
 bindsym F7 exec /home/ch/.local/bin/ror.py steam steam; workspace number $ws7
-# Focus Slack, on its own workspace; again returns to the previous window.
-# A cold start also switches to workspace 9, where the assign above puts it.
-bindsym F9 exec --no-startup-id ~/.local/bin/focus-or-return slack 'class="(?i)slack"' sh -c 'slack & i3-msg -q workspace number $ws9'
+# Focus the wee (weechat/wee-slack) terminal on its own workspace; again
+# returns to the previous window. A cold start opens it as a ghostty window
+# with a matchable class and switches to workspace 9, where the assign puts it.
+# The Slack desktop app stays installed for huddles but no longer owns F9.
+bindsym F9 exec --no-startup-id ~/.local/bin/focus-or-return wee 'class="org.weechat.wee"' sh -c 'ghostty --class=org.weechat.wee -e wee & i3-msg -q workspace number $ws9'
 # Focus YouTube Music (starting it if needed); again returns to the previous window.
 # Project slot 8 gave up F8 for it on 2026-10-21; $mod+8 still reaches it.
 bindsym F8 exec --no-startup-id ~/.local/bin/focus-or-return ytmusic 'instance="music.youtube.com"' ~/.local/bin/ytmusic

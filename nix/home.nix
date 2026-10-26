@@ -469,6 +469,17 @@ in
         wrapProgram $out/bin/slack --add-flags "--no-sandbox"
       '';
     })
+    (weechat.override {
+      configure = { availablePlugins, ... }: {
+        scripts = with weechatScripts; [
+          wee-slack
+          weechat-go
+          weechat-autosort
+          weechat-notify-send
+          url_hint
+        ];
+      };
+    })
     slop
     sqlite
     sqls

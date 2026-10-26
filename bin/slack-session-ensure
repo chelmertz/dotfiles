@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+# Keep wee-slack's stored Slack session valid, pushing a fresh one into a
+# running weechat through its fifo when the stored token has expired.
+#
+# Slack's xoxc token rotates; the xoxd cookie is long-lived. Slack desktop
+# rewrites a current xoxc into its on-disk leveldb every time it runs, so the
+# common refresh needs no decryption and no GUI: grep the fresh xoxc out of
+# leveldb (it is stored in plaintext), pair it with the cookie we already hold,
+# verify against auth.test, and push it in. Only when the cookie itself has
+# rotated do we fall back to decrypting the `d` cookie from Slack's cookie
+# store (Chromium v11: AES-128-CBC under a key in the login keyring).
+#
+# The happy path is one auth.test (~300ms) and then silence. The slow path
+# (cookie decrypt) fires a desktop notification and a stderr line, because it
+# is the only case that lags. Booting Slack to refresh stale on-disk data is
+# deliberately NOT automatic -- auto-launching and killing a GUI app
+# unprompted is exactly the surprise this machine's notes warn against; the
+# notification tells you to open Slack once instead.
+#
+# Usage:
+#   slack-session-ensure [--from-launch] [--quiet]
+#     --from-launch  wait up to 30s for a weechat fifo to appear (the wee
+#                    entrypoint forks this before weechat is up)
+#     --quiet        suppress the stderr line on the slow path (notify stays)
+set -euo pipefail
+
+WEECHAT_DIR="${WEECHAT_HOME:-$HOME/.config/weechat}"
+PLUGINS_CONF="$WEECHAT_DIR/plugins.conf"
+SLACK_DIR="$HOME/.config/Slack"
+RUNTIME="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/weechat"
+# The option is named differently in the two places it is used: plugins.conf
+# stores it under the var section as python.slack.slack_api_token, while /set
+# addresses it with the full plugins.var. prefix.
+TOKEN_KEY="python.slack.slack_api_token"
+TOKEN_OPT="plugins.var.$TOKEN_KEY"
+
+from_launch=0
+quiet=0
+for a in "$@"; do
+  case "$a" in
+    --from-launch) from_launch=1 ;;
+    --quiet) quiet=1 ;;
+    *) echo "slack-session-ensure: unknown arg: $a" >&2; exit 2 ;;
+  esac
+done
+
+# The team id is the first segment of an xoxc token (xoxc-<team>-...). The `d`
+# cookie covers every workspace the browser session is signed into, so
+# auth.test says "ok" for a token from ANY of them; filtering fresh tokens to
+# the stored token's team id keeps us on the same workspace instead of
+# silently reconnecting to another one.
+team_prefix() { local x="${1#xoxc-}"; printf 'xoxc-%s-' "${x%%-*}"; }
+
+note() { command -v notify-send >/dev/null 2>&1 && notify-send -u normal "Slack (wee)" "$1" || true; }
+warn() { [ "$quiet" = 1 ] || echo "slack-session-ensure: $1" >&2; }
+
+# One auth.test. Args: xoxc, xoxd. Prints nothing; return 0 iff the pair works.
+auth_ok() {
+  local tok="$1" cookie="$2" resp
+  resp=$(curl -s --max-time 12 https://slack.com/api/auth.test \
+    -H "Authorization: Bearer $tok" -b "d=$cookie" 2>/dev/null) || return 1
+  printf '%s' "$resp" | grep -q '"ok":true'
+}
+
+# Split a stored "xoxc-...:d=xoxd-..." value into globals XOXC / XOXD.
+split_stored() {
+  local v="$1"
+  XOXC="${v%%:d=*}"
+  XOXD="${v#*:d=}"
+  [ "$XOXC" != "$v" ] && [ -n "$XOXD" ]
+}
+
+# Current stored token value, or empty. Matches only a real xoxc value, so the
+# identically-prefixed line in the [desc] section (help text) is ignored and a
+# cold machine with no token set returns nothing.
+stored_value() {
+  [ -f "$PLUGINS_CONF" ] || return 0
+  sed -n "s/^${TOKEN_KEY//./\\.} = \"\(xoxc[^\"]*\)\"\$/\1/p" "$PLUGINS_CONF" | head -1
+}
+
+# Fresh xoxc tokens from Slack desktop's leveldb, newest-written last. Printed
+# one per line; may be empty if Slack has never run here.
+disk_xoxc() {
+  local ls="$SLACK_DIR/Local Storage/leveldb"
+  [ -d "$ls" ] || return 0
+  grep -aoh 'xoxc-[0-9A-Za-z-]*' "$ls"/* 2>/dev/null | sort -u
+}
+
+# Decrypt the `d` cookie from Slack's cookie store. Prints the xoxd value on
+# success. Needs openssl + secret-tool + sqlite3 (wrapBin provides them).
+decrypt_cookie() {
+  local pw key blob plain
+  command -v openssl >/dev/null 2>&1 || return 1
+  command -v secret-tool >/dev/null 2>&1 || return 1
+  pw=$(secret-tool lookup application Slack 2>/dev/null) || return 1
+  [ -n "$pw" ] || return 1
+  key=$(python3 -I -c 'import hashlib,sys;print(hashlib.pbkdf2_hmac("sha1",sys.argv[1].encode(),b"saltysalt",1,16).hex())' "$pw") || return 1
+  blob=$(sqlite3 -readonly "file:$SLACK_DIR/Cookies?immutable=1" \
+    "select hex(encrypted_value) from cookies where host_key='.slack.com' and name='d'" 2>/dev/null) || return 1
+  [ -n "$blob" ] || return 1
+  # Strip the 3-byte 'v11' scheme prefix (6 hex chars), AES-128-CBC with a
+  # fixed IV of 16 spaces, then drop the 32-byte SHA-256 domain-hash prefix.
+  # python does the hex->bytes so there is no xxd dependency.
+  plain=$(python3 -I -c 'import sys;sys.stdout.buffer.write(bytes.fromhex(sys.argv[1]))' "${blob:6}" \
+    | openssl enc -d -aes-128-cbc -K "$key" -iv 20202020202020202020202020202020 2>/dev/null \
+    | tail -c +33) || return 1
+  case "$plain" in xoxd-*) printf '%s' "$plain" ;; *) return 1 ;; esac
+}
+
+# Locate a weechat fifo to push into. With --from-launch, wait for one.
+find_fifo() {
+  local tries=${1:-1} f
+  while [ "$tries" -gt 0 ]; do
+    f=$(ls -t "$RUNTIME"/weechat_fifo_* 2>/dev/null | head -1 || true)
+    if [ -n "$f" ] && [ -p "$f" ]; then printf '%s' "$f"; return 0; fi
+    tries=$((tries - 1))
+    [ "$tries" -gt 0 ] && sleep 1
+  done
+  return 1
+}
+
+# Push a validated token into the running weechat through the fifo, persist it
+# with /save (so the next cold launch starts valid), and reconnect. weechat
+# owns plugins.conf at runtime, so letting /save write it avoids corrupting the
+# file by editing it underneath a running instance.
+apply_token() {
+  local value="$1" fifo
+  if fifo=$(find_fifo "$([ "$from_launch" = 1 ] && echo 30 || echo 1)"); then
+    printf '*/set %s %s\n' "$TOKEN_OPT" "$value" > "$fifo"
+    printf '*/save\n' > "$fifo"
+    sleep 1
+    printf '*/python reload slack\n' > "$fifo"
+    return 0
+  fi
+  return 1
+}
+
+main() {
+  local cur
+  cur=$(stored_value)
+
+  # Fast path: stored token still works.
+  if [ -n "$cur" ] && split_stored "$cur" && auth_ok "$XOXC" "$XOXD"; then
+    exit 0
+  fi
+
+  # Keep the cookie we already have; only the xoxc usually rotated. Restrict
+  # fresh tokens to the stored workspace.
+  local cookie="" prefix=""
+  if [ -n "$cur" ] && split_stored "$cur"; then
+    cookie="$XOXD"
+    prefix=$(team_prefix "$XOXC")
+  fi
+
+  if [ -n "$cookie" ]; then
+    while IFS= read -r t; do
+      [ -n "$t" ] || continue
+      [ -n "$prefix" ] && case "$t" in "$prefix"*) ;; *) continue ;; esac
+      if auth_ok "$t" "$cookie"; then
+        apply_token "$t:d=$cookie" && exit 0
+      fi
+    done < <(disk_xoxc)
+  fi
+
+  # Slow path: cookie rotated (or none stored) -> decrypt a fresh one.
+  warn "stored Slack session invalid; decrypting a fresh cookie"
+  note "Refreshing Slack session…"
+  local xoxd
+  if xoxd=$(decrypt_cookie); then
+    while IFS= read -r t; do
+      [ -n "$t" ] || continue
+      [ -n "$prefix" ] && case "$t" in "$prefix"*) ;; *) continue ;; esac
+      if auth_ok "$t" "$xoxd"; then
+        apply_token "$t:d=$xoxd" && { note "Slack session refreshed."; exit 0; }
+      fi
+    done < <(disk_xoxc)
+  fi
+
+  warn "could not refresh from disk; open Slack desktop once, then reconnect (/python reload slack)"
+  note "Slack session expired. Open Slack desktop once to refresh."
+  exit 1
+}
+
+main

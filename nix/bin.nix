@@ -95,6 +95,29 @@ in
       executable = true;
     };
 
+    # Keeps wee-slack's stored Slack session valid by pushing a fresh token in
+    # through weechat's fifo. Needs openssl + secret-tool for the rare cookie
+    # re-decrypt, and curl/sqlite/python/grep for the common refresh; none are
+    # guaranteed on PATH when run from the i3-launched `wee`, so pin them here.
+    ".local/bin/slack-session-ensure" = {
+      source = "${wrapBin {
+        name = "slack-session-ensure";
+        src = ../bin/slack-session-ensure;
+        deps = [
+          pkgs.bash
+          pkgs.coreutils
+          pkgs.curl
+          pkgs.gnugrep
+          pkgs.libnotify
+          pkgs.libsecret
+          pkgs.openssl
+          pkgs.python3
+          pkgs.sqlite
+        ];
+      }}/bin/slack-session-ensure";
+      executable = true;
+    };
+
     ".local/bin/sync-app-settings" = {
       source = ../bin/sync-app-settings;
       executable = true;
@@ -510,6 +533,13 @@ in
 
     ".local/bin/uuid" = {
       source = ../bin/uuid;
+      executable = true;
+    };
+
+    # Entrypoint for Slack-over-weechat: applies wee-slack tuning and keybinds,
+    # forks slack-session-ensure, then execs weechat. Bound to F9 in i3.
+    ".local/bin/wee" = {
+      source = ../bin/wee;
       executable = true;
     };
 

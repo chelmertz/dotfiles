@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Entrypoint for Slack-over-weechat (wee-slack). Launches weechat with the
+# wee-slack tuning and navigation keybinds applied idempotently, and kicks off
+# a background Slack-session refresh that pushes a fresh token in through the
+# fifo if the stored one has expired. The refresh never blocks the launch: it
+# is forked before weechat starts and waits for weechat's fifo itself, so a
+# valid session is silent and only an expired one costs a visible refresh.
+#
+# weechat's own config under ~/.config/weechat stays runtime state we do not
+# template; these /set and /key bind lines are the source of truth and are
+# cheap to re-apply because they are idempotent. See slack-session-ensure for
+# the token logic.
+set -euo pipefail
+
+setup='/set plugins.var.python.slack.background_load_all_history false
+/set plugins.var.python.slack.slack_timeout 30000
+/set plugins.var.python.go.fuzzy_search on
+/set plugins.var.python.go.short_name on
+/set weechat.completion.partial_completion_other on
+/key bind ctrl-k /go
+/key bind meta-ret /input insert \n
+/key bind shift-return /input insert \n'
+
+# weechat -r wants a single ;-separated command string.
+run=$(printf '%s\n' "$setup" | paste -sd ';' -)
+
+# Refresh in the background. It waits for the fifo, so starting it before
+# weechat is up is fine; --from-launch makes it do that wait.
+slack-session-ensure --from-launch &
+
+exec weechat -r "$run" "$@"
