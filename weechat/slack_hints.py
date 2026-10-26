@@ -219,7 +219,7 @@ def hints_item_cb(data, item, window):
     # Deliberately loud: first on the bar so a narrow window cannot clip it.
     chip = "{c} ⏳ LOADING {n}/{e} – keys may lag {r}".format(
         c=w.color("*yellow,red"), n=state["connected"],
-        e=state["expected"], r=reset,
+        e=state["expected"], r=w.color("reset"),
     )
     return chip + hints
 
