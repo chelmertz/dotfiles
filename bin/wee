@@ -30,6 +30,7 @@ setup='/set plugins.var.python.slack.background_load_all_history false
 /set buflist.look.sort ~full_name
 /set plugins.var.python.vimode.mode_indicator_normal_color black
 /set plugins.var.python.vimode.mode_indicator_normal_color_bg yellow
+/set plugins.var.python.vimode.search_vim on
 /set plugins.var.python.vimode.user_mappings {"\u0001k": "/go", "\u0001[a": "/buffer jump smart"}
 /set weechat.bar.input.items mode_indicator+[input_prompt]+(away),[input_search],[input_paste],input_text
 /key bind ctrl-k /go'
