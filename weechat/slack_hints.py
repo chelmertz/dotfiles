@@ -3,7 +3,8 @@
 # weechat is too busy to take keys. Dismiss the bar once the shortcuts are
 # muscle memory with: /bar del hints (or hide it: /bar hide hints).
 #
-# Alt+Space (/msgmenu, bound in bin/wee) swaps the bar for a menu of actions
+# Alt+Space or Shift+Space (/msgmenu, bound in bin/wee; ghostty sends
+# Alt+Space's bytes for Shift+Space in the wee window only) swaps the bar for a menu of actions
 # on one message: the newest, or another stepped to with j/k. The next key
 # picks an action; any other key closes the menu and then does what it always
 # does.
@@ -30,7 +31,7 @@ HINTS = [
         ("/close", "back"),
         ("/u N", "open link N"),
         ("Ctrl+click", "link; Alt+L if wrapped"),
-        ("Alt+Space", "message menu"),
+        ("Shift+Space", "message menu"),
     ],
 ]
 
@@ -158,6 +159,11 @@ def close_menu():
 
 
 def msgmenu_cmd_cb(data, buffer, args):
+    # Shift+Space is bound here too, and gets hit by accident mid-sentence: with
+    # anything typed, it stays a space.
+    if w.buffer_get_string(buffer, "input"):
+        w.command(buffer, "/input insert \\x20")
+        return w.WEECHAT_RC_OK
     if not messages(buffer):
         w.prnt(buffer, "msgmenu: no Slack message in this buffer")
         return w.WEECHAT_RC_OK

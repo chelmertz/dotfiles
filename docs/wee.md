@@ -38,8 +38,9 @@ workspaces (MATCHi, op6) appear, grouped by workspace.
 
 ## Message menu
 
-- **Alt+Space** opens a menu in the bottom bar for one message, previewed at
-  its top: the newest, or step with **k** (older) and **j** (newer).
+- **Shift+Space** (or Alt+Space) on an empty input line opens a menu in the
+  bottom bar for one message, previewed at its top: the newest, or step with
+  **k** (older) and **j** (newer). With text typed it is just a space.
 - **r** reply in thread (works with no thread yet), **t** open thread,
   **e** react (prefills `$id+:`), **y** copy with date and author,
   **Y** copy every message in the buffer (the whole thread, in a thread
