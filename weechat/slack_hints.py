@@ -19,7 +19,7 @@ def hints_item_cb(data, item, window):
     sep = w.color("240")
     reset = w.color("reset")
     parts = [
-        "{k} {name} {r}{l}{desc}".format(
+        "{k} {name} {r}{l} {desc}".format(
             k=key, name=name, r=reset, l=label, desc=desc
         )
         for name, desc in HINTS
