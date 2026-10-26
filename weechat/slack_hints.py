@@ -6,8 +6,10 @@
 # Alt+Space or Shift+Space (/msgmenu, bound in bin/wee; ghostty sends
 # Alt+Space's bytes for Shift+Space in the wee window only) swaps the bar for a menu of actions
 # on one message: the newest, or another stepped to with j/k. The next key
-# picks an action; any other key closes the menu and then does what it always
-# does.
+# picks an action, q closes the menu, and any other key closes it and then
+# does what it always does. Esc is not offered: a terminal sends it as the
+# first byte of every Alt+key, so weechat waits for the key after it and merges
+# the two, and nothing can tell it a lone Esc was meant.
 # Installed from the dotfiles repo.
 import subprocess
 import time
@@ -46,9 +48,10 @@ MENU = [
     ("l", "copy permalink", "permalink"),
     ("k", "older", "older"),
     ("j", "newer", "newer"),
+    ("q", "close", "close"),
 ]
-# A lone Esc never completes a key combo: weechat holds it as the Alt prefix
-# for the next key. key_pressed sees it on its own, so the menu closes there.
+# A lone Esc never completes a key combo. key_pressed sees it on its own, so
+# the menu at least closes at once rather than on the merged key after it.
 ESC = "\x01["
 
 menu = {"open": False, "buffer": "", "index": 0}
@@ -196,7 +199,7 @@ def key_combo_cb(data, signal, key):
         w.bar_item_update("slack_hints")
         return w.WEECHAT_RC_OK_EAT
     close_menu()
-    if menu["index"] < len(msgs):
+    if action != "close" and menu["index"] < len(msgs):
         run_action(action, msgs)
     return w.WEECHAT_RC_OK_EAT
 
@@ -209,7 +212,7 @@ def menu_rows():
     target = "{c} ▸ {n}/{t} {r} {p}".format(
         c=w.color("black,yellow"), n=menu["index"] + 1, t=len(msgs),
         r=w.color("reset"), p=preview)
-    return target + "\n" + render_rows([[(k, d) for k, d, _ in MENU] + [("Esc", "close")]])
+    return target + "\n" + render_rows([[(k, d) for k, d, _ in MENU]])
 
 
 def hints_item_cb(data, item, window):

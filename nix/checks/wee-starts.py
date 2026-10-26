@@ -69,11 +69,11 @@ pump(1)
 os.write(fd, b"k")  # step to the older message
 pump(1)
 menu_drawn = b"reply in thread" in screen
-# Any non-menu key closes it and does what it always does: Ctrl+U clears the
-# line. (Esc would turn the "/" below into Alt+/.)
-os.write(fd, b"\x15")
+os.write(fd, b"q")  # closes it, swallowed
 pump(1)
-os.write(fd, b"/logger flush\r/quit\r")
+os.write(fd, b"/logger flush\r")
+pump(1)
+os.write(fd, b"/quit\r")
 pump(3)
 os.waitpid(pid, 0)
 
