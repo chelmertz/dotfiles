@@ -1,0 +1,23 @@
+--- a/wee_slack.py
++++ b/wee_slack.py
+@@ -3935,6 +3935,10 @@
+     conversation_json, eventrouter, team, channel, metadata, object_name="channel"
+ ):
+     channel_info = conversation_json[object_name]
++    # /query matches by members, which a group DM may not have loaded yet
++    # (seen right after connect); a second object for its id collides with its buffer.
++    if not channel:
++        channel = team.channels.get(channel_info["id"])
+     if not channel:
+         channel = create_channel_from_info(
+             eventrouter, channel_info, team, team.myidentifier, team.users
+@@ -5904,7 +5908,8 @@
+         # Get the IDs of the users
+         all_users = team.get_username_map()
+         users = set()
+-        for username in query.split(","):
++        # Spaces as well as commas, so every name in a group DM tab-completes.
++        for username in re.split(r"[,\s]+", query.strip()):
+             user = all_users.get(username.lstrip("@"))
+             if not user:
+                 w.prnt("", "ERROR: Unknown user: {}".format(username))
