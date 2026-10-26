@@ -495,7 +495,17 @@ in
               ../weechat/wee-slack-inflight.patch
             ];
           }))
-          weechat-go
+          # Ctrl+K drew its "Go to:" prompt only on the next redraw: on an empty
+          # input line /go changes nothing weechat would redraw for, so the
+          # prompt waited for a message, a timer or the next key. Signal the
+          # change the way go.py already does when Tab cycles.
+          (weechat-go.overrideAttrs (o: {
+            installPhase = o.installPhase + ''
+              substituteInPlace $out/share/go.py --replace-fail \
+                "weechat.buffer_set(buf, 'input', ''')" \
+                "weechat.buffer_set(buf, 'input', '''); weechat.hook_signal_send('input_text_changed', weechat.WEECHAT_HOOK_SIGNAL_STRING, ''')"
+            '';
+          }))
           weechat-notify-send
           url_hint
           # Ctrl+X opens the input in $EDITOR. Upstream keeps its scratch file in
