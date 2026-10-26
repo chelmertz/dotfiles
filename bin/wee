@@ -31,8 +31,7 @@ setup='/set plugins.var.python.slack.background_load_all_history false
 /set plugins.var.python.vimode.mode_indicator_normal_color black
 /set plugins.var.python.vimode.mode_indicator_normal_color_bg yellow
 /set weechat.bar.input.items mode_indicator+[input_prompt]+(away),[input_search],[input_paste],input_text
-/key bind ctrl-k /go
-/key bind meta-ret /input insert \n'
+/key bind ctrl-k /go'
 
 # weechat -r wants a single ;-separated command string.
 run=$(printf '%s\n' "$setup" | paste -sd ';' -)
