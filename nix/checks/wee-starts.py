@@ -71,6 +71,21 @@ pump(1)
 menu_drawn = b"reply in thread" in screen
 os.write(fd, b"q")  # closes it, swallowed
 pump(1)
+# Esc as ghostty sends it in the wee window (CSI 27 u, see .i3/config): it must
+# close the menu and end Ctrl+K's /go, or the /print lines below never run.
+ESC = b"\x1b[27u"
+os.write(fd, b"\x1b ")
+pump(1)
+os.write(fd, ESC)
+pump(1)
+os.write(fd, b"/print MENU-CLOSED\r")
+pump(1)
+os.write(fd, b"\x0b")  # Ctrl+K: /go
+pump(1)
+os.write(fd, ESC)
+pump(1)
+os.write(fd, b"/print GO-CLOSED\r")
+pump(1)
 os.write(fd, b"/logger flush\r")
 pump(1)
 os.write(fd, b"/quit\r")
@@ -92,6 +107,10 @@ for line in errors:
 for name in missing:
     print("script never registered:", name)
     failed = True
+for mark in ("MENU-CLOSED", "GO-CLOSED"):
+    if not any(l.endswith("\t" + mark) for l in log):
+        print("Esc did not close it:", mark)
+        failed = True
 if not loading_drawn:
     print("LOADING chip never drawn")
     failed = True

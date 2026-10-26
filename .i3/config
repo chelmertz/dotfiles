@@ -221,7 +221,7 @@ bindsym F7 exec /home/ch/.local/bin/ror.py steam steam; workspace --no-auto-back
 # returns to the previous window. A cold start opens it as a ghostty window
 # with a matchable class and switches to workspace 9, where the assign puts it.
 # The Slack desktop app stays installed for huddles but no longer owns F9.
-bindsym F9 exec --no-startup-id ~/.local/bin/focus-or-return wee 'class="org.weechat.wee"' sh -c 'ghostty --class=org.weechat.wee --keybind="shift+space=text:\x1b\x20" -e wee & i3-msg -q -- workspace --no-auto-back-and-forth number $ws9'
+bindsym F9 exec --no-startup-id ~/.local/bin/focus-or-return wee 'class="org.weechat.wee"' sh -c 'ghostty --class=org.weechat.wee --keybind="shift+space=text:\x1b\x20" --keybind="escape=text:\x1b[27u" -e wee & i3-msg -q -- workspace --no-auto-back-and-forth number $ws9'
 # Focus YouTube Music (starting it if needed); again returns to the previous window.
 # Project slot 8 gave up F8 for it on 2026-10-21; $mod+8 still reaches it.
 bindsym F8 exec --no-startup-id ~/.local/bin/focus-or-return ytmusic 'instance="music.youtube.com"' ~/.local/bin/ytmusic

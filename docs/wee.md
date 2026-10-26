@@ -45,9 +45,10 @@ workspaces (MATCHi, op6) appear, grouped by workspace.
   **e** react (prefills `$id+:`), **y** copy with date and author,
   **Y** copy every message in the buffer (the whole thread, in a thread
   buffer), **l** copy the permalink.
-- **q** closes the menu; any other key closes it and does what it normally
-  does. Avoid Esc: weechat reads Esc plus the next key as one Alt+key, so the
-  next key (Shift+Space included) is lost.
+- **q** or **Esc** closes the menu; any other key closes it and does what it
+  normally does. Esc also cancels Ctrl+K. (The wee window's ghostty sends Esc
+  as a code weechat can tell apart from Alt+key; elsewhere in weechat a bare
+  Esc merges with the next key.)
 
 ## Threads
 

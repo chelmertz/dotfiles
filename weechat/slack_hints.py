@@ -8,10 +8,13 @@
 # Alt+Space or Shift+Space (/msgmenu, bound in bin/wee; ghostty sends
 # Alt+Space's bytes for Shift+Space in the wee window only) swaps the bar for a menu of actions
 # on one message: the newest, or another stepped to with j/k. The next key
-# picks an action, q closes the menu, and any other key closes it and then
-# does what it always does. Esc is not offered: a terminal sends it as the
-# first byte of every Alt+key, so weechat waits for the key after it and merges
-# the two, and nothing can tell it a lone Esc was meant.
+# picks an action, q or Esc closes the menu, and any other key closes it and
+# then does what it always does.
+#
+# /escape (Esc in the wee window) closes the menu or ends Ctrl+K's /go. A
+# terminal sends a bare Esc as the first byte of every Alt+key, so weechat
+# waits for the key after it and merges the two; ghostty sends Esc there as
+# CSI 27 u instead (i3's F9 line), a complete key bin/wee binds to /escape.
 # Installed from the dotfiles repo.
 import os
 import subprocess
@@ -182,6 +185,26 @@ def run_action(action, msgs):
         w.buffer_set(buffer, "input_pos", str(pos))
 
 
+def go_active():
+    # go.py hooks this modifier only while its prompt is open.
+    hooks = w.infolist_get("hook", "", "modifier")
+    active = False
+    while w.infolist_next(hooks):
+        if (w.infolist_string(hooks, "modifier") == "input_text_display_with_cursor"
+                and w.infolist_string(hooks, "subplugin") == "go"):
+            active = True
+    w.infolist_free(hooks)
+    return active
+
+
+def escape_cmd_cb(data, buffer, args):
+    if menu["open"]:
+        close_menu()
+    elif go_active():
+        w.command(buffer, "/go")
+    return w.WEECHAT_RC_OK
+
+
 def close_menu():
     menu["open"] = False
     w.bar_item_update("slack_hints")
@@ -292,7 +315,7 @@ def tick_cb(data, remaining_calls):
 
 def main():
     w.register(
-        "slack_hints", "", "1.5", "MIT",
+        "slack_hints", "", "1.6", "MIT",
         "Hint bar of wee-slack shortcuts with a loading indicator", "", "",
     )
     w.bar_item_new("slack_hints", "hints_item_cb", "")
@@ -304,6 +327,8 @@ def main():
     w.hook_timer(TICK_MS, 0, 0, "tick_cb", "")
     w.hook_command("msgmenu", "Menu of actions on a Slack message", "", "", "",
                    "msgmenu_cmd_cb", "")
+    w.hook_command("escape", "Close the message menu or end /go", "", "", "",
+                   "escape_cmd_cb", "")
     w.hook_signal("key_pressed", "key_pressed_cb", "")
     w.hook_signal("key_combo_default", "key_combo_cb", "")
 
