@@ -180,6 +180,12 @@ in
 
   home.sessionVariables = {
     TERMINAL = "ghostty";
+    # NixOS exports EDITOR=nano session-wide (/etc/set-environment), and only
+    # zsh overrode it, so anything i3 started got nano. These reach the X
+    # session (TERMINAL above does). The profile path rather than a store path,
+    # so a long-lived session keeps working after a garbage collection.
+    EDITOR = "${config.home.homeDirectory}/.nix-profile/bin/nvim";
+    VISUAL = "${config.home.homeDirectory}/.nix-profile/bin/nvim";
     # Private modules must not be fetched through the public proxy or checked
     # against the public sum database; without this, `go` asks proxy.golang.org
     # for a repo it cannot see and reports a 404 rather than a permission
