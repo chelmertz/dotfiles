@@ -13,13 +13,14 @@
 set -euo pipefail
 
 setup='/set plugins.var.python.slack.background_load_all_history false
-/set plugins.var.python.slack.slack_timeout 30000
+/set plugins.var.python.slack.slack_timeout 60000
 /set plugins.var.python.go.fuzzy_search on
 /set plugins.var.python.go.short_name on
 /set weechat.completion.partial_completion_other on
+/set weechat.bar.input.items mode_indicator+[input_prompt]+(away),[input_search],[input_paste],input_text
+/alias addreplace dm /slack talk
 /key bind ctrl-k /go
-/key bind meta-ret /input insert \n
-/key bind shift-return /input insert \n'
+/key bind meta-ret /input insert \n'
 
 # weechat -r wants a single ;-separated command string.
 run=$(printf '%s\n' "$setup" | paste -sd ';' -)

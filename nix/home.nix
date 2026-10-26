@@ -158,6 +158,12 @@ in
   # place (mod+shift+r) so i3bar respawns i3blocks.
   home.file.".i3blocks.conf".source = ../.i3blocks.conf;
 
+  # weechat autoloads *.py from here at start. slack_hints draws the shortcut
+  # bar; vimode (vendored from GermainZ/weechat-vimode, not in nixpkgs) gives
+  # the input line vim modes, default insert, Esc to normal.
+  home.file.".config/weechat/python/autoload/slack_hints.py".source = ../weechat/slack_hints.py;
+  home.file.".config/weechat/python/autoload/vimode.py".source = ../weechat/vimode.py;
+
   home.username = "ch";
   home.homeDirectory = "/home/ch";
   home.stateVersion = "24.05";
@@ -872,7 +878,11 @@ in
       # The Linux default binds ctrl+enter to toggle_fullscreen, which eats the
       # key before TUIs see it. i3 handles fullscreen; unbind passes the key
       # through to the running program.
-      keybind = [ "ctrl+enter=unbind" ];
+      # Shift+Enter has no distinct legacy encoding, so ghostty would leak a
+      # kitty-protocol sequence into the input. Remap it to ESC+CR, which is
+      # exactly what Alt+Enter sends, so weechat's meta-ret binding (newline in
+      # the wee input) catches it and Slack's Shift+Enter muscle memory works.
+      keybind = [ "ctrl+enter=unbind" "shift+enter=text:\\x1b\\r" ];
     };
   };
 
