@@ -477,7 +477,12 @@ in
     (weechat.override {
       configure = { availablePlugins, ... }: {
         scripts = with weechatScripts; [
-          wee-slack
+          # unread_count_display counts thread replies (which have their own
+          # read markers), so DMs with old answered threads showed as unread on
+          # every start; decide from the newest top-level message instead.
+          (wee-slack.overrideAttrs (o: {
+            patches = (o.patches or [ ]) ++ [ ../weechat/wee-slack-thread-unreads.patch ];
+          }))
           weechat-go
           weechat-notify-send
           url_hint
