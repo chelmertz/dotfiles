@@ -158,11 +158,12 @@ in
   # place (mod+shift+r) so i3bar respawns i3blocks.
   home.file.".i3blocks.conf".source = ../.i3blocks.conf;
 
-  # weechat autoloads *.py from here at start. slack_hints draws the shortcut
+  # weechat autoloads *.py from its data dir (XDG: ~/.local/share/weechat), not
+  # ~/.config/weechat; scripts under the latter are silently never loaded. slack_hints draws the shortcut
   # bar; vimode (vendored from GermainZ/weechat-vimode, not in nixpkgs) gives
   # the input line vim modes, default insert, Esc to normal.
-  home.file.".config/weechat/python/autoload/slack_hints.py".source = ../weechat/slack_hints.py;
-  home.file.".config/weechat/python/autoload/vimode.py".source = ../weechat/vimode.py;
+  home.file.".local/share/weechat/python/autoload/slack_hints.py".source = ../weechat/slack_hints.py;
+  home.file.".local/share/weechat/python/autoload/vimode.py".source = ../weechat/vimode.py;
 
   home.username = "ch";
   home.homeDirectory = "/home/ch";
