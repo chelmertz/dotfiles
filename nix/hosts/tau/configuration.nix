@@ -166,14 +166,12 @@
     # by side, laptop first. autorandr-learn replaces it with the real one.
     defaultTarget = "horizontal";
     hooks.postswitch = {
-      # The rofi picker ends by restoring the keyboard repeat rate and i3's
-      # project workspaces. A hotplug switch has to do the same, or plugging a
-      # monitor in silently drops both. autorandr --batch runs hooks in the
+      # The rofi picker ends by restoring the keyboard repeat rate. A hotplug
+      # switch has to do the same, or plugging a monitor in silently drops it. autorandr --batch runs hooks in the
       # user's session but not through a login shell, so PATH is set here.
       "10-restore-session" = ''
         export PATH="$HOME/.nix-profile/bin:$HOME/.local/bin:$PATH"
         xset r rate 200 25
-        i3-project restore
       '';
       # First plug of any monitor lands on defaultTarget above, which puts the
       # laptop left of the external and ignores their differing heights. This

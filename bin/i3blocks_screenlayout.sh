@@ -163,4 +163,3 @@ case $layout in
 esac
 
 xset r rate 200 25
-i3-project restore

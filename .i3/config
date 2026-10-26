@@ -164,7 +164,6 @@ bindsym section exec ~/.local/bin/term-here
 bindsym $mod+u exec ~/bin/rofi_uni.sh
 bindsym $mod+p exec ~/.local/bin/rofi_power.sh
 bindsym $mod+t exec ~/.local/bin/rofi_timer.sh
-bindsym $mod+n exec ~/.local/bin/i3-project menu
 bindsym $mod+space exec ~/.local/bin/rofi.sh
 
 #bindsym Shift+F4 exec /home/ch/code/gitlab/chelmertz/focus_trigger/focus-trigger.py
@@ -176,15 +175,17 @@ bindsym Print exec flameshot gui
 bindsym Shift+Print exec flameshot full -c -p ~/sync/screenshots
 bindsym Ctrl+Shift+Print exec peek
 
-# switch to workspace
+# switch to workspace; pressing the current workspace's key again returns
+# to the previous one
+workspace_auto_back_and_forth yes
 bindsym $mod+1 workspace number $ws1
-bindsym $mod+2 exec --no-startup-id i3-project switch 2
-bindsym $mod+3 exec --no-startup-id i3-project switch 3
-bindsym $mod+4 exec --no-startup-id i3-project switch 4
-bindsym $mod+5 exec --no-startup-id i3-project switch 5
-bindsym $mod+6 exec --no-startup-id i3-project switch 6
+bindsym $mod+2 workspace number $ws2
+bindsym $mod+3 workspace number $ws3
+bindsym $mod+4 workspace number $ws4
+bindsym $mod+5 workspace number $ws5
+bindsym $mod+6 workspace number $ws6
 bindsym $mod+7 workspace number $ws7
-bindsym $mod+8 exec --no-startup-id i3-project switch 8
+bindsym $mod+8 workspace number $ws8
 bindsym $mod+9 workspace number $ws9
 bindsym $mod+0 workspace number $ws10
 
@@ -192,13 +193,13 @@ bindsym $mod+0 workspace number $ws10
 mode "fkey" {
 	bindsym $mod+m mode "default"; exec notify-send "fkey mode off (mod + m)"
 	bindsym $mod+1 workspace number $ws1
-	bindsym $mod+2 exec --no-startup-id i3-project switch 2
-	bindsym $mod+3 exec --no-startup-id i3-project switch 3
-	bindsym $mod+4 exec --no-startup-id i3-project switch 4
-	bindsym $mod+5 exec --no-startup-id i3-project switch 5
-	bindsym $mod+6 exec --no-startup-id i3-project switch 6
+	bindsym $mod+2 workspace number $ws2
+	bindsym $mod+3 workspace number $ws3
+	bindsym $mod+4 workspace number $ws4
+	bindsym $mod+5 workspace number $ws5
+	bindsym $mod+6 workspace number $ws6
 	bindsym $mod+7 workspace number $ws7
-	bindsym $mod+8 exec --no-startup-id i3-project switch 8
+	bindsym $mod+8 workspace number $ws8
 	bindsym $mod+9 workspace number $ws9
 	bindsym $mod+0 workspace number $ws10
 }
@@ -206,9 +207,9 @@ mode "fkey" {
 bindsym $mod+m mode "fkey"; exec notify-send "fkey mode on (mod + m)"
 
 bindsym F1 exec /home/ch/.local/bin/ror.py Firefox --workspace $ws1 firefox; workspace number $ws1
-bindsym F2 exec --no-startup-id i3-project switch 2
-bindsym F3 exec --no-startup-id i3-project switch 3
-bindsym F4 exec --no-startup-id i3-project switch 4
+bindsym F2 workspace number $ws2
+bindsym F3 workspace number $ws3
+bindsym F4 workspace number $ws4
 # ~/p project launcher. One variable so the key and rofi's cancel binding
 # (pressing it again closes the menu) cannot drift apart. Slot 5 is still
 # reachable via $mod+5. stderr goes to the journal: journalctl --user -t p-launcher
@@ -293,5 +294,4 @@ exec_always --no-startup-id xset r rate 200 25
 # see https://wiki.archlinux.org/title/Display_Power_Management_Signaling
 exec --no-startup-id xset s off -dpms
 
-exec --no-startup-id ~/.local/bin/i3-project restore
 exec --no-startup-id ~/.nix-profile/bin/obsidian --open-vault ~/sync/notes

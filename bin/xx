@@ -28,7 +28,7 @@ CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/xx"
 RUN="${XDG_RUNTIME_DIR:-/tmp}/xx"
 API="https://exercism.org/api/v2"
 TTL=600
-MARK="ex:"   # workspace-name marker; SEP matches i3-project's convention
+MARK="ex:"   # workspace-name marker; SEP matches the "N - name" labels in .i3/config
 SEP=" - "
 WIDTH=58     # editor pane width, in percent
 SLOTS=20     # highest workspace number to consider
@@ -333,8 +333,7 @@ session_id() { # -> "track/slug", empty if no session is open
 	[ -n "$n" ] && printf '%s\n' "${n#*"$MARK"}"
 }
 
-# Lowest free workspace number. "Free" means no windows and not a slot
-# i3-project has labelled — renaming one of those desyncs its state file.
+# Lowest free workspace number. "Free" means no windows.
 free_ws_num() {
 	local focused fnum excl n
 	focused=$(focused_ws)
@@ -345,7 +344,6 @@ free_ws_num() {
 	fi
 	excl=$(
 		ws_rows | awk -F'\t' '$2 > 0 {print $1}'
-		cut -d: -f1 "$HOME/.config/i3/projects" 2>/dev/null
 	)
 	for n in $(seq 1 "$SLOTS"); do
 		grep -qx "$n" <<<"$excl" || { printf '%s\n' "$n"; return; }
