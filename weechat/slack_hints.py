@@ -28,7 +28,7 @@ HINTS = [
     [
         ("Ctrl+K", "channels"),
         ("Alt+A", "next unread"),
-        ("/query name", "DM"),
+        ("/query name [name…]", "DM, group DM"),
         ("+:emoji:", "react"),
         ("Ctrl+X", "nvim"),
         ("/all", "all buffers"),
