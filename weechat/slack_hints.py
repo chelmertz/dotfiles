@@ -7,7 +7,7 @@ import weechat as w
 HINTS = [
     ("Ctrl+K", "channels"),
     ("Alt+A", "next unread"),
-    ("/dm user", "new DM"),
+    ("/query name", "DM anyone"),
     ("+:emoji:", "react"),
     ("Alt+Enter", "newline"),
 ]

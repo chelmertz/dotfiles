@@ -26,10 +26,8 @@ setup='/set plugins.var.python.slack.background_load_all_history false
 /set plugins.var.python.go.short_name on
 /set weechat.completion.partial_completion_other on
 /set weechat.bar.buflist.position right
-/set weechat.bar.buflist.size_max 24
+/set weechat.bar.buflist.size_max 32
 /set weechat.bar.input.items mode_indicator+[input_prompt]+(away),[input_search],[input_paste],input_text
-/set alias.cmd.dm "/query"
-/set alias.completion.dm "%(nicks)"
 /key bind ctrl-k /go
 /key bind meta-ret /input insert \n'
 
