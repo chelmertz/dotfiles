@@ -36,6 +36,17 @@ workspaces (MATCHi, op6) appear, grouped by workspace.
 - `+:emoji:` reacts to the last message (`-:emoji:` removes); `3+:emoji:` the
   third-to-last. `:smi<Tab>` completes emoji names.
 
+## Message menu
+
+- **Alt+Space** opens a menu in the bottom bar for one message, previewed at
+  its top: the newest, or step with **k** (older) and **j** (newer).
+- **r** reply in thread (works with no thread yet), **t** open thread,
+  **e** react (prefills `$id+:`), **y** copy with date and author,
+  **Y** copy every message in the buffer (the whole thread, in a thread
+  buffer), **l** copy the permalink.
+- Any other key closes the menu and does what it normally does. Esc closes it
+  too, but weechat still reads the key after Esc as Alt+key.
+
 ## Threads
 
 - A message with replies ends in `[ Thread: 855 Replies: 8 ]`; that thread is
@@ -43,7 +54,7 @@ workspaces (MATCHi, op6) appear, grouped by workspace.
 - **`/cursor`**, arrow keys to a message, then **T** opens its thread (even
   with no replies yet) or **R** prefills `/reply $id `. `q` leaves cursor mode.
   This is the race-free way: it targets that exact message.
-- `/thread` (last message), `/thread 3` (third-to-last), `/thread $855`.
+- `/thread` (newest thread), `/thread 3` (third-newest thread), `/thread $855`.
 - `/reply text`, `/reply 3 text`, `/reply $855 text`; `-alsochannel` also
   posts to the channel. In a thread buffer, just type.
 
