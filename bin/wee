@@ -12,13 +12,22 @@
 # the token logic.
 set -euo pipefail
 
+# wee-slack fires a metadata request per conversation on connect; with 70+
+# channels that burst of concurrent weechat URL children exhausts the default
+# 1024-FD soft limit, and child creation then fails as "Error (code -2)" with
+# an empty error string (the child never ran). Raise the soft limit toward the
+# hard one before launching so the burst has headroom. Measured 2026-10-26: the
+# storm reproduced on every cold start until NOFILE went to 65536.
+ulimit -Sn "$(( $(ulimit -Hn) < 65536 ? $(ulimit -Hn) : 65536 ))" 2>/dev/null || true
+
 setup='/set plugins.var.python.slack.background_load_all_history false
 /set plugins.var.python.slack.slack_timeout 60000
 /set plugins.var.python.go.fuzzy_search on
 /set plugins.var.python.go.short_name on
 /set weechat.completion.partial_completion_other on
 /set weechat.bar.input.items mode_indicator+[input_prompt]+(away),[input_search],[input_paste],input_text
-/alias addreplace dm /slack talk
+/set alias.cmd.dm "/query"
+/set alias.completion.dm "%(nicks)"
 /key bind ctrl-k /go
 /key bind meta-ret /input insert \n'
 
