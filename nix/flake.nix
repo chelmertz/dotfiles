@@ -283,6 +283,21 @@
                 touch $out
               '';
 
+          # The buffer on screen, /query and live messages skip the ~1400
+          # requests queued at connect; see checks/wee-slack-queue.py.
+          wee-slack-queue =
+            let
+              weechat = nixpkgs.lib.findFirst (
+                p: nixpkgs.lib.hasPrefix "weechat-bin-env" p.name
+              ) (throw "no weechat in home.packages") self.homeConfigurations."ch@tau".config.home.packages;
+            in
+            pkgs.runCommand "wee-slack-queue" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+              ws=$(grep -aho '/nix/store/[a-z0-9]*-wee-slack-[^/]*/share/wee_slack.py' \
+                $(readlink -f ${weechat}/bin/weechat) | head -1)
+              python3 -I ${./checks/wee-slack-queue.py} $(dirname $ws)
+              touch $out
+            '';
+
           i3-helpers =
             assert self.nixosConfigurations.tau.config.environment.localBinInPath;
             pkgs.runCommand "i3-helpers" { nativeBuildInputs = [ pkgs.python3 ]; } ''

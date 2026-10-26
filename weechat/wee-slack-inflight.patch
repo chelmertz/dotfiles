@@ -1,16 +1,17 @@
 --- a/wee_slack.py
 +++ b/wee_slack.py
-@@ -519,6 +519,9 @@
+@@ -519,6 +519,10 @@
          self.weechat_controller = WeechatController(self)
          self.previous_buffer = ""
          self.reply_buffer = {}
 +        self.http_inflight = 0
 +        self.http_waiting = []
++        self.queue_fast = []
 +        self.http_log = open_request_log()
          self.cmds = get_functions_with_prefix("command_")
          self.proc = get_functions_with_prefix("process_")
          self.handlers = get_functions_with_prefix("handle_")
-@@ -732,6 +735,11 @@
+@@ -732,6 +736,11 @@
          where the request originated and route properly.
          """
          request_metadata = self.retrieve_context(data)
@@ -22,17 +23,48 @@
          dbg(
              "RECEIVED CALLBACK with request of {} id of {} and  code {} of length {}".format(
                  request_metadata.request,
-@@ -826,6 +834,9 @@
+@@ -790,7 +799,9 @@
+         be JSON.
+         """
+         dbg("RECEIVED FROM QUEUE")
+-        if slow:
++        if is_foreground(dataobj):
++            self.queue_fast.append(dataobj)
++        elif slow:
+             self.slow_queue.append(dataobj)
+         else:
+             self.queue.append(dataobj)
+@@ -803,7 +814,7 @@
+         useful metadata and context to events as they are processed.
+         """
+         wanted_interval = 100
+-        if len(self.slow_queue) > 0 or len(self.queue) > 0:
++        if self.slow_queue or self.queue or self.queue_fast:
+             wanted_interval = 10
+         if (
+             self.handle_next_hook is None
+@@ -820,12 +831,20 @@
+             dbg("from slow queue", 0)
+             self.queue.append(self.slow_queue.pop())
+             self.slow_queue_timer = time.time()
++        if self.queue_fast:
++            self.queue.insert(0, self.queue_fast.pop(0))
+         if len(self.queue) > 0:
+             j = self.queue.pop(0)
+             # Reply is a special case of a json reply from websocket.
              if isinstance(j, SlackRequest):
                  if j.should_try():
                      if j.retry_ready():
 +                        if self.http_inflight >= MAX_INFLIGHT_HTTP:
-+                            self.http_waiting.append(j)
++                            if is_foreground(j):
++                                self.http_waiting.insert(0, j)
++                            else:
++                                self.http_waiting.append(j)
 +                            return
                          local_process_async_slack_api_request(j, self)
                      else:
                          self.slow_queue.append(j)
-@@ -952,6 +963,34 @@
+@@ -952,6 +971,53 @@
  
  ###### New Local Processors
  
@@ -40,6 +72,25 @@
 +# per conversation and ~400 run at once, enough to exhaust file descriptors.
 +# At 8, a cold start sat at the cap for 90 s; Slack's 429s are retried.
 +MAX_INFLIGHT_HTTP = 16
++
++
++def is_foreground(obj):
++    # What the user is waiting on skips the connect backlog (~700 queued and
++    # ~700 waiting for a slot, measured): their own /query, requests for and
++    # replies about the buffer on screen, and websocket events, which are
++    # live messages and few.
++    if isinstance(obj, SlackRequest):
++        request = obj
++    elif isinstance(obj, dict):
++        request = obj.get("wee_slack_request_metadata")
++        if request is None:
++            return True
++    else:
++        return False
++    if request.metadata.get("switch"):
++        return True
++    buffer = getattr(request.channel, "channel_buffer", None)
++    return bool(buffer) and buffer == w.current_buffer()
 +
 +
 +def open_request_log():
@@ -67,7 +118,7 @@
  
  def local_process_async_slack_api_request(request, event_router):
      """
-@@ -967,6 +1006,7 @@
+@@ -967,6 +1033,7 @@
              )
          )
          request.tried()
@@ -75,7 +126,7 @@
          options = request.options()
          options["header"] = "1"
          context = event_router.store_context(request)
-@@ -977,6 +1017,7 @@
+@@ -977,6 +1044,7 @@
              "receive_httprequest_callback",
              context,
          )
