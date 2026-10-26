@@ -40,6 +40,8 @@ setup='/set plugins.var.python.slack.background_load_all_history false
 /alias addreplace all /toggle plugins.var.wee.buflist_all 1 0\;/buflist refresh
 /unset weechat.bar.input.items
 /key bind ctrl-k /go
+/set weechat.bar.hints.size 0
+/alias addreplace u /url_hint_replace /exec -bg -nosh xdg-open {url$1}
 /key bind ctrl-x /edit'
 
 # weechat -r wants a single ;-separated command string, and it expands ${...}

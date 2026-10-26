@@ -7,14 +7,24 @@ import time
 
 import weechat as w
 
-# (key, what it does). Keys are highlighted, labels dimmed, groups divided.
+# Rows of (key, what it does). Keys are highlighted, labels dimmed, groups
+# divided. The bar sizes itself to the number of rows.
 HINTS = [
-    ("Ctrl+K", "channels"),
-    ("Alt+A", "next unread"),
-    ("/query name", "DM"),
-    ("+:emoji:", "react"),
-    ("Ctrl+X", "nvim"),
-    ("/all", "all buffers"),
+    [
+        ("Ctrl+K", "channels"),
+        ("Alt+A", "next unread"),
+        ("/query name", "DM"),
+        ("+:emoji:", "react"),
+        ("Ctrl+X", "nvim"),
+        ("/all", "all buffers"),
+    ],
+    [
+        ("/cursor", "pick msg: T thread, R reply"),
+        ("/thread $id", "open thread"),
+        ("/close", "back"),
+        ("/u N", "open link N"),
+        ("Ctrl+click", "link; Alt+L if wrapped"),
+    ],
 ]
 
 # "Safe to type" means keys get through: every team has connected AND the main
@@ -37,13 +47,16 @@ def hints_item_cb(data, item, window):
     label = w.color("default")
     sep = w.color("240")
     reset = w.color("reset")
-    parts = [
-        "{k} {name} {r}{l} {desc}".format(
-            k=key, name=name, r=reset, l=label, desc=desc
-        )
-        for name, desc in HINTS
+    rows = [
+        " " + (" {s}│{r} ".format(s=sep, r=reset)).join(
+            "{k} {name} {r}{l} {desc}".format(
+                k=key, name=name, r=reset, l=label, desc=desc
+            )
+            for name, desc in row
+        ) + " "
+        for row in HINTS
     ]
-    hints = " " + (" {s}│{r} ".format(s=sep, r=reset)).join(parts) + " "
+    hints = "\n".join(rows)
     if not loading():
         return hints
     # Deliberately loud: first on the bar so a narrow window cannot clip it.
@@ -83,7 +96,7 @@ def tick_cb(data, remaining_calls):
 
 def main():
     w.register(
-        "slack_hints", "", "1.2", "MIT",
+        "slack_hints", "", "1.3", "MIT",
         "Hint bar of wee-slack shortcuts with a loading indicator", "", "",
     )
     w.bar_item_new("slack_hints", "hints_item_cb", "")
