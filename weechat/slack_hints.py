@@ -279,13 +279,15 @@ def menu_rows():
 
 
 def core_print_cb(data, buffer, date, tags, displayed, highlight, prefix, message):
-    # Errors printed in core (script tracebacks, wee-slack's ERROR lines,
-    # weechat's =!= prefix) are counted until the core buffer is switched to:
+    # Errors printed in core (script tracebacks, wee-slack's ERROR lines and
+    # requests it gave up on, weechat's =!= prefix) are counted until the core buffer is switched to:
     # the bar shows the count, and connected_cb will not move a start that
     # had errors off core. Kept apart from the bar item, which can itself be
     # what crashes.
     if (w.string_remove_color(prefix, "").strip() == "=!="
-            or "Traceback" in message or message.startswith("ERROR")):
+            or "Traceback" in message or message.startswith("ERROR")
+            or (message.startswith("Failed requesting")
+                and "will not retry" in message)):
         state["errors"] += 1
         w.bar_item_update("slack_hints")
     return w.WEECHAT_RC_OK
@@ -362,7 +364,7 @@ def tick_cb(data, remaining_calls):
 
 def main():
     w.register(
-        "slack_hints", "", "1.7", "MIT",
+        "slack_hints", "", "1.8", "MIT",
         "Hint bar of wee-slack shortcuts with a loading indicator", "", "",
     )
     w.bar_item_new("slack_hints", "hints_item_cb", "")

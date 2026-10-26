@@ -138,10 +138,12 @@ pump(1)
 error_chip_drawn = b"1 error" in screen
 os.write(fd, b"/buffer core.weechat\r")
 pump(0.5)
-# A start that prints an error must stay on core, where it is visible.
+# A start that prints an error must stay on core, where it is visible. The
+# error is a request wee-slack gave up on, as in the FD-limit failures.
 os.write(fd, b"/print Connecting to 1 slack team.\r")
 pump(0.3)
-os.write(fd, b"/print -core =!=\\tSELFTEST startup error\r")
+os.write(fd, b"/print Failed requesting SELFTEST for team a, will not retry"
+             b" after too many failed attempts.\r")
 pump(0.3)
 os.write(fd, b"/print Connected to Slack team T1 (a) with username x\r")
 pump(1)
