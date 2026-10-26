@@ -1,0 +1,86 @@
+--- a/wee_slack.py
++++ b/wee_slack.py
+@@ -3850,11 +3850,6 @@
+ 
+ def handle_conversationsinfo(channel_json, eventrouter, team, channel, metadata):
+     channel_info = channel_json["channel"]
+-    if "unread_count_display" in channel_info:
+-        unread_count = channel_info["unread_count_display"]
+-        if unread_count and channel.channel_buffer is None:
+-            channel.create_buffer()
+-        channel.set_unread_count_display(unread_count)
+     if channel_info.get("is_open") and channel.channel_buffer is None:
+         channel.create_buffer()
+     if "last_read" in channel_info:
+@@ -3862,8 +3857,22 @@
+     if "members" in channel_info:
+         channel.set_members(channel_info["members"])
+ 
+-    # MPIMs don't have unread_count_display so we have to request the history to check if there are unread messages
+-    if channel.type == "mpim" and not channel.got_history:
++    # unread_count_display is wrong both ways: it counts thread replies (which
++    # carry their own read markers) and reads 0 for some channels with new
++    # messages. client.counts, fetched once at connect, is what the Slack apps
++    # show, so it wins. Each entry is used once: after a reconnect it would be
++    # stale, and the newest-top-level-message check below takes over.
++    client_counts = getattr(team, "client_counts", {})
++    if channel.identifier in client_counts:
++        if client_counts.pop(channel.identifier):
++            if channel.channel_buffer is None:
++                channel.create_buffer()
++            channel.set_unread_count_display(1)
++        return
++
++    if not channel.got_history and (
++        channel.type == "mpim" or channel_info.get("unread_count_display")
++    ):
+         s = SlackRequest(
+             team,
+             "conversations.history",
+@@ -7181,6 +7190,7 @@
+             "usergroups": 1,
+             "prefs": 1,
+             "presence": 1,
++            "counts": 1,
+         },
+         "errors": [],
+     }
+@@ -7222,6 +7232,16 @@
+         initial_data["remaining"]["prefs"] -= 1
+         create_team(token, initial_data)
+ 
++    def handle_counts(response_json, eventrouter, team, channel, metadata):
++        # Not fatal: without it, unread state falls back to the history check.
++        initial_data["counts"] = {}
++        if response_json["ok"]:
++            for kind in ("channels", "ims", "mpims"):
++                for item in response_json.get(kind, []):
++                    initial_data["counts"][item["id"]] = bool(item.get("has_unreads"))
++        initial_data["remaining"]["counts"] -= 1
++        create_team(token, initial_data)
++
+     def handle_getPresence(response_json, eventrouter, team, channel, metadata):
+         if not response_json["ok"]:
+             initial_data["errors"].append("presence: {}".format(response_json["error"]))
+@@ -7287,6 +7307,13 @@
+         callback=handle_getPresence,
+     )
+     EVENTROUTER.receive(s)
++    s = SlackRequest(
++        None,
++        "client.counts",
++        token=token,
++        callback=handle_counts,
++    )
++    EVENTROUTER.receive(s)
+ 
+ 
+ def create_channel_from_info(eventrouter, channel_info, team, myidentifier, users):
+@@ -7402,6 +7429,7 @@
+                     muted_channels=all_notifications_prefs["muted_channels"],
+                     highlight_words=all_notifications_prefs["global_keywords"] or "",
+                 )
++                team.client_counts = initial_data.get("counts", {})
+                 eventrouter.register_team(team)
+                 team.connect()
+             else:
