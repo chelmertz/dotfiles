@@ -259,6 +259,30 @@
               pin one: ${toString stale}. Remove them from the allowlist.'';
             pkgs.runCommand "unit-paths" { } "touch $out";
 
+          # wee (weechat + wee-slack) starts from bin/wee, with the configured
+          # weechat and the local wee-slack patches, and logs no script error.
+          # A bar-item NameError shipped once because nothing drew the bar;
+          # checks/wee-starts.py says how this one makes sure something does.
+          wee-starts =
+            let
+              weechat = nixpkgs.lib.findFirst (
+                p: nixpkgs.lib.hasPrefix "weechat-bin-env" p.name
+              ) (throw "no weechat in home.packages") self.homeConfigurations."ch@tau".config.home.packages;
+            in
+            pkgs.runCommand "wee-starts"
+              {
+                nativeBuildInputs = [
+                  pkgs.python3
+                  pkgs.bash
+                  pkgs.coreutils
+                  weechat
+                ];
+              }
+              ''
+                python3 ${./checks/wee-starts.py} ${../bin/wee} ${../weechat/slack_hints.py}
+                touch $out
+              '';
+
           i3-helpers =
             assert self.nixosConfigurations.tau.config.environment.localBinInPath;
             pkgs.runCommand "i3-helpers" { nativeBuildInputs = [ pkgs.python3 ]; } ''

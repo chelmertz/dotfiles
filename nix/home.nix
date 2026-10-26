@@ -487,9 +487,13 @@ in
           # instead of unread_count_display, which counts answered thread
           # replies as unread and reads 0 for some channels with new messages.
           # Also tags Slack-starred conversations (stars.list) so the buflist
-          # keeps them visible.
+          # keeps them visible. The inflight patch caps concurrent API
+          # requests at 8; uncapped, connecting forked ~400 at once.
           (wee-slack.overrideAttrs (o: {
-            patches = (o.patches or [ ]) ++ [ ../weechat/wee-slack-unreads.patch ];
+            patches = (o.patches or [ ]) ++ [
+              ../weechat/wee-slack-unreads.patch
+              ../weechat/wee-slack-inflight.patch
+            ];
           }))
           weechat-go
           weechat-notify-send
