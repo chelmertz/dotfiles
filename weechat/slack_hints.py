@@ -1,7 +1,9 @@
 # A single bar across the bottom listing the wee-slack shortcuts worth
 # learning, led by a LOADING chip while wee-slack is still connecting or
 # weechat is too busy to take keys. Dismiss the bar once the shortcuts are
-# muscle memory with: /bar del hints (or hide it: /bar hide hints).
+# muscle memory with: /bar del hints (or hide it: /bar hide hints). After
+# LOADING, a quieter "fetching" chip stays until wee-slack's post-connect
+# requests have drained, since conversations keep turning up until then.
 #
 # Alt+Space or Shift+Space (/msgmenu, bound in bin/wee; ghostty sends
 # Alt+Space's bytes for Shift+Space in the wee window only) swaps the bar for a menu of actions
@@ -11,6 +13,7 @@
 # first byte of every Alt+key, so weechat waits for the key after it and merges
 # the two, and nothing can tell it a lone Esc was meant.
 # Installed from the dotfiles repo.
+import os
 import subprocess
 import time
 
@@ -64,11 +67,34 @@ TICK_MS = 500
 LATE_S = 1.0
 SETTLE_TICKS = 6
 
-state = {"expected": 0, "connected": 0, "on_time": SETTLE_TICKS, "last": None}
+# wee-slack runs every API request as a forked weechat process. After a
+# connect it fetches every conversation, and "fetching" lasts until no such
+# child has been running for IDLE_TICKS ticks in a row; it then stays off, so
+# the occasional single request later does not flicker it.
+IDLE_TICKS = 2
+
+state = {"expected": 0, "connected": 0, "on_time": SETTLE_TICKS, "last": None,
+         "fetching": False, "idle": 0}
 
 
 def loading():
     return state["connected"] < state["expected"] or state["on_time"] < SETTLE_TICKS
+
+
+def requests_running():
+    pid = os.getpid()
+    for task in os.listdir("/proc/%d/task" % pid):
+        try:
+            children = open("/proc/%d/task/%s/children" % (pid, task)).read().split()
+        except OSError:
+            continue
+        for child in children:
+            try:
+                if "weechat" in open("/proc/%s/comm" % child).read():
+                    return True
+            except OSError:
+                pass
+    return False
 
 
 def render_rows(rows):
@@ -218,6 +244,9 @@ def menu_rows():
 def hints_item_cb(data, item, window):
     hints = menu_rows() if menu["open"] else render_rows(HINTS)
     if not loading():
+        if state["fetching"]:
+            return "{c} ⏳ fetching {r}".format(
+                c=w.color("black,yellow"), r=w.color("reset")) + hints
         return hints
     # Deliberately loud: first on the bar so a narrow window cannot clip it.
     chip = "{c} ⏳ LOADING {n}/{e} – keys may lag {r}".format(
@@ -231,7 +260,8 @@ def connecting_cb(data, buffer, date, tags, displayed, highlight, prefix, messag
     # "Connecting to 2 slack teams." / "Connecting to 1 slack team."
     words = message.split()
     if len(words) > 2 and words[2].isdigit():
-        state.update(expected=int(words[2]), connected=0, on_time=0)
+        state.update(expected=int(words[2]), connected=0, on_time=0,
+                     fetching=True, idle=0)
         w.bar_item_update("slack_hints")
     return w.WEECHAT_RC_OK
 
@@ -249,14 +279,20 @@ def tick_cb(data, remaining_calls):
     state["last"] = now
     was_loading = loading()
     state["on_time"] = 0 if late else min(state["on_time"] + 1, SETTLE_TICKS)
-    if late or was_loading != loading():
+    changed = late or was_loading != loading()
+    if state["fetching"] and not loading():
+        state["idle"] = 0 if requests_running() else state["idle"] + 1
+        if state["idle"] >= IDLE_TICKS:
+            state["fetching"] = False
+            changed = True
+    if changed:
         w.bar_item_update("slack_hints")
     return w.WEECHAT_RC_OK
 
 
 def main():
     w.register(
-        "slack_hints", "", "1.4", "MIT",
+        "slack_hints", "", "1.5", "MIT",
         "Hint bar of wee-slack shortcuts with a loading indicator", "", "",
     )
     w.bar_item_new("slack_hints", "hints_item_cb", "")
