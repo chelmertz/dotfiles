@@ -1,6 +1,18 @@
 --- a/wee_slack.py
 +++ b/wee_slack.py
-@@ -3850,11 +3850,6 @@
+@@ -2450,6 +2450,11 @@
+             self.set_topic()
+             if self.channel_buffer:
+                 w.buffer_set(self.channel_buffer, "localvar_set_server", self.team.name)
++                w.buffer_set(
++                    self.channel_buffer,
++                    "localvar_set_starred",
++                    "1" if self.identifier in getattr(self.team, "starred", ()) else "0",
++                )
+         self.update_nicklist()
+ 
+         info_method = self.team.slack_api_translator[self.type].get("info")
+@@ -3850,11 +3855,6 @@
  
  def handle_conversationsinfo(channel_json, eventrouter, team, channel, metadata):
      channel_info = channel_json["channel"]
@@ -12,7 +24,7 @@
      if channel_info.get("is_open") and channel.channel_buffer is None:
          channel.create_buffer()
      if "last_read" in channel_info:
-@@ -3862,8 +3857,22 @@
+@@ -3862,8 +3862,22 @@
      if "members" in channel_info:
          channel.set_members(channel_info["members"])
  
@@ -37,15 +49,16 @@
          s = SlackRequest(
              team,
              "conversations.history",
-@@ -7181,6 +7190,7 @@
+@@ -7181,6 +7195,8 @@
              "usergroups": 1,
              "prefs": 1,
              "presence": 1,
 +            "counts": 1,
++            "stars": 1,
          },
          "errors": [],
      }
-@@ -7222,6 +7232,16 @@
+@@ -7222,6 +7238,29 @@
          initial_data["remaining"]["prefs"] -= 1
          create_team(token, initial_data)
  
@@ -59,10 +72,23 @@
 +        initial_data["remaining"]["counts"] -= 1
 +        create_team(token, initial_data)
 +
++    def handle_stars(response_json, eventrouter, team, channel, metadata):
++        # Starred conversations get a "starred" buffer localvar, so the
++        # buflist can keep them visible. Not fatal if it fails.
++        initial_data.setdefault("stars", set())
++        if response_json["ok"]:
++            for item in response_json.get("items", []):
++                if item.get("type") in ("channel", "group", "im", "mpim"):
++                    initial_data["stars"].add(item.get("channel"))
++            if get_next_page(response_json):
++                return
++        initial_data["remaining"]["stars"] -= 1
++        create_team(token, initial_data)
++
      def handle_getPresence(response_json, eventrouter, team, channel, metadata):
          if not response_json["ok"]:
              initial_data["errors"].append("presence: {}".format(response_json["error"]))
-@@ -7287,6 +7307,13 @@
+@@ -7287,6 +7326,21 @@
          callback=handle_getPresence,
      )
      EVENTROUTER.receive(s)
@@ -73,14 +99,23 @@
 +        callback=handle_counts,
 +    )
 +    EVENTROUTER.receive(s)
++    s = SlackRequest(
++        None,
++        "stars.list",
++        {"limit": 200},
++        token=token,
++        callback=handle_stars,
++    )
++    EVENTROUTER.receive(s)
  
  
  def create_channel_from_info(eventrouter, channel_info, team, myidentifier, users):
-@@ -7402,6 +7429,7 @@
+@@ -7402,6 +7456,8 @@
                      muted_channels=all_notifications_prefs["muted_channels"],
                      highlight_words=all_notifications_prefs["global_keywords"] or "",
                  )
 +                team.client_counts = initial_data.get("counts", {})
++                team.starred = initial_data.get("stars", set())
                  eventrouter.register_team(team)
                  team.connect()
              else:

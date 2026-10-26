@@ -480,6 +480,8 @@ in
           # Take unread state from client.counts (what the Slack apps show)
           # instead of unread_count_display, which counts answered thread
           # replies as unread and reads 0 for some channels with new messages.
+          # Also tags Slack-starred conversations (stars.list) so the buflist
+          # keeps them visible.
           (wee-slack.overrideAttrs (o: {
             patches = (o.patches or [ ]) ++ [ ../weechat/wee-slack-unreads.patch ];
           }))
