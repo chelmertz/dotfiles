@@ -177,7 +177,9 @@ def apply(value):
     except OSError:
         return False
     with os.fdopen(fd, "w") as f:
-        f.write("*/set %s %s\n*/save\n" % (TOKEN_OPT, value))
+        # /mute: a plain /set echoes the value, tokens and cookie included,
+        # into the core buffer and from there into its log on disk.
+        f.write("*/mute /set %s %s\n*/save\n" % (TOKEN_OPT, value))
     time.sleep(1)
     with open(fifo, "w") as f:
         f.write("*/python reload slack\n")
