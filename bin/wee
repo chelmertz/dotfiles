@@ -23,7 +23,9 @@ export EDITOR="$HOME/.nix-profile/bin/nvim" VISUAL="$HOME/.nix-profile/bin/nvim"
 # 1024-FD soft limit, and child creation then fails as "Error (code -2)" with
 # an empty error string (the child never ran). Raise the soft limit toward the
 # hard one before launching so the burst has headroom. Measured 2026-10-26: the
-# storm reproduced on every cold start until NOFILE went to 65536.
+# storm reproduced on every cold start until NOFILE went to 65536. Since then
+# weechat/wee-slack-inflight.patch caps the burst at 8 requests; the raised
+# limit stays as headroom until a cold start under the cap has been watched.
 ulimit -Sn "$(( $(ulimit -Hn) < 65536 ? $(ulimit -Hn) : 65536 ))" 2>/dev/null || true
 
 setup='/set plugins.var.python.slack.background_load_all_history false
