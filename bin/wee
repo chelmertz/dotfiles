@@ -38,6 +38,7 @@ setup='/set plugins.var.python.slack.background_load_all_history false
 /set weechat.bar.buflist.size_max 32
 /set buflist.look.sort ~full_name
 /set plugins.var.wee.buflist_all 0
+/set plugins.var.wee.home_buffer python.slack.matchi
 /set buflist.look.display_conditions "${raw:${buffer.hidden}==0 && (${current_buffer} || ${hotlist_priority_number}>=1 || ${buffer.local_variables.starred}==1 || ${plugins.var.wee.buflist_all}==1)}"
 /alias addreplace all /toggle plugins.var.wee.buflist_all 1 0\;/buflist refresh
 /unset weechat.bar.input.items

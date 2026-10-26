@@ -39,7 +39,12 @@ with open(barprobe, "w") as f:
 import weechat as w
 w.register("barprobe", "", "1", "MIT", "", "", "")
 last = [None]
+cur = [None]
 def tick(data, calls):
+    name = w.buffer_get_string(w.current_buffer(), "full_name")
+    if name != cur[0]:
+        cur[0] = name
+        w.prnt("", "CURBUF=" + name)
     h_bar, h_win = w.hdata_get("bar"), w.hdata_get("bar_window")
     bar = w.hdata_get_list(h_bar, "gui_bars")
     while bar:
@@ -62,6 +67,9 @@ script = ";".join([
     "/print -tags slack_ts_3.3 carol\\t" + "unfurled " * 300,
     "/print -tags slack_ts_3.3 \\t" + "more " * 300,
     "/python load " + barprobe,
+    # Stand-in for the MATCHi team buffer bin/wee names as home.
+    "/buffer add homeprobe",
+    "/set plugins.var.wee.home_buffer core.homeprobe",
 ])
 
 pid, fd = pty.fork()
@@ -113,6 +121,18 @@ os.write(fd, ESC)
 pump(1)
 os.write(fd, b"/print GO-CLOSED\r")
 pump(1)
+# Both teams connect: wee leaves the core buffer for the home buffer.
+os.write(fd, b"/print Connected to Slack team T1 (a) with username x\r")
+pump(0.5)
+os.write(fd, b"/print Connected to Slack team T2 (b) with username x\r")
+pump(1)
+# An error while away from core must show on the bar. SELFTEST lines are the
+# one error the run expects; any other still fails it.
+os.write(fd, b"/print -core =!=\\tSELFTEST error\r")
+pump(1)
+error_chip_drawn = b"1 error" in screen
+os.write(fd, b"/buffer core.weechat\r")
+pump(0.5)
 os.write(fd, b"/logger flush\r")
 pump(1)
 os.write(fd, b"/quit\r")
@@ -121,7 +141,8 @@ os.waitpid(pid, 0)
 
 log = open(os.path.join(weedir, "logs", "core.weechat.weechatlog"),
            encoding="utf-8", errors="replace").read().splitlines()
-errors = [l for l in log if "Traceback" in l or "\t=!=\t" in l]
+errors = [l for l in log if ("Traceback" in l or "\t=!=\t" in l)
+          and "SELFTEST" not in l]
 # slack_hints is autoloaded, which logs differently from the /script loads.
 missing = [name for name in ("slack", "go", "url_hint", "edit")
            if not any('registered script "%s"' % name in l for l in log)]
@@ -138,12 +159,19 @@ for mark in ("MENU-CLOSED", "GO-CLOSED"):
     if not any(l.endswith("\t" + mark) for l in log):
         print("Esc did not close it:", mark)
         failed = True
+bufs = [l.rsplit("=", 1)[1] for l in log if "\tCURBUF=" in l]
+if "core.homeprobe" not in bufs:
+    print("did not move to the home buffer once connected:", bufs)
+    failed = True
 heights = [int(l.rsplit("=", 1)[1]) for l in log if "\tBARHEIGHT=" in l]
 if not heights or max(heights) < 2:
     print("message menu never opened (bar heights %s)" % heights)
     failed = True
 elif max(heights) > 3:
     print("message menu bar grew to %d rows on a long message" % max(heights))
+    failed = True
+if not error_chip_drawn:
+    print("error chip never drawn for an error printed while away from core")
     failed = True
 if not loading_drawn:
     print("LOADING chip never drawn")

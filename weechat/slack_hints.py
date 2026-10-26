@@ -77,7 +77,7 @@ SETTLE_TICKS = 6
 IDLE_TICKS = 2
 
 state = {"expected": 0, "connected": 0, "on_time": SETTLE_TICKS, "last": None,
-         "fetching": False, "idle": 0}
+         "fetching": False, "idle": 0, "errors": 0}
 
 
 def loading():
@@ -278,8 +278,32 @@ def menu_rows():
     return target + "\n" + render_rows([[(k, d) for k, d, _ in MENU]])
 
 
+def core_print_cb(data, buffer, date, tags, displayed, highlight, prefix, message):
+    # wee moves off the core buffer once connected, so errors printed there
+    # (script tracebacks, wee-slack's ERROR lines, weechat's =!= prefix) are
+    # counted on the bar until the core buffer is looked at again.
+    if w.buffer_get_string(w.current_buffer(), "full_name") == "core.weechat":
+        return w.WEECHAT_RC_OK
+    if (w.string_remove_color(prefix, "").strip() == "=!="
+            or "Traceback" in message or message.startswith("ERROR")):
+        state["errors"] += 1
+        w.bar_item_update("slack_hints")
+    return w.WEECHAT_RC_OK
+
+
+def buffer_switch_cb(data, signal, buffer):
+    if state["errors"] and w.buffer_get_string(buffer, "full_name") == "core.weechat":
+        state["errors"] = 0
+        w.bar_item_update("slack_hints")
+    return w.WEECHAT_RC_OK
+
+
 def hints_item_cb(data, item, window):
     hints = menu_rows() if menu["open"] else render_rows(HINTS)
+    if state["errors"]:
+        hints = "{c} ⚠ {n} error{s} – Alt+1 {r}".format(
+            c=w.color("*white,red"), n=state["errors"],
+            s="" if state["errors"] == 1 else "s", r=w.color("reset")) + hints
     if not loading():
         if state["fetching"]:
             return "{c} ⏳ fetching {r}".format(
@@ -306,6 +330,13 @@ def connecting_cb(data, buffer, date, tags, displayed, highlight, prefix, messag
 def connected_cb(data, buffer, date, tags, displayed, highlight, prefix, message):
     state["connected"] += 1
     state["on_time"] = 0
+    # /query needs a team, which the core buffer has none of: once every team
+    # is up, move from core to plugins.var.wee.home_buffer (set in bin/wee).
+    # Anyone who has already moved stays put.
+    home = w.config_string(w.config_get("plugins.var.wee.home_buffer"))
+    current = w.buffer_get_string(w.current_buffer(), "full_name")
+    if home and state["connected"] >= state["expected"] and current == "core.weechat":
+        w.command("", "/buffer " + home)
     w.bar_item_update("slack_hints")
     return w.WEECHAT_RC_OK
 
@@ -329,7 +360,7 @@ def tick_cb(data, remaining_calls):
 
 def main():
     w.register(
-        "slack_hints", "", "1.6", "MIT",
+        "slack_hints", "", "1.7", "MIT",
         "Hint bar of wee-slack shortcuts with a loading indicator", "", "",
     )
     w.bar_item_new("slack_hints", "hints_item_cb", "")
@@ -339,6 +370,8 @@ def main():
     w.hook_print("", "", "Connecting to ", 1, "connecting_cb", "")
     w.hook_print("", "", "Connected to Slack team", 1, "connected_cb", "")
     w.hook_timer(TICK_MS, 0, 0, "tick_cb", "")
+    w.hook_print(w.buffer_search_main(), "", "", 1, "core_print_cb", "")
+    w.hook_signal("buffer_switch", "buffer_switch_cb", "")
     w.hook_command("msgmenu", "Menu of actions on a Slack message", "", "", "",
                    "msgmenu_cmd_cb", "")
     w.hook_command("escape", "Close the message menu or end /go", "", "", "",
