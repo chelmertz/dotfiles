@@ -12,6 +12,12 @@
 # the token logic.
 set -euo pipefail
 
+# Launched from i3, wee inherits NixOS's session-wide EDITOR=nano
+# (/etc/set-environment); only zsh overrides it. Point it at the home-manager
+# nvim, the same binary SUDO_EDITOR pins in nix/zsh.nix, so Ctrl+X (/edit,
+# which follows $EDITOR) opens the configured editor.
+export EDITOR="$HOME/.nix-profile/bin/nvim" VISUAL="$HOME/.nix-profile/bin/nvim"
+
 # wee-slack fires a metadata request per conversation on connect; with 70+
 # channels that burst of concurrent weechat URL children exhausts the default
 # 1024-FD soft limit, and child creation then fails as "Error (code -2)" with
@@ -25,7 +31,7 @@ setup='/set plugins.var.python.slack.background_load_all_history false
 /set plugins.var.python.go.fuzzy_search on
 /set plugins.var.python.go.short_name on
 /set weechat.completion.partial_completion_other on
-/set plugins.var.python.edit.editor nvim
+/unset plugins.var.python.edit.editor
 /set weechat.bar.buflist.position right
 /set weechat.bar.buflist.size_max 32
 /set buflist.look.sort ~full_name
