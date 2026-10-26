@@ -488,11 +488,13 @@ in
           # replies as unread and reads 0 for some channels with new messages.
           # Also tags Slack-starred conversations (stars.list) so the buflist
           # keeps them visible. The inflight patch caps concurrent API
-          # requests at 8; uncapped, connecting forked ~400 at once.
+          # requests at 16 (uncapped, connecting forked ~400 at once) and logs
+          # each one's timing. query-spaces lets /query take "a b" for "a,b".
           (wee-slack.overrideAttrs (o: {
             patches = (o.patches or [ ]) ++ [
               ../weechat/wee-slack-unreads.patch
               ../weechat/wee-slack-inflight.patch
+              ../weechat/wee-slack-query-spaces.patch
             ];
           }))
           # Ctrl+K drew its "Go to:" prompt only on the next redraw: on an empty

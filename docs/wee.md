@@ -23,7 +23,7 @@ Electron Slack app for daily use; the app stays installed for huddles.
 | Alt+< / Alt+> | back / forward through visited buffers |
 | `/all` | toggle the right-hand list between active-only and everything |
 | `/query name<Tab>` | open a DM with anyone in the workspace |
-| `/query alice,bob` | open a group DM (comma-separated, no spaces) |
+| `/query alice bob` | open a group DM (Tab completes each name; commas work too) |
 | `/close` | close the current buffer (back to the previous one) |
 
 The right-hand list shows the current buffer, buffers with new messages, and
