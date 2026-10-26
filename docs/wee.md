@@ -18,7 +18,7 @@ Electron Slack app for daily use; the app stays installed for huddles.
 | Key / command | Does |
 |---|---|
 | Ctrl+K | buffer picker (type to filter, Enter picks, Ctrl+K again cancels) |
-| Alt+A | next buffer with unread activity |
+| Alt+A | next buffer with unread activity; after the last, back to where you started; "nothing unread" in the bar when there is nowhere to go |
 | Alt+/ | back to the previous buffer (again: forward) |
 | Alt+< / Alt+> | back / forward through visited buffers |
 | `/all` | toggle the right-hand list between active-only and everything |

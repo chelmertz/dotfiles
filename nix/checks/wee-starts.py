@@ -110,6 +110,9 @@ def pump(seconds):
 os.set_blocking(fd, False)
 pump(4)
 loading_drawn = b"LOADING" in screen
+os.write(fd, b"\x1ba")  # Alt+A with nothing unread
+pump(1)
+nothing_unread_drawn = b"nothing unread" in screen
 os.write(fd, b"\x1b ")  # Alt+Space: message menu
 pump(1)
 os.write(fd, b"k")  # step to the older message
@@ -202,6 +205,9 @@ elif max(heights) > 3:
     failed = True
 if any("\tHOTLIST=core.teamprobe" in l for l in log):
     print("team buffer's connect notice put it on the hotlist")
+    failed = True
+if not nothing_unread_drawn:
+    print("Alt+A with nothing unread showed no notice")
     failed = True
 if not error_chip_drawn:
     print("error chip never drawn for an error printed while away from core")

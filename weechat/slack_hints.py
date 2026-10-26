@@ -77,7 +77,8 @@ SETTLE_TICKS = 6
 IDLE_TICKS = 2
 
 state = {"expected": 0, "connected": 0, "on_time": SETTLE_TICKS, "last": None,
-         "fetching": False, "idle": 0, "errors": 0}
+         "fetching": False, "idle": 0, "errors": 0, "notice": ""}
+NOTICE_MS = 2000
 
 
 def loading():
@@ -306,6 +307,9 @@ def hints_item_cb(data, item, window):
         hints = "{c} ⚠ {n} error{s} – Alt+1 {r}".format(
             c=w.color("*white,red"), n=state["errors"],
             s="" if state["errors"] == 1 else "s", r=w.color("reset")) + hints
+    if state["notice"]:
+        hints = "{c} {t} {r}".format(c=w.color("black,green"), t=state["notice"],
+                                     r=w.color("reset")) + hints
     if not loading():
         if state["fetching"]:
             return "{c} ⏳ fetching {r}".format(
@@ -317,6 +321,25 @@ def hints_item_cb(data, item, window):
         e=state["expected"], r=w.color("reset"),
     )
     return chip + hints
+
+
+def nextunread_cmd_cb(data, buffer, args):
+    # /buffer jump smart does nothing, silently, when nothing is unread and it
+    # has already returned to where it started. Say so, so that is not mistaken
+    # for wee lagging.
+    before = w.current_buffer()
+    w.command(buffer, "/buffer jump smart")
+    if w.current_buffer() == before:
+        state["notice"] = "nothing unread"
+        w.bar_item_update("slack_hints")
+        w.hook_timer(NOTICE_MS, 0, 1, "notice_end_cb", "")
+    return w.WEECHAT_RC_OK
+
+
+def notice_end_cb(data, remaining_calls):
+    state["notice"] = ""
+    w.bar_item_update("slack_hints")
+    return w.WEECHAT_RC_OK
 
 
 def connecting_cb(data, buffer, date, tags, displayed, highlight, prefix, message):
@@ -369,7 +392,7 @@ def tick_cb(data, remaining_calls):
 
 def main():
     w.register(
-        "slack_hints", "", "1.9", "MIT",
+        "slack_hints", "", "1.10", "MIT",
         "Hint bar of wee-slack shortcuts with a loading indicator", "", "",
     )
     w.bar_item_new("slack_hints", "hints_item_cb", "")
@@ -383,6 +406,8 @@ def main():
     w.hook_signal("buffer_switch", "buffer_switch_cb", "")
     w.hook_command("msgmenu", "Menu of actions on a Slack message", "", "", "",
                    "msgmenu_cmd_cb", "")
+    w.hook_command("nextunread", "Jump to the next unread buffer, or say there is none",
+                   "", "", "", "nextunread_cmd_cb", "")
     w.hook_command("escape", "Close the message menu or end /go", "", "", "",
                    "escape_cmd_cb", "")
     w.hook_signal("key_pressed", "key_pressed_cb", "")
