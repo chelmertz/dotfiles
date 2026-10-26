@@ -159,11 +159,9 @@ in
   home.file.".i3blocks.conf".source = ../.i3blocks.conf;
 
   # weechat autoloads *.py from its data dir (XDG: ~/.local/share/weechat), not
-  # ~/.config/weechat; scripts under the latter are silently never loaded. slack_hints draws the shortcut
-  # bar; vimode (vendored from GermainZ/weechat-vimode, not in nixpkgs) gives
-  # the input line vim modes, default insert, Esc to normal.
+  # ~/.config/weechat; scripts under the latter are silently never loaded.
+  # slack_hints draws the shortcut bar.
   home.file.".local/share/weechat/python/autoload/slack_hints.py".source = ../weechat/slack_hints.py;
-  home.file.".local/share/weechat/python/autoload/vimode.py".source = ../weechat/vimode.py;
 
   home.username = "ch";
   home.homeDirectory = "/home/ch";
@@ -483,6 +481,16 @@ in
           weechat-go
           weechat-notify-send
           url_hint
+          # Ctrl+X opens the input in $EDITOR. Upstream keeps its scratch file in
+          # ~/.weechat, which weechat 4 no longer creates; use the private
+          # runtime dir instead.
+          (edit.overrideAttrs (o: {
+            postPatch = ''
+              substituteInPlace edit.py --replace-fail \
+                'PATH = os.path.join(weechat_config_dir(), "message.txt")' \
+                'PATH = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "weechat-edit.txt")'
+            '';
+          }))
         ];
       };
     })

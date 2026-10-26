@@ -10,6 +10,7 @@ HINTS = [
     ("/query name", "DM anyone"),
     ("+:emoji:", "react"),
     ("Alt+Enter", "newline"),
+    ("Ctrl+X", "edit in nvim"),
 ]
 
 
