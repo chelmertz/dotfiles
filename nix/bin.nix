@@ -95,23 +95,18 @@ in
       executable = true;
     };
 
-    # Keeps wee-slack's stored Slack session valid by pushing a fresh token in
-    # through weechat's fifo. Needs openssl + secret-tool for the rare cookie
-    # re-decrypt, and curl/sqlite/python/grep for the common refresh; none are
+    # Keeps wee-slack's Slack sessions (one per workspace) valid, pushing fresh
+    # tokens in through weechat's fifo. Needs openssl + secret-tool + sqlite
+    # for the rare cookie re-decrypt and notify-send for the slow path; none are
     # guaranteed on PATH when run from the i3-launched `wee`, so pin them here.
     ".local/bin/slack-session-ensure" = {
       source = "${wrapBin {
         name = "slack-session-ensure";
-        src = ../bin/slack-session-ensure;
+        src = py ../bin/slack-session-ensure;
         deps = [
-          pkgs.bash
-          pkgs.coreutils
-          pkgs.curl
-          pkgs.gnugrep
           pkgs.libnotify
           pkgs.libsecret
           pkgs.openssl
-          pkgs.python3
           pkgs.sqlite
         ];
       }}/bin/slack-session-ensure";
