@@ -498,15 +498,19 @@ in
               ../weechat/wee-slack-query.patch
             ];
           }))
-          # Ctrl+K drew its "Go to:" prompt only on the next redraw: on an empty
-          # input line /go changes nothing weechat would redraw for, so the
-          # prompt waited for a message, a timer or the next key. Signal the
-          # change the way go.py already does when Tab cycles.
+          # Ctrl+K drew its "Go to:" prompt only on the next redraw, and Esc on
+          # an empty prompt left it drawn: on an empty input line, opening and
+          # closing /go change nothing weechat would redraw for, so the screen
+          # waited for a message, a timer or the next key. Signal the change
+          # the way go.py already does when Tab cycles.
           (weechat-go.overrideAttrs (o: {
             installPhase = o.installPhase + ''
               substituteInPlace $out/share/go.py --replace-fail \
                 "weechat.buffer_set(buf, 'input', ''')" \
-                "weechat.buffer_set(buf, 'input', '''); weechat.hook_signal_send('input_text_changed', weechat.WEECHAT_HOOK_SIGNAL_STRING, ''')"
+                "weechat.buffer_set(buf, 'input', '''); weechat.hook_signal_send('input_text_changed', weechat.WEECHAT_HOOK_SIGNAL_STRING, ''')" \
+                --replace-fail \
+                "weechat.buffer_set(buf, 'input_pos', str(saved_input_pos))" \
+                "weechat.buffer_set(buf, 'input_pos', str(saved_input_pos)); weechat.hook_signal_send('input_text_changed', weechat.WEECHAT_HOOK_SIGNAL_STRING, ''')"
             '';
           }))
           weechat-notify-send

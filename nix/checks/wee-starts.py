@@ -129,6 +129,14 @@ os.write(fd, ESC)
 pump(1)
 os.write(fd, b"/print MENU-CLOSED\r")
 pump(1)
+# Esc straight after Ctrl+K: go.py restores an input that never changed, and
+# nothing redraws the prompt away unless the close signals a change.
+os.write(fd, b"\x0b")
+pump(1)
+before = len(screen)
+os.write(fd, ESC)
+pump(1)
+go_redrawn_on_close = len(screen) > before
 os.write(fd, b"\x0b")  # Ctrl+K: /go
 pump(1)
 os.write(fd, b"ho")  # filtering, as Esc usually comes after typing
@@ -205,6 +213,9 @@ elif max(heights) > 3:
     failed = True
 if any("\tHOTLIST=core.teamprobe" in l for l in log):
     print("team buffer's connect notice put it on the hotlist")
+    failed = True
+if not go_redrawn_on_close:
+    print("Esc closed Ctrl+K on an empty prompt but nothing was redrawn")
     failed = True
 if not nothing_unread_drawn:
     print("Alt+A with nothing unread showed no notice")
