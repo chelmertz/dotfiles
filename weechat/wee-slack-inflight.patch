@@ -30,18 +30,19 @@
                          local_process_async_slack_api_request(j, self)
                      else:
                          self.slow_queue.append(j)
-@@ -954,6 +963,10 @@
+@@ -954,6 +963,11 @@
  
  ###### New Local Processors
  
 +# Every request is a forked weechat process. Uncapped, connecting queues one
 +# per conversation and ~400 run at once, enough to exhaust file descriptors.
-+MAX_INFLIGHT_HTTP = 8
++# At 8, a cold start sat at the cap for 90 s; Slack's 429s are retried.
++MAX_INFLIGHT_HTTP = 16
 +
  
  def local_process_async_slack_api_request(request, event_router):
      """
-@@ -979,6 +992,7 @@
+@@ -979,6 +993,7 @@
              "receive_httprequest_callback",
              context,
          )
