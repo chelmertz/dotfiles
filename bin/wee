@@ -28,11 +28,15 @@ setup='/set plugins.var.python.slack.background_load_all_history false
 /set weechat.bar.buflist.position right
 /set weechat.bar.buflist.size_max 32
 /set buflist.look.sort ~full_name
+/set plugins.var.wee.buflist_all 0
+/set buflist.look.display_conditions "${raw:${buffer.hidden}==0 && (${current_buffer} || ${hotlist_priority_number}>=1 || ${plugins.var.wee.buflist_all}==1)}"
+/alias addreplace all /toggle plugins.var.wee.buflist_all 1 0\;/buflist refresh
 /unset weechat.bar.input.items
 /key bind ctrl-k /go
 /key bind ctrl-x /edit'
 
-# weechat -r wants a single ;-separated command string.
+# weechat -r wants a single ;-separated command string, and it expands ${...}
+# in each command: wrap literal expressions in ${raw:...} and escape ; as \;.
 run=$(printf '%s\n' "$setup" | paste -sd ';' -)
 
 # Refresh in the background. It waits for the fifo, so starting it before

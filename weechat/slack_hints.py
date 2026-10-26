@@ -7,10 +7,10 @@ import weechat as w
 HINTS = [
     ("Ctrl+K", "channels"),
     ("Alt+A", "next unread"),
-    ("/query name", "DM anyone"),
+    ("/query name", "DM"),
     ("+:emoji:", "react"),
-    ("Alt+Enter", "newline"),
-    ("Ctrl+X", "edit in nvim"),
+    ("Ctrl+X", "nvim"),
+    ("/all", "all buffers"),
 ]
 
 
