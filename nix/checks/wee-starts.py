@@ -60,6 +60,12 @@ def tick(data, calls):
                 last[0] = height
                 w.prnt("", "BARHEIGHT=%d" % height)
         bar = w.hdata_move(h_bar, bar, 1)
+    hot = w.infolist_get("hotlist", "", "")
+    while w.infolist_next(hot):
+        name = w.buffer_get_string(w.infolist_pointer(hot, "buffer_pointer"), "full_name")
+        if name == "core.teamprobe":
+            w.prnt("", "HOTLIST=" + name)
+    w.infolist_free(hot)
     return w.WEECHAT_RC_OK
 w.hook_timer(100, 0, 0, "tick", "")
 """)
@@ -149,6 +155,13 @@ os.write(fd, b"/print Failed requesting SELFTEST for team a, will not retry"
 pump(0.3)
 os.write(fd, b"/print Connected to Slack team T1 (a) with username x\r")
 pump(1)
+# A team buffer's connect notice must not put it on the hotlist (Alt+A).
+os.write(fd, b"/buffer add teamprobe\r")
+pump(0.3)
+os.write(fd, b"/command -buffer core.teamprobe core /buffer set localvar_set_type server\r")
+pump(0.3)
+os.write(fd, b"/print -buffer core.teamprobe Connected to Slack team T3 (c) with username x\r")
+pump(1)
 os.write(fd, b"/logger flush\r")
 pump(1)
 os.write(fd, b"/quit\r")
@@ -186,6 +199,9 @@ if not heights or max(heights) < 2:
     failed = True
 elif max(heights) > 3:
     print("message menu bar grew to %d rows on a long message" % max(heights))
+    failed = True
+if any("\tHOTLIST=core.teamprobe" in l for l in log):
+    print("team buffer's connect notice put it on the hotlist")
     failed = True
 if not error_chip_drawn:
     print("error chip never drawn for an error printed while away from core")
