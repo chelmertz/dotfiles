@@ -31,10 +31,37 @@ with open(os.path.join(stubs, "slack-session-ensure"), "w") as f:
 os.chmod(os.path.join(stubs, "slack-session-ensure"), 0o755)
 os.makedirs(os.path.join(tmp, "run"), mode=0o700)
 
+# Logs the hint bar's height whenever it changes, so the run can assert the
+# message menu stays compact on a huge message.
+barprobe = os.path.join(tmp, "barprobe.py")
+with open(barprobe, "w") as f:
+    f.write("""
+import weechat as w
+w.register("barprobe", "", "1", "MIT", "", "", "")
+last = [None]
+def tick(data, calls):
+    h_bar, h_win = w.hdata_get("bar"), w.hdata_get("bar_window")
+    bar = w.hdata_get_list(h_bar, "gui_bars")
+    while bar:
+        if w.hdata_string(h_bar, bar, "name") == "hints":
+            win = w.hdata_pointer(h_bar, bar, "bar_window")
+            height = w.hdata_integer(h_win, win, "height") if win else -1
+            if height != last[0]:
+                last[0] = height
+                w.prnt("", "BARHEIGHT=%d" % height)
+        bar = w.hdata_move(h_bar, bar, 1)
+    return w.WEECHAT_RC_OK
+w.hook_timer(100, 0, 0, "tick", "")
+""")
+
 script = ";".join([
     "/print Connecting to 2 slack teams.",
     "/print -tags slack_ts_1.1 alice\\tfirst",
     "/print -tags slack_ts_2.2 bob\\tsecond",
+    # Newest: a link unfurl's worth of text over several lines.
+    "/print -tags slack_ts_3.3 carol\\t" + "unfurled " * 300,
+    "/print -tags slack_ts_3.3 \\t" + "more " * 300,
+    "/python load " + barprobe,
 ])
 
 pid, fd = pty.fork()
@@ -111,6 +138,13 @@ for mark in ("MENU-CLOSED", "GO-CLOSED"):
     if not any(l.endswith("\t" + mark) for l in log):
         print("Esc did not close it:", mark)
         failed = True
+heights = [int(l.rsplit("=", 1)[1]) for l in log if "\tBARHEIGHT=" in l]
+if not heights or max(heights) < 2:
+    print("message menu never opened (bar heights %s)" % heights)
+    failed = True
+elif max(heights) > 3:
+    print("message menu bar grew to %d rows on a long message" % max(heights))
+    failed = True
 if not loading_drawn:
     print("LOADING chip never drawn")
     failed = True

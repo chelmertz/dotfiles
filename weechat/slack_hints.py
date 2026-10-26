@@ -253,14 +253,28 @@ def key_combo_cb(data, signal, key):
     return w.WEECHAT_RC_OK_EAT
 
 
+def one_line(text, width):
+    """First line of text, cut to width screen columns. Link unfurls can make
+    a message thousands of characters long; the preview only has to say
+    which message is targeted, and the bar would grow to fit all of it."""
+    lines = text.split("\n")
+    line = lines[0] + (" ⏎…" if len(lines) > 1 else "")
+    if w.strlen_screen(line) <= width:
+        return line
+    while line and w.strlen_screen(line + "…") > width:
+        line = line[:-1]
+    return line + "…"
+
+
 def menu_rows():
     msgs = messages(menu["buffer"])
     if menu["index"] >= len(msgs):
         return render_rows([[(k, d) for k, d, _ in MENU]])
-    preview = as_text(msgs[menu["index"]]).replace("\n", " ⏎ ")
-    target = "{c} ▸ {n}/{t} {r} {p}".format(
-        c=w.color("black,yellow"), n=menu["index"] + 1, t=len(msgs),
-        r=w.color("reset"), p=preview)
+    head = " ▸ {}/{} ".format(menu["index"] + 1, len(msgs))
+    width = int(w.info_get("term_width", "") or 80)
+    preview = one_line(as_text(msgs[menu["index"]]), width - w.strlen_screen(head) - 2)
+    target = "{c}{h}{r} {p}".format(
+        c=w.color("black,yellow"), h=head, r=w.color("reset"), p=preview)
     return target + "\n" + render_rows([[(k, d) for k, d, _ in MENU]])
 
 
