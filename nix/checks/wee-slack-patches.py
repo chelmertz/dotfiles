@@ -281,6 +281,26 @@ if "look+at+this" not in argv[-1] or "D1" not in argv[-1] or "F1" not in argv[-1
 if w.prnt.call_args_list:
     print("a successful upload printed:", w.prnt.call_args_list)
     failed = True
+
+# Two pasted images and an empty message: weechat trims the trailing space,
+# leaving "--" after the paths; both files go out in one message, no text.
+other = picture.replace("shot", "shot2")
+with open(other, "wb") as f:
+    f.write(b"678")
+w.hook_process_hashtable.reset_mock()
+w.prnt.reset_mock()
+wee_slack.command_upload(None, "0xDM", picture + " " + other + " --")
+calls = []
+for i, reply in enumerate(['{"ok": true, "upload_url": "https://files.example/1", "file_id": "F1"}', "200",
+                           '{"ok": true, "upload_url": "https://files.example/2", "file_id": "F2"}', "200"]):
+    argv, data = last_curl()
+    calls.append(argv)
+    wee_slack.upload_callback(data, "", 0, reply, "")
+argv, data = last_curl()
+if (w.prnt.call_args_list or "-Ffile=@" + other not in calls[3]
+        or "F1" not in argv[-1] or "F2" not in argv[-1] or "initial_comment" in argv[-1]):
+    print("two files with no message:", w.prnt.call_args_list, argv[-1].split("?", 1)[-1])
+    failed = True
 wee_slack.upload_callback(data, "", 0, '{"ok": false, "error": "not_allowed"}', "")
 if not any("not_allowed" in str(c) for c in w.prnt.call_args_list):
     print("a failed upload printed no error")

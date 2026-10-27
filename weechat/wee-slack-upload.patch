@@ -1,52 +1,60 @@
 --- a/wee_slack.py
 +++ b/wee_slack.py
-@@ -6569,12 +6569,13 @@
+@@ -6569,50 +6569,76 @@
  @utf8_decode
  def command_upload(data, current_buffer, args):
      """
 -    /slack upload <filename>
 -    Uploads a file to the current buffer.
-+    /slack upload <filename> [-- <comment>]
-+    Uploads a file to the current buffer, with an optional comment.
++    /slack upload <filename> [<filename>...] [-- <message>]
++    Uploads files to the current buffer as one message, with optional text.
      """
      channel = EVENTROUTER.weechat_controller.buffers[current_buffer]
      weechat_dir = w.info_get("weechat_data_dir", "") or w.info_get("weechat_dir", "")
 -    file_path = os.path.join(weechat_dir, os.path.expanduser(args))
-+    path_arg, _, comment = args.partition(" -- ")
-+    file_path = os.path.join(weechat_dir, os.path.expanduser(path_arg))
++    # weechat trims trailing spaces, so an empty message leaves a bare "--".
++    path_args, _, comment = re.sub(r" --$", " -- ", args).partition(" -- ")
  
      if channel.type == "team":
          w.prnt("", "ERROR: Can't upload a file to the team buffer")
-@@ -6588,31 +6589,45 @@
+         return w.WEECHAT_RC_ERROR
+ 
+-    if not os.path.isfile(file_path):
+-        unescaped_file_path = file_path.replace(r"\ ", " ")
+-        if os.path.isfile(unescaped_file_path):
+-            file_path = unescaped_file_path
+-        else:
++    # One path, spaces and all, or several split on unescaped spaces.
++    if os.path.isfile(os.path.join(weechat_dir, os.path.expanduser(path_args))):
++        candidates = [path_args]
++    else:
++        candidates = re.split(r"(?<!\\) +", path_args.strip())
++    file_paths = []
++    for candidate in candidates:
++        file_path = os.path.join(weechat_dir, os.path.expanduser(candidate))
++        if not os.path.isfile(file_path):
++            file_path = file_path.replace(r"\ ", " ")
++        if not os.path.isfile(file_path):
              w.prnt("", "ERROR: Could not find file: {}".format(file_path))
              return w.WEECHAT_RC_ERROR
++        file_paths.append(file_path)
  
 -    post_data = {
 -        "channels": channel.identifier,
-+    # Slack retired files.upload (method_deprecated): ask for an upload URL,
-+    # send the file there, then share it into the conversation.
++    # Slack retired files.upload (method_deprecated): ask for an upload URL
++    # per file, send the file there, then share them all in one message.
 +    state = {
 +        "step": "url",
 +        "buffer": current_buffer,
-+        "path": file_path,
++        "paths": file_paths,
++        "file_ids": [],
 +        "comment": comment,
      }
 -    if isinstance(channel, SlackThreadChannel):
 -        post_data["thread_ts"] = channel.thread_ts
-+    upload_curl(
-+        channel,
-+        "files.getUploadURLExternal",
-+        {
-+            "filename": os.path.basename(file_path),
-+            "length": os.path.getsize(file_path),
-+        },
-+        [],
-+        state,
-+    )
++    upload_next(channel, state)
 +    return w.WEECHAT_RC_OK_EAT
 +
-+
-+command_upload.completion = "%(filename) %-"
  
 -    request = SlackRequest(channel.team, "files.upload", post_data, channel=channel)
 -    options = request.options_as_cli_args() + [
@@ -54,7 +62,21 @@
 -        "-Ffile=@{}".format(file_path),
 -        request.request_string(),
 -    ]
++command_upload.completion = "%(filename) %-"
  
++
++def upload_next(channel, state):
++    path = state["paths"][len(state["file_ids"])]
++    state["step"] = "url"
++    upload_curl(
++        channel,
++        "files.getUploadURLExternal",
++        {"filename": os.path.basename(path), "length": os.path.getsize(path)},
++        [],
++        state,
++    )
++
++
 +def upload_curl(channel, method, post_data, extra, state, url=None):
 +    request = SlackRequest(channel.team, method, post_data, channel=channel)
 +    options = request.options_as_cli_args() + ["-s"] + extra
@@ -79,7 +101,7 @@
  
  
  @utf8_decode
-@@ -6626,6 +6641,29 @@
+@@ -6626,6 +6652,32 @@
          )
          return w.WEECHAT_RC_OK_EAT
  
@@ -94,8 +116,11 @@
 +        if not out.endswith("200"):
 +            w.prnt("", "ERROR: Couldn't upload file. Got: {}".format(out))
 +            return w.WEECHAT_RC_OK_EAT
++        if len(state["file_ids"]) < len(state["paths"]):
++            upload_next(channel, state)
++            return w.WEECHAT_RC_OK_EAT
 +        post_data = {
-+            "files": json.dumps([{"id": state["file_id"]}]),
++            "files": json.dumps([{"id": file_id} for file_id in state["file_ids"]]),
 +            "channel_id": channel.identifier,
 +        }
 +        if state["comment"]:
@@ -109,17 +134,19 @@
      try:
          response = json.loads(out)
      except JSONDecodeError:
-@@ -6636,6 +6674,16 @@
+@@ -6636,6 +6688,18 @@
  
      if not response["ok"]:
          w.prnt("", "ERROR: Couldn't upload file. Error: {}".format(response["error"]))
 +    elif state["step"] == "url":
-+        state.update(step="send", file_id=response["file_id"])
++        path = state["paths"][len(state["file_ids"])]
++        state["step"] = "send"
++        state["file_ids"].append(response["file_id"])
 +        upload_curl(
 +            channel,
 +            "",
 +            {},
-+            ["-o/dev/null", "-w%{http_code}", "-Ffile=@{}".format(state["path"])],
++            ["-o/dev/null", "-w%{http_code}", "-Ffile=@{}".format(path)],
 +            state,
 +            url=response["upload_url"],
 +        )

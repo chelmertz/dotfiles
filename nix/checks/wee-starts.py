@@ -227,9 +227,15 @@ os.write(fd, b"\r")
 pump(1)
 os.write(fd, b"/buffer core.weechat\r")  # back where Connected is expected
 pump(1)
-os.write(fd, b"\x16")  # Ctrl+V with an image: attached, Enter sends the caption
+os.write(fd, b"\x16")  # Ctrl+V with an image: attached, Enter sends the message
 pump(1)
 os.write(fd, b"look here\r")
+pump(1)
+os.write(fd, b"\x16")  # two images and no text: one upload of both
+pump(1)
+os.write(fd, b"\x16")
+pump(1)
+os.write(fd, b"\r")
 pump(1)
 os.write(fd, b"\x16")  # attached, then Esc drops it and its file
 pump(1)
@@ -359,15 +365,17 @@ if any("/query yan.person" in l for l in log):
     print("Ctrl+K listed a person a second time beside their DM buffer")
     failed = True
 uploads = [l.split("SLACK=", 1)[1] for l in log if "\tSLACK=" in l]
-if (len(uploads) != 1 or not re.match(r"/slack upload \S+/run/wee-paste-\d+\.png -- look here$", uploads[0])):
-    print("Ctrl+V image + Enter should upload once with the caption:", uploads)
+png = r"\S+/run/wee-paste-\d+\.png"
+if (len(uploads) != 2 or not re.match(r"/slack upload %s -- look here$" % png, uploads[0])
+        or not re.match(r"/slack upload %s %s$" % (png, png), uploads[1])):
+    print("Ctrl+V uploads: want one image with the message, then two with none:", uploads)
     failed = True
-if not os.path.exists(fehargs) or open(fehargs).read().count("--class wee-preview") != 2:
+if not os.path.exists(fehargs) or open(fehargs).read().count("--class wee-preview") != 4:
     print("Ctrl+V did not preview each image in feh:",
           open(fehargs).read() if os.path.exists(fehargs) else None)
     failed = True
 kept = [f for f in os.listdir(os.path.join(tmp, "run")) if f.startswith("wee-paste-")]
-if len(kept) != 1:
+if len(kept) != 3:
     print("expected only the sent image left (Esc deletes a dropped one):", kept)
     failed = True
 if not any(l.endswith("\tPASTEDTEXT") for l in log):
