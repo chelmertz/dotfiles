@@ -40,7 +40,7 @@
          if not self.parent_message.subscribed:
              return
          args = {"thread_ts": self.thread_ts}
-@@ -3934,6 +3953,43 @@
+@@ -3934,6 +3953,47 @@
                  known.note_activity(item["latest"])
  
  
@@ -73,11 +73,15 @@
 +        message.open_thread()
 +        if message.thread_channel:
 +            message.thread_channel.unread_on_open = True
-+    if response_json.get("has_more"):
++    # The view lists followed threads, read or not, newest first, and
++    # returns at most 10 whatever the limit; it does count every unread reply.
++    listed = sum(len(t.get("unread_replies") or []) for t in response_json.get("threads", []))
++    missing = response_json.get("total_unread_replies", 0) - listed
++    if missing > 0:
 +        w.prnt(
 +            team.channel_buffer,
-+            "More than {} threads have unread replies; the rest are in the "
-+            "Slack app".format(THREADS_VIEW_LIMIT),
++            "{} unread thread replies are in older threads wee could not list;"
++            " see the Threads view in the Slack app".format(missing),
 +        )
 +
 +

@@ -152,6 +152,20 @@ if root.open_thread.call_count != 1 or not root.thread_channel.unread_on_open:
     print("unread thread not opened and flagged:", root.open_thread.call_count)
     failed = True
 
+# Read threads fill the view: no "missing" notice when every unread reply was
+# listed, one when some were not.
+def missing_notices(threads, total):
+    teamx = mock.MagicMock(channels={}, channel_buffer="0xTEAM")
+    w.prnt.reset_mock()
+    wee_slack.handle_threads_view({"ok": True, "has_more": True, "threads": threads,
+                                   "total_unread_replies": total}, router, teamx, None, {})
+    return [c for c in w.prnt.call_args_list if c.args[0] == "0xTEAM"]
+listed = [{"root_msg": {}, "unread_replies": [{}, {}]}] + [{"root_msg": {}, "unread_replies": []}] * 9
+if missing_notices(listed, 2) or not missing_notices(listed, 5):
+    print("missing-threads notice wrong: all listed=%d, 3 missing=%d"
+          % (len(missing_notices(listed, 2)), len(missing_notices(listed, 5))))
+    failed = True
+
 w.buffer_set.reset_mock()
 thread = mock.MagicMock(channel_buffer="0xTHREAD", unread_on_open=True,
                         visible_messages={}, pending_history_requests=set())
