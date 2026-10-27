@@ -121,6 +121,56 @@ if "@adam.kozlowski" not in added or "@gone" in added:
     print("@ completion in a channel without loaded members:", added)
     failed = True
 
+# Threads (weechat/wee-slack-threads.patch): every connect asks for threads
+# with unread replies, opens each and keeps it on the hotlist until read; a
+# failed call is an ERROR line, which wee counts as a startup error.
+if "subscriptions.thread.getView" not in sent:
+    print("connect did not ask for unread threads:", sent)
+    failed = True
+
+w.prnt.reset_mock()
+wee_slack.handle_threads_view({"ok": False, "error": "unknown_method"},
+                              router, mock.MagicMock(domain="t"), None, {})
+if not any(str(c.args[1]).startswith("ERROR") for c in w.prnt.call_args_list):
+    print("a failed thread listing printed no ERROR line")
+    failed = True
+
+real_process_message = wee_slack.process_message
+wee_slack.process_message = lambda *a, **k: None
+root = mock.MagicMock(thread_channel=types.SimpleNamespace())
+parent = mock.MagicMock()
+parent.messages.get.return_value = root
+wee_slack.handle_threads_view(
+    {"ok": True, "threads": [
+        {"root_msg": {"channel": "C1", "ts": "1700000000.000000"},
+         "unread_replies": [{"ts": "1700000009.000000"}]},
+        {"root_msg": {"channel": "C1", "ts": "1700000001.000000"},
+         "unread_replies": []}]},
+    router, mock.MagicMock(channels={"C1": parent}), None, {})
+wee_slack.process_message = real_process_message
+if root.open_thread.call_count != 1 or not root.thread_channel.unread_on_open:
+    print("unread thread not opened and flagged:", root.open_thread.call_count)
+    failed = True
+
+w.buffer_set.reset_mock()
+thread = mock.MagicMock(channel_buffer="0xTHREAD", unread_on_open=True,
+                        visible_messages={}, pending_history_requests=set())
+wee_slack.SlackChannelCommon.reprint_messages(thread)
+if not any(c.args[1:] == ("hotlist", "1") for c in w.buffer_set.call_args_list):
+    print("reprinting an unread thread dropped it from the hotlist")
+    failed = True
+
+ts = wee_slack.SlackTS
+thread = mock.MagicMock(unread_on_open=True, parent_message=mock.MagicMock(
+    subscribed=False, submessages=[ts("1700000001.000000"), ts("1700000002.000000")]))
+wee_slack.SlackThreadChannel.mark_read(thread, ts="1700000001.000000")
+kept = thread.unread_on_open
+wee_slack.SlackThreadChannel.mark_read(thread, ts="1700000002.000000")
+if not kept or thread.unread_on_open:
+    print("unread flag: kept on old-line read=%s (want True), after newest=%s"
+          " (want False)" % (kept, thread.unread_on_open))
+    failed = True
+
 if head != ["query", "on-screen"]:
     print("foreground requests not at the head of the waiting list:", head)
     failed = True

@@ -26,14 +26,16 @@ Electron Slack app for daily use; the app stays installed for huddles.
 | `/query alice bob` | open a group DM (Tab completes each name; commas work too) |
 | `/close` | close the current buffer (back to the previous one) |
 
-The right-hand list shows the current buffer, buffers with new messages, and
-your Slack-starred conversations. Muted channels count as quiet. Both
-workspaces (MATCHi, op6) appear, grouped by workspace.
+The right-hand list shows the current buffer, buffers with new messages, your
+Slack-starred conversations, and anything with activity in the last 72 hours
+(read or not, from any client), newest first. Muted channels count as quiet.
+`/all` lists everything.
 
 ## Writing
 
 - Enter sends. **Shift+Enter** or **Alt+Enter** inserts a newline.
 - **Ctrl+X** opens the message in nvim; save and quit to put it back, then Enter.
+- `@name<Tab>` completes anyone in the workspace.
 - `+:emoji:` reacts to the last message (`-:emoji:` removes); `3+:emoji:` the
   third-to-last. `:smi<Tab>` completes emoji names.
 
@@ -52,6 +54,12 @@ workspaces (MATCHi, op6) appear, grouped by workspace.
   Esc merges with the next key.)
 
 ## Threads
+
+- Threads you follow with unread replies, including replies from while wee was
+  closed, open as their own buffers at start and are on Alt+A's way; leaving
+  one marks it read in Slack. A reply arriving while wee runs is announced in
+  the workspace buffer (Alt+A stops there). If wee cannot list unread threads,
+  that is a startup error: check the Slack app's Threads view.
 
 - A message with replies ends in `[ Thread: 855 Replies: 8 ]`; that thread is
   **`$855`**. A bare number counts messages back from the end instead.

@@ -1,0 +1,86 @@
+--- a/wee_slack.py
++++ b/wee_slack.py
+@@ -1921,6 +1921,16 @@
+         self.eventrouter.receive(
+             SlackRequest(self, "client.counts", callback=handle_counts_latest)
+         )
++        # Threads with replies that came while wee was away, as the Slack
++        # apps' Threads view lists them.
++        self.eventrouter.receive(
++            SlackRequest(
++                self,
++                "subscriptions.thread.getView",
++                {"limit": THREADS_VIEW_LIMIT},
++                callback=handle_threads_view,
++            )
++        )
+ 
+         if config.background_load_all_history:
+             for channel in self.channels.values():
+@@ -2057,6 +2067,10 @@
+             self.last_line_from = None
+             for message in self.visible_messages.values():
+                 self.prnt_message(message, history_message, no_log, force_render)
++            # Clearing drops the buffer from the hotlist; a thread opened for
++            # its unread replies stays on it until read.
++            if getattr(self, "unread_on_open", False):
++                w.buffer_set(self.channel_buffer, "hotlist", "1")
+             if (
+                 self.identifier in self.pending_history_requests
+                 or config.thread_messages_in_channel
+@@ -3200,6 +3214,11 @@
+                 return "{}.{}".format(channel_name, name)
+ 
+     def mark_read(self, ts=None, update_remote=True, force=False, post_data={}):
++        # Printing history marks each old line read; only a read covering the
++        # newest reply (leaving the buffer, or another client) ends unread.
++        replies = self.parent_message.submessages
++        if ts is None or not replies or SlackTS(ts) >= replies[-1]:
++            self.unread_on_open = False
+         if not self.parent_message.subscribed:
+             return
+         args = {"thread_ts": self.thread_ts}
+@@ -3934,6 +3953,43 @@
+                 known.note_activity(item["latest"])
+ 
+ 
++THREADS_VIEW_LIMIT = 50
++
++
++def handle_threads_view(response_json, eventrouter, team, channel, metadata):
++    # Opens each thread with unread replies and puts it on the hotlist, so
++    # Alt+A reaches it; leaving its buffer marks it read in Slack. The call
++    # is the Slack apps' own, not a published one: if it fails, say so where
++    # wee counts startup errors rather than show nothing.
++    if not response_json.get("ok"):
++        w.prnt(
++            "",
++            "ERROR: could not list unread threads for {} ({}); check the "
++            "Threads view in the Slack app".format(
++                team.domain, response_json.get("error")
++            ),
++        )
++        return
++    for thread in response_json.get("threads", []):
++        root = thread.get("root_msg", {})
++        parent = team.channels.get(root.get("channel"))
++        if not thread.get("unread_replies") or not parent or "ts" not in root:
++            continue
++        process_message(root, eventrouter, team, parent, {}, history_message=True)
++        message = parent.messages.get(SlackTS(root["ts"]))
++        if message is None:
++            continue
++        message.open_thread()
++        if message.thread_channel:
++            message.thread_channel.unread_on_open = True
++    if response_json.get("has_more"):
++        w.prnt(
++            team.channel_buffer,
++            "More than {} threads have unread replies; the rest are in the "
++            "Slack app".format(THREADS_VIEW_LIMIT),
++        )
++
++
+ def handle_rtmconnect(login_data, eventrouter, team, channel, metadata):
+     metadata = login_data["wee_slack_request_metadata"]
+     team = metadata.team
