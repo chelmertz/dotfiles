@@ -57,6 +57,23 @@ for _ in range(3):
 head = [r.post_data["channel"] for r in router.http_waiting[:2]]
 failed = False
 
+# Queued before its buffer was opened: once the user is on that buffer, it
+# takes the next free slot ahead of older background requests.
+waiting = [request("bg-a"), request("dm-opened-later", buffer="0xSCREEN"), request("bg-b")]
+if wee_slack.next_waiting(waiting) != 1:
+    print("a waiting request for the buffer on screen did not go next")
+    failed = True
+if wee_slack.next_waiting([request("bg-a"), request("bg-b")]) != 0:
+    print("without a foreground request, waiting is not first-in first-out")
+    failed = True
+
+# The request log names the code path that asked.
+def asks_history():
+    return request("origin-probe")
+if "asks_history" not in asks_history().origin:
+    print("request origin missing its caller:", asks_history().origin)
+    failed = True
+
 # Recency (weechat/wee-slack-recency.patch): the newest activity from any
 # client, thread replies included, lands in the buffer localvar the buflist
 # sorts on; every connect refetches it from client.counts.

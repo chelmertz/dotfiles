@@ -19,7 +19,7 @@
 +            self.http_inflight -= 1
 +            log_request(self, request_metadata, return_code)
 +            if self.http_waiting:
-+                self.queue.insert(0, self.http_waiting.pop(0))
++                self.queue.insert(0, self.http_waiting.pop(next_waiting(self.http_waiting)))
          dbg(
              "RECEIVED CALLBACK with request of {} id of {} and  code {} of length {}".format(
                  request_metadata.request,
@@ -64,7 +64,7 @@
                          local_process_async_slack_api_request(j, self)
                      else:
                          self.slow_queue.append(j)
-@@ -952,6 +971,53 @@
+@@ -952,6 +971,65 @@
  
  ###### New Local Processors
  
@@ -93,6 +93,15 @@
 +    return bool(buffer) and buffer == w.current_buffer()
 +
 +
++def next_waiting(waiting):
++    # A request queued before its buffer was opened (an unread DM's history,
++    # say) is foreground by the time a slot frees: take it first.
++    for i, request in enumerate(waiting):
++        if is_foreground(request):
++            return i
++    return 0
++
++
 +def open_request_log():
 +    # One line per finished request, rewritten every start, so the time a
 +    # load takes can be split into queueing and network.
@@ -101,7 +110,9 @@
 +        log = open(path, "w", buffering=1)
 +    except OSError:
 +        return None
-+    log.write("end request channel code queued_s net_s inflight waiting queue\n")
++    log.write(
++        "end request channel code queued_s net_s inflight waiting queue limit origin\n"
++    )
 +    return log
 +
 +
@@ -110,15 +121,16 @@
 +        return
 +    now = time.time()
 +    sent = getattr(request, "sent_at", now)
-+    router.http_log.write("%.3f %s %s %s %.3f %.3f %d %d %d\n" % (
++    router.http_log.write("%.3f %s %s %s %.3f %.3f %d %d %d %s %s\n" % (
 +        now, request.request, request.post_data.get("channel", "-"), return_code,
 +        sent - request.start_time, now - sent, router.http_inflight,
-+        len(router.http_waiting), len(router.queue)))
++        len(router.http_waiting), len(router.queue),
++        request.post_data.get("limit", "-"), getattr(request, "origin", "-")))
 +
  
  def local_process_async_slack_api_request(request, event_router):
      """
-@@ -967,6 +1033,7 @@
+@@ -967,6 +1045,7 @@
              )
          )
          request.tried()
@@ -126,7 +138,7 @@
          options = request.options()
          options["header"] = "1"
          context = event_router.store_context(request)
-@@ -977,6 +1044,7 @@
+@@ -977,6 +1056,7 @@
              "receive_httprequest_callback",
              context,
          )
@@ -134,3 +146,14 @@
  
  
  ###### New Callbacks
+@@ -1491,6 +1571,10 @@
+             else:
+                 self.cookies["d"] = cookie
+         self.callback = callback
++        # Which code paths asked, for the request log.
++        self.origin = ">".join(
++            frame.name for frame in reversed(traceback.extract_stack(limit=4)[:-1])
++        )
+         self.domain = "api.slack.com"
+         self.reset()
+ 
