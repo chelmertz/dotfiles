@@ -8,13 +8,6 @@ function reviewUrl(msg) {
   return m && `claude-review://${m[1]}/${m[2]}/${m[3]}`;
 }
 
-// The button only does something on a single PR mail; grey it out elsewhere.
-messenger.messageDisplay.onMessagesDisplayed.addListener((tab, displayed) => {
-  const list = Array.isArray(displayed) ? displayed : displayed.messages;
-  const ok = list.length === 1 && reviewUrl(list[0]);
-  messenger.messageDisplayAction[ok ? "enable" : "disable"](tab.id);
-});
-
 // A MailExtension cannot start a process, so the native host (claude_review,
 // declared in nix/thunderbird.nix) hands the URL to xdg-open.
 messenger.messageDisplayAction.onClicked.addListener(async (tab) => {
