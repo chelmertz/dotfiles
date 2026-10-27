@@ -1,0 +1,73 @@
+--- a/wee_slack.py
++++ b/wee_slack.py
+@@ -1912,6 +1912,11 @@
+             )
+         )
+         dbg("connected to {}".format(self.domain))
++        # Every connect, reconnects included: what arrived while wee was away
++        # (from any client) moves its conversation up the buflist.
++        self.eventrouter.receive(
++            SlackRequest(self, "client.counts", callback=handle_counts_latest)
++        )
+ 
+         if config.background_load_all_history:
+             for channel in self.channels.values():
+@@ -2313,6 +2318,15 @@
+         self.members = set(members)
+         self.update_nicklist()
+ 
++    def note_activity(self, ts):
++        # Newest message from any client, thread replies included, as the
++        # buffer localvar slack_latest: the buflist sorts and filters on it.
++        ts = str(ts)
++        if ts > getattr(self, "latest_activity", ""):
++            self.latest_activity = ts
++            if self.channel_buffer:
++                w.buffer_set(self.channel_buffer, "localvar_set_slack_latest", ts)
++
+     def set_unread_count_display(self, count):
+         self.unread_count_display = count
+         self.new_messages = bool(self.unread_count_display)
+@@ -2525,6 +2539,12 @@
+                     "localvar_set_starred",
+                     "1" if self.identifier in getattr(self.team, "starred", ()) else "0",
+                 )
++                if getattr(self, "latest_activity", ""):
++                    w.buffer_set(
++                        self.channel_buffer,
++                        "localvar_set_slack_latest",
++                        self.latest_activity,
++                    )
+         self.update_nicklist()
+ 
+         info_method = self.team.slack_api_translator[self.type].get("info")
+@@ -3900,6 +3920,16 @@
+     t.connect()
+ 
+ 
++def handle_counts_latest(response_json, eventrouter, team, channel, metadata):
++    if not response_json.get("ok"):
++        return
++    for kind in ("channels", "ims", "mpims"):
++        for item in response_json.get(kind, []):
++            known = team.channels.get(item["id"])
++            if known and item.get("latest"):
++                known.note_activity(item["latest"])
++
++
+ def handle_rtmconnect(login_data, eventrouter, team, channel, metadata):
+     metadata = login_data["wee_slack_request_metadata"]
+     team = metadata.team
+@@ -4277,6 +4307,12 @@
+ ):
+     if channel is None:
+         return
++    if "ts" in message_json and message_json.get("subtype") not in (
++        "message_changed",
++        "message_deleted",
++    ):
++        if hasattr(channel, "note_activity"):
++            channel.note_activity(message_json["ts"])
+ 
+     subtype = message_json.get("subtype")
+     if (

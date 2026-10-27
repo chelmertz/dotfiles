@@ -1,0 +1,114 @@
+"""Our wee-slack patches, against the patched wee_slack.py with weechat stubbed.
+
+Usage: wee-slack-patches.py <dir holding the patched wee_slack.py>
+
+Queue (weechat/wee-slack-inflight.patch): requests the user waits on skip the
+connect backlog. Drives the real EventRouter with weechat stubbed out: 40 background requests
+fill the 16 slots and the waiting list and 20 more sit in the queue, then the buffer on screen asks for
+history, /query opens a conversation and a websocket event arrives. The first
+two must head the waiting list and the event must not sit in the queue
+(weechat/wee-slack-inflight.patch, is_foreground).
+"""
+
+import sys
+import types
+from unittest import mock
+
+w = mock.MagicMock(WEECHAT_HOOK_PROCESS_RUNNING=-1)
+w.current_buffer.return_value = "0xSCREEN"
+sys.modules["weechat"] = w
+sys.modules["websocket"] = mock.MagicMock()
+sys.path.insert(0, sys.argv[1])
+import wee_slack  # noqa: E402
+
+wee_slack.w = w  # bound under its __main__ guard, which an import skips
+wee_slack.config = mock.MagicMock(debug_level=99, debug_mode=False)
+
+
+def send(request, router):
+    router.http_inflight += 1
+
+
+wee_slack.local_process_async_slack_api_request = send
+router = wee_slack.EventRouter()
+team = mock.MagicMock(token="xoxc-x")
+
+
+def request(channel, buffer=None, switch=False):
+    return wee_slack.SlackRequest(
+        team, "conversations.history", {"channel": channel},
+        channel=types.SimpleNamespace(channel_buffer=buffer),
+        metadata={"switch": True} if switch else {})
+
+
+for i in range(40):
+    router.receive(request("background%d" % i))
+for _ in range(40):
+    router.handle_next()
+for i in range(20):  # still queued, not yet asking for a slot
+    router.receive(request("queued%d" % i))
+event = {"type": "message", "wee_slack_metadata_team": team}
+router.receive(request("on-screen", buffer="0xSCREEN"))
+router.receive(request("query", switch=True))
+router.receive(event)
+for _ in range(3):
+    router.handle_next()
+
+head = [r.post_data["channel"] for r in router.http_waiting[:2]]
+failed = False
+
+# Recency (weechat/wee-slack-recency.patch): the newest activity from any
+# client, thread replies included, lands in the buffer localvar the buflist
+# sorts on; every connect refetches it from client.counts.
+def localvar_writes():
+    return [c.args[2] for c in w.buffer_set.call_args_list
+            if c.args[1] == "localvar_set_slack_latest"]
+
+
+w.buffer_set.reset_mock()
+conv = types.SimpleNamespace(channel_buffer="0xCONV", latest_activity="")
+note = wee_slack.SlackChannel.note_activity
+note(conv, "1700000002.000000")
+note(conv, "1700000001.000000")  # older: ignored
+if localvar_writes() != ["1700000002.000000"]:
+    print("note_activity did not keep the newest ts:", localvar_writes())
+    failed = True
+
+seen = []
+chan = mock.MagicMock()
+chan.note_activity.side_effect = seen.append
+for message in ({"ts": "1700000003.000000", "thread_ts": "1700000000.000000"},
+                {"ts": "1700000004.000000", "subtype": "message_changed"}):
+    try:
+        wee_slack.process_message(message, router, team, chan, {})
+    except Exception:
+        pass  # the rest of message handling is not under test
+if seen != ["1700000003.000000"]:
+    print("process_message activity (thread reply counts, edit does not):", seen)
+    failed = True
+
+counted = types.SimpleNamespace(channel_buffer=None, latest_activity="")
+counted.note_activity = lambda ts: note(counted, ts)
+counts_team = mock.MagicMock(channels={"C1": counted})
+wee_slack.handle_counts_latest(
+    {"ok": True, "channels": [{"id": "C1", "latest": "1700000005.000000"}],
+     "ims": [{"id": "D9", "latest": "1700000006.000000"}]},
+    router, counts_team, None, {})
+if counted.latest_activity != "1700000005.000000":
+    print("client.counts latest not applied:", counted.latest_activity)
+    failed = True
+
+reconnecting = mock.MagicMock(channels={})
+wee_slack.SlackTeam.set_connected(reconnecting)
+sent = [c.args[0].request for c in reconnecting.eventrouter.receive.call_args_list]
+if "client.counts" not in sent:
+    print("connect did not refetch client.counts:", sent)
+    failed = True
+
+if head != ["query", "on-screen"]:
+    print("foreground requests not at the head of the waiting list:", head)
+    failed = True
+if any(item is event for item in router.queue):
+    print("websocket event still queued behind the backlog")
+    failed = True
+sys.exit(1 if failed else 0)

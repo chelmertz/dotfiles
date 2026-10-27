@@ -78,6 +78,13 @@ script = ";".join([
     "/print -tags slack_ts_3.3 carol\\t" + "unfurled " * 300,
     "/print -tags slack_ts_3.3 \\t" + "more " * 300,
     "/python load " + barprobe,
+    # Read, not current, not starred: shown only if active in the last day.
+    "/buffer add recentprobe",
+    "/mute /command -buffer core.recentprobe core /buffer setauto"
+    " localvar_set_slack_latest %d.000001" % (time.time() - 600),
+    "/buffer add staleprobe",
+    "/mute /command -buffer core.staleprobe core /buffer setauto"
+    " localvar_set_slack_latest %d.000001" % (time.time() - 3 * 86400),
     # Stand-in for the MATCHi team buffer bin/wee names as home.
     "/buffer add homeprobe",
     "/set plugins.var.wee.home_buffer core.homeprobe",
@@ -110,6 +117,8 @@ def pump(seconds):
 os.set_blocking(fd, False)
 pump(4)
 loading_drawn = b"LOADING" in screen
+recent_listed = b"recentprobe" in screen
+stale_listed = b"staleprobe" in screen
 os.write(fd, b"\x1ba")  # Alt+A with nothing unread
 pump(1)
 nothing_unread_drawn = b"nothing unread" in screen
@@ -216,6 +225,10 @@ if any("\tHOTLIST=core.teamprobe" in l for l in log):
     failed = True
 if not go_redrawn_on_close:
     print("Esc closed Ctrl+K on an empty prompt but nothing was redrawn")
+    failed = True
+if not recent_listed or stale_listed:
+    print("buflist: recent buffer listed=%s (want True), stale listed=%s"
+          " (want False)" % (recent_listed, stale_listed))
     failed = True
 if not nothing_unread_drawn:
     print("Alt+A with nothing unread showed no notice")

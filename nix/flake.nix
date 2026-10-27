@@ -283,18 +283,18 @@
                 touch $out
               '';
 
-          # The buffer on screen, /query and live messages skip the ~1400
-          # requests queued at connect; see checks/wee-slack-queue.py.
-          wee-slack-queue =
+          # Our wee-slack patches, unit-level: the queue fast lane and recency
+          # tracking; see checks/wee-slack-patches.py.
+          wee-slack-patches =
             let
               weechat = nixpkgs.lib.findFirst (
                 p: nixpkgs.lib.hasPrefix "weechat-bin-env" p.name
               ) (throw "no weechat in home.packages") self.homeConfigurations."ch@tau".config.home.packages;
             in
-            pkgs.runCommand "wee-slack-queue" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+            pkgs.runCommand "wee-slack-patches" { nativeBuildInputs = [ pkgs.python3 ]; } ''
               ws=$(grep -aho '/nix/store/[a-z0-9]*-wee-slack-[^/]*/share/wee_slack.py' \
                 $(readlink -f ${weechat}/bin/weechat) | head -1)
-              python3 -I ${./checks/wee-slack-queue.py} $(dirname $ws)
+              python3 -I ${./checks/wee-slack-patches.py} $(dirname $ws)
               touch $out
             '';
 
