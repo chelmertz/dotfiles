@@ -131,6 +131,35 @@ let
     hash = "sha256-i+qevgNNEr/z1kyR/kvf9a5EgcM8lN8Hxq0hVR+OWOU=";
   };
 
+  # A "Claude review" button on GitHub PR mails that opens
+  # claude-review://owner/repo/number, the link the GitHub userscript's button
+  # emits (handler in home.nix). Built from ../thunderbird/claude-review.
+  claudeReviewId = "claude-review@helmertz";
+  claudeReview =
+    pkgs.runCommand "thunderbird-addon-claude-review" { nativeBuildInputs = [ pkgs.zip ]; }
+      ''
+        mkdir -p "$out/${extensionDir}"
+        cd ${../thunderbird/claude-review}
+        zip -qr -X "$out/${extensionDir}/${claudeReviewId}.xpi" .
+      '';
+  # Native messaging host for the add-on: reads one length-prefixed JSON
+  # message, hands a well-formed claude-review:// URL to xdg-open, answers.
+  claudeReviewHost = pkgs.writeScript "claude-review-native-host" ''
+    #!${pkgs.python3}/bin/python3
+    import json, re, struct, subprocess, sys
+
+    n = struct.unpack("=I", sys.stdin.buffer.read(4))[0]
+    url = json.loads(sys.stdin.buffer.read(n)).get("url", "")
+    ok = re.fullmatch(r"claude-review://[\w.-]+/[\w.-]+/\d+", url) is not None
+    if ok:
+        # Own session: Thunderbird kills the host once it has answered.
+        subprocess.Popen(["${pkgs.xdg-utils}/bin/xdg-open", url], start_new_session=True,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    out = json.dumps({"ok": ok}).encode()
+    sys.stdout.buffer.write(struct.pack("=I", len(out)) + out)
+    sys.stdout.buffer.flush()
+  '';
+
   gmailAccount =
     {
       address,
@@ -196,6 +225,7 @@ lib.mkIf config.dotfiles.nixos {
       extensions = [
         tbkeys
         nostalgy
+        claudeReview
       ];
       settings = {
         # Extensions installed by home-manager are otherwise disabled until
@@ -226,6 +256,16 @@ lib.mkIf config.dotfiles.nixos {
         "mail.server.default.spamLevel" = 0;
       };
     };
+  };
+
+  # Thunderbird on Linux reads native hosts from ~/.mozilla, Firefox's
+  # directory, not ~/.thunderbird; allowed_extensions keeps Firefox out.
+  home.file.".mozilla/native-messaging-hosts/claude_review.json".text = builtins.toJSON {
+    name = "claude_review";
+    description = "Opens claude-review:// URLs for the Thunderbird add-on";
+    path = "${claudeReviewHost}";
+    type = "stdio";
+    allowed_extensions = [ claudeReviewId ];
   };
 
   accounts.email.accounts = {

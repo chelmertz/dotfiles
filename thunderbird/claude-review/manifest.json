@@ -1,0 +1,12 @@
+{
+  "manifest_version": 2,
+  "name": "Claude review",
+  "version": "1.0",
+  "description": "Starts the claude-review session for the GitHub PR a notification mail is about.",
+  "browser_specific_settings": {
+    "gecko": { "id": "claude-review@helmertz", "strict_min_version": "128.0" }
+  },
+  "permissions": ["messagesRead", "nativeMessaging"],
+  "background": { "scripts": ["background.js"] },
+  "message_display_action": { "default_title": "Claude review" }
+}
