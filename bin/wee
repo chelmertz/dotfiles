@@ -49,6 +49,8 @@ setup='/set plugins.var.python.slack.background_load_all_history false
 /key bind ctrl-x /edit
 /key bind meta-space /msgmenu
 /key bind meta-a /nextunread
+/key bind meta-left /buffer jump prev_visited
+/key bind meta-right /buffer jump next_visited
 /mute /key bind meta-[2,7,u /escape'
 
 # weechat -r wants a single ;-separated command string, and it expands ${...}

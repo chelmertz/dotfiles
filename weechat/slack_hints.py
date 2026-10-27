@@ -16,6 +16,7 @@
 # waits for the key after it and merges the two; ghostty sends Esc there as
 # CSI 27 u instead (i3's F9 line), a complete key bin/wee binds to /escape.
 # Installed from the dotfiles repo.
+import math
 import os
 import re
 import subprocess
@@ -62,7 +63,8 @@ MENU = [
 # the menu at least closes at once rather than on the merged key after it.
 ESC = "\x01["
 
-menu = {"open": False, "buffer": "", "index": 0, "links": []}
+menu = {"open": False, "buffer": "", "index": 0, "links": [], "marked": None,
+        "scrolled": False}
 # Trailing punctuation is the sentence's, not the URL's.
 URL = re.compile(r"https?://[^\s<>\"]+[^\s<>\").,;:!?'\]]")
 
@@ -122,7 +124,8 @@ def render_rows(rows):
 
 
 def messages(buffer):
-    """Slack messages in buffer, newest first, as (tags, [(date, prefix, text)]).
+    """Slack messages in buffer, newest first, as
+    (tags, [(date, prefix, text, line_data pointer)]).
     A message spans every consecutive line sharing its slack_ts_ tag."""
     h_buf, h_lines, h_line, h_data = (
         w.hdata_get(n) for n in ("buffer", "lines", "line", "line_data"))
@@ -139,9 +142,13 @@ def messages(buffer):
         ts = next((t for t in tags if t.startswith("slack_ts_")), None)
         if not ts:
             continue
+        prefix = w.hdata_string(h_data, data, "prefix")
+        if menu["marked"] and menu["marked"][1] == data:
+            prefix = menu["marked"][2]  # as it was before mark()
         entry = (w.hdata_time(h_data, data, "date"),
-                 w.string_remove_color(w.hdata_string(h_data, data, "prefix"), ""),
-                 w.string_remove_color(w.hdata_string(h_data, data, "message"), ""))
+                 w.string_remove_color(prefix, ""),
+                 w.string_remove_color(w.hdata_string(h_data, data, "message"), ""),
+                 data)
         if found and ts in found[-1][0]:
             found[-1][1].insert(0, entry)
         else:
@@ -150,9 +157,9 @@ def messages(buffer):
 
 
 def as_text(msg):
-    date, prefix, _ = msg[1][0]
+    date, prefix, _, _ = msg[1][0]
     head = time.strftime("%Y-%m-%d %H:%M", time.localtime(date))
-    return "{} {}: {}".format(head, prefix.strip(), "\n".join(t for _, _, t in msg[1]))
+    return "{} {}: {}".format(head, prefix.strip(), "\n".join(e[2] for e in msg[1]))
 
 
 def copy(text):
@@ -162,7 +169,7 @@ def copy(text):
 
 def links(msg):
     found = []
-    for _, _, text in msg[1]:
+    for _, _, text, _ in msg[1]:
         for url in URL.findall(text):
             if url not in found:
                 found.append(url)
@@ -243,6 +250,64 @@ def escape_cmd_cb(data, buffer, args):
 def close_menu():
     menu["open"] = False
     menu["links"] = []
+    unmark()
+
+
+def mark(msgs):
+    # The targeted message's author column shows reversed with a ▶ in the
+    # chat itself, so stepping with k/j is visible where the message is.
+    unmark()
+    if menu["index"] >= len(msgs):
+        return
+    h_data = w.hdata_get("line_data")
+    data = msgs[menu["index"]][1][0][3]
+    raw = w.hdata_string(h_data, data, "prefix")
+    menu["marked"] = (menu["buffer"], data, raw)
+    w.hdata_update(h_data, data, {"prefix": "{}▶ {}{}".format(
+        w.color("reverse"), w.string_remove_color(raw, ""), w.color("-reverse"))})
+    show_line(menu["buffer"], data)
+
+
+def show_line(buffer, data):
+    """Scroll the chat so the line is on screen. WeeChat cannot scroll to a
+    line, but after scroll_bottom, "/window scroll -N" puts the line N+1 from
+    the end at the top (measured). Rows per line are estimated from width."""
+    win = w.current_window()
+    if w.window_get_pointer(win, "buffer") != buffer:
+        return
+    height = w.window_get_integer(win, "win_chat_height")
+    width = max(20, w.window_get_integer(win, "win_chat_width") - 20)
+    h_buf, h_lines, h_line, h_data = (
+        w.hdata_get(n) for n in ("buffer", "lines", "line", "line_data"))
+    line = w.hdata_pointer(h_lines, w.hdata_pointer(h_buf, buffer, "own_lines"), "last_line")
+    lines = rows = 0
+    while line:
+        here = w.hdata_pointer(h_line, line, "data")
+        if w.hdata_char(h_data, here, "displayed"):
+            lines += 1
+            rows += max(1, math.ceil(w.strlen_screen(
+                w.hdata_string(h_data, here, "message")) / width))
+        if here == data:
+            break
+        line = w.hdata_move(h_line, line, -1)
+    w.command(buffer, "/window scroll_bottom")
+    menu["scrolled"] = rows > height
+    if menu["scrolled"]:
+        w.command(buffer, "/window scroll -%d" % (lines - 1))
+
+
+def unmark():
+    if not menu["marked"]:
+        return
+    buffer, data, raw = menu["marked"]
+    menu["marked"] = None
+    if menu["scrolled"]:
+        menu["scrolled"] = False
+        w.command(buffer, "/window scroll_bottom")
+    # wee-slack reprints buffers, freeing their lines: only write back to a
+    # line that is still there.
+    if any(e[3] == data for m in messages(buffer) for e in m[1]):
+        w.hdata_update(w.hdata_get("line_data"), data, {"prefix": raw})
     w.bar_item_update("slack_hints")
 
 
@@ -256,6 +321,7 @@ def msgmenu_cmd_cb(data, buffer, args):
         w.prnt(buffer, "msgmenu: no Slack message in this buffer")
         return w.WEECHAT_RC_OK
     menu.update(open=True, buffer=buffer, index=0)
+    mark(messages(buffer))
     w.bar_item_update("slack_hints")
     return w.WEECHAT_RC_OK
 
@@ -284,10 +350,12 @@ def key_combo_cb(data, signal, key):
     msgs = messages(menu["buffer"])
     if action == "older":
         menu["index"] = min(menu["index"] + 1, len(msgs) - 1)
+        mark(msgs)
         w.bar_item_update("slack_hints")
         return w.WEECHAT_RC_OK_EAT
     if action == "newer":
         menu["index"] = max(menu["index"] - 1, 0)
+        mark(msgs)
         w.bar_item_update("slack_hints")
         return w.WEECHAT_RC_OK_EAT
     close_menu()
@@ -437,7 +505,7 @@ def tick_cb(data, remaining_calls):
 
 def main():
     w.register(
-        "slack_hints", "", "1.12", "MIT",
+        "slack_hints", "", "1.13", "MIT",
         "Hint bar of wee-slack shortcuts with a loading indicator", "", "",
     )
     w.bar_item_new("slack_hints", "hints_item_cb", "")

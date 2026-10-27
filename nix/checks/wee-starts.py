@@ -14,6 +14,7 @@ message menu on a fake Slack line so the menu draws too.
 import fcntl
 import os
 import pty
+import re
 import struct
 import sys
 import termios
@@ -138,6 +139,15 @@ os.write(fd, b"q")  # closes it, swallowed
 pump(1)
 # Open link: dave's message has two, so a digit picks; erin's has one; the
 # newest (carol's) has none.
+os.write(fd, b"\x1b ")  # the targeted message is marked in the chat itself
+pump(0.5)
+marked_drawn = "▶ carol".encode() in re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", bytes(screen))
+os.write(fd, b"q")
+pump(0.5)
+before = len(screen)
+os.write(fd, b"/window refresh\r")
+pump(1)
+unmarked_after = "▶ carol".encode() not in re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", bytes(screen[before:]))
 for keys in (b"ko2", b"kko", b"o"):
     os.write(fd, b"\x1b ")
     pump(0.5)
@@ -265,6 +275,10 @@ if not recent_listed or stale_listed:
 urls = open(opened).read().split() if os.path.exists(opened) else []
 if urls != ["https://two.example/y", "https://one.example/a"]:
     print("open link: want the second of two, then the only one; got", urls)
+    failed = True
+if not marked_drawn or not unmarked_after:
+    print("message marker: drawn while open=%s, gone after close=%s"
+          % (marked_drawn, unmarked_after))
     failed = True
 if not no_link_drawn:
     print("open link on a message without one said nothing")
