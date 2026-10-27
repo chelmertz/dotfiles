@@ -236,19 +236,22 @@ os.write(fd, b"\x16")  # Ctrl+V with an image: attached, Enter sends the message
 pump(1)
 # The input line itself says so, where the eyes are while typing.
 attached_shown = "[📎 1 image]".encode() in screen
-os.write(fd, b"look here\r")
+os.write(fd, b"look here\r")  # the first Enter only closes the preview
+pump(1)
+enter_closed_preview = b"preview closed" in screen
+os.write(fd, b"\r")  # the second sends
 pump(1)
 os.write(fd, b"\x16")  # two images and no text: one upload of both
 pump(1)
 os.write(fd, b"\x16")
 pump(1)
-os.write(fd, b"\r")
+os.write(fd, b"\r\r")
 pump(1)
 os.write(fd, b"\x1b ")  # menu on the oldest message, v: its image in feh
 pump(1)
 os.write(fd, b"kkkkkv")
 pump(1)
-os.write(fd, ESC)  # closes the viewer before the paste below
+os.write(fd, b"\r")  # Enter closes the viewer too
 pump(1)
 os.write(fd, b"\x16")  # attached; the first Esc only hides the preview
 pump(1)
@@ -383,6 +386,9 @@ if any("/query yan.person" in l for l in log):
     failed = True
 if not attached_shown:
     print("Ctrl+V with an image did not mark the input line")
+    failed = True
+if not enter_closed_preview:
+    print("the first Enter with the preview open did not just close it")
     failed = True
 uploads = [l.split("SLACK=", 1)[1] for l in log
            if "\tSLACK=" in l and "/slack download " not in l]

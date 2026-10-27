@@ -43,8 +43,9 @@ with), `>` someone is typing there.
 - `@name<Tab>` completes anyone in the workspace.
 - **Ctrl+V** with an image on the clipboard attaches it, previewed in a
   floating feh window; the input line shows `[📎 1 image]`. Each Ctrl+V adds
-  one more. Enter sends what you typed as one message with the images. Esc
-  closes the preview; Esc again (or switching buffer) drops the images.
+  one more. Esc or Enter first closes the preview; then Enter sends what you
+  typed as one message with the images, and Esc (or switching buffer) drops
+  them.
   Without an image, Ctrl+V pastes the text. `/slack upload <file>… [-- text]`
   sends files from disk.
 - `+:emoji:` reacts to the last message (`-:emoji:` removes); `3+:emoji:` the
@@ -60,7 +61,7 @@ with), `>` someone is typing there.
   **Y** copy every message in the buffer (the whole thread, in a thread
   buffer), **l** copy the permalink, **o** open its link (with several, the
   bar numbers them and a digit picks), **v** view its images in a floating
-  feh (arrow keys step through several; Esc in wee closes it).
+  feh (arrow keys step through several; Esc or Enter in wee closes it).
 - **q** or **Esc** closes the menu; any other key closes it and does what it
   normally does. Esc also cancels Ctrl+K. (The wee window's ghostty sends Esc
   as a code weechat can tell apart from Alt+key; elsewhere in weechat a bare

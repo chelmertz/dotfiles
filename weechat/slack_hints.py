@@ -19,8 +19,8 @@
 # Ctrl+V (/pasteimage, bound in bin/wee) with an image on the clipboard
 # attaches it to the current buffer and previews it in feh, which i3 floats
 # without focus; each Ctrl+V adds one. Enter sends the input line as one
-# message with them all. Esc closes the preview, a second Esc (or leaving
-# the buffer) drops them. Without an image Ctrl+V pastes the text.
+# message with them all. Esc or Enter first closes the preview; then Enter
+# sends, and Esc (or leaving the buffer) drops them. Without an image Ctrl+V pastes the text.
 # Installed from the dotfiles repo.
 import math
 import os
@@ -252,11 +252,21 @@ def input_display_cb(data, modifier, buffer, string):
 
 
 def input_return_cb(data, buffer, command):
-    if not staged["paths"] or buffer != staged["buffer"]:
-        return w.WEECHAT_RC_OK
     text = w.buffer_get_string(buffer, "input")
     if text.startswith("/") and not text.startswith("//"):
-        return w.WEECHAT_RC_OK  # a command still runs; the images stay
+        return w.WEECHAT_RC_OK  # a command still runs; previews and images stay
+    # While a preview is open, Enter only closes it, as the first Esc does;
+    # the next Enter sends.
+    if close_viewer():
+        return w.WEECHAT_RC_OK_EAT
+    if not staged["paths"] or buffer != staged["buffer"]:
+        return w.WEECHAT_RC_OK
+    if any(feh.poll() is None for feh in staged["fehs"]):
+        for feh in staged["fehs"]:
+            feh.terminate()
+        staged["fehs"] = []  # gone, even before it has exited
+        show_notice("preview closed – Enter sends")
+        return w.WEECHAT_RC_OK_EAT
     w.buffer_set(buffer, "input", "")
     # curl reads the files after this returns: keep them (XDG_RUNTIME_DIR is
     # a tmpfs that goes at logout).
@@ -385,6 +395,7 @@ def escape_cmd_cb(data, buffer, args):
         # First Esc only hides the preview; the images stay attached.
         for feh in staged["fehs"]:
             feh.terminate()
+        staged["fehs"] = []  # gone, even before it has exited
         show_notice("preview closed – Esc again drops the images")
     elif staged["paths"]:
         drop_images()
@@ -658,7 +669,7 @@ def tick_cb(data, remaining_calls):
 
 def main():
     w.register(
-        "slack_hints", "", "1.19", "MIT",
+        "slack_hints", "", "1.20", "MIT",
         "Hint bar of wee-slack shortcuts with a loading indicator", "", "",
     )
     w.bar_item_new("slack_hints", "hints_item_cb", "")
