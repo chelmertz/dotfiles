@@ -74,9 +74,11 @@ def tick(data, calls):
     w.infolist_free(hot)
     return w.WEECHAT_RC_OK
 w.hook_timer(100, 0, 0, "tick", "")
-# Stand-in for wee-slack's slack_people: one person with no buffer yet.
+# Stand-in for wee-slack's slack_people: one person with no buffer yet, and
+# one whose DM buffer exists (wee-slack prefixes its short name with presence).
 def people(data, name, args):
-    return w.buffer_search("core", "homeprobe") + "\tzed.person"
+    home = w.buffer_search("core", "homeprobe")
+    return "%s\\tzed.person\\n%s\\tyan.person" % (home, home)
 w.hook_info("probe_people", "", "", "people", "")
 # Ctrl+K on a person runs /query in that person's team buffer: record it.
 def query(data, buffer, command):
@@ -106,6 +108,8 @@ script = ";".join([
     "/buffer add homeprobe",
     "/set plugins.var.wee.home_buffer core.homeprobe",
     "/set plugins.var.python.go.people_info probe_people",
+    "/buffer add yanbuf",
+    "/mute /command -buffer core.yanbuf core /buffer set short_name +yan.person",
 ])
 
 pid, fd = pty.fork()
@@ -195,6 +199,16 @@ pump(1)
 os.write(fd, b"zed")
 pump(1)
 os.write(fd, b"\r")
+pump(1)
+os.write(fd, b"\x0b")  # a person with a DM buffer is listed once: Tab wraps
+pump(1)
+os.write(fd, b"yan")
+pump(1)
+os.write(fd, b"\t")
+pump(1)
+os.write(fd, b"\r")
+pump(1)
+os.write(fd, b"/buffer core.weechat\r")  # back where Connected is expected
 pump(1)
 # Both teams connect: wee leaves the core buffer for the home buffer.
 os.write(fd, b"/print Connected to Slack team T1 (a) with username x\r")
@@ -309,6 +323,9 @@ if not any(l.endswith("\tDMNOTIFY=3") for l in log):
 if not any(l.endswith("\tQUERY=core.homeprobe /query zed.person") for l in log):
     print("Ctrl+K on a person did not open the DM:",
           [l.rsplit("\t", 1)[-1] for l in log if "QUERY=" in l])
+    failed = True
+if any("/query yan.person" in l for l in log):
+    print("Ctrl+K listed a person a second time beside their DM buffer")
     failed = True
 if not error_chip_drawn:
     print("error chip never drawn for an error printed while away from core")

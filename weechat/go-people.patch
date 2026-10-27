@@ -88,7 +88,7 @@
      infolist = weechat.infolist_get('buffer', '', '')
      while weechat.infolist_next(infolist):
          pointer = weechat.infolist_pointer(infolist, 'pointer')
-@@ -342,14 +379,8 @@
+@@ -342,14 +379,9 @@
              full_name = '%s.%s' % (
                  weechat.infolist_string(infolist, 'plugin_name'),
                  weechat.infolist_string(infolist, 'name'))
@@ -100,12 +100,13 @@
 -        if not matching and strinput.isdigit():
 -            matching = str(number).startswith(strinput)
 -        if len(strinput) == 0 or matching:
-+        all_names.add(short_name.lower())
++        # wee-slack prefixes a DM's short name with presence ("+", " ").
++        all_names.add(re.sub(r'^\W+', '', short_name.lower()))
 +        if len(strinput) == 0 or _matching(name, number):
              listbuf.append({
                  'number': number,
                  'short_name': short_name,
-@@ -359,6 +390,16 @@
+@@ -359,6 +391,16 @@
              })
      weechat.infolist_free(infolist)
  
@@ -122,7 +123,7 @@
      # sort buffers
      hotlist = []
      infolist = weechat.infolist_get('hotlist', '', '')
-@@ -514,8 +555,7 @@
+@@ -514,8 +556,7 @@
          # switch to selected buffer (if any)
          go_end(buf)
          if len(buffers) > 0:
