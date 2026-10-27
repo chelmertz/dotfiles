@@ -78,13 +78,13 @@ script = ";".join([
     "/print -tags slack_ts_3.3 carol\\t" + "unfurled " * 300,
     "/print -tags slack_ts_3.3 \\t" + "more " * 300,
     "/python load " + barprobe,
-    # Read, not current, not starred: shown only if active in the last day.
+    # Read, not current, not starred: shown only if active in the last 72 h.
     "/buffer add recentprobe",
     "/mute /command -buffer core.recentprobe core /buffer setauto"
     " localvar_set_slack_latest %d.000001" % (time.time() - 600),
     "/buffer add staleprobe",
     "/mute /command -buffer core.staleprobe core /buffer setauto"
-    " localvar_set_slack_latest %d.000001" % (time.time() - 3 * 86400),
+    " localvar_set_slack_latest %d.000001" % (time.time() - 4 * 86400),
     # Stand-in for the MATCHi team buffer bin/wee names as home.
     "/buffer add homeprobe",
     "/set plugins.var.wee.home_buffer core.homeprobe",
@@ -182,6 +182,11 @@ os.write(fd, b"/command -buffer core.teamprobe core /buffer set localvar_set_typ
 pump(0.3)
 os.write(fd, b"/print -buffer core.teamprobe Connected to Slack team T3 (c) with username x\r")
 pump(1)
+# A followed thread's new reply, which wee-slack announces there, must count.
+os.write(fd, b"/print -core THREAD-NOTICE\r")
+pump(0.3)
+os.write(fd, b"/print -buffer core.teamprobe New message in thread $855, channel #c\r")
+pump(1)
 os.write(fd, b"/logger flush\r")
 pump(1)
 os.write(fd, b"/quit\r")
@@ -220,8 +225,13 @@ if not heights or max(heights) < 2:
 elif max(heights) > 3:
     print("message menu bar grew to %d rows on a long message" % max(heights))
     failed = True
-if any("\tHOTLIST=core.teamprobe" in l for l in log):
+notice = next((i for i, l in enumerate(log) if l.endswith("\tTHREAD-NOTICE")), len(log))
+hot = [i for i, l in enumerate(log) if "\tHOTLIST=core.teamprobe" in l]
+if any(i < notice for i in hot):
     print("team buffer's connect notice put it on the hotlist")
+    failed = True
+if not any(i > notice for i in hot):
+    print("a thread notice in the team buffer did not reach the hotlist")
     failed = True
 if not go_redrawn_on_close:
     print("Esc closed Ctrl+K on an empty prompt but nothing was redrawn")

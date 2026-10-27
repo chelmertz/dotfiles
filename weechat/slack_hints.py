@@ -355,10 +355,10 @@ def connecting_cb(data, buffer, date, tags, displayed, highlight, prefix, messag
 def connected_cb(data, buffer, date, tags, displayed, highlight, prefix, message):
     state["connected"] += 1
     state["on_time"] = 0
-    # The team buffer only ever shows connect notices, which put it on the
-    # hotlist and made Alt+A stop there first. Keep it off the hotlist.
+    # The connect notice put the team buffer on the hotlist and made Alt+A
+    # stop there first; drop just that. Later lines still count: wee-slack
+    # posts new replies in followed threads and thread mentions there.
     if w.buffer_get_string(buffer, "localvar_type") == "server":
-        w.buffer_set(buffer, "notify", "0")
         w.buffer_set(buffer, "hotlist", "-1")
     # /query needs a team, which the core buffer has none of: once every team
     # is up, move from core to plugins.var.wee.home_buffer (set in bin/wee).
@@ -392,7 +392,7 @@ def tick_cb(data, remaining_calls):
 
 def main():
     w.register(
-        "slack_hints", "", "1.10", "MIT",
+        "slack_hints", "", "1.11", "MIT",
         "Hint bar of wee-slack shortcuts with a loading indicator", "", "",
     )
     w.bar_item_new("slack_hints", "hints_item_cb", "")
