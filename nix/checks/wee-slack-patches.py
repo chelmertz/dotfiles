@@ -77,6 +77,28 @@ if "asks_history" not in asks_history().origin:
     print("request origin missing its caller:", asks_history().origin)
     failed = True
 
+# Unread probes (weechat/wee-slack-unreads.patch): once client.counts has
+# answered, a DM or group DM it does not list gets no per-conversation probe.
+def probes(listed, ok, call):
+    er = mock.MagicMock()
+    team = types.SimpleNamespace(
+        client_counts_ok=ok, client_counts_listed=listed, client_counts={}, token="xoxc-x",
+        slack_api_translator={"mpim": {"info": "conversations.info"}})
+    conv = types.SimpleNamespace(
+        is_archived=False, is_open=False, unread_count_display=0, type="mpim",
+        identifier="C9", team=team, eventrouter=er, got_history=False,
+        channel_buffer="0xB", last_read=0)
+    call(conv, team, er)
+    return er.receive.call_count
+open_probe = lambda conv, team, er: wee_slack.SlackChannel.check_should_open(conv)
+info_probe = lambda conv, team, er: wee_slack.handle_conversationsinfo(
+    {"channel": {}}, er, team, conv, {})
+for name, call in (("check_should_open", open_probe), ("conversations.info", info_probe)):
+    counts = (probes(set(), True, call), probes({"C9"}, True, call), probes(set(), False, call))
+    if counts != (0, 1, 1):
+        print("%s probes (unlisted, listed, no counts) = %s, want (0, 1, 1)" % (name, counts))
+        failed = True
+
 # Recency (weechat/wee-slack-recency.patch): the newest activity from any
 # client, thread replies included, lands in the buffer localvar the buflist
 # sorts on; every connect refetches it from client.counts.

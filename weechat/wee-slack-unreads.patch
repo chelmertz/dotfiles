@@ -1,17 +1,34 @@
 --- a/wee_slack.py
 +++ b/wee_slack.py
-@@ -1636,6 +1636,10 @@
+@@ -1634,6 +1634,15 @@
          self.channel_buffer = None
          self.got_history = True
          self.history_needs_update = False
 +        # Set before check_should_open() below creates the channel buffers,
 +        # which read both.
 +        self.client_counts = kwargs.get("client_counts", {})
++        # client.counts lists every conversation with unread messages. When it
++        # answered, one that is not listed has none: no per-conversation
++        # probe needed (they were ~1200 of ~1470 requests at connect).
++        self.client_counts_ok = kwargs.get("client_counts_ok", False)
++        self.client_counts_listed = set(self.client_counts)
 +        self.starred = kwargs.get("starred", set())
          self.create_buffer()
          self.set_muted_channels(kwargs.get("muted_channels", ""))
          self.set_highlight_words(kwargs.get("highlight_words", ""))
-@@ -2450,6 +2454,11 @@
+@@ -2359,6 +2368,11 @@
+             self.create_buffer()
+         elif self.type in ["im", "mpim"]:
+             # If it is an IM or MPIM, we still might want to open it if there are unread messages.
++            if (
++                self.team.client_counts_ok
++                and self.identifier not in self.team.client_counts_listed
++            ):
++                return
+             info_method = self.team.slack_api_translator[self.type].get("info")
+             if info_method:
+                 s = SlackRequest(
+@@ -2448,6 +2462,11 @@
              self.set_topic()
              if self.channel_buffer:
                  w.buffer_set(self.channel_buffer, "localvar_set_server", self.team.name)
@@ -23,7 +40,7 @@
          self.update_nicklist()
  
          info_method = self.team.slack_api_translator[self.type].get("info")
-@@ -3850,11 +3859,6 @@
+@@ -3848,11 +3867,6 @@
  
  def handle_conversationsinfo(channel_json, eventrouter, team, channel, metadata):
      channel_info = channel_json["channel"]
@@ -35,7 +52,7 @@
      if channel_info.get("is_open") and channel.channel_buffer is None:
          channel.create_buffer()
      if "last_read" in channel_info:
-@@ -3862,8 +3866,22 @@
+@@ -3860,8 +3874,26 @@
      if "members" in channel_info:
          channel.set_members(channel_info["members"])
  
@@ -54,13 +71,17 @@
 +            channel.set_unread_count_display(1)
 +        return
 +
-+    if not channel.got_history and (
++    unlisted = (
++        getattr(team, "client_counts_ok", False)
++        and channel.identifier not in team.client_counts_listed
++    )
++    if not channel.got_history and not unlisted and (
 +        channel.type == "mpim" or channel_info.get("unread_count_display")
 +    ):
          s = SlackRequest(
              team,
              "conversations.history",
-@@ -3887,9 +3905,9 @@
+@@ -3885,9 +3917,9 @@
      if channel.channel_buffer is None:
          channel.create_buffer()
  
@@ -73,7 +94,7 @@
  
      if metadata.get("switch") and config.switch_buffer_on_join:
          w.buffer_set(channel.channel_buffer, "display", "1")
-@@ -7181,6 +7199,8 @@
+@@ -7191,6 +7223,8 @@
              "usergroups": 1,
              "prefs": 1,
              "presence": 1,
@@ -82,13 +103,14 @@
          },
          "errors": [],
      }
-@@ -7222,6 +7242,29 @@
+@@ -7232,6 +7266,30 @@
          initial_data["remaining"]["prefs"] -= 1
          create_team(token, initial_data)
  
 +    def handle_counts(response_json, eventrouter, team, channel, metadata):
 +        # Not fatal: without it, unread state falls back to the history check.
 +        initial_data["counts"] = {}
++        initial_data["counts_ok"] = bool(response_json["ok"])
 +        if response_json["ok"]:
 +            for kind in ("channels", "ims", "mpims"):
 +                for item in response_json.get(kind, []):
@@ -112,7 +134,7 @@
      def handle_getPresence(response_json, eventrouter, team, channel, metadata):
          if not response_json["ok"]:
              initial_data["errors"].append("presence: {}".format(response_json["error"]))
-@@ -7287,6 +7330,21 @@
+@@ -7297,6 +7355,21 @@
          callback=handle_getPresence,
      )
      EVENTROUTER.receive(s)
@@ -134,11 +156,12 @@
  
  
  def create_channel_from_info(eventrouter, channel_info, team, myidentifier, users):
-@@ -7401,6 +7459,8 @@
+@@ -7411,6 +7484,9 @@
                      channels,
                      muted_channels=all_notifications_prefs["muted_channels"],
                      highlight_words=all_notifications_prefs["global_keywords"] or "",
 +                    client_counts=initial_data.get("counts", {}),
++                    client_counts_ok=initial_data.get("counts_ok", False),
 +                    starred=initial_data.get("stars", set()),
                  )
                  eventrouter.register_team(team)
