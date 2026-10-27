@@ -41,11 +41,12 @@ with), `>` someone is typing there.
 - Enter sends. **Shift+Enter** or **Alt+Enter** inserts a newline.
 - **Ctrl+X** opens the message in nvim; save and quit to put it back, then Enter.
 - `@name<Tab>` completes anyone in the workspace.
-- **Ctrl+V** with an image on the clipboard attaches it: a floating feh window
-  previews it, the bar says "image attached", the line you type becomes its
-  caption, and Enter sends. Esc (or switching buffer) drops it. Without an
-  image, Ctrl+V pastes the text. `/slack upload <file> [-- caption]` sends a
-  file from disk.
+- **Ctrl+V** with an image on the clipboard attaches it, previewed in a
+  floating feh window; the input line shows `[📎 1 image]`. Each Ctrl+V adds
+  one more. Enter sends what you typed as one message with the images. Esc
+  closes the preview; Esc again (or switching buffer) drops the images.
+  Without an image, Ctrl+V pastes the text. `/slack upload <file>… [-- text]`
+  sends files from disk.
 - `+:emoji:` reacts to the last message (`-:emoji:` removes); `3+:emoji:` the
   third-to-last. `:smi<Tab>` completes emoji names.
 

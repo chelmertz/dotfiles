@@ -239,9 +239,13 @@ os.write(fd, b"\x16")
 pump(1)
 os.write(fd, b"\r")
 pump(1)
-os.write(fd, b"\x16")  # attached, then Esc drops it and its file
+os.write(fd, b"\x16")  # attached; the first Esc only hides the preview
 pump(1)
 os.write(fd, ESC)
+pump(1)
+pastes = lambda: [f for f in os.listdir(os.path.join(tmp, "run")) if f.startswith("wee-paste-")]
+kept_after_hide = len(pastes())
+os.write(fd, ESC)  # the second drops the image and its file
 pump(1)
 with open(clipmode, "w") as f:
     f.write("text")
@@ -379,7 +383,10 @@ if not os.path.exists(fehargs) or open(fehargs).read().count("--class wee-previe
     print("Ctrl+V did not preview each image in feh:",
           open(fehargs).read() if os.path.exists(fehargs) else None)
     failed = True
-kept = [f for f in os.listdir(os.path.join(tmp, "run")) if f.startswith("wee-paste-")]
+kept = pastes()
+if kept_after_hide != 4:
+    print("the first Esc should keep the attached image:", kept_after_hide, "files")
+    failed = True
 if len(kept) != 3:
     print("expected only the sent image left (Esc deletes a dropped one):", kept)
     failed = True

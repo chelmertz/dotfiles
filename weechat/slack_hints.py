@@ -19,8 +19,8 @@
 # Ctrl+V (/pasteimage, bound in bin/wee) with an image on the clipboard
 # attaches it to the current buffer and previews it in feh, which i3 floats
 # without focus; each Ctrl+V adds one. Enter sends the input line as one
-# message with them all; Esc or leaving the buffer drops them. Without an
-# image Ctrl+V pastes the text.
+# message with them all. Esc closes the preview, a second Esc (or leaving
+# the buffer) drops them. Without an image Ctrl+V pastes the text.
 # Installed from the dotfiles repo.
 import math
 import os
@@ -328,6 +328,11 @@ def escape_cmd_cb(data, buffer, args):
         close_menu()
     elif go_active():
         w.command(buffer, "/go")
+    elif any(feh.poll() is None for feh in staged["fehs"]):
+        # First Esc only hides the preview; the images stay attached.
+        for feh in staged["fehs"]:
+            feh.terminate()
+        show_notice("preview closed – Esc again drops the images")
     elif staged["paths"]:
         drop_images()
         show_notice("images dropped")
@@ -514,7 +519,7 @@ def hints_item_cb(data, item, window):
             s="" if state["errors"] == 1 else "s", r=w.color("reset")) + hints
     if staged["paths"]:
         n = len(staged["paths"])
-        hints = "{c} 📎 {n} image{s} – Enter sends with your message, Esc drops {r}".format(
+        hints = "{c} 📎 {n} image{s} – Enter sends with your message, Esc Esc drops {r}".format(
             c=w.color("black,cyan"), n=n, s="" if n == 1 else "s",
             r=w.color("reset")) + hints
     if state["notice"]:
@@ -600,7 +605,7 @@ def tick_cb(data, remaining_calls):
 
 def main():
     w.register(
-        "slack_hints", "", "1.17", "MIT",
+        "slack_hints", "", "1.18", "MIT",
         "Hint bar of wee-slack shortcuts with a loading indicator", "", "",
     )
     w.bar_item_new("slack_hints", "hints_item_cb", "")
