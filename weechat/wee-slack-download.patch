@@ -1,0 +1,46 @@
+--- a/wee_slack.py
++++ b/wee_slack.py
+@@ -6704,6 +6704,43 @@
+ 
+ 
+ @utf8_decode
++def command_download(data, current_buffer, args):
++    """
++    /slack download <url> <path>
++    Downloads a file from files.slack.com with this workspace's credentials,
++    then sends the signal slack_download_done with the path ("" on failure).
++    """
++    channel = EVENTROUTER.weechat_controller.buffers.get(current_buffer)
++    url, _, path = args.partition(" ")
++    # The request carries the token and cookie: only ever to Slack's files,
++    # and no -L: curl would repeat the -H cookie to wherever a redirect points.
++    if channel is None or not url.startswith("https://files.slack.com/") or not path:
++        w.prnt("", "ERROR: /slack download needs a files.slack.com URL and a path")
++        return w.WEECHAT_RC_ERROR
++    request = SlackRequest(channel.team, "", {}, channel=channel)
++    options = request.options_as_cli_args() + ["-sf", "-o", path, url]
++    proxy_string = ProxyWrapper().curl()
++    if proxy_string:
++        options.append(proxy_string)
++    options_hashtable = {"arg{}".format(i + 1): arg for i, arg in enumerate(options)}
++    w.hook_process_hashtable(
++        "curl", options_hashtable, config.slack_timeout, "download_callback", path
++    )
++    return w.WEECHAT_RC_OK_EAT
++
++
++@utf8_decode
++def download_callback(data, command, return_code, out, err):
++    if return_code == w.WEECHAT_HOOK_PROCESS_RUNNING:
++        return w.WEECHAT_RC_OK
++    if return_code != 0:
++        w.prnt("", "ERROR: Couldn't download file (curl exit {})".format(return_code))
++        data = ""
++    w.hook_signal_send("slack_download_done", w.WEECHAT_HOOK_SIGNAL_STRING, data)
++    return w.WEECHAT_RC_OK
++
++
++@utf8_decode
+ def away_command_cb(data, current_buffer, args):
+     all_servers, message = re.match("^/away( -all)? ?(.*)", args).groups()
+     if all_servers:

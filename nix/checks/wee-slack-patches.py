@@ -306,6 +306,31 @@ if not any("not_allowed" in str(c) for c in w.prnt.call_args_list):
     print("a failed upload printed no error")
     failed = True
 
+# Download (weechat/wee-slack-download.patch): the token and cookie only go
+# to files.slack.com, redirects unfollowed; done or failed, a signal says so.
+w.hook_process_hashtable.reset_mock()
+w.prnt.reset_mock()
+for bad in ("https://evil.example/x.png /tmp/x", "https://files.slack.com.evil.example/x /tmp/x",
+            "https://files.slack.com/files-pri/T-F/x.png"):
+    wee_slack.command_download(None, "0xDM", bad)
+if w.hook_process_hashtable.called or w.prnt.call_count != 3:
+    print("download did not refuse a non-Slack URL or a missing path")
+    failed = True
+wee_slack.command_download(None, "0xDM", "https://files.slack.com/files-pri/T-F/x.png /run/v/0-x.png")
+argv, path = last_curl()
+if (argv[-2:] != ["/run/v/0-x.png", "https://files.slack.com/files-pri/T-F/x.png"]
+        or any("L" in a for a in argv if a.startswith("-s"))
+        or not any("Bearer xoxc-x" in a for a in argv)):
+    print("download curl args wrong:", [a for a in argv if "xoxc" not in a])
+    failed = True
+w.hook_signal_send.reset_mock()
+wee_slack.download_callback(path, "", 0, "", "")
+wee_slack.download_callback(path, "", 22, "", "")
+sent = [c.args[2] for c in w.hook_signal_send.call_args_list if c.args[0] == "slack_download_done"]
+if sent != ["/run/v/0-x.png", ""]:
+    print("download signals wrong:", sent)
+    failed = True
+
 if head != ["query", "on-screen"]:
     print("foreground requests not at the head of the waiting list:", head)
     failed = True

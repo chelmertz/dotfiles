@@ -61,6 +61,7 @@ MENU = [
     ("Y", "copy all (whole thread)", "copy_all"),
     ("l", "copy permalink", "permalink"),
     ("o", "open link", "open"),
+    ("v", "view images", "view"),
     ("k", "older", "older"),
     ("j", "newer", "newer"),
     ("q", "close", "close"),
@@ -70,6 +71,9 @@ MENU = [
 ESC = "\x01["
 
 staged = {"buffer": "", "paths": [], "fehs": []}
+# The message menu's "view images": downloads still running, then one feh.
+viewer = {"pending": [], "paths": [], "feh": None}
+IMAGE = re.compile(r"https://files\.slack\.com/files-pri/\S+\.(png|jpe?g|gif|webp)$", re.I)
 menu = {"open": False, "buffer": "", "index": 0, "links": [], "marked": None,
         "scrolled": False}
 # Trailing punctuation is the sentence's, not the URL's.
@@ -299,6 +303,8 @@ def run_action(action, msgs):
         copy(w.buffer_get_string(buffer, "input"))
         w.buffer_set(buffer, "input", saved)
         w.buffer_set(buffer, "input_pos", str(pos))
+    elif action == "view":
+        view_images(buffer, [u for u in links(msg) if IMAGE.match(u)])
     elif action == "open":
         urls = links(msg)
         if not urls:
@@ -309,6 +315,51 @@ def run_action(action, msgs):
             # Several: the bar lists them and a digit picks one.
             menu.update(open=True, links=urls[:9])
             w.bar_item_update("slack_hints")
+
+
+def view_images(buffer, urls):
+    # wee-slack holds the credentials: it downloads each file and signals
+    # slack_download_done, and feh opens once the last one is in.
+    if not urls:
+        show_notice("no image in this message")
+        return
+    close_viewer()
+    folder = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "wee-view")
+    os.makedirs(folder, exist_ok=True)
+    for name in os.listdir(folder):
+        os.remove(os.path.join(folder, name))
+    for i, url in enumerate(urls):
+        path = os.path.join(folder, "%d-%s" % (i, url.rsplit("/", 1)[-1]))
+        viewer["pending"].append(path)
+        w.command(buffer, "/slack download {} {}".format(url, path))
+    show_notice("loading image…")
+
+
+def download_done_cb(data, signal, path):
+    if path in viewer["pending"]:
+        viewer["pending"].remove(path)
+        viewer["paths"].append(path)
+    elif path == "" and viewer["pending"]:
+        viewer["pending"].pop()  # failed; wee-slack printed why
+    if viewer["pending"] or not viewer["paths"]:
+        return w.WEECHAT_RC_OK
+    viewer["feh"] = subprocess.Popen(
+        ["feh", "--class", "wee-preview", "--scale-down", "--geometry", "1200x900",
+         "--title", "Esc in wee closes; arrows: next image"] + sorted(viewer["paths"]),
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    viewer["paths"] = []
+    return w.WEECHAT_RC_OK
+
+
+def close_viewer():
+    viewer["pending"] = []
+    viewer["paths"] = []
+    if viewer["feh"] and viewer["feh"].poll() is None:
+        viewer["feh"].terminate()
+        viewer["feh"] = None
+        return True
+    viewer["feh"] = None
+    return False
 
 
 def go_active():
@@ -328,6 +379,8 @@ def escape_cmd_cb(data, buffer, args):
         close_menu()
     elif go_active():
         w.command(buffer, "/go")
+    elif close_viewer():
+        pass
     elif any(feh.poll() is None for feh in staged["fehs"]):
         # First Esc only hides the preview; the images stay attached.
         for feh in staged["fehs"]:
@@ -605,7 +658,7 @@ def tick_cb(data, remaining_calls):
 
 def main():
     w.register(
-        "slack_hints", "", "1.18", "MIT",
+        "slack_hints", "", "1.19", "MIT",
         "Hint bar of wee-slack shortcuts with a loading indicator", "", "",
     )
     w.bar_item_new("slack_hints", "hints_item_cb", "")
@@ -627,6 +680,7 @@ def main():
                    "", "", "", "paste_cmd_cb", "")
     w.hook_command_run("/input return", "input_return_cb", "")
     w.hook_modifier("input_text_display_with_cursor", "input_display_cb", "")
+    w.hook_signal("slack_download_done", "download_done_cb", "")
     w.hook_signal("key_pressed", "key_pressed_cb", "")
     w.hook_signal("key_combo_default", "key_combo_cb", "")
 

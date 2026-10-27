@@ -100,12 +100,17 @@ w.hook_command_run("/query *", "query", "")
 # Ctrl+V's Enter hands the image to wee-slack's /slack upload: record it.
 def slack(data, buffer, command):
     w.prnt("", "SLACK=%s" % command)
+    if command.startswith("/slack download "):  # as wee-slack does when done
+        path = command.split()[-1]
+        open(path, "w").close()
+        w.hook_signal_send("slack_download_done", w.WEECHAT_HOOK_SIGNAL_STRING, path)
     return w.WEECHAT_RC_OK_EAT
 w.hook_command_run("/slack *", "slack", "")
 """)
 
 script = ";".join([
     "/print Connecting to 2 slack teams.",
+    "/print -tags slack_ts_0.5 fay\\thttps://files.slack.com/files-pri/T1-F1/pic.png (pic.png)",
     "/print -tags slack_ts_1.1 alice\\tfirst",
     "/print -tags slack_ts_2.2 bob\\tsecond",
     "/print -tags slack_ts_2.4 erin\\tsee https://one.example/a.",
@@ -238,6 +243,12 @@ pump(1)
 os.write(fd, b"\x16")
 pump(1)
 os.write(fd, b"\r")
+pump(1)
+os.write(fd, b"\x1b ")  # menu on the oldest message, v: its image in feh
+pump(1)
+os.write(fd, b"kkkkkv")
+pump(1)
+os.write(fd, ESC)  # closes the viewer before the paste below
 pump(1)
 os.write(fd, b"\x16")  # attached; the first Esc only hides the preview
 pump(1)
@@ -373,13 +384,24 @@ if any("/query yan.person" in l for l in log):
 if not attached_shown:
     print("Ctrl+V with an image did not mark the input line")
     failed = True
-uploads = [l.split("SLACK=", 1)[1] for l in log if "\tSLACK=" in l]
+uploads = [l.split("SLACK=", 1)[1] for l in log
+           if "\tSLACK=" in l and "/slack download " not in l]
+downloads = [l.split("SLACK=", 1)[1] for l in log if "\tSLACK=/slack download " in l]
+if (len(downloads) != 1 or not re.match(
+        r"/slack download https://files\.slack\.com/files-pri/T1-F1/pic\.png \S+/run/wee-view/0-pic\.png$",
+        downloads[0])):
+    print("menu v should download the message's one image:", downloads)
+    failed = True
 png = r"\S+/run/wee-paste-\d+\.png"
 if (len(uploads) != 2 or not re.match(r"/slack upload %s -- look here$" % png, uploads[0])
         or not re.match(r"/slack upload %s %s$" % (png, png), uploads[1])):
     print("Ctrl+V uploads: want one image with the message, then two with none:", uploads)
     failed = True
-if not os.path.exists(fehargs) or open(fehargs).read().count("--class wee-preview") != 4:
+fehs = open(fehargs).read().splitlines() if os.path.exists(fehargs) else []
+if not any(l.endswith("/run/wee-view/0-pic.png") for l in fehs):
+    print("menu v did not open the downloaded image in feh:", fehs)
+    failed = True
+if sum("wee-paste-" in l for l in fehs) != 4:
     print("Ctrl+V did not preview each image in feh:",
           open(fehargs).read() if os.path.exists(fehargs) else None)
     failed = True
