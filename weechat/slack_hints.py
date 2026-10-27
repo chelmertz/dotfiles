@@ -17,6 +17,7 @@
 # CSI 27 u instead (i3's F9 line), a complete key bin/wee binds to /escape.
 # Installed from the dotfiles repo.
 import os
+import re
 import subprocess
 import time
 
@@ -52,6 +53,7 @@ MENU = [
     ("y", "copy", "copy"),
     ("Y", "copy all (whole thread)", "copy_all"),
     ("l", "copy permalink", "permalink"),
+    ("o", "open link", "open"),
     ("k", "older", "older"),
     ("j", "newer", "newer"),
     ("q", "close", "close"),
@@ -60,7 +62,9 @@ MENU = [
 # the menu at least closes at once rather than on the merged key after it.
 ESC = "\x01["
 
-menu = {"open": False, "buffer": "", "index": 0}
+menu = {"open": False, "buffer": "", "index": 0, "links": []}
+# Trailing punctuation is the sentence's, not the URL's.
+URL = re.compile(r"https?://[^\s<>\"]+[^\s<>\").,;:!?'\]]")
 
 # "Safe to type" means keys get through: every team has connected AND the main
 # loop has run this timer on time for SETTLE_TICKS ticks in a row. Right after
@@ -156,6 +160,26 @@ def copy(text):
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def links(msg):
+    found = []
+    for _, _, text in msg[1]:
+        for url in URL.findall(text):
+            if url not in found:
+                found.append(url)
+    return found
+
+
+def open_url(url):
+    subprocess.Popen(["xdg-open", url], stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def show_notice(text):
+    state["notice"] = text
+    w.bar_item_update("slack_hints")
+    w.hook_timer(NOTICE_MS, 0, 1, "notice_end_cb", "")
+
+
 def slack_line_event(event, msg):
     # wee-slack's own cursor-mode handlers, given this message's line.
     w.hook_hsignal_send("slack_cursor_" + event, {
@@ -184,6 +208,16 @@ def run_action(action, msgs):
         copy(w.buffer_get_string(buffer, "input"))
         w.buffer_set(buffer, "input", saved)
         w.buffer_set(buffer, "input_pos", str(pos))
+    elif action == "open":
+        urls = links(msg)
+        if not urls:
+            show_notice("no link in this message")
+        elif len(urls) == 1:
+            open_url(urls[0])
+        else:
+            # Several: the bar lists them and a digit picks one.
+            menu.update(open=True, links=urls[:9])
+            w.bar_item_update("slack_hints")
 
 
 def go_active():
@@ -208,6 +242,7 @@ def escape_cmd_cb(data, buffer, args):
 
 def close_menu():
     menu["open"] = False
+    menu["links"] = []
     w.bar_item_update("slack_hints")
 
 
@@ -235,6 +270,13 @@ def key_combo_cb(data, signal, key):
     # Only this signal can eat a key; key_pressed ignores WEECHAT_RC_OK_EAT.
     if not menu["open"]:
         return w.WEECHAT_RC_OK
+    if menu["links"]:
+        urls = menu["links"]
+        close_menu()
+        if key.isdigit() and 1 <= int(key) <= len(urls):
+            open_url(urls[int(key) - 1])
+            return w.WEECHAT_RC_OK_EAT
+        return w.WEECHAT_RC_OK_EAT if key == "q" else w.WEECHAT_RC_OK
     action = next((a for k, _, a in MENU if k == key), None)
     if not action:
         close_menu()
@@ -268,6 +310,11 @@ def one_line(text, width):
 
 
 def menu_rows():
+    if menu["links"]:
+        width = int(w.info_get("term_width", "") or 80)
+        return "\n".join(
+            render_rows([[(str(i), one_line(url, width - 8))]])
+            for i, url in enumerate(menu["links"], 1))
     msgs = messages(menu["buffer"])
     if menu["index"] >= len(msgs):
         return render_rows([[(k, d) for k, d, _ in MENU]])
@@ -330,9 +377,7 @@ def nextunread_cmd_cb(data, buffer, args):
     before = w.current_buffer()
     w.command(buffer, "/buffer jump smart")
     if w.current_buffer() == before:
-        state["notice"] = "nothing unread"
-        w.bar_item_update("slack_hints")
-        w.hook_timer(NOTICE_MS, 0, 1, "notice_end_cb", "")
+        show_notice("nothing unread")
     return w.WEECHAT_RC_OK
 
 
@@ -392,7 +437,7 @@ def tick_cb(data, remaining_calls):
 
 def main():
     w.register(
-        "slack_hints", "", "1.11", "MIT",
+        "slack_hints", "", "1.12", "MIT",
         "Hint bar of wee-slack shortcuts with a loading indicator", "", "",
     )
     w.bar_item_new("slack_hints", "hints_item_cb", "")

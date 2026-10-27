@@ -47,7 +47,8 @@ Slack-starred conversations, and anything with activity in the last 72 hours
 - **r** reply in thread (works with no thread yet), **t** open thread,
   **e** react (prefills `$id+:`), **y** copy with date and author,
   **Y** copy every message in the buffer (the whole thread, in a thread
-  buffer), **l** copy the permalink.
+  buffer), **l** copy the permalink, **o** open its link (with several, the
+  bar numbers them and a digit picks).
 - **q** or **Esc** closes the menu; any other key closes it and does what it
   normally does. Esc also cancels Ctrl+K. (The wee window's ghostty sends Esc
   as a code weechat can tell apart from Alt+key; elsewhere in weechat a bare
@@ -72,8 +73,9 @@ Slack-starred conversations, and anything with activity in the last 72 hours
 
 ## Links
 
-- URLs carry small numbers (¹ newest, ² before it). **`/u 1`** opens the newest
-  in the browser, `/u 2` the one before.
+- Links in messages that arrived while wee ran carry small numbers (¹ newest,
+  ² before it); **`/u 1`** opens the newest, `/u 2` the one before. Links in
+  older messages (loaded history) have none: use the message menu's **o**.
 - Or **Ctrl+click** a URL. If it wraps onto an indented line, press **Alt+L**
   (bare view) first; any key returns.
 

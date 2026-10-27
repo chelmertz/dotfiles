@@ -29,6 +29,11 @@ os.makedirs(stubs)
 with open(os.path.join(stubs, "slack-session-ensure"), "w") as f:
     f.write("#!/bin/sh\n")
 os.chmod(os.path.join(stubs, "slack-session-ensure"), 0o755)
+# The message menu's "open link" hands URLs here; the run checks which.
+opened = os.path.join(tmp, "opened")
+with open(os.path.join(stubs, "xdg-open"), "w") as f:
+    f.write('#!/bin/sh\necho "$1" >> %s\n' % opened)
+os.chmod(os.path.join(stubs, "xdg-open"), 0o755)
 os.makedirs(os.path.join(tmp, "run"), mode=0o700)
 # A token list of "," (empty is "unset", which restores the placeholder):
 # wee-slack connects to zero teams instead of trying its
@@ -74,6 +79,8 @@ script = ";".join([
     "/print Connecting to 2 slack teams.",
     "/print -tags slack_ts_1.1 alice\\tfirst",
     "/print -tags slack_ts_2.2 bob\\tsecond",
+    "/print -tags slack_ts_2.4 erin\\tsee https://one.example/a.",
+    "/print -tags slack_ts_2.6 dave\\thttps://two.example/x or https://two.example/y)",
     # Newest: a link unfurl's worth of text over several lines.
     "/print -tags slack_ts_3.3 carol\\t" + "unfurled " * 300,
     "/print -tags slack_ts_3.3 \\t" + "more " * 300,
@@ -129,6 +136,15 @@ pump(1)
 menu_drawn = b"reply in thread" in screen
 os.write(fd, b"q")  # closes it, swallowed
 pump(1)
+# Open link: dave's message has two, so a digit picks; erin's has one; the
+# newest (carol's) has none.
+for keys in (b"ko2", b"kko", b"o"):
+    os.write(fd, b"\x1b ")
+    pump(0.5)
+    for key in keys:
+        os.write(fd, bytes([key]))
+        pump(0.5)
+no_link_drawn = b"no link in this message" in screen
 # Esc as ghostty sends it in the wee window (CSI 27 u, see .i3/config): it must
 # close the menu and end Ctrl+K's /go, or the /print lines below never run.
 ESC = b"\x1b[27u"
@@ -245,6 +261,13 @@ if not go_redrawn_on_close:
 if not recent_listed or stale_listed:
     print("buflist: recent buffer listed=%s (want True), stale listed=%s"
           " (want False)" % (recent_listed, stale_listed))
+    failed = True
+urls = open(opened).read().split() if os.path.exists(opened) else []
+if urls != ["https://two.example/y", "https://one.example/a"]:
+    print("open link: want the second of two, then the only one; got", urls)
+    failed = True
+if not no_link_drawn:
+    print("open link on a message without one said nothing")
     failed = True
 if not nothing_unread_drawn:
     print("Alt+A with nothing unread showed no notice")
