@@ -180,6 +180,10 @@ os.write(fd, b"/buffer add teamprobe\r")
 pump(0.3)
 os.write(fd, b"/command -buffer core.teamprobe core /buffer set localvar_set_type server\r")
 pump(0.3)
+# A conversation in that team: its name extends the team buffer's, and
+# weechat.notify options are inherited along that prefix.
+os.write(fd, b"/buffer add teamprobe.dm\r")
+pump(0.3)
 os.write(fd, b"/print -buffer core.teamprobe Connected to Slack team T3 (c) with username x\r")
 pump(1)
 # A followed thread's new reply, which wee-slack announces there, must count.
@@ -187,6 +191,8 @@ os.write(fd, b"/print -core THREAD-NOTICE\r")
 pump(0.3)
 os.write(fd, b"/print -buffer core.teamprobe New message in thread $855, channel #c\r")
 pump(1)
+os.write(fd, b"/command -buffer core.teamprobe.dm core /eval /print -core DMNOTIFY=${buffer.notify}\r")
+pump(0.5)
 os.write(fd, b"/logger flush\r")
 pump(1)
 os.write(fd, b"/quit\r")
@@ -242,6 +248,10 @@ if not recent_listed or stale_listed:
     failed = True
 if not nothing_unread_drawn:
     print("Alt+A with nothing unread showed no notice")
+    failed = True
+if not any(l.endswith("\tDMNOTIFY=3") for l in log):
+    print("handling the team buffer changed its conversations' notify level:",
+          [l.rsplit("\t", 1)[-1] for l in log if "DMNOTIFY=" in l])
     failed = True
 if not error_chip_drawn:
     print("error chip never drawn for an error printed while away from core")
