@@ -244,6 +244,48 @@ if not kept or thread.unread_on_open:
           " (want False)" % (kept, thread.unread_on_open))
     failed = True
 
+# Upload (weechat/wee-slack-upload.patch): Slack retired files.upload, so
+# /slack upload asks for an upload URL, sends the file there, then shares it
+# with the comment after " -- " (the Ctrl+V caption).
+picture = os.path.join(os.environ["XDG_RUNTIME_DIR"], "shot.png")
+with open(picture, "wb") as f:
+    f.write(b"12345")
+wee_slack.EVENTROUTER = router
+wee_slack.ProxyWrapper = lambda: types.SimpleNamespace(curl=lambda: "")
+dm = mock.MagicMock(type="im", identifier="D1", team=team)
+router.weechat_controller.buffers["0xDM"] = dm
+w.info_get.return_value = ""
+w.hook_process_hashtable.reset_mock()
+wee_slack.command_upload(None, "0xDM", picture + " -- look at this")
+def last_curl():
+    args, data = w.hook_process_hashtable.call_args.args[1], w.hook_process_hashtable.call_args.args[4]
+    return [args[k] for k in sorted(args, key=lambda k: int(k[3:]))], data
+argv, data = last_curl()
+steps = [argv[-1].split("?")[0].rsplit("/", 1)[-1]]
+wee_slack.upload_callback(data, "", 0, '{"ok": true, "upload_url": "https://files.example/u", "file_id": "F1"}', "")
+argv, data = last_curl()
+steps.append(argv[-1])
+sent_file = "-Ffile=@" + picture in argv
+wee_slack.upload_callback(data, "", 0, "200", "")
+argv, data = last_curl()
+steps.append(argv[-1].split("?")[0].rsplit("/", 1)[-1])
+w.prnt.reset_mock()
+wee_slack.upload_callback(data, "", 0, '{"ok": true}', "")
+if steps != ["files.getUploadURLExternal", "https://files.example/u",
+             "files.completeUploadExternal"] or not sent_file:
+    print("upload steps wrong:", steps, "file sent:", sent_file)
+    failed = True
+if "look+at+this" not in argv[-1] or "D1" not in argv[-1] or "F1" not in argv[-1]:
+    print("shared upload lacks comment, channel or file id:", argv[-1].split("?", 1)[-1])
+    failed = True
+if w.prnt.call_args_list:
+    print("a successful upload printed:", w.prnt.call_args_list)
+    failed = True
+wee_slack.upload_callback(data, "", 0, '{"ok": false, "error": "not_allowed"}', "")
+if not any("not_allowed" in str(c) for c in w.prnt.call_args_list):
+    print("a failed upload printed no error")
+    failed = True
+
 if head != ["query", "on-screen"]:
     print("foreground requests not at the head of the waiting list:", head)
     failed = True

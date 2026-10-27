@@ -139,6 +139,9 @@ for_window [window_type="notification"] floating enable
 
 # ripdrag: drag and drop helper, https://github.com/nik012003/ripdrag
 for_window [class="ripdrag"] floating enable, sticky enable
+# wee's Ctrl+V image preview: floats, and focus stays in wee for the caption.
+for_window [class="wee-preview"] floating enable
+no_focus [class="wee-preview"]
 
 for_window [class=".*"] title_format " %title"
 for_window [class=".*"] border pixel 4

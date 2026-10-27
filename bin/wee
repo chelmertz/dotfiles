@@ -48,6 +48,7 @@ setup='/set plugins.var.python.slack.background_load_all_history false
 /set weechat.bar.hints.size 0
 /alias addreplace u /url_hint_replace /exec -bg -nosh xdg-open {url$1}
 /key bind ctrl-x /edit
+/key bind ctrl-v /pasteimage
 /key bind meta-space /msgmenu
 /key bind meta-a /nextunread
 /key bind meta-left /buffer jump prev_visited

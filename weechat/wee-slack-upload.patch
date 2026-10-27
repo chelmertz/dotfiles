@@ -1,0 +1,128 @@
+--- a/wee_slack.py
++++ b/wee_slack.py
+@@ -6569,12 +6569,13 @@
+ @utf8_decode
+ def command_upload(data, current_buffer, args):
+     """
+-    /slack upload <filename>
+-    Uploads a file to the current buffer.
++    /slack upload <filename> [-- <comment>]
++    Uploads a file to the current buffer, with an optional comment.
+     """
+     channel = EVENTROUTER.weechat_controller.buffers[current_buffer]
+     weechat_dir = w.info_get("weechat_data_dir", "") or w.info_get("weechat_dir", "")
+-    file_path = os.path.join(weechat_dir, os.path.expanduser(args))
++    path_arg, _, comment = args.partition(" -- ")
++    file_path = os.path.join(weechat_dir, os.path.expanduser(path_arg))
+ 
+     if channel.type == "team":
+         w.prnt("", "ERROR: Can't upload a file to the team buffer")
+@@ -6588,31 +6589,45 @@
+             w.prnt("", "ERROR: Could not find file: {}".format(file_path))
+             return w.WEECHAT_RC_ERROR
+ 
+-    post_data = {
+-        "channels": channel.identifier,
++    # Slack retired files.upload (method_deprecated): ask for an upload URL,
++    # send the file there, then share it into the conversation.
++    state = {
++        "step": "url",
++        "buffer": current_buffer,
++        "path": file_path,
++        "comment": comment,
+     }
+-    if isinstance(channel, SlackThreadChannel):
+-        post_data["thread_ts"] = channel.thread_ts
++    upload_curl(
++        channel,
++        "files.getUploadURLExternal",
++        {
++            "filename": os.path.basename(file_path),
++            "length": os.path.getsize(file_path),
++        },
++        [],
++        state,
++    )
++    return w.WEECHAT_RC_OK_EAT
++
++
++command_upload.completion = "%(filename) %-"
+ 
+-    request = SlackRequest(channel.team, "files.upload", post_data, channel=channel)
+-    options = request.options_as_cli_args() + [
+-        "-s",
+-        "-Ffile=@{}".format(file_path),
+-        request.request_string(),
+-    ]
+ 
++def upload_curl(channel, method, post_data, extra, state, url=None):
++    request = SlackRequest(channel.team, method, post_data, channel=channel)
++    options = request.options_as_cli_args() + ["-s"] + extra
++    options.append(url or request.request_string())
+     proxy_string = ProxyWrapper().curl()
+     if proxy_string:
+         options.append(proxy_string)
+-
+     options_hashtable = {"arg{}".format(i + 1): arg for i, arg in enumerate(options)}
+     w.hook_process_hashtable(
+-        "curl", options_hashtable, config.slack_timeout, "upload_callback", ""
++        "curl",
++        options_hashtable,
++        config.slack_timeout,
++        "upload_callback",
++        json.dumps(state),
+     )
+-    return w.WEECHAT_RC_OK_EAT
+-
+-
+-command_upload.completion = "%(filename) %-"
+ 
+ 
+ @utf8_decode
+@@ -6626,6 +6641,29 @@
+         )
+         return w.WEECHAT_RC_OK_EAT
+ 
++    state = json.loads(data)
++    channel = EVENTROUTER.weechat_controller.buffers.get(state["buffer"])
++    if channel is None:
++        w.prnt("", "ERROR: Couldn't upload file: its buffer was closed")
++        return w.WEECHAT_RC_OK_EAT
++
++    if state["step"] == "send":
++        # The upload URL answers with plain text; -w appends the status.
++        if not out.endswith("200"):
++            w.prnt("", "ERROR: Couldn't upload file. Got: {}".format(out))
++            return w.WEECHAT_RC_OK_EAT
++        post_data = {
++            "files": json.dumps([{"id": state["file_id"]}]),
++            "channel_id": channel.identifier,
++        }
++        if state["comment"]:
++            post_data["initial_comment"] = state["comment"]
++        if isinstance(channel, SlackThreadChannel):
++            post_data["thread_ts"] = channel.thread_ts
++        state["step"] = "complete"
++        upload_curl(channel, "files.completeUploadExternal", post_data, [], state)
++        return w.WEECHAT_RC_OK_EAT
++
+     try:
+         response = json.loads(out)
+     except JSONDecodeError:
+@@ -6636,6 +6674,16 @@
+ 
+     if not response["ok"]:
+         w.prnt("", "ERROR: Couldn't upload file. Error: {}".format(response["error"]))
++    elif state["step"] == "url":
++        state.update(step="send", file_id=response["file_id"])
++        upload_curl(
++            channel,
++            "",
++            {},
++            ["-o/dev/null", "-w%{http_code}", "-Ffile=@{}".format(state["path"])],
++            state,
++            url=response["upload_url"],
++        )
+     return w.WEECHAT_RC_OK_EAT
+ 
+ 

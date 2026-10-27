@@ -504,6 +504,7 @@ in
               ../weechat/wee-slack-mentions.patch
               ../weechat/wee-slack-threads.patch
               ../weechat/wee-slack-events.patch
+              ../weechat/wee-slack-upload.patch
             ];
           }))
           # Ctrl+K drew its "Go to:" prompt only on the next redraw, and Esc on

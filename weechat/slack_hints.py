@@ -15,6 +15,11 @@
 # terminal sends a bare Esc as the first byte of every Alt+key, so weechat
 # waits for the key after it and merges the two; ghostty sends Esc there as
 # CSI 27 u instead (i3's F9 line), a complete key bin/wee binds to /escape.
+#
+# Ctrl+V (/pasteimage, bound in bin/wee) with an image on the clipboard
+# attaches it to the current buffer and previews it in feh, which i3 floats
+# without focus. Enter sends it with the input line as its caption, Esc or
+# leaving the buffer drops it. Without an image Ctrl+V pastes the text.
 # Installed from the dotfiles repo.
 import math
 import os
@@ -63,6 +68,7 @@ MENU = [
 # the menu at least closes at once rather than on the merged key after it.
 ESC = "\x01["
 
+staged = {"buffer": "", "path": "", "feh": None}
 menu = {"open": False, "buffer": "", "index": 0, "links": [], "marked": None,
         "scrolled": False}
 # Trailing punctuation is the sentence's, not the URL's.
@@ -181,6 +187,67 @@ def open_url(url):
                      stderr=subprocess.DEVNULL, start_new_session=True)
 
 
+def clipboard(target=None):
+    cmd = ["xclip", "-selection", "clipboard", "-o"]
+    if target:
+        cmd += ["-t", target]
+    try:
+        return subprocess.run(cmd, capture_output=True, timeout=3).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return b""
+
+
+def paste_cmd_cb(data, buffer, args):
+    if b"image/png" not in clipboard("TARGETS").split():
+        text = clipboard().decode("utf-8", "replace")
+        line = w.buffer_get_string(buffer, "input")
+        pos = w.buffer_get_integer(buffer, "input_pos")
+        w.buffer_set(buffer, "input", line[:pos] + text + line[pos:])
+        w.buffer_set(buffer, "input_pos", str(pos + len(text)))
+        return w.WEECHAT_RC_OK
+    drop_image()
+    path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"),
+                        "wee-paste-%d.png" % (time.time() * 1000))
+    with open(path, "wb") as f:
+        f.write(clipboard("image/png"))
+    feh = subprocess.Popen(
+        ["feh", "--class", "wee-preview", "--scale-down", "--geometry", "800x600",
+         "--title", "Enter in wee sends, Esc drops", path],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    staged.update(buffer=buffer, path=path, feh=feh)
+    w.bar_item_update("slack_hints")
+    return w.WEECHAT_RC_OK
+
+
+def drop_image(sent=False):
+    if staged["feh"]:
+        staged["feh"].terminate()
+    if staged["path"] and not sent:
+        try:
+            os.remove(staged["path"])
+        except OSError:
+            pass
+    staged.update(buffer="", path="", feh=None)
+    w.bar_item_update("slack_hints")
+
+
+def input_return_cb(data, buffer, command):
+    if not staged["path"] or buffer != staged["buffer"]:
+        return w.WEECHAT_RC_OK
+    caption = w.buffer_get_string(buffer, "input")
+    if caption.startswith("/") and not caption.startswith("//"):
+        return w.WEECHAT_RC_OK  # a command still runs; the image stays
+    w.buffer_set(buffer, "input", "")
+    # curl reads the file after this returns: keep it (XDG_RUNTIME_DIR is a
+    # tmpfs that goes at logout).
+    path = staged["path"]
+    drop_image(sent=True)
+    if caption.startswith("//"):  # weechat's escape for a leading "/"
+        caption = caption[1:]
+    w.command(buffer, "/slack upload {} -- {}".format(path, caption))
+    return w.WEECHAT_RC_OK_EAT
+
+
 def show_notice(text):
     state["notice"] = text
     w.bar_item_update("slack_hints")
@@ -244,6 +311,9 @@ def escape_cmd_cb(data, buffer, args):
         close_menu()
     elif go_active():
         w.command(buffer, "/go")
+    elif staged["path"]:
+        drop_image()
+        show_notice("image dropped")
     return w.WEECHAT_RC_OK
 
 
@@ -410,6 +480,9 @@ def core_print_cb(data, buffer, date, tags, displayed, highlight, prefix, messag
 
 
 def buffer_switch_cb(data, signal, buffer):
+    if staged["path"] and buffer != staged["buffer"]:
+        drop_image()
+        show_notice("image dropped")
     if state["errors"] and w.buffer_get_string(buffer, "full_name") == "core.weechat":
         state["errors"] = 0
         w.bar_item_update("slack_hints")
@@ -422,6 +495,9 @@ def hints_item_cb(data, item, window):
         hints = "{c} ⚠ {n} error{s} – Alt+1 {r}".format(
             c=w.color("*white,red"), n=state["errors"],
             s="" if state["errors"] == 1 else "s", r=w.color("reset")) + hints
+    if staged["path"]:
+        hints = "{c} 📎 image attached – Enter sends, Esc drops {r}".format(
+            c=w.color("black,cyan"), r=w.color("reset")) + hints
     if state["notice"]:
         hints = "{c} {t} {r}".format(c=w.color("black,green"), t=state["notice"],
                                      r=w.color("reset")) + hints
@@ -505,7 +581,7 @@ def tick_cb(data, remaining_calls):
 
 def main():
     w.register(
-        "slack_hints", "", "1.14", "MIT",
+        "slack_hints", "", "1.15", "MIT",
         "Hint bar of wee-slack shortcuts with a loading indicator", "", "",
     )
     w.bar_item_new("slack_hints", "hints_item_cb", "")
@@ -523,6 +599,9 @@ def main():
                    "", "", "", "nextunread_cmd_cb", "")
     w.hook_command("escape", "Close the message menu or end /go", "", "", "",
                    "escape_cmd_cb", "")
+    w.hook_command("pasteimage", "Attach the clipboard's image, or paste its text",
+                   "", "", "", "paste_cmd_cb", "")
+    w.hook_command_run("/input return", "input_return_cb", "")
     w.hook_signal("key_pressed", "key_pressed_cb", "")
     w.hook_signal("key_combo_default", "key_combo_cb", "")
 

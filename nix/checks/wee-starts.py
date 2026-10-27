@@ -35,6 +35,18 @@ opened = os.path.join(tmp, "opened")
 with open(os.path.join(stubs, "xdg-open"), "w") as f:
     f.write('#!/bin/sh\necho "$1" >> %s\n' % opened)
 os.chmod(os.path.join(stubs, "xdg-open"), 0o755)
+# Ctrl+V reads the clipboard through xclip and previews images with feh. The
+# stub clipboard holds an image unless clipmode says "text".
+clipmode = os.path.join(tmp, "clipmode")
+fehargs = os.path.join(tmp, "fehargs")
+with open(os.path.join(stubs, "xclip"), "w") as f:
+    f.write('#!/bin/sh\ncase "$*" in\n'
+            '*TARGETS*) [ "$(cat %s 2>/dev/null)" = text ] || echo image/png ;;\n'
+            '*image/png*) printf PNG ;;\n*) printf PASTEDTEXT ;;\nesac\n' % clipmode)
+os.chmod(os.path.join(stubs, "xclip"), 0o755)
+with open(os.path.join(stubs, "feh"), "w") as f:
+    f.write('#!/bin/sh\necho "$*" >> %s\nexec sleep 60\n' % fehargs)
+os.chmod(os.path.join(stubs, "feh"), 0o755)
 os.makedirs(os.path.join(tmp, "run"), mode=0o700)
 # A token list of "," (empty is "unset", which restores the placeholder):
 # wee-slack connects to zero teams instead of trying its
@@ -85,6 +97,11 @@ def query(data, buffer, command):
     w.prnt("", "QUERY=%s %s" % (w.buffer_get_string(buffer, "full_name"), command))
     return w.WEECHAT_RC_OK_EAT
 w.hook_command_run("/query *", "query", "")
+# Ctrl+V's Enter hands the image to wee-slack's /slack upload: record it.
+def slack(data, buffer, command):
+    w.prnt("", "SLACK=%s" % command)
+    return w.WEECHAT_RC_OK_EAT
+w.hook_command_run("/slack *", "slack", "")
 """)
 
 script = ";".join([
@@ -210,6 +227,20 @@ os.write(fd, b"\r")
 pump(1)
 os.write(fd, b"/buffer core.weechat\r")  # back where Connected is expected
 pump(1)
+os.write(fd, b"\x16")  # Ctrl+V with an image: attached, Enter sends the caption
+pump(1)
+os.write(fd, b"look here\r")
+pump(1)
+os.write(fd, b"\x16")  # attached, then Esc drops it and its file
+pump(1)
+os.write(fd, ESC)
+pump(1)
+with open(clipmode, "w") as f:
+    f.write("text")
+os.write(fd, b"/print \x16")  # no image: Ctrl+V pastes the text
+pump(1)
+os.write(fd, b"\r")
+pump(1)
 # Both teams connect: wee leaves the core buffer for the home buffer.
 os.write(fd, b"/print Connected to Slack team T1 (a) with username x\r")
 pump(0.5)
@@ -326,6 +357,21 @@ if not any(l.endswith("\tQUERY=core.homeprobe /query zed.person") for l in log):
     failed = True
 if any("/query yan.person" in l for l in log):
     print("Ctrl+K listed a person a second time beside their DM buffer")
+    failed = True
+uploads = [l.split("SLACK=", 1)[1] for l in log if "\tSLACK=" in l]
+if (len(uploads) != 1 or not re.match(r"/slack upload \S+/run/wee-paste-\d+\.png -- look here$", uploads[0])):
+    print("Ctrl+V image + Enter should upload once with the caption:", uploads)
+    failed = True
+if not os.path.exists(fehargs) or open(fehargs).read().count("--class wee-preview") != 2:
+    print("Ctrl+V did not preview each image in feh:",
+          open(fehargs).read() if os.path.exists(fehargs) else None)
+    failed = True
+kept = [f for f in os.listdir(os.path.join(tmp, "run")) if f.startswith("wee-paste-")]
+if len(kept) != 1:
+    print("expected only the sent image left (Esc deletes a dropped one):", kept)
+    failed = True
+if not any(l.endswith("\tPASTEDTEXT") for l in log):
+    print("Ctrl+V without an image did not paste the text")
     failed = True
 if not error_chip_drawn:
     print("error chip never drawn for an error printed while away from core")
