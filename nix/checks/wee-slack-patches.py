@@ -105,6 +105,22 @@ if "client.counts" not in sent:
     print("connect did not refetch client.counts:", sent)
     failed = True
 
+# Mentions (weechat/wee-slack-mentions.patch): @name completes from the whole
+# workspace even where the channel's member list never loaded.
+added = []
+wee_slack.completion_list_add = lambda c, word, *a: added.append(word)
+wee_slack.completion_get_string = lambda c, key: ""
+users = {"U1": types.SimpleNamespace(name="adam.kozlowski", deleted=False),
+         "U2": types.SimpleNamespace(name="gone", deleted=True)}
+unloaded = types.SimpleNamespace(members=None, team=types.SimpleNamespace(
+    users=users, members={"U1", "U2"}))
+router.weechat_controller.buffers["0xCHAN"] = unloaded
+wee_slack.EVENTROUTER = router
+wee_slack.nick_completion_cb("", "", "0xCHAN", None)
+if "@adam.kozlowski" not in added or "@gone" in added:
+    print("@ completion in a channel without loaded members:", added)
+    failed = True
+
 if head != ["query", "on-screen"]:
     print("foreground requests not at the head of the waiting list:", head)
     failed = True

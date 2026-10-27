@@ -491,13 +491,15 @@ in
           # requests at 16 (uncapped, connecting forked ~400 at once) and logs
           # each one's timing. The query patch lets /query take "a b" for "a,b"
           # and reuse a known conversation when Slack returns it. The recency
-          # patch keeps each buffer's newest activity in localvar slack_latest.
+          # patch keeps each buffer's newest activity in localvar slack_latest;
+          # the mentions patch completes @name from the whole workspace.
           (wee-slack.overrideAttrs (o: {
             patches = (o.patches or [ ]) ++ [
               ../weechat/wee-slack-unreads.patch
               ../weechat/wee-slack-inflight.patch
               ../weechat/wee-slack-query.patch
               ../weechat/wee-slack-recency.patch
+              ../weechat/wee-slack-mentions.patch
             ];
           }))
           # Ctrl+K drew its "Go to:" prompt only on the next redraw, and Esc on
