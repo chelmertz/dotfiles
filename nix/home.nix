@@ -493,7 +493,8 @@ in
           # and reuse a known conversation when Slack returns it. The recency
           # patch keeps each buffer's newest activity in localvar slack_latest;
           # the mentions patch completes @name from the whole workspace; the
-          # threads patch opens threads with unread replies at every connect.
+          # threads patch opens threads with unread replies at every connect;
+          # the events patch logs each live message's fate to wee-events.log.
           (wee-slack.overrideAttrs (o: {
             patches = (o.patches or [ ]) ++ [
               ../weechat/wee-slack-unreads.patch
@@ -502,6 +503,7 @@ in
               ../weechat/wee-slack-recency.patch
               ../weechat/wee-slack-mentions.patch
               ../weechat/wee-slack-threads.patch
+              ../weechat/wee-slack-events.patch
             ];
           }))
           # Ctrl+K drew its "Go to:" prompt only on the next redraw, and Esc on

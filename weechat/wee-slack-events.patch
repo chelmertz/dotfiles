@@ -1,0 +1,80 @@
+--- a/wee_slack.py
++++ b/wee_slack.py
+@@ -2079,6 +2079,12 @@
+ 
+     def reprint_messages(self, history_message=False, no_log=True, force_render=False):
+         if self.channel_buffer:
++            log_event(
++                "reprint",
++                self,
++                "held=%d newest=%s"
++                % (len(self.messages), max(self.messages, default="-")),
++            )
+             w.buffer_clear(self.channel_buffer)
+             self.last_line_from = None
+             for message in self.visible_messages.values():
+@@ -4010,6 +4016,24 @@
+         )
+ 
+ 
++EVENT_LOG = []
++
++
++def log_event(kind, channel, detail):
++    # Message-level trail next to wee-requests.log: what happened to each
++    # live message (stored? printed?) and every history load and reprint,
++    # so a message that vanishes shows where. No message text.
++    if not EVENT_LOG:
++        path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "wee-events.log")
++        try:
++            EVENT_LOG.append(open(path, "w", buffering=1))
++        except OSError:
++            EVENT_LOG.append(None)
++    if EVENT_LOG[0]:
++        EVENT_LOG[0].write("%.3f %s %s %s\n" % (
++            time.time(), kind, getattr(channel, "identifier", "-"), detail))
++
++
+ def handle_rtmconnect(login_data, eventrouter, team, channel, metadata):
+     metadata = login_data["wee_slack_request_metadata"]
+     team = metadata.team
+@@ -4114,6 +4138,16 @@
+                 channel.set_unread_count_display(1)
+         return
+ 
++    log_event(
++        "history",
++        channel,
++        "fetched=%d newest=%s held=%d"
++        % (
++            len(message_json["messages"]),
++            message_json["messages"][0]["ts"] if message_json["messages"] else "-",
++            len(channel.messages),
++        ),
++    )
+     channel.got_history = True
+     channel.history_needs_update = False
+     for message in reversed(message_json["messages"]):
+@@ -4420,6 +4454,22 @@
+ 
+     if message and not history_message:
+         channel.prnt_message(message, history_message)
++    if not history_message:
++        log_event(
++            "message",
++            channel,
++            "ts=%s subtype=%s active=%s buffer=%s stored=%s got_history=%s pending=%s"
++            % (
++                message_json.get("ts"),
++                subtype,
++                getattr(channel, "active", "-"),
++                bool(getattr(channel, "channel_buffer", None)),
++                "ts" in message_json
++                and SlackTS(message_json["ts"]) in getattr(channel, "messages", {}),
++                getattr(channel, "got_history", "-"),
++                bool(getattr(channel, "pending_history_requests", None)),
++            ),
++        )
+ 
+     if not history_message:
+         download_files(message_json, channel)

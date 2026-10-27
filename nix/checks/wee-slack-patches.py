@@ -10,7 +10,9 @@ two must head the waiting list and the event must not sit in the queue
 (weechat/wee-slack-inflight.patch, is_foreground).
 """
 
+import os
 import sys
+import tempfile
 import types
 from unittest import mock
 
@@ -18,6 +20,7 @@ w = mock.MagicMock(WEECHAT_HOOK_PROCESS_RUNNING=-1)
 w.current_buffer.return_value = "0xSCREEN"
 sys.modules["weechat"] = w
 sys.modules["websocket"] = mock.MagicMock()
+os.environ["XDG_RUNTIME_DIR"] = tempfile.mkdtemp()
 sys.path.insert(0, sys.argv[1])
 import wee_slack  # noqa: E402
 
@@ -100,6 +103,10 @@ for message in ({"ts": "1700000003.000000", "thread_ts": "1700000000.000000"},
         wee_slack.process_message(message, router, team, chan, {})
     except Exception:
         pass  # the rest of message handling is not under test
+events = open(os.path.join(os.environ["XDG_RUNTIME_DIR"], "wee-events.log")).read()
+if " message " not in events or "ts=1700000003.000000" not in events:
+    print("live messages missing from wee-events.log:", events)
+    failed = True
 if seen != ["1700000003.000000"]:
     print("process_message activity (thread reply counts, edit does not):", seen)
     failed = True
