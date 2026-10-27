@@ -220,6 +220,7 @@ def paste_cmd_cb(data, buffer, args):
     staged["paths"].append(path)
     staged["fehs"].append(feh)
     w.bar_item_update("slack_hints")
+    w.bar_item_update("input_text")
     return w.WEECHAT_RC_OK
 
 
@@ -233,6 +234,17 @@ def drop_images(sent=False):
             pass
     staged.update(buffer="", paths=[], fehs=[])
     w.bar_item_update("slack_hints")
+    w.bar_item_update("input_text")
+
+
+def input_display_cb(data, modifier, buffer, string):
+    # The bar is out of sight while typing: say it where the eyes are.
+    if not staged["paths"] or buffer != staged["buffer"]:
+        return string
+    n = len(staged["paths"])
+    return "{c}[📎 {n} image{s}]{r} {t}".format(
+        c=w.color("black,cyan"), n=n, s="" if n == 1 else "s",
+        r=w.color("reset"), t=string)
 
 
 def input_return_cb(data, buffer, command):
@@ -588,7 +600,7 @@ def tick_cb(data, remaining_calls):
 
 def main():
     w.register(
-        "slack_hints", "", "1.16", "MIT",
+        "slack_hints", "", "1.17", "MIT",
         "Hint bar of wee-slack shortcuts with a loading indicator", "", "",
     )
     w.bar_item_new("slack_hints", "hints_item_cb", "")
@@ -609,6 +621,7 @@ def main():
     w.hook_command("pasteimage", "Attach the clipboard's image, or paste its text",
                    "", "", "", "paste_cmd_cb", "")
     w.hook_command_run("/input return", "input_return_cb", "")
+    w.hook_modifier("input_text_display_with_cursor", "input_display_cb", "")
     w.hook_signal("key_pressed", "key_pressed_cb", "")
     w.hook_signal("key_combo_default", "key_combo_cb", "")
 

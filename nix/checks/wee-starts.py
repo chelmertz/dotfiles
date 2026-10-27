@@ -229,6 +229,8 @@ os.write(fd, b"/buffer core.weechat\r")  # back where Connected is expected
 pump(1)
 os.write(fd, b"\x16")  # Ctrl+V with an image: attached, Enter sends the message
 pump(1)
+# The input line itself says so, where the eyes are while typing.
+attached_shown = "[📎 1 image]".encode() in screen
 os.write(fd, b"look here\r")
 pump(1)
 os.write(fd, b"\x16")  # two images and no text: one upload of both
@@ -363,6 +365,9 @@ if not any(l.endswith("\tQUERY=core.homeprobe /query zed.person") for l in log):
     failed = True
 if any("/query yan.person" in l for l in log):
     print("Ctrl+K listed a person a second time beside their DM buffer")
+    failed = True
+if not attached_shown:
+    print("Ctrl+V with an image did not mark the input line")
     failed = True
 uploads = [l.split("SLACK=", 1)[1] for l in log if "\tSLACK=" in l]
 png = r"\S+/run/wee-paste-\d+\.png"
