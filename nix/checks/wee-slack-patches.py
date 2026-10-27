@@ -79,16 +79,18 @@ if "asks_history" not in asks_history().origin:
 
 # Unread probes (weechat/wee-slack-unreads.patch): once client.counts has
 # answered, a DM or group DM it does not list gets no per-conversation probe.
-def probes(listed, ok, call):
+def probes(listed, ok, call, starred=()):
     er = mock.MagicMock()
     team = types.SimpleNamespace(
         client_counts_ok=ok, client_counts_listed=listed, client_counts={}, token="xoxc-x",
+        starred=set(starred),
         slack_api_translator={"mpim": {"info": "conversations.info"}})
     conv = types.SimpleNamespace(
         is_archived=False, is_open=False, unread_count_display=0, type="mpim",
         identifier="C9", team=team, eventrouter=er, got_history=False,
-        channel_buffer="0xB", last_read=0)
+        channel_buffer="0xB", last_read=0, create_buffer=mock.MagicMock())
     call(conv, team, er)
+    probes.opened = conv.create_buffer.called
     return er.receive.call_count
 open_probe = lambda conv, team, er: wee_slack.SlackChannel.check_should_open(conv)
 info_probe = lambda conv, team, er: wee_slack.handle_conversationsinfo(
@@ -98,6 +100,12 @@ for name, call in (("check_should_open", open_probe), ("conversations.info", inf
     if counts != (0, 1, 1):
         print("%s probes (unlisted, listed, no counts) = %s, want (0, 1, 1)" % (name, counts))
         failed = True
+
+# Starred DMs and group DMs get a buffer at connect, as the Slack apps list
+# them, even with nothing unread.
+if probes(set(), True, open_probe, starred={"C9"}) != 0 or not probes.opened:
+    print("a starred group DM with nothing unread got no buffer")
+    failed = True
 
 # People for Ctrl+K (weechat/wee-slack-mentions.patch): everyone but you and
 # deleted accounts, each with the team buffer /query has to run in.
