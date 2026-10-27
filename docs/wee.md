@@ -31,6 +31,11 @@ Slack-starred conversations, and anything with activity in the last 72 hours
 (read or not, from any client), newest first. Muted channels count as quiet.
 `/all` lists everything.
 
+Name prefixes, in the list and in Ctrl+K: `#` channel, 🔒 private channel,
+`%` Slack Connect channel (shared with another company), `@` group DM, `+`
+DM with someone online, plain name a DM (or, in Ctrl+K, a person to start one
+with), `>` someone is typing there.
+
 ## Writing
 
 - Enter sends. **Shift+Enter** or **Alt+Enter** inserts a newline.

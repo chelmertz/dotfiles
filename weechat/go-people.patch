@@ -114,7 +114,7 @@
 +    # they are never in the hotlist): picking one opens the DM.
 +    if strinput:
 +        for buffer, person in go_people():
-+            name = '@' + person
++            name = person
 +            if person.lower() not in all_names and _matching(name, ''):
 +                listbuf.append({'number': '', 'short_name': name, 'name': name,
 +                                'full_name': '', 'pointer': '',

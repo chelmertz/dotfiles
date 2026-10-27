@@ -30,6 +30,7 @@ ulimit -Sn "$(( $(ulimit -Hn) < 65536 ? $(ulimit -Hn) : 65536 ))" 2>/dev/null ||
 
 setup='/set plugins.var.python.slack.background_load_all_history false
 /set plugins.var.python.slack.slack_timeout 60000
+/set plugins.var.python.slack.group_name_prefix 🔒
 /set plugins.var.python.go.fuzzy_search on
 /set plugins.var.python.go.short_name on
 /set weechat.completion.partial_completion_other on
