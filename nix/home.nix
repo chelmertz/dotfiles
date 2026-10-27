@@ -510,7 +510,9 @@ in
           # an empty prompt left it drawn: on an empty input line, opening and
           # closing /go change nothing weechat would redraw for, so the screen
           # waited for a message, a timer or the next key. Signal the change
-          # the way go.py already does when Tab cycles.
+          # the way go.py already does when Tab cycles. go-people.patch adds
+          # everyone in the Slack workspaces after the buffers (wee-slack's
+          # slack_people info); Enter on a person opens the DM with /query.
           (weechat-go.overrideAttrs (o: {
             installPhase = o.installPhase + ''
               substituteInPlace $out/share/go.py --replace-fail \
@@ -519,6 +521,7 @@ in
                 --replace-fail \
                 "weechat.buffer_set(buf, 'input_pos', str(saved_input_pos))" \
                 "weechat.buffer_set(buf, 'input_pos', str(saved_input_pos)); weechat.hook_signal_send('input_text_changed', weechat.WEECHAT_HOOK_SIGNAL_STRING, ''')"
+              patch $out/share/go.py < ${../weechat/go-people.patch}
             '';
           }))
           weechat-notify-send

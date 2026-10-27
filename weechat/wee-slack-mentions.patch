@@ -1,6 +1,6 @@
 --- a/wee_slack.py
 +++ b/wee_slack.py
-@@ -1347,19 +1347,23 @@
+@@ -1359,23 +1359,39 @@
      Adds all @-prefixed nicks to completion list
      """
      current_channel = EVENTROUTER.weechat_controller.buffers.get(current_buffer)
@@ -26,3 +26,33 @@
              completion_list_add(completion, "@" + user.name, 1, w.WEECHAT_LIST_POS_SORT)
      return w.WEECHAT_RC_OK
  
+ 
++def slack_people_info_cb(data, info_name, arguments):
++    # Ctrl+K (go.py) offers these after buffers; picking one runs /query name
++    # in the team buffer, so it opens a DM nobody has a buffer for yet.
++    return "\n".join(
++        "{}\t{}".format(team.channel_buffer, user.name)
++        for team in EVENTROUTER.teams.values()
++        if team.channel_buffer
++        for user in team.users.values()
++        if not user.deleted and user.identifier != team.myidentifier
++    )
++
++
+ @utf8_decode
+ def emoji_completion_cb(data, completion_item, current_buffer, completion):
+     """
+@@ -6845,6 +6861,13 @@
+         "irc_privates", "complete dms/mpdms for slack", "dm_completion_cb", ""
+     )
+     w.hook_completion("nicks", "complete @-nicks for slack", "nick_completion_cb", "")
++    w.hook_info(
++        "slack_people",
++        'everyone you can DM, one "team buffer<TAB>name" per line (for go.py)',
++        "",
++        "slack_people_info_cb",
++        "",
++    )
+     w.hook_completion(
+         "threads", "complete thread ids for slack", "thread_completion_cb", ""
+     )

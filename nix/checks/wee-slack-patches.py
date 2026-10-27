@@ -99,6 +99,19 @@ for name, call in (("check_should_open", open_probe), ("conversations.info", inf
         print("%s probes (unlisted, listed, no counts) = %s, want (0, 1, 1)" % (name, counts))
         failed = True
 
+# People for Ctrl+K (weechat/wee-slack-mentions.patch): everyone but you and
+# deleted accounts, each with the team buffer /query has to run in.
+people_team = types.SimpleNamespace(channel_buffer="0xTEAM", myidentifier="U0", users={
+    "U0": types.SimpleNamespace(identifier="U0", name="me", deleted=False),
+    "U1": types.SimpleNamespace(identifier="U1", name="adam.kozlowski", deleted=False),
+    "U2": types.SimpleNamespace(identifier="U2", name="gone", deleted=True)})
+wee_slack.EVENTROUTER = types.SimpleNamespace(teams={"T": people_team})
+listed = wee_slack.slack_people_info_cb("", "slack_people", "")
+wee_slack.EVENTROUTER = router
+if listed != "0xTEAM\tadam.kozlowski":
+    print("slack_people info:", repr(listed))
+    failed = True
+
 # Recency (weechat/wee-slack-recency.patch): the newest activity from any
 # client, thread replies included, lands in the buffer localvar the buflist
 # sorts on; every connect refetches it from client.counts.

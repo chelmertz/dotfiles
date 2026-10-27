@@ -74,6 +74,15 @@ def tick(data, calls):
     w.infolist_free(hot)
     return w.WEECHAT_RC_OK
 w.hook_timer(100, 0, 0, "tick", "")
+# Stand-in for wee-slack's slack_people: one person with no buffer yet.
+def people(data, name, args):
+    return w.buffer_search("core", "homeprobe") + "\tzed.person"
+w.hook_info("probe_people", "", "", "people", "")
+# Ctrl+K on a person runs /query in that person's team buffer: record it.
+def query(data, buffer, command):
+    w.prnt("", "QUERY=%s %s" % (w.buffer_get_string(buffer, "full_name"), command))
+    return w.WEECHAT_RC_OK_EAT
+w.hook_command_run("/query *", "query", "")
 """)
 
 script = ";".join([
@@ -96,6 +105,7 @@ script = ";".join([
     # Stand-in for the MATCHi team buffer bin/wee names as home.
     "/buffer add homeprobe",
     "/set plugins.var.wee.home_buffer core.homeprobe",
+    "/set plugins.var.python.go.people_info probe_people",
 ])
 
 pid, fd = pty.fork()
@@ -179,6 +189,12 @@ pump(1)
 os.write(fd, ESC)
 pump(1)
 os.write(fd, b"/print GO-CLOSED\r")
+pump(1)
+os.write(fd, b"\x0b")  # Ctrl+K reaches people without a buffer too
+pump(1)
+os.write(fd, b"zed")
+pump(1)
+os.write(fd, b"\r")
 pump(1)
 # Both teams connect: wee leaves the core buffer for the home buffer.
 os.write(fd, b"/print Connected to Slack team T1 (a) with username x\r")
@@ -289,6 +305,10 @@ if not nothing_unread_drawn:
 if not any(l.endswith("\tDMNOTIFY=3") for l in log):
     print("handling the team buffer changed its conversations' notify level:",
           [l.rsplit("\t", 1)[-1] for l in log if "DMNOTIFY=" in l])
+    failed = True
+if not any(l.endswith("\tQUERY=core.homeprobe /query zed.person") for l in log):
+    print("Ctrl+K on a person did not open the DM:",
+          [l.rsplit("\t", 1)[-1] for l in log if "QUERY=" in l])
     failed = True
 if not error_chip_drawn:
     print("error chip never drawn for an error printed while away from core")

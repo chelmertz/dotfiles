@@ -17,7 +17,7 @@ Electron Slack app for daily use; the app stays installed for huddles.
 
 | Key / command | Does |
 |---|---|
-| Ctrl+K | buffer picker (type to filter, Enter picks, Ctrl+K again cancels) |
+| Ctrl+K | buffer picker, then everyone in the workspaces (type to filter, Enter picks: a person opens the DM; Esc cancels) |
 | Alt+A | next buffer with unread activity; after the last, back to where you started; "nothing unread" in the bar when there is nowhere to go |
 | Alt+/ | back to the previous buffer (again: forward) |
 | Alt+← / Alt+→ (or Alt+< / Alt+>) | back / forward through visited buffers |
@@ -67,6 +67,8 @@ Slack-starred conversations, and anything with activity in the last 72 hours
 - **`/cursor`**, arrow keys to a message, then **T** opens its thread (even
   with no replies yet) or **R** prefills `/reply $id `. `q` leaves cursor mode.
   This is the race-free way: it targets that exact message.
+- `/rehistory -remote` reloads the current buffer from Slack, for a message
+  that should be there but isn't.
 - `/thread` (newest thread), `/thread 3` (third-newest thread), `/thread $855`.
 - `/reply text`, `/reply 3 text`, `/reply $855 text`; `-alsochannel` also
   posts to the channel. In a thread buffer, just type.

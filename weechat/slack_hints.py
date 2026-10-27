@@ -28,7 +28,7 @@ import weechat as w
 # divided. The bar sizes itself to the number of rows.
 HINTS = [
     [
-        ("Ctrl+K", "channels"),
+        ("Ctrl+K", "channels, people"),
         ("Alt+A", "next unread"),
         ("/query name [name…]", "DM, group DM"),
         ("+:emoji:", "react"),
@@ -36,7 +36,7 @@ HINTS = [
         ("/all", "all buffers"),
     ],
     [
-        ("/cursor", "pick msg: T thread, R reply"),
+        ("/rehistory -remote", "reload from Slack"),
         ("/thread $id", "open thread"),
         ("/close", "back"),
         ("/u N", "open link N"),
@@ -505,7 +505,7 @@ def tick_cb(data, remaining_calls):
 
 def main():
     w.register(
-        "slack_hints", "", "1.13", "MIT",
+        "slack_hints", "", "1.14", "MIT",
         "Hint bar of wee-slack shortcuts with a loading indicator", "", "",
     )
     w.bar_item_new("slack_hints", "hints_item_cb", "")

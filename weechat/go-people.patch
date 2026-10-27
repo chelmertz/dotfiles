@@ -1,0 +1,134 @@
+--- a/go.py
++++ b/go.py
+@@ -163,6 +163,10 @@
+     'buffer_number': (
+         'on',
+         'display buffer number'),
++    'people_info': (
++        'slack_people',
++        'info listing people to offer after buffers, one "buffer<TAB>name" '
++        'per line; picking one runs /query name in that buffer'),
+ }
+ 
+ # hooks management
+@@ -184,6 +188,9 @@
+ buffers = []
+ buffers_pos = 0
+ 
++# (buffer, name) pairs from the people_info info, read once per /go.
++people = None
++
+ 
+ def go_option_enabled(option):
+     """Checks if a boolean script option is enabled or not."""
+@@ -233,6 +240,8 @@
+     """Start go on buffer."""
+     global saved_input, saved_input_pos, old_input, buffers_pos
+     go_hook_all()
++    global people
++    people = None
+     saved_input = weechat.buffer_get_string(buf, 'input')
+     saved_input_pos = weechat.buffer_get_integer(buf, 'input_pos')
+     weechat.buffer_set(buf, 'input', ''); weechat.hook_signal_send('input_text_changed', weechat.WEECHAT_HOOK_SIGNAL_STRING, '')
+@@ -283,6 +292,24 @@
+     return True
+ 
+ 
++def go_people():
++    """(buffer, name) pairs from the people_info info, cached per /go."""
++    global people
++    if people is None:
++        lines = weechat.info_get(weechat.config_get_plugin('people_info'), '')
++        people = [tuple(line.split('\t', 1)) for line in (lines or '').split('\n')
++                  if '\t' in line]
++    return people
++
++
++def go_open(buf, entry):
++    """Switch to a buffer, or open the DM for a person."""
++    if entry.get('query'):
++        weechat.command(entry['query'][0], '/query ' + entry['query'][1])
++    else:
++        weechat.command(buf, '/buffer ' + str(entry['full_name']))
++
++
+ def go_now(buf, args):
+     """Go to buffer specified by args."""
+     listbuf = go_matching_buffers(args)
+@@ -293,12 +320,11 @@
+     if 'beginning' in weechat.config_get_plugin('sort').split(','):
+         for index in range(len(listbuf)):
+             if go_match_beginning(listbuf[index], args):
+-                weechat.command(buf,
+-                                '/buffer ' + str(listbuf[index]['full_name']))
++                go_open(buf, listbuf[index])
+                 return
+ 
+     # jump to first buffer in matching buffers by default
+-    weechat.command(buf, '/buffer ' + str(listbuf[0]['full_name']))
++    go_open(buf, listbuf[0])
+ 
+ 
+ def go_cmd(data, buf, args):
+@@ -320,6 +346,17 @@
+     if len(strinput) == 0:
+         buffers_pos = 0
+     strinput = strinput.lower()
++
++    def _matching(name, number):
++        if name.lower().find(strinput) >= 0:
++            return True
++        if strinput[-1] == ' ' and name.lower().endswith(strinput.strip()):
++            return True
++        if go_option_enabled('fuzzy_search') and go_match_fuzzy(name.lower(), strinput):
++            return True
++        return strinput.isdigit() and str(number).startswith(strinput)
++
++    all_names = set()
+     infolist = weechat.infolist_get('buffer', '', '')
+     while weechat.infolist_next(infolist):
+         pointer = weechat.infolist_pointer(infolist, 'pointer')
+@@ -342,14 +379,8 @@
+             full_name = '%s.%s' % (
+                 weechat.infolist_string(infolist, 'plugin_name'),
+                 weechat.infolist_string(infolist, 'name'))
+-        matching = name.lower().find(strinput) >= 0
+-        if not matching and strinput[-1] == ' ':
+-            matching = name.lower().endswith(strinput.strip())
+-        if not matching and go_option_enabled('fuzzy_search'):
+-            matching = go_match_fuzzy(name.lower(), strinput)
+-        if not matching and strinput.isdigit():
+-            matching = str(number).startswith(strinput)
+-        if len(strinput) == 0 or matching:
++        all_names.add(short_name.lower())
++        if len(strinput) == 0 or _matching(name, number):
+             listbuf.append({
+                 'number': number,
+                 'short_name': short_name,
+@@ -359,6 +390,16 @@
+             })
+     weechat.infolist_free(infolist)
+ 
++    # People without a buffer yet, after the buffers (sorting is stable and
++    # they are never in the hotlist): picking one opens the DM.
++    if strinput:
++        for buffer, person in go_people():
++            name = '@' + person
++            if person.lower() not in all_names and _matching(name, ''):
++                listbuf.append({'number': '', 'short_name': name, 'name': name,
++                                'full_name': '', 'pointer': '',
++                                'query': (buffer, person)})
++
+     # sort buffers
+     hotlist = []
+     infolist = weechat.infolist_get('hotlist', '', '')
+@@ -514,8 +555,7 @@
+         # switch to selected buffer (if any)
+         go_end(buf)
+         if len(buffers) > 0:
+-            weechat.command(
+-                buf, '/buffer ' + str(buffers[buffers_pos]['full_name']))
++            go_open(buf, buffers[buffers_pos])
+         return weechat.WEECHAT_RC_OK_EAT
+     return weechat.WEECHAT_RC_OK
+ 
