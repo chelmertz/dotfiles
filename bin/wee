@@ -65,4 +65,15 @@ run=$(printf '%s\n' "$setup" | paste -sd ';' -)
 # weechat is up is fine; --from-launch makes it do that wait.
 slack-session-ensure --from-launch &
 
+# Starting is the recovery path. weechat segfaults while unloading python on
+# most quits (Mod+q included), so it never releases the flock on weechat.log,
+# and its children inherit that fd: any child that outlives it keeps the next
+# start failing with "unable to create/append to log file" for minutes.
+# Running weechat in its own scope and stopping the previous scope first
+# kills those leftovers. Sandboxes without a user manager start it bare.
+if command -v systemd-run >/dev/null && systemctl --user show-environment >/dev/null 2>&1; then
+	systemctl --user stop wee.scope 2>/dev/null || true
+	exec systemd-run --user --scope --collect --quiet --unit=wee -p TimeoutStopSec=3 \
+		weechat -r "$run" "$@"
+fi
 exec weechat -r "$run" "$@"
