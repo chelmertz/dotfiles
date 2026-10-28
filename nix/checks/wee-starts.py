@@ -539,7 +539,8 @@ if bad_rc == 0 or not any(c.startswith("i3-msg") and "org" in c for c in calls) 
     failed = True
 todo_sent = [c for c in calls if c.startswith("notify-send") and "todo" in c]
 if todo_note != ("- [ ] erin: see https://one.example/a. "
-                 "[wee](wee://x.slack.com/archives/C1/p0000000002200000) ⏫ ➕ %s\n"
+                 "[wee](wee://x.slack.com/archives/C1/p0000000002200000) "
+                 "[Slack](https://x.slack.com/archives/C1/p0000000002200000) ⏫ ➕ %s\n"
                  "  > see https://one.example/a.\n" % time.strftime("%Y-%m-%d")) or todo_sent[:2] != [
         "notify-send -a wee wee todo added to slack.md",
         "notify-send -a wee wee todo already in slack.md"]:

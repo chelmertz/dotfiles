@@ -69,7 +69,7 @@ with), `>` someone is typing there.
   step through several; Esc or Enter in wee closes it), **T** todo and **!**
   todo now (below).
 - **Todos**: **T** appends `- [ ] author: start of the message [wee](wee://…)
-  ➕ date`, with up to five lines of the message quoted under it, to
+  [Slack](https://…) ➕ date`, with up to five lines of the message quoted under it, to
   `slack.md` in `~/sync/notes` (`plugins.var.wee.todo_vault`). The daily
   note's Slack section shows the next three, ⏫ first and then oldest, and
   refills as they are checked off; **!** adds the ⏫. A message already linked

@@ -427,8 +427,9 @@ def add_todo(msg, link, now):
     # "#" inside a URL is not a tag and stays.
     text = re.sub(r"(^|\s)#", r"\1\\#", "\n".join(lines).strip())
     # ➕ is Tasks' created date: the daily note's Slack section sorts on it.
-    task = "- [ ] {}: {} [wee]({}){} ➕ {}".format(
-        author.strip(), one_line(text, TODO_HEAD), link, " ⏫" if now else "",
+    task = "- [ ] {}: {} [wee]({}) [Slack]({}){} ➕ {}".format(
+        author.strip(), one_line(text, TODO_HEAD), link,
+        link.replace("wee://", "https://", 1), " ⏫" if now else "",
         time.strftime("%Y-%m-%d"))
     note = os.path.join(vault, TODO_NOTE)
     body = open(note).read() if os.path.exists(note) else ""
