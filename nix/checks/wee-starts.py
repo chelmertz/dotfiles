@@ -132,6 +132,13 @@ def delete(data, signal, hashtable):
     w.prnt("", "DELETE=" + hashtable["_chat_line_tags"].split(",")[0])
     return w.WEECHAT_RC_OK
 w.hook_hsignal("slack_cursor_delete", "delete", "")
+# A conversation with one person in its nicklist: records what gets sent.
+def said(data, buffer, text):
+    w.prnt("", "SAID=[%s]" % text)
+    return w.WEECHAT_RC_OK
+nickprobe = w.buffer_new("nickprobe", "said", "", "", "")
+w.buffer_set(nickprobe, "nicklist", "1")
+w.nicklist_add_nick(nickprobe, "", "TobiasHill", "", "", "", 1)
 """)
 
 script = ";".join([
@@ -358,6 +365,13 @@ delete_refused = b"can be deleted" in screen
 # Ctrl+Backspace, which ghostty sends as Ctrl+H, deletes the word before it.
 os.write(fd, b"/print WORDS one two\x08\r")
 pump(1)
+# A nick completed at the start of the line gets a space, no colon.
+os.write(fd, b"/buffer python.nickprobe\r")
+pump(0.3)
+os.write(fd, b"Tob\thi\r")
+pump(0.5)
+os.write(fd, b"/buffer core.weechat\r")
+pump(0.3)
 # Both teams connect: wee leaves the core buffer for the home buffer.
 os.write(fd, b"/print Connected to Slack team T1 (a) with username x\r")
 pump(0.5)
@@ -542,6 +556,10 @@ if kept_after_hide != 4:
     failed = True
 if len(kept) != 3:
     print("expected only the sent image left (Esc deletes a dropped one):", kept)
+    failed = True
+said = [l.rsplit("\t", 1)[-1] for l in log if "\tSAID=" in l]
+if said != ["SAID=[TobiasHill hi]"]:
+    print("nick completion at the start of the line:", said)
     failed = True
 if not any(l.rstrip().endswith("\tWORDS one") for l in log):
     print("Ctrl+H did not delete the previous word:",

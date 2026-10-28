@@ -41,7 +41,7 @@ with), `>` someone is typing there.
 - Enter sends. **Shift+Enter** or **Alt+Enter** inserts a newline.
 - **Ctrl+Backspace** (or Ctrl+W) deletes the word before the cursor.
 - **Ctrl+X** opens the message in nvim; save and quit to put it back, then Enter.
-- `@name<Tab>` completes anyone in the workspace.
+- `@name<Tab>` completes anyone in the workspace, followed by a space.
 - **Ctrl+V** with an image on the clipboard attaches it, previewed in a
   floating feh window; the input line shows `[📎 1 image]`. Each Ctrl+V adds
   one more. Esc or Enter first closes the preview; then Enter sends what you
