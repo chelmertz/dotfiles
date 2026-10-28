@@ -42,6 +42,7 @@ setup='/set plugins.var.python.slack.background_load_all_history false
 /set plugins.var.wee.buflist_all 0
 /mute /unset -mask weechat.notify.python.slack.*
 /set plugins.var.wee.home_buffer python.slack.matchi
+/set plugins.var.wee.todo_vault ~/sync/notes
 /set buflist.look.display_conditions "${raw:${buffer.hidden}==0 && (${current_buffer} || ${hotlist_priority_number}>=1 || ${buffer.local_variables.starred}==1 || ${buffer.local_variables.slack_latest}>${calc:${date:%s}-259200} || ${plugins.var.wee.buflist_all}==1)}"
 /alias addreplace all /toggle plugins.var.wee.buflist_all 1 0\;/buflist refresh
 /unset weechat.bar.input.items

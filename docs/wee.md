@@ -66,7 +66,15 @@ with), `>` someone is typing there.
   thread, in a thread buffer), **l** copy the permalink, **L** copy a wee link
   for your notes (below), **o** open its link (with several, the bar numbers
   them and a digit picks), **v** view its images in a floating feh (arrow keys
-  step through several; Esc or Enter in wee closes it).
+  step through several; Esc or Enter in wee closes it), **T** todo and **!**
+  todo now (below).
+- **Todos**: **T** adds `- [ ] author: start of the message [wee](wee://…)`,
+  with the whole message quoted under it, to today's daily note in
+  `~/sync/notes` (`plugins.var.wee.todo_vault`), above its first heading. From
+  tomorrow the daily note's surfaced backlog picks it up; **!** adds ⏫ for the
+  priority slot. A message already linked anywhere in the vault, done or not,
+  is never added twice. A notification says which note it went to, or that it
+  was there.
 - **wee links**: **L** copies `[wee](wee://…slack.com/archives/…)`. Pasted in
   Obsidian (or opened with `xdg-open`), a click brings wee forward with the
   menu on that message, threads included. A channel message older than wee has

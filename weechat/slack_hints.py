@@ -30,7 +30,14 @@
 # The menu's E puts one of your messages in the input (wee-slack's /slack
 # edit); Enter replaces it, and Esc, an emptied input or leaving the buffer
 # cancels. D deletes one of your messages after a y to confirm.
+#
+# The menu's T (todo) and ! (todo now, ⏫) append the message as an Obsidian
+# Tasks line with its wee link to today's daily note in
+# plugins.var.wee.todo_vault, creating the note from the daily template as
+# Obsidian would. A message already linked anywhere in the vault, open, done
+# or cancelled, is not added again. notify-send reports either way.
 # Installed from the dotfiles repo.
+import json
 import math
 import os
 import re
@@ -45,18 +52,14 @@ HINTS = [
     [
         ("Ctrl+K", "channels, people"),
         ("Alt+A", "next unread"),
-        ("/query name [name…]", "DM, group DM"),
         ("+:emoji:", "react"),
         ("Ctrl+X", "nvim"),
-        ("/all", "all buffers"),
     ],
     [
-        ("/rehistory -remote", "reload from Slack"),
-        ("/thread $id", "open thread"),
-        ("/close", "back"),
-        ("/u N", "open link N"),
-        ("Ctrl+click", "link; Alt+L if wrapped"),
         ("Shift+Space", "message menu"),
+        ("Ctrl+click", "link; Alt+L if wrapped"),
+        ("/all", "all buffers"),
+        ("/rehistory -remote", "reload from Slack"),
     ],
 ]
 
@@ -72,6 +75,8 @@ MENU = [
     ("Y", "copy all (whole thread)", "copy_all"),
     ("l", "copy permalink", "permalink"),
     ("L", "copy wee link", "weelink"),
+    ("T", "todo", "todo"),
+    ("!", "todo now", "todo_now"),
     ("o", "open link", "open"),
     ("v", "view images", "view"),
     ("k", "older", "older"),
@@ -354,7 +359,15 @@ def run_action(action, msgs):
         copy(permalink(buffer, msg))
     elif action == "weelink":
         # Markdown, for Obsidian: it hands the unknown scheme to xdg-open.
-        copy("[wee]({})".format(permalink(buffer, msg).replace("https://", "wee://", 1)))
+        copy("[wee]({})".format(weelink(buffer, msg)))
+    elif action in ("todo", "todo_now"):
+        try:
+            result = add_todo(msg, weelink(buffer, msg), action == "todo_now")
+        except (OSError, ValueError) as e:
+            result = "todo failed: {}".format(e)
+        show_notice(result)
+        subprocess.Popen(["notify-send", "-a", "wee", "wee", result],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif action == "view":
         view_images(buffer, [u for u in links(msg) if IMAGE.match(u)])
     elif action == "open":
@@ -380,6 +393,63 @@ def permalink(buffer, msg):
     w.buffer_set(buffer, "input", saved)
     w.buffer_set(buffer, "input_pos", str(pos))
     return url
+
+
+def weelink(buffer, msg):
+    return permalink(buffer, msg).replace("https://", "wee://", 1)
+
+
+THREAD_SUMMARY = re.compile(r"\s*\[ Thread: [^\]]*\]$")
+TODO_HEAD = 100  # screen columns of the message on the task line itself
+
+
+def add_todo(msg, link, now):
+    vault = os.path.expanduser(w.config_string(w.config_get("plugins.var.wee.todo_vault")))
+    if not os.path.isdir(vault):
+        raise ValueError("no vault at " + vault)
+    # The dedup key leaves out the scheme, so a pasted https permalink counts
+    # too, and ?thread_ts=…, which the message's own ts already pins down.
+    key = link.split("?")[0].split("://", 1)[1]
+    for root, dirs, files in os.walk(vault):
+        dirs[:] = [d for d in dirs if not d.startswith(".")]  # .obsidian, .trash
+        for name in files:
+            if name.endswith(".md"):
+                path = os.path.join(root, name)
+                with open(path, encoding="utf-8", errors="replace") as f:
+                    if key in f.read():
+                        return "todo already in " + os.path.relpath(path, vault)
+    # Obsidian's core daily notes settings; only the default date format.
+    with open(os.path.join(vault, ".obsidian", "daily-notes.json")) as f:
+        daily = json.load(f)
+    if daily.get("format", "YYYY-MM-DD") not in ("", "YYYY-MM-DD"):
+        raise ValueError("daily note format %s is not supported" % daily["format"])
+    today = time.strftime("%Y-%m-%d")
+    note = os.path.join(vault, daily.get("folder", ""), today + ".md")
+    if not os.path.exists(note) and daily.get("template"):
+        with open(os.path.join(vault, daily["template"] + ".md")) as f:
+            body = f.read().replace("{{date}}", today).replace("{{title}}", today)
+        with open(note, "w") as f:
+            f.write(body)
+    _, author, _, _ = msg[1][0]
+    lines = [e[2] for e in msg[1]]
+    lines[-1] = THREAD_SUMMARY.sub("", lines[-1])
+    # "#chan" would turn into a tag, which the backlog queries filter on; a
+    # "#" inside a URL is not a tag and stays.
+    text = re.sub(r"(^|\s)#", r"\1\\#", "\n".join(lines).strip())
+    task = "- [ ] {}: {} [wee]({}){}".format(
+        author.strip(), one_line(text, TODO_HEAD), link, " ⏫" if now else "")
+    quote = "".join("\n  > " + l if l else "\n  >" for l in text.split("\n"))
+    # Above the template's first heading, among what is written by hand: the
+    # backlog queries leave out the note they are in, and the end of the
+    # note is below an embed, out of sight.
+    body = open(note).read() if os.path.exists(note) else ""
+    if body and not body.endswith("\n"):
+        body += "\n"
+    heading = re.search(r"^## ", body, re.M)
+    at = heading.start() if heading else len(body)
+    with open(note, "w") as f:
+        f.write(body[:at] + task + quote + "\n" + body[at:])
+    return "todo added to " + os.path.relpath(note, vault)
 
 
 def link_opened_cb(data, signal, args):
@@ -780,7 +850,7 @@ def tick_cb(data, remaining_calls):
 
 def main():
     w.register(
-        "slack_hints", "", "1.21", "MIT",
+        "slack_hints", "", "1.22", "MIT",
         "Hint bar of wee-slack shortcuts with a loading indicator", "", "",
     )
     w.bar_item_new("slack_hints", "hints_item_cb", "")

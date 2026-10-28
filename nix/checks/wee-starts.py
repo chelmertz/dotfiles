@@ -57,6 +57,15 @@ for name in ("i3-msg", "notify-send"):
         f.write('#!/bin/sh\necho "%s $*" >> %s\n' % (name, i3log))
     os.chmod(os.path.join(stubs, name), 0o755)
 os.makedirs(os.path.join(tmp, "run"), mode=0o700)
+# An Obsidian vault for the menu's todo actions, without today's daily note.
+vault = os.path.join(tmp, "vault")
+os.makedirs(os.path.join(vault, ".obsidian"))
+os.makedirs(os.path.join(vault, "templates"))
+os.makedirs(os.path.join(vault, "journal"))
+with open(os.path.join(vault, ".obsidian", "daily-notes.json"), "w") as f:
+    f.write('{"folder":"journal","format":"YYYY-MM-DD","template":"templates/daily"}')
+with open(os.path.join(vault, "templates", "daily.md"), "w") as f:
+    f.write("## Surfaced backlog\n")
 # --dir puts the fifo there rather than in $XDG_RUNTIME_DIR/weechat, where
 # wee-open looks as it would for the real wee.
 os.symlink(weedir, os.path.join(tmp, "run", "weechat"))
@@ -162,6 +171,7 @@ script = ";".join([
     # Stand-in for the MATCHi team buffer bin/wee names as home.
     "/buffer add homeprobe",
     "/set plugins.var.wee.home_buffer core.homeprobe",
+    "/set plugins.var.wee.todo_vault " + vault,
     "/set plugins.var.python.go.people_info probe_people",
     "/buffer add yanbuf",
     "/mute /command -buffer core.yanbuf core /buffer set short_name +yan.person",
@@ -318,6 +328,18 @@ os.write(fd, ESC)
 pump(0.5)
 # A link that could carry a second command is refused before the fifo.
 bad_rc = subprocess.run([sys.executable, wee_open, link + "\n*/quit"], env=env).returncode
+# ! adds erin's message as a ⏫ todo, creating today's note from the
+# template; T on it again finds its link and adds nothing.
+os.write(fd, b"\x1b ")
+pump(0.5)
+os.write(fd, b"kk!")
+pump(1)
+os.write(fd, b"\x1b ")
+pump(0.5)
+os.write(fd, b"kkT")
+pump(1)
+today_note = os.path.join(vault, "journal", time.strftime("%Y-%m-%d") + ".md")
+todo_note = open(today_note).read() if os.path.exists(today_note) else ""
 # t in a thread goes back to its message (/slack parent), not deeper.
 os.write(fd, b"/buffer add threadprobe\r")
 pump(0.3)
@@ -511,6 +533,15 @@ calls = open(i3log).read().splitlines() if os.path.exists(i3log) else []
 if bad_rc == 0 or not any(c.startswith("i3-msg") and "org" in c for c in calls) or not any(
         c.startswith("notify-send") for c in calls):
     print("wee-open: a bad link should be refused and a good one focus wee:", bad_rc, calls)
+    failed = True
+todo_rel = "journal/%s.md" % time.strftime("%Y-%m-%d")
+todo_sent = [c for c in calls if c.startswith("notify-send") and "todo" in c]
+if todo_note != ("- [ ] erin: see https://one.example/a. "
+                 "[wee](wee://x.slack.com/archives/C1/p0000000002200000) ⏫\n"
+                 "  > see https://one.example/a.\n## Surfaced backlog\n") or todo_sent != [
+        "notify-send -a wee wee todo added to " + todo_rel,
+        "notify-send -a wee wee todo already in " + todo_rel]:
+    print("menu ! then T: note %r, notifications %s" % (todo_note, todo_sent))
     failed = True
 edits = [c for c in slacks if c.startswith("/slack edit")]
 if edits != ["/slack edit 9.9", "/slack edit"] * 2 or not editing_shown or not not_yours_shown:
