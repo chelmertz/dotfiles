@@ -90,6 +90,14 @@
     recursive = true;
   };
 
+  # Verbatim copy of eversport/ai-knowledgebase .claude/skills/spec-ideation
+  # (main c66d206, 2026-10-06), so ideation works outside that repo. Temporary:
+  # delete when the team ships these skills as a Claude Code plugin.
+  home.file.".claude/skills/spec-ideation" = {
+    source = ../claude/skills/spec-ideation;
+    recursive = true;
+  };
+
   home.file.".claude/skills/handoff" = {
     source = ../claude/skills/handoff;
     recursive = true;
