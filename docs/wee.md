@@ -68,13 +68,14 @@ with), `>` someone is typing there.
   them and a digit picks), **v** view its images in a floating feh (arrow keys
   step through several; Esc or Enter in wee closes it), **T** todo and **!**
   todo now (below).
-- **Todos**: **T** adds `- [ ] author: start of the message [wee](wee://…)`,
-  with the whole message quoted under it, to today's daily note in
-  `~/sync/notes` (`plugins.var.wee.todo_vault`), above its first heading. From
-  tomorrow the daily note's surfaced backlog picks it up; **!** adds ⏫ for the
-  priority slot. A message already linked anywhere in the vault, done or not,
-  is never added twice. A notification says which note it went to, or that it
-  was there.
+- **Todos**: **T** appends `- [ ] author: start of the message [wee](wee://…)
+  ➕ date`, with up to five lines of the message quoted under it, to
+  `slack.md` in `~/sync/notes` (`plugins.var.wee.todo_vault`). The daily
+  note's Slack section shows the next three, ⏫ first and then oldest, and
+  refills as they are checked off; **!** adds the ⏫. A message already linked
+  anywhere in the vault, done or not, is never added twice. A notification
+  says it was added, or where it already is. The section lives in the
+  vault's `templates/daily.md`, not in this repo.
 - **wee links**: **L** copies `[wee](wee://…slack.com/archives/…)`. Pasted in
   Obsidian (or opened with `xdg-open`), a click brings wee forward with the
   menu on that message, threads included. A channel message older than wee has

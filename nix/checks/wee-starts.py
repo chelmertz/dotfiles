@@ -57,15 +57,9 @@ for name in ("i3-msg", "notify-send"):
         f.write('#!/bin/sh\necho "%s $*" >> %s\n' % (name, i3log))
     os.chmod(os.path.join(stubs, name), 0o755)
 os.makedirs(os.path.join(tmp, "run"), mode=0o700)
-# An Obsidian vault for the menu's todo actions, without today's daily note.
+# An Obsidian vault for the menu's todo actions, without slack.md yet.
 vault = os.path.join(tmp, "vault")
-os.makedirs(os.path.join(vault, ".obsidian"))
-os.makedirs(os.path.join(vault, "templates"))
-os.makedirs(os.path.join(vault, "journal"))
-with open(os.path.join(vault, ".obsidian", "daily-notes.json"), "w") as f:
-    f.write('{"folder":"journal","format":"YYYY-MM-DD","template":"templates/daily"}')
-with open(os.path.join(vault, "templates", "daily.md"), "w") as f:
-    f.write("## Surfaced backlog\n")
+os.makedirs(vault)
 # --dir puts the fifo there rather than in $XDG_RUNTIME_DIR/weechat, where
 # wee-open looks as it would for the real wee.
 os.symlink(weedir, os.path.join(tmp, "run", "weechat"))
@@ -328,8 +322,9 @@ os.write(fd, ESC)
 pump(0.5)
 # A link that could carry a second command is refused before the fifo.
 bad_rc = subprocess.run([sys.executable, wee_open, link + "\n*/quit"], env=env).returncode
-# ! adds erin's message as a ⏫ todo, creating today's note from the
-# template; T on it again finds its link and adds nothing.
+# ! adds erin's message as a ⏫ todo to slack.md; T on it again finds its
+# link and adds nothing.
+todo_path = os.path.join(vault, "slack.md")
 os.write(fd, b"\x1b ")
 pump(0.5)
 os.write(fd, b"kk!")
@@ -338,8 +333,16 @@ os.write(fd, b"\x1b ")
 pump(0.5)
 os.write(fd, b"kkT")
 pump(1)
-today_note = os.path.join(vault, "journal", time.strftime("%Y-%m-%d") + ".md")
-todo_note = open(today_note).read() if os.path.exists(today_note) else ""
+todo_note = open(todo_path).read() if os.path.exists(todo_path) else ""
+# carol's 600 words quote only up to the cutoff. The stub link is the same for
+# every message, so erin's todo has to go first.
+os.remove(todo_path)
+os.write(fd, b"\x1b ")
+pump(0.5)
+os.write(fd, b"T")
+pump(1)
+long_quote = [l for l in open(todo_path).read().splitlines() if l.startswith("  >")] \
+    if os.path.exists(todo_path) else []
 # t in a thread goes back to its message (/slack parent), not deeper.
 os.write(fd, b"/buffer add threadprobe\r")
 pump(0.3)
@@ -534,14 +537,18 @@ if bad_rc == 0 or not any(c.startswith("i3-msg") and "org" in c for c in calls) 
         c.startswith("notify-send") for c in calls):
     print("wee-open: a bad link should be refused and a good one focus wee:", bad_rc, calls)
     failed = True
-todo_rel = "journal/%s.md" % time.strftime("%Y-%m-%d")
 todo_sent = [c for c in calls if c.startswith("notify-send") and "todo" in c]
 if todo_note != ("- [ ] erin: see https://one.example/a. "
-                 "[wee](wee://x.slack.com/archives/C1/p0000000002200000) ⏫\n"
-                 "  > see https://one.example/a.\n## Surfaced backlog\n") or todo_sent != [
-        "notify-send -a wee wee todo added to " + todo_rel,
-        "notify-send -a wee wee todo already in " + todo_rel]:
+                 "[wee](wee://x.slack.com/archives/C1/p0000000002200000) ⏫ ➕ %s\n"
+                 "  > see https://one.example/a.\n" % time.strftime("%Y-%m-%d")) or todo_sent[:2] != [
+        "notify-send -a wee wee todo added to slack.md",
+        "notify-send -a wee wee todo already in slack.md"]:
     print("menu ! then T: note %r, notifications %s" % (todo_note, todo_sent))
+    failed = True
+if (not 1 <= len(long_quote) <= 5 or not long_quote[-1].endswith("…")
+        or sum(len(l) - 4 for l in long_quote) > 401):
+    print("menu T on a huge message quoted %d lines, %d chars: %r" % (
+        len(long_quote), sum(map(len, long_quote)), [l[-20:] for l in long_quote]))
     failed = True
 edits = [c for c in slacks if c.startswith("/slack edit")]
 if edits != ["/slack edit 9.9", "/slack edit"] * 2 or not editing_shown or not not_yours_shown:
