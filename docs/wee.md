@@ -59,7 +59,8 @@ with), `>` someone is typing there.
 - **r** reply in thread (works with no thread yet), **t** open thread (in a
   thread: close it and back to the message it started from), **e** react
   (prefills `$id+:`), **E** edit your own message (its text goes in the input:
-  Enter saves; Esc, emptying the input or leaving the buffer cancels), **y**
+  Enter saves; Esc, emptying the input or leaving the buffer cancels), **D**
+  delete your own message (asks: **y** deletes, any other key keeps it), **y**
   copy with date and author, **Y** copy every message in the buffer (the whole
   thread, in a thread buffer), **l** copy the permalink, **L** copy a wee link
   for your notes (below), **o** open its link (with several, the bar numbers
