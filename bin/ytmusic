@@ -6,7 +6,24 @@
 # i3's own focus command, not wmctrl: an _NET_ACTIVE_WINDOW request for a
 # window on another workspace only marks it urgent under i3's default
 # focus_on_window_activation.
+#
+# One instance only. Holding F8 repeats the key for the seconds Chromium takes
+# to map its window, and every call used to start another one (each handing
+# its URL to the first process, which opened one more window). The browser
+# runs in ytmusic.scope, and systemd refuses to create a unit that exists, so
+# the name is the lock; it goes with the scope, so a crash leaves none behind.
+# A scope with no window after STALE seconds is a leftover (children that
+# outlived a crashed browser, as wee had): stop it and start fresh.
+
+unit=ytmusic
+STALE=20
 
 i3-msg -q '[instance="music.youtube.com"] focus' 2>/dev/null && exit 0
-nohup chromium --user-data-dir="$HOME/.local/share/ytmusic-chromium" \
+if systemctl --user -q is-active "$unit.scope"; then
+	since=$(systemctl --user show --timestamp=unix -P ActiveEnterTimestamp "$unit.scope")
+	[ $(($(date +%s) - ${since#@})) -lt $STALE ] && exit 0
+	systemctl --user stop "$unit.scope"
+fi
+nohup systemd-run --user --scope --collect --quiet --unit="$unit" \
+	chromium --user-data-dir="$HOME/.local/share/ytmusic-chromium" \
 	--app=https://music.youtube.com >/dev/null 2>&1 &
