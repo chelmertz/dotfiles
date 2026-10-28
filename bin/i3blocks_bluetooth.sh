@@ -15,6 +15,11 @@ if [[ "$BLOCK_BUTTON" -eq 1 ]]; then
 		bluetoothctl power on >/dev/null
 		bluetoothctl connect "$MAC" >/dev/null || bluetoothctl power off >/dev/null
 	fi
+# Headphones that switch off or leave range drop the link but leave the radio
+# on. i3blocks never overlaps runs of a block, so this cannot cut a click's
+# connect short.
+elif ! connected && bluetoothctl show | grep -q 'Powered: yes'; then
+	bluetoothctl power off >/dev/null
 fi
 
 # font awesome bluetooth f293
