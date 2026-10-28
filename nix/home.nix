@@ -998,6 +998,7 @@ in
   # adversarial review, first round only: personas cost minutes per run.
   xdg.configFile."claude-review/config.json".text = builtins.toJSON {
     post_without_asking = true;
+    clone_path = "~/code/github/{owner}/{repo}";
     review_prompt = ''
       Perform an adversarial code review of {url}.
 
