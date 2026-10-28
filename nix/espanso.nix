@@ -338,6 +338,10 @@
         trigger = "::think";
         replace = "🤔";
       }
+      {
+        trigger = "::robot";
+        replace = "🤖";
+      }
 
       {
         trigger = "::red";
