@@ -39,6 +39,7 @@ with), `>` someone is typing there.
 ## Writing
 
 - Enter sends. **Shift+Enter** or **Alt+Enter** inserts a newline.
+- **Ctrl+Backspace** (or Ctrl+W) deletes the word before the cursor.
 - **Ctrl+X** opens the message in nvim; save and quit to put it back, then Enter.
 - `@name<Tab>` completes anyone in the workspace.
 - **Ctrl+V** with an image on the clipboard attaches it, previewed in a

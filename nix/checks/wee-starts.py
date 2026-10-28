@@ -355,6 +355,9 @@ pump(0.5)
 os.write(fd, b"kD")
 pump(1)
 delete_refused = b"can be deleted" in screen
+# Ctrl+Backspace, which ghostty sends as Ctrl+H, deletes the word before it.
+os.write(fd, b"/print WORDS one two\x08\r")
+pump(1)
 # Both teams connect: wee leaves the core buffer for the home buffer.
 os.write(fd, b"/print Connected to Slack team T1 (a) with username x\r")
 pump(0.5)
@@ -537,6 +540,10 @@ if kept_after_hide != 4:
     failed = True
 if len(kept) != 3:
     print("expected only the sent image left (Esc deletes a dropped one):", kept)
+    failed = True
+if not any(l.rstrip().endswith("\tWORDS one") for l in log):
+    print("Ctrl+H did not delete the previous word:",
+          [l.rsplit("\t", 1)[-1] for l in log if "\tWORDS" in l])
     failed = True
 if not any(l.endswith("\tPASTEDTEXT") for l in log):
     print("Ctrl+V without an image did not paste the text")
