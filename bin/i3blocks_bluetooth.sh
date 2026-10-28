@@ -7,10 +7,13 @@ connected() {
 }
 
 if [[ "$BLOCK_BUTTON" -eq 1 ]]; then
+	# The radio is off unless in use; see hardware.bluetooth in tau's configuration.nix.
 	if connected; then
 		bluetoothctl disconnect "$MAC" >/dev/null
+		bluetoothctl power off >/dev/null
 	else
-		bluetoothctl connect "$MAC" >/dev/null
+		bluetoothctl power on >/dev/null
+		bluetoothctl connect "$MAC" >/dev/null || bluetoothctl power off >/dev/null
 	fi
 fi
 

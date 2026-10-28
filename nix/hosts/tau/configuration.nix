@@ -218,9 +218,11 @@
     pulse.enable = true;
   };
 
+  # The radio stays off until the i3blocks bluetooth icon is clicked, which
+  # powers it on and connects the headphones; disconnecting powers it off.
   hardware.bluetooth = {
     enable = true;
-    powerOnBoot = true;
+    powerOnBoot = false;
   };
 
   # HP Color LaserJet MFP M281fdw, found over the network.
