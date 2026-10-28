@@ -402,8 +402,9 @@ pump(1)
 os.write(fd, b"/quit\r")
 pump(3)
 os.waitpid(pid, 0)
-# No wee running: the Slack link opens in the browser instead.
-subprocess.run([sys.executable, wee_open, link], env=env)
+# No wee running: wee-open says so and opens nothing.
+browsed_before = open(opened).read() if os.path.exists(opened) else ""
+nowee_rc = subprocess.run([sys.executable, wee_open, link], env=env).returncode
 
 log = open(os.path.join(weedir, "logs", "core.weechat.weechatlog"),
            encoding="utf-8", errors="replace").read().splitlines()
@@ -452,7 +453,7 @@ if not recent_listed or stale_listed:
     print("buflist: recent buffer listed=%s (want True), stale listed=%s"
           " (want False)" % (recent_listed, stale_listed))
     failed = True
-urls = open(opened).read().split()[:-1] if os.path.exists(opened) else []
+urls = open(opened).read().split() if os.path.exists(opened) else []
 if urls != ["https://two.example/y", "https://one.example/a"]:
     print("open link: want the second of two, then the only one; got", urls)
     failed = True
@@ -510,9 +511,10 @@ if deletes != ["slack_ts_9.9"] or not delete_asked or not delete_refused:
 if slacks.count("/slack parent") != 1:
     print("menu t in a thread should run /slack parent once:", slacks)
     failed = True
-browsed = open(opened).read().split() if os.path.exists(opened) else []
-if browsed[-1:] != ["https://x.slack.com/archives/C1/p0000000002200000"]:
-    print("wee-open with no wee should open the Slack link:", browsed)
+browsed = open(opened).read() if os.path.exists(opened) else ""
+calls = open(i3log).read().splitlines() if os.path.exists(i3log) else []
+if nowee_rc == 0 or browsed != browsed_before or "not running" not in calls[-1]:
+    print("wee-open with no wee should only notify:", nowee_rc, repr(browsed[len(browsed_before):]), calls[-1:])
     failed = True
 uploads = [c for c in slacks if c.startswith("/slack upload")]
 downloads = [l.split("SLACK=", 1)[1] for l in log if "\tSLACK=/slack download " in l]

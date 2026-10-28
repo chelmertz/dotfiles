@@ -534,7 +534,7 @@ in
     };
 
     # The xdg handler for wee:// links (the message menu's L): opens the
-    # message in the running wee, or the Slack link in the browser without one.
+    # message in the running wee.
     ".local/bin/wee-open" = {
       source = "${wrapBin {
         name = "wee-open";
@@ -542,7 +542,6 @@ in
         deps = [
           pkgs.i3
           pkgs.libnotify
-          pkgs.xdg-utils
         ];
       }}/bin/wee-open";
       executable = true;

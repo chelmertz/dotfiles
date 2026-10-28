@@ -6,8 +6,8 @@ Usage: wee-open wee://<team>.slack.com/archives/<channel>/p<ts>[?thread_ts=…]
 The message menu's L copies these for notes: a Slack message link with the
 scheme swapped, so clicking one in Obsidian lands in wee rather than the
 browser. The link goes to wee-slack's /slack openlink through weechat's fifo
-and i3 focuses the wee window; with no wee running, the Slack link opens in
-the browser instead.
+and i3 focuses the wee window. With no wee running it only says so: the
+browser would hand the link on to the Slack app.
 """
 
 import glob
@@ -50,7 +50,8 @@ def main(argv):
         return 1
     url = "https://" + match.group(1)
     if not send("*/slack openlink " + url):
-        os.execvp("xdg-open", ["xdg-open", url])
+        subprocess.run(["notify-send", "wee-open", "wee is not running: F9, then the link again"])
+        return 1
     subprocess.run(["i3-msg", "-q", '[class="^org\\.weechat\\.wee$"] focus'])
     return 0
 

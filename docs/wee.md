@@ -70,8 +70,8 @@ with), `>` someone is typing there.
 - **wee links**: **L** copies `[wee](wee://…slack.com/archives/…)`. Pasted in
   Obsidian (or opened with `xdg-open`), a click brings wee forward with the
   menu on that message, threads included. A channel message older than wee has
-  loaded opens the channel with a notice instead. With wee closed it opens in
-  the browser.
+  loaded opens the channel with a notice instead. With wee closed it only
+  says so: start wee, wait for it to connect, then click again.
 - **q** or **Esc** closes the menu; any other key closes it and does what it
   normally does. Esc also cancels Ctrl+K. (The wee window's ghostty sends Esc
   as a code weechat can tell apart from Alt+key; elsewhere in weechat a bare
