@@ -92,7 +92,7 @@ func TestTendPrompt(t *testing.T) {
 
 func TestLaunchArgs(t *testing.T) {
 	argv, env := launchArgs("/home/x/p/m/a", "p:m/a", "", "")
-	if strings.Join(argv, " ") != "ghostty --x11-instance-name=p:m/a --working-directory=/home/x/p/m/a -e zsh -ic eval \"$(direnv export zsh)\"; claude; exec zsh" {
+	if strings.Join(argv, " ") != "ghostty --x11-instance-name=p:m/a --working-directory=/home/x/p/m/a -e zsh -ic claude; exec zsh" {
 		t.Fatalf("%q", argv)
 	}
 	for _, e := range env {
@@ -101,7 +101,7 @@ func TestLaunchArgs(t *testing.T) {
 		}
 	}
 	argv, env = launchArgs("/home/x/p/m/a", "p:m/a", "fix it \"now\"", "tend")
-	if argv[len(argv)-1] != `eval "$(direnv export zsh)"; claude "$P_LAUNCHER_PROMPT"; exec zsh` {
+	if argv[len(argv)-1] != `claude "$P_LAUNCHER_PROMPT"; exec zsh` {
 		t.Fatalf("%q", argv)
 	}
 	found := false

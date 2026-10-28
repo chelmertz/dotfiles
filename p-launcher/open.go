@@ -134,16 +134,11 @@ func launch(dir, tag, prompt, origin string) (*exec.Cmd, error) {
 // origin ("tend") is exported as P_LAUNCHER_ORIGIN, which the hooks inherit
 // through claude and record on the session's session_start event, so the
 // report can tell automatic sessions from the user's own.
-//
-// zsh -ic never draws a prompt before claude starts, so direnv's prompt hook
-// never fires; the explicit export gives claude the project's .envrc (e.g. a
-// per-company AWS_CONFIG_FILE). A blocked .envrc only warns, claude still runs.
 func launchArgs(dir, tag, prompt, origin string) (argv, env []string) {
-	const direnv = `eval "$(direnv export zsh)"; `
-	shell := direnv + "claude; exec zsh"
+	shell := "claude; exec zsh"
 	env = scrubEnv(os.Environ())
 	if prompt != "" {
-		shell = direnv + `claude "$P_LAUNCHER_PROMPT"; exec zsh`
+		shell = `claude "$P_LAUNCHER_PROMPT"; exec zsh`
 		env = append(env, "P_LAUNCHER_PROMPT="+prompt)
 	}
 	if origin != "" {
