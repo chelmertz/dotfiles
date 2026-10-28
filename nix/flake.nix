@@ -7,6 +7,11 @@
     # not on cache.nixos.org and rebuild locally on every bump, the same
     # reason the overlay below takes vscode from here.
     nixpkgs-stable.url = "github:nixos/nixpkgs/nixos-26.05";
+    # ghostty 1.4.0 fixes the OSC 9;4 progress bar that kept every window
+    # animating after it was cleared. The bump merged to master 2026-10-27,
+    # ahead of nixos-unstable; drop this input and its overlay once unstable
+    # ships 1.4.0.
+    nixpkgs-ghostty.url = "github:nixos/nixpkgs/6b9287bf90bf1cdd453fe2e17c88ecb9204057e7";
     disko = {
       url = "github:nix-community/disko";
       inputs.nixpkgs.follows = "nixpkgs-stable";
@@ -63,6 +68,7 @@
       self,
       nixpkgs,
       nixpkgs-stable,
+      nixpkgs-ghostty,
       home-manager,
       claude-code,
       elly,
@@ -126,6 +132,8 @@
             overlays = [
               # flameshot 14 routes capture through xdg-desktop-portal and hangs 30s on bare i3/X11
               (final: prev: { flameshot = pkgsStable.flameshot; })
+              # See the nixpkgs-ghostty input.
+              (final: prev: { ghostty = nixpkgs-ghostty.legacyPackages.${system}.ghostty; })
               # Unfree packages are not on cache.nixos.org (Hydra will not redistribute
               # them), so each bump downloads a vendor tarball and unpacks it locally —
               # 1.4G for vscode alone. Stable lags a release behind but rebuilds rarely.

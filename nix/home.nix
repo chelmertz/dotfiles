@@ -928,7 +928,9 @@ in
       window-decoration = "none";
       gtk-tabs-location = "hidden";
 
-      copy-on-select = "clipboard";
+      # Since 1.4.0 "clipboard" copies only to the system clipboard; "both" also
+      # fills the primary selection, so middle-click paste keeps working.
+      copy-on-select = "both";
       # Silences the "Copied to clipboard" toast that fires on every selection
       # under copy-on-select. Keeps config-reload notifications.
       app-notifications = "no-clipboard-copy";

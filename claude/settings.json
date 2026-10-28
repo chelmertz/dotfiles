@@ -191,5 +191,5 @@
     "superpowers:executing-plans": "user-invocable-only"
   },
   "autoCompactWindow": "500k",
-  "terminalProgressBarEnabled": false
+  "terminalProgressBarEnabled": true
 }
