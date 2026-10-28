@@ -56,12 +56,20 @@ with), `>` someone is typing there.
 - **Shift+Space** (or Alt+Space) on an empty input line opens a menu in the
   bottom bar for one message, previewed at its top: the newest, or step with
   **k** (older) and **j** (newer). With text typed it is just a space.
-- **r** reply in thread (works with no thread yet), **t** open thread,
-  **e** react (prefills `$id+:`), **y** copy with date and author,
-  **Y** copy every message in the buffer (the whole thread, in a thread
-  buffer), **l** copy the permalink, **o** open its link (with several, the
-  bar numbers them and a digit picks), **v** view its images in a floating
-  feh (arrow keys step through several; Esc or Enter in wee closes it).
+- **r** reply in thread (works with no thread yet), **t** open thread (in a
+  thread: close it and back to the message it started from), **e** react
+  (prefills `$id+:`), **E** edit your own message (its text goes in the input:
+  Enter saves; Esc, emptying the input or leaving the buffer cancels), **y**
+  copy with date and author, **Y** copy every message in the buffer (the whole
+  thread, in a thread buffer), **l** copy the permalink, **L** copy a wee link
+  for your notes (below), **o** open its link (with several, the bar numbers
+  them and a digit picks), **v** view its images in a floating feh (arrow keys
+  step through several; Esc or Enter in wee closes it).
+- **wee links**: **L** copies `[wee](wee://…slack.com/archives/…)`. Pasted in
+  Obsidian (or opened with `xdg-open`), a click brings wee forward with the
+  menu on that message, threads included. A channel message older than wee has
+  loaded opens the channel with a notice instead. With wee closed it opens in
+  the browser.
 - **q** or **Esc** closes the menu; any other key closes it and does what it
   normally does. Esc also cancels Ctrl+K. (The wee window's ghostty sends Esc
   as a code weechat can tell apart from Alt+key; elsewhere in weechat a bare

@@ -279,7 +279,7 @@
                 ];
               }
               ''
-                python3 ${./checks/wee-starts.py} ${../bin/wee} ${../weechat/slack_hints.py}
+                python3 ${./checks/wee-starts.py} ${../bin/wee} ${../weechat/slack_hints.py} ${../bin/wee-open}
                 touch $out
               '';
 

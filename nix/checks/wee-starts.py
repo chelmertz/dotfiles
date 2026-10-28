@@ -1,7 +1,7 @@
 """Start wee the way F9 does and fail on any script error.
 
-Usage: wee-starts.py <bin/wee> <slack_hints.py>, with the configured weechat
-on PATH.
+Usage: wee-starts.py <bin/wee> <slack_hints.py> <bin/wee-open>, with the
+configured weechat on PATH.
 
 Runs the real bin/wee (its setup block included) with -a, so wee-slack loads
 but never connects: no network, no tokens. The terminal is a pty with a real
@@ -18,9 +18,10 @@ import re
 import struct
 import sys
 import termios
+import subprocess
 import time
 
-wee, hints = sys.argv[1], sys.argv[2]
+wee, hints, wee_open = sys.argv[1], sys.argv[2], sys.argv[3]
 tmp = os.environ.get("TMPDIR", "/tmp")
 weedir = os.path.join(tmp, "weechat")
 os.makedirs(os.path.join(weedir, "python", "autoload"))
@@ -38,16 +39,27 @@ os.chmod(os.path.join(stubs, "xdg-open"), 0o755)
 # Ctrl+V reads the clipboard through xclip and previews images with feh. The
 # stub clipboard holds an image unless clipmode says "text".
 clipmode = os.path.join(tmp, "clipmode")
+copied = os.path.join(tmp, "copied")
 fehargs = os.path.join(tmp, "fehargs")
 with open(os.path.join(stubs, "xclip"), "w") as f:
     f.write('#!/bin/sh\ncase "$*" in\n'
             '*TARGETS*) [ "$(cat %s 2>/dev/null)" = text ] || echo image/png ;;\n'
-            '*image/png*) printf PNG ;;\n*) printf PASTEDTEXT ;;\nesac\n' % clipmode)
+            '*image/png*) printf PNG ;;\n*-o*) printf PASTEDTEXT ;;\n*) cat > %s ;;\nesac\n'
+            % (clipmode, copied))
 os.chmod(os.path.join(stubs, "xclip"), 0o755)
 with open(os.path.join(stubs, "feh"), "w") as f:
     f.write('#!/bin/sh\necho "$*" >> %s\nexec sleep 60\n' % fehargs)
 os.chmod(os.path.join(stubs, "feh"), 0o755)
+# wee-open focuses wee through i3 and reports a bad link with notify-send.
+i3log = os.path.join(tmp, "i3log")
+for name in ("i3-msg", "notify-send"):
+    with open(os.path.join(stubs, name), "w") as f:
+        f.write('#!/bin/sh\necho "%s $*" >> %s\n' % (name, i3log))
+    os.chmod(os.path.join(stubs, name), 0o755)
 os.makedirs(os.path.join(tmp, "run"), mode=0o700)
+# --dir puts the fifo there rather than in $XDG_RUNTIME_DIR/weechat, where
+# wee-open looks as it would for the real wee.
+os.symlink(weedir, os.path.join(tmp, "run", "weechat"))
 # A token list of "," (empty is "unset", which restores the placeholder):
 # wee-slack connects to zero teams instead of trying its
 # placeholder token and printing ERROR lines, which wee counts as a broken start.
@@ -104,8 +116,17 @@ def slack(data, buffer, command):
         path = command.split()[-1]
         open(path, "w").close()
         w.hook_signal_send("slack_download_done", w.WEECHAT_HOOK_SIGNAL_STRING, path)
+    if command.startswith("/slack openlink "):  # as wee-slack: on bob's message
+        w.hook_signal_send("slack_link_opened", w.WEECHAT_HOOK_SIGNAL_STRING,
+                           w.current_buffer() + " 2.2")
     return w.WEECHAT_RC_OK_EAT
 w.hook_command_run("/slack *", "slack", "")
+# As wee-slack's linkarchive: types the message's Slack link.
+def linkarchive(data, signal, hashtable):
+    w.command(hashtable["_buffer"],
+              "/input insert https://x.slack.com/archives/C1/p0000000002200000")
+    return w.WEECHAT_RC_OK
+w.hook_hsignal("slack_cursor_linkarchive", "linkarchive", "")
 """)
 
 script = ";".join([
@@ -267,6 +288,54 @@ os.write(fd, b"/print \x16")  # no image: Ctrl+V pastes the text
 pump(1)
 os.write(fd, b"\r")
 pump(1)
+# L copies a wee:// link; wee-open hands it to wee through the fifo, and the
+# menu opens on the message it names.
+os.write(fd, b"\x1b ")
+pump(0.5)
+os.write(fd, b"kkL")
+pump(1)
+weelink = open(copied).read() if os.path.exists(copied) else ""
+env = dict(os.environ, XDG_RUNTIME_DIR=os.path.join(tmp, "run"),
+           PATH=stubs + ":" + os.environ["PATH"])
+link = weelink[weelink.find("(") + 1:-1]
+before = len(screen)
+opened_rc = subprocess.run([sys.executable, wee_open, link], env=env).returncode
+pump(1.5)
+landed = "▶ bob".encode() in re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", bytes(screen[before:]))
+os.write(fd, ESC)
+pump(0.5)
+# A link that could carry a second command is refused before the fifo.
+bad_rc = subprocess.run([sys.executable, wee_open, link + "\n*/quit"], env=env).returncode
+# t in a thread goes back to its message (/slack parent), not deeper.
+os.write(fd, b"/buffer add threadprobe\r")
+pump(0.3)
+os.write(fd, b"/buffer set localvar_set_slack_type thread\r")
+pump(0.3)
+os.write(fd, b"/print -tags slack_ts_4.4 gus\\treply\r")
+pump(0.3)
+os.write(fd, b"\x1b ")
+pump(0.5)
+os.write(fd, b"t")
+pump(1)
+os.write(fd, b"/buffer core.weechat\r")
+pump(0.5)
+# E on your own message (wee-slack tags it self_msg) starts an edit. An
+# emptied input's Enter cancels it, as Esc does; no one else's is editable.
+os.write(fd, b"/print -tags slack_ts_9.9,self_msg me\\tmine\r")
+pump(0.3)
+for cancel in (b"\r", ESC):
+    os.write(fd, b"\x1b ")
+    pump(0.5)
+    os.write(fd, b"E")
+    pump(1)
+    os.write(fd, cancel)
+    pump(1)
+editing_shown = "✏ editing".encode() in screen and b"edit cancelled" in screen
+os.write(fd, b"\x1b ")
+pump(0.5)
+os.write(fd, b"kE")
+pump(1)
+not_yours_shown = b"only your own messages" in screen
 # Both teams connect: wee leaves the core buffer for the home buffer.
 os.write(fd, b"/print Connected to Slack team T1 (a) with username x\r")
 pump(0.5)
@@ -311,6 +380,8 @@ pump(1)
 os.write(fd, b"/quit\r")
 pump(3)
 os.waitpid(pid, 0)
+# No wee running: the Slack link opens in the browser instead.
+subprocess.run([sys.executable, wee_open, link], env=env)
 
 log = open(os.path.join(weedir, "logs", "core.weechat.weechatlog"),
            encoding="utf-8", errors="replace").read().splitlines()
@@ -359,7 +430,7 @@ if not recent_listed or stale_listed:
     print("buflist: recent buffer listed=%s (want True), stale listed=%s"
           " (want False)" % (recent_listed, stale_listed))
     failed = True
-urls = open(opened).read().split() if os.path.exists(opened) else []
+urls = open(opened).read().split()[:-1] if os.path.exists(opened) else []
 if urls != ["https://two.example/y", "https://one.example/a"]:
     print("open link: want the second of two, then the only one; got", urls)
     failed = True
@@ -390,8 +461,33 @@ if not attached_shown:
 if not enter_closed_preview:
     print("the first Enter with the preview open did not just close it")
     failed = True
-uploads = [l.split("SLACK=", 1)[1] for l in log
-           if "\tSLACK=" in l and "/slack download " not in l]
+slacks = [l.split("SLACK=", 1)[1] for l in log if "\tSLACK=" in l]
+if weelink != "[wee](wee://x.slack.com/archives/C1/p0000000002200000)":
+    print("menu L copied:", repr(weelink))
+    failed = True
+if (opened_rc != 0 or "/slack openlink https://x.slack.com/archives/C1/p0000000002200000" not in slacks
+        or not landed):
+    print("wee-open: rc=%s, openlink sent=%s, menu landed on the message=%s"
+          % (opened_rc, [c for c in slacks if "openlink" in c], landed))
+    failed = True
+calls = open(i3log).read().splitlines() if os.path.exists(i3log) else []
+if bad_rc == 0 or not any(c.startswith("i3-msg") and "org" in c for c in calls) or not any(
+        c.startswith("notify-send") for c in calls):
+    print("wee-open: a bad link should be refused and a good one focus wee:", bad_rc, calls)
+    failed = True
+edits = [c for c in slacks if c.startswith("/slack edit")]
+if edits != ["/slack edit 9.9", "/slack edit"] * 2 or not editing_shown or not not_yours_shown:
+    print("menu E: edits=%s, editing marker and cancel notice=%s, refused another's=%s"
+          % (edits, editing_shown, not_yours_shown))
+    failed = True
+if slacks.count("/slack parent") != 1:
+    print("menu t in a thread should run /slack parent once:", slacks)
+    failed = True
+browsed = open(opened).read().split() if os.path.exists(opened) else []
+if browsed[-1:] != ["https://x.slack.com/archives/C1/p0000000002200000"]:
+    print("wee-open with no wee should open the Slack link:", browsed)
+    failed = True
+uploads = [c for c in slacks if c.startswith("/slack upload")]
 downloads = [l.split("SLACK=", 1)[1] for l in log if "\tSLACK=/slack download " in l]
 if (len(downloads) != 1 or not re.match(
         r"/slack download https://files\.slack\.com/files-pri/T1-F1/pic\.png \S+/run/wee-view/0-pic\.png$",

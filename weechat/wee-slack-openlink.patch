@@ -1,0 +1,113 @@
+--- a/wee_slack.py
++++ b/wee_slack.py
+@@ -6743,6 +6743,110 @@
+ 
+ 
+ @utf8_decode
++def command_openlink(data, current_buffer, args):
++    """
++    /slack openlink <url>
++    Shows the conversation or thread a Slack message link points at, then
++    sends the signal slack_link_opened with "<buffer> <ts>" of the message.
++    """
++    match = re.match(
++        r"https://([\w.-]+)/archives/(\w+)(?:/p(\d{10})(\d{6}))?"
++        r"(?:\?thread_ts=(\d+\.\d+))?",
++        args.strip(),
++    )
++    team = match and next(
++        (t for t in EVENTROUTER.teams.values() if t.domain == match.group(1)), None
++    )
++    channel = team and team.channels.get(match.group(2))
++    if not channel:
++        w.prnt("", "ERROR: no conversation in wee for {}".format(args))
++        return w.WEECHAT_RC_ERROR
++    # Never joins: a link to a channel you are not in only reads it.
++    if not channel.channel_buffer:
++        channel.open(update_remote=False)
++    w.buffer_set(channel.channel_buffer, "display", "1")
++    ts = match.group(3) and "{}.{}".format(match.group(3), match.group(4))
++    thread_ts = match.group(5)
++    if not thread_ts or thread_ts == ts:
++        link_opened(channel.channel_buffer, ts)
++    elif SlackTS(thread_ts) in channel.messages:
++        openlink_thread(channel, thread_ts, ts)
++    else:
++        # The thread's root is older than the channel's loaded history.
++        team.eventrouter.receive(
++            SlackRequest(
++                team,
++                "conversations.history",
++                {
++                    "channel": channel.identifier,
++                    "latest": thread_ts,
++                    "inclusive": "true",
++                    "limit": 1,
++                },
++                channel=channel,
++                metadata={"thread_ts": thread_ts, "ts": ts},
++                callback=handle_openlink_root,
++            )
++        )
++    return w.WEECHAT_RC_OK_EAT
++
++
++def handle_openlink_root(response_json, eventrouter, team, channel, metadata):
++    root = next(
++        (
++            m
++            for m in response_json.get("messages", [])
++            if m.get("ts") == metadata["thread_ts"]
++        ),
++        None,
++    )
++    if root is None:
++        w.prnt(
++            "",
++            "ERROR: could not load the thread for that link ({})".format(
++                response_json.get("error", "not found")
++            ),
++        )
++        return
++    process_message(root, eventrouter, team, channel, {}, history_message=True)
++    openlink_thread(channel, metadata["thread_ts"], metadata["ts"])
++
++
++def openlink_thread(channel, thread_ts, ts):
++    message = channel.messages.get(SlackTS(thread_ts))
++    if message is None:
++        return
++    message.open_thread(switch=True)
++    link_opened(message.thread_channel.channel_buffer, ts)
++
++
++def link_opened(buffer, ts):
++    w.hook_signal_send(
++        "slack_link_opened",
++        w.WEECHAT_HOOK_SIGNAL_STRING,
++        "{} {}".format(buffer, ts or ""),
++    )
++
++
++@utf8_decode
++def command_parent(data, current_buffer, args):
++    """
++    /slack parent
++    From a thread, closes it and shows the message it started from, with
++    the signal slack_link_opened as /slack openlink sends it.
++    """
++    thread = EVENTROUTER.weechat_controller.buffers.get(current_buffer)
++    if not isinstance(thread, SlackThreadChannel):
++        w.prnt("", "ERROR: /slack parent works in a thread buffer")
++        return w.WEECHAT_RC_ERROR
++    parent = thread.parent_channel
++    w.buffer_set(parent.channel_buffer, "display", "1")
++    w.buffer_close(current_buffer)
++    link_opened(parent.channel_buffer, thread.thread_ts)
++    return w.WEECHAT_RC_OK_EAT
++
++
++@utf8_decode
+ def away_command_cb(data, current_buffer, args):
+     all_servers, message = re.match("^/away( -all)? ?(.*)", args).groups()
+     if all_servers:

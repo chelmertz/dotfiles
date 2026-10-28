@@ -1,0 +1,76 @@
+--- a/wee_slack.py
++++ b/wee_slack.py
+@@ -1123,6 +1123,12 @@
+     channel = eventrouter.weechat_controller.get_channel_from_buffer_ptr(buffer_ptr)
+     if not channel:
+         return w.WEECHAT_RC_ERROR
++    # /slack edit put one of your messages here: Enter replaces its text.
++    editing = getattr(channel, "editing", None)
++    if editing:
++        channel.editing = None
++        update_message_text(channel, editing, data)
++        return w.WEECHAT_RC_OK
+ 
+     reaction = re.match(
+         r"{}{}\s*$".format(
+@@ -6847,6 +6853,60 @@
+ 
+ 
+ @utf8_decode
++def command_edit(data, current_buffer, args):
++    """
++    /slack edit [<ts>]
++    Puts the text of one of your messages in the input; Enter replaces the
++    message with what the input then holds. Without a ts, stops editing.
++    """
++    channel = EVENTROUTER.weechat_controller.buffers.get(current_buffer)
++    if not isinstance(channel, SlackChannelCommon):
++        print_error("/slack edit works in a conversation")
++        return w.WEECHAT_RC_ERROR
++    channel.editing = None
++    if not args:
++        return w.WEECHAT_RC_OK_EAT
++    message = channel.messages.get(SlackTS(args.strip()))
++    if message is None or message.user_identifier != channel.team.myidentifier:
++        print_error("You can only edit your own messages")
++        return w.WEECHAT_RC_ERROR
++    channel.editing = message.ts
++    text = editable_text(message.message_json.get("text", ""), channel.team)
++    w.buffer_set(current_buffer, "input", text)
++    w.buffer_set(current_buffer, "input_pos", str(len(text)))
++    return w.WEECHAT_RC_OK_EAT
++
++
++def editable_text(text, team):
++    # Slack's markup as you would type it, so that linkify_text turns it back
++    # on sending. A link keeps its URL and loses its label.
++    def ref(match):
++        target, label = match.groups()
++        if target.startswith("@"):
++            user = team.users.get(target[1:])
++            return "@" + user.name if user else label or target
++        if target.startswith("#"):
++            conversation = team.channels.get(target[1:])
++            return "#" + (conversation.name if conversation else label or target[1:])
++        if target.startswith("!"):
++            return "@" + (label or target[1:]).lstrip("@")
++        return target
++
++    return unhtmlescape(re.sub(r"<([^|>]*)(?:\|([^>]*))?>", ref, text))
++
++
++def update_message_text(channel, ts, text):
++    post_data = {
++        "channel": channel.identifier,
++        "ts": ts,
++        "text": linkify_text(text, channel.team),
++    }
++    channel.eventrouter.receive(
++        SlackRequest(channel.team, "chat.update", post_data, channel=channel)
++    )
++
++
++@utf8_decode
+ def away_command_cb(data, current_buffer, args):
+     all_servers, message = re.match("^/away( -all)? ?(.*)", args).groups()
+     if all_servers:

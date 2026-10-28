@@ -495,6 +495,12 @@ in
           # the mentions patch completes @name from the whole workspace; the
           # threads patch opens threads with unread replies at every connect;
           # the events patch logs each live message's fate to wee-events.log.
+          # The upload and download patches back Ctrl+V and the menu's view;
+          # the openlink patch shows what a Slack message link points at
+          # (/slack openlink, for wee:// links) and leaves a thread for the
+          # message it started from (/slack parent).
+          # The edit patch puts one of your messages in the input for the
+          # menu's E (/slack edit) and saves it on Enter.
           (wee-slack.overrideAttrs (o: {
             patches = (o.patches or [ ]) ++ [
               ../weechat/wee-slack-unreads.patch
@@ -506,6 +512,8 @@ in
               ../weechat/wee-slack-events.patch
               ../weechat/wee-slack-upload.patch
               ../weechat/wee-slack-download.patch
+              ../weechat/wee-slack-openlink.patch
+              ../weechat/wee-slack-edit.patch
             ];
           }))
           # Ctrl+K drew its "Go to:" prompt only on the next redraw, and Esc on
@@ -774,6 +782,7 @@ in
     ${pkgs.xdg-utils}/bin/xdg-mime default prr-open.desktop x-scheme-handler/prr
     ${pkgs.xdg-utils}/bin/xdg-mime default claude-resume.desktop x-scheme-handler/claude-resume
     ${pkgs.xdg-utils}/bin/xdg-mime default claude-review.desktop x-scheme-handler/claude-review
+    ${pkgs.xdg-utils}/bin/xdg-mime default wee-open.desktop x-scheme-handler/wee
     ${pkgs.xdg-utils}/bin/xdg-mime default com.mitchellh.ghostty.desktop x-scheme-handler/terminal
     ${pkgs.xdg-utils}/bin/xdg-mime default yazi.desktop inode/directory
     ${pkgs.xdg-utils}/bin/xdg-mime default firefox.desktop x-scheme-handler/http x-scheme-handler/https text/html
@@ -953,6 +962,17 @@ in
     exec = "${config.home.homeDirectory}/bin/claude-resume-open %u";
     noDisplay = true;
     mimeType = [ "x-scheme-handler/claude-resume" ];
+  };
+
+  # Clickable wee://<team>.slack.com/archives/… links, copied by wee's message
+  # menu (L) for notes: click to show the message in wee. See bin/wee-open.
+  #
+  # Mime registration handled by home.activation.xdgDefaultApps.
+  xdg.desktopEntries.wee-open = {
+    name = "wee link";
+    exec = "${config.home.homeDirectory}/.local/bin/wee-open %u";
+    noDisplay = true;
+    mimeType = [ "x-scheme-handler/wee" ];
   };
 
   # Clickable claude-review://<owner>/<repo>/<number> links, emitted by the

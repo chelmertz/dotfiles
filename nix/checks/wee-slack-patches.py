@@ -339,6 +339,118 @@ if sent != ["/run/v/0-x.png", ""]:
     print("download signals wrong:", sent)
     failed = True
 
+# Links (weechat/wee-slack-openlink.patch): a Slack message link shows its
+# conversation, or its thread, and signals which message to land on; the
+# root of a thread older than the loaded history is fetched first.
+def link_signals():
+    return [c.args[2] for c in w.hook_signal_send.call_args_list
+            if c.args[0] == "slack_link_opened"]
+
+
+link_er = mock.MagicMock()
+link_team = types.SimpleNamespace(domain="matchi.slack.com", eventrouter=link_er, channels={},
+                                  token="xoxc-x")
+thread_buffer = types.SimpleNamespace(channel_buffer="0xTH")
+root_message = types.SimpleNamespace(thread_channel=thread_buffer, open_thread=mock.MagicMock())
+link_channel = mock.MagicMock(channel_buffer="0xC1", identifier="C1", messages={})
+link_team.channels["C1"] = link_channel
+link_controller = types.SimpleNamespace(buffers={})
+wee_slack.EVENTROUTER = types.SimpleNamespace(teams={"T": link_team}, weechat_controller=link_controller)
+w.hook_signal_send.reset_mock()
+w.prnt.reset_mock()
+wee_slack.command_openlink(None, "", "https://matchi.slack.com/archives/C1/p1700000000123456")
+wee_slack.command_openlink(None, "", "https://other.slack.com/archives/C1/p1700000000123456")
+wee_slack.command_openlink(None, "", "https://matchi.slack.com/archives/C9/p1700000000123456")
+if link_signals() != ["0xC1 1700000000.123456"] or w.prnt.call_count != 2:
+    print("openlink of a channel message:", link_signals(), w.prnt.call_args_list)
+    failed = True
+reply = "https://matchi.slack.com/archives/C1/p1700000500000002?thread_ts=1700000000.000001&cid=C1"
+w.hook_signal_send.reset_mock()
+wee_slack.command_openlink(None, "", reply)
+fetch = link_er.receive.call_args.args[0] if link_er.receive.called else None
+if link_signals() or fetch is None or fetch.post_data.get("latest") != "1700000000.000001":
+    print("a reply whose root is not loaded did not fetch the root:", link_signals(), fetch)
+    failed = True
+else:
+    def stores_root(message, er, team, channel, metadata, history_message=False):
+        channel.messages[wee_slack.SlackTS(message["ts"])] = root_message
+    with mock.patch.object(wee_slack, "process_message", stores_root):
+        wee_slack.handle_openlink_root({"ok": True, "messages": [{"ts": "1700000000.000001"}]},
+                                       link_er, link_team, link_channel, fetch.metadata)
+    if link_signals() != ["0xTH 1700000500.000002"] or not root_message.open_thread.called:
+        print("openlink of a thread reply:", link_signals())
+        failed = True
+# Now loaded: the same link opens the thread without asking Slack again.
+link_er.receive.reset_mock()
+w.hook_signal_send.reset_mock()
+wee_slack.command_openlink(None, "", reply)
+if link_er.receive.called or link_signals() != ["0xTH 1700000500.000002"]:
+    print("a reply whose root is loaded:", link_er.receive.called, link_signals())
+    failed = True
+# A conversation without a buffer gets one, without joining it.
+unopened = mock.MagicMock(channel_buffer=None, identifier="C2", messages={})
+unopened.open.side_effect = lambda update_remote: setattr(unopened, "channel_buffer", "0xC2")
+link_team.channels["C2"] = unopened
+w.hook_signal_send.reset_mock()
+wee_slack.command_openlink(None, "", "https://matchi.slack.com/archives/C2/p1700000000123456")
+if unopened.open.call_args != mock.call(update_remote=False) or link_signals() != ["0xC2 1700000000.123456"]:
+    print("openlink of an unopened conversation:", unopened.open.call_args, link_signals())
+    failed = True
+
+# /slack parent: from a thread back to the message it started from.
+thread = mock.MagicMock(spec=wee_slack.SlackThreadChannel)
+thread.parent_channel = link_channel
+thread.thread_ts = "1700000000.000001"
+link_controller.buffers.update({"0xTH": thread, "0xC1": link_channel})
+w.hook_signal_send.reset_mock()
+w.buffer_close.reset_mock()
+w.prnt.reset_mock()
+wee_slack.command_parent(None, "0xC1", "")
+wee_slack.command_parent(None, "0xTH", "")
+if (link_signals() != ["0xC1 1700000000.000001"] or w.buffer_close.call_args != mock.call("0xTH")
+        or w.prnt.call_count != 1):
+    print("/slack parent:", link_signals(), w.buffer_close.call_args, w.prnt.call_args_list)
+    failed = True
+wee_slack.EVENTROUTER = router
+
+# Edit (weechat/wee-slack-edit.patch): one of your messages goes into the
+# input as you would type it; Enter sends it back as chat.update.
+edit_team = mock.MagicMock(myidentifier="U0", token="xoxc-x",
+                           users={"U1": types.SimpleNamespace(name="adam")},
+                           channels={"C2": types.SimpleNamespace(name="dev")})
+edit_team.get_username_map.return_value = {"adam": "U1"}
+edit_team.get_channel_map.return_value = {"dev": "C2"}
+edit_team.generate_usergroup_map.return_value = {}
+mine = types.SimpleNamespace(ts=wee_slack.SlackTS("5.000001"), user_identifier="U0", message_json={
+    "text": "hi <@U1> in <#C2|dev> <https://a.example|label> &amp; <!here>"})
+theirs = types.SimpleNamespace(ts=wee_slack.SlackTS("6.000001"), user_identifier="U1",
+                               message_json={"text": "not yours"})
+conv = mock.MagicMock(spec=wee_slack.SlackChannel)
+conv.configure_mock(team=edit_team, identifier="C1", editing=None,
+                    messages={mine.ts: mine, theirs.ts: theirs})
+edit_controller = mock.MagicMock()
+edit_controller.buffers = {"0xE": conv}
+edit_controller.get_channel_from_buffer_ptr.return_value = conv
+wee_slack.EVENTROUTER = types.SimpleNamespace(weechat_controller=edit_controller)
+wee_slack.weechat_version = 0x4000000  # set under the __main__ guard too
+wee_slack.config.map_underline_to = "_"
+w.buffer_set.reset_mock()
+wee_slack.command_edit(None, "0xE", "6.000001")
+refused = conv.editing is None and not w.buffer_set.called
+wee_slack.command_edit(None, "0xE", "5.000001")
+inputs = [c.args[2] for c in w.buffer_set.call_args_list if c.args[1] == "input"]
+if not refused or inputs != ["hi @adam in #dev https://a.example & @here"]:
+    print("/slack edit: refused someone else's=%s, input=%s" % (refused, inputs))
+    failed = True
+conv.eventrouter = mock.MagicMock()
+wee_slack.buffer_input_callback("EVENTROUTER", "0xE", "hi @adam, fixed")
+update = conv.eventrouter.receive.call_args.args[0] if conv.eventrouter.receive.called else None
+if (update is None or update.request != "chat.update" or update.post_data["ts"] != "5.000001"
+        or update.post_data["text"] != "hi <@U1>, fixed" or conv.editing is not None):
+    print("Enter while editing:", update and (update.request, update.post_data), conv.editing)
+    failed = True
+wee_slack.EVENTROUTER = router
+
 if head != ["query", "on-screen"]:
     print("foreground requests not at the head of the waiting list:", head)
     failed = True

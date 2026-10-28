@@ -21,6 +21,15 @@
 # without focus; each Ctrl+V adds one. Enter sends the input line as one
 # message with them all. Esc or Enter first closes the preview; then Enter
 # sends, and Esc (or leaving the buffer) drops them. Without an image Ctrl+V pastes the text.
+#
+# The menu's L copies a wee:// link to the message for notes; bin/wee-open
+# (the xdg handler for wee://) runs /slack openlink on it, and this script
+# then opens the menu on that message, as it does on t in a thread, which
+# goes back to the message the thread started from.
+#
+# The menu's E puts one of your messages in the input (wee-slack's /slack
+# edit); Enter replaces it, and Esc, an emptied input or leaving the buffer
+# cancels.
 # Installed from the dotfiles repo.
 import math
 import os
@@ -57,9 +66,11 @@ MENU = [
     ("r", "reply in thread", "reply"),
     ("t", "open thread", "thread"),
     ("e", "react", "react"),
+    ("E", "edit yours", "edit"),
     ("y", "copy", "copy"),
     ("Y", "copy all (whole thread)", "copy_all"),
     ("l", "copy permalink", "permalink"),
+    ("L", "copy wee link", "weelink"),
     ("o", "open link", "open"),
     ("v", "view images", "view"),
     ("k", "older", "older"),
@@ -73,6 +84,11 @@ ESC = "\x01["
 staged = {"buffer": "", "paths": [], "fehs": []}
 # The message menu's "view images": downloads still running, then one feh.
 viewer = {"pending": [], "paths": [], "feh": None}
+# The buffer whose input holds a message being edited (/slack edit).
+editing = {"buffer": ""}
+# A message /slack openlink or /slack parent showed, until its line is in.
+landing = {"buffer": "", "ts": "", "tries": 0}
+LANDING_TRIES = 25  # of 200 ms: a thread's replies arrive over the network
 IMAGE = re.compile(r"https://files\.slack\.com/files-pri/\S+\.(png|jpe?g|gif|webp)$", re.I)
 menu = {"open": False, "buffer": "", "index": 0, "links": [], "marked": None,
         "scrolled": False}
@@ -243,6 +259,9 @@ def drop_images(sent=False):
 
 def input_display_cb(data, modifier, buffer, string):
     # The bar is out of sight while typing: say it where the eyes are.
+    if buffer == editing["buffer"]:
+        return "{c}[✏ editing – Enter saves, Esc cancels]{r} {t}".format(
+            c=w.color("black,yellow"), r=w.color("reset"), t=string)
     if not staged["paths"] or buffer != staged["buffer"]:
         return string
     n = len(staged["paths"])
@@ -255,6 +274,11 @@ def input_return_cb(data, buffer, command):
     text = w.buffer_get_string(buffer, "input")
     if text.startswith("/") and not text.startswith("//"):
         return w.WEECHAT_RC_OK  # a command still runs; previews and images stay
+    if buffer == editing["buffer"]:
+        # wee-slack's input callback saves the edit; weechat never calls it
+        # for an empty input, so that cancels instead.
+        stop_editing(cancel=not text)
+        return w.WEECHAT_RC_OK_EAT if not text else w.WEECHAT_RC_OK
     # While a preview is open, Enter only closes it, as the first Esc does;
     # the next Enter sends.
     if close_viewer():
@@ -279,6 +303,16 @@ def input_return_cb(data, buffer, command):
     return w.WEECHAT_RC_OK_EAT
 
 
+def stop_editing(cancel):
+    buffer = editing["buffer"]
+    editing["buffer"] = ""
+    if cancel:
+        w.command(buffer, "/slack edit")
+        w.buffer_set(buffer, "input", "")
+        show_notice("edit cancelled")
+    w.bar_item_update("input_text")
+
+
 def show_notice(text):
     state["notice"] = text
     w.bar_item_update("slack_hints")
@@ -294,8 +328,20 @@ def slack_line_event(event, msg):
 def run_action(action, msgs):
     buffer = menu["buffer"]
     msg = msgs[menu["index"]]
-    if action in ("reply", "thread"):
+    if action == "thread" and w.buffer_get_string(buffer, "localvar_slack_type") == "thread":
+        w.command(buffer, "/slack parent")  # t again: back out of the thread
+    elif action in ("reply", "thread"):
         slack_line_event(action, msg)
+    elif action == "edit":
+        # wee-slack tags the lines you sent self_msg; it refuses anyone
+        # else's message too.
+        if "self_msg" not in msg[0]:
+            show_notice("only your own messages can be edited")
+            return
+        ts = next(t for t in msg[0] if t.startswith("slack_ts_"))[len("slack_ts_"):]
+        w.command(buffer, "/slack edit " + ts)
+        editing["buffer"] = buffer
+        w.bar_item_update("input_text")
     elif action == "react":
         slack_line_event("message", msg)  # types the message's $id
         w.command(buffer, "/input insert +:")
@@ -304,15 +350,10 @@ def run_action(action, msgs):
     elif action == "copy_all":
         copy("\n".join(as_text(m) for m in reversed(msgs)))
     elif action == "permalink":
-        # linkarchive types the URL into the input; take it and put back what
-        # was there.
-        saved = w.buffer_get_string(buffer, "input")
-        pos = w.buffer_get_integer(buffer, "input_pos")
-        w.buffer_set(buffer, "input", "")
-        slack_line_event("linkarchive", msg)
-        copy(w.buffer_get_string(buffer, "input"))
-        w.buffer_set(buffer, "input", saved)
-        w.buffer_set(buffer, "input_pos", str(pos))
+        copy(permalink(buffer, msg))
+    elif action == "weelink":
+        # Markdown, for Obsidian: it hands the unknown scheme to xdg-open.
+        copy("[wee]({})".format(permalink(buffer, msg).replace("https://", "wee://", 1)))
     elif action == "view":
         view_images(buffer, [u for u in links(msg) if IMAGE.match(u)])
     elif action == "open":
@@ -325,6 +366,51 @@ def run_action(action, msgs):
             # Several: the bar lists them and a digit picks one.
             menu.update(open=True, links=urls[:9])
             w.bar_item_update("slack_hints")
+
+
+def permalink(buffer, msg):
+    # linkarchive types the URL into the input; take it and put back what
+    # was there.
+    saved = w.buffer_get_string(buffer, "input")
+    pos = w.buffer_get_integer(buffer, "input_pos")
+    w.buffer_set(buffer, "input", "")
+    slack_line_event("linkarchive", msg)
+    url = w.buffer_get_string(buffer, "input")
+    w.buffer_set(buffer, "input", saved)
+    w.buffer_set(buffer, "input_pos", str(pos))
+    return url
+
+
+def link_opened_cb(data, signal, args):
+    buffer, _, ts = args.partition(" ")
+    landing.update(buffer=buffer, ts=ts, tries=0)
+    if ts:
+        land_cb("", 0)
+    return w.WEECHAT_RC_OK
+
+
+def land_cb(data, remaining_calls):
+    # Opens the menu on the linked message once its line is printed, which
+    # marks it and scrolls to it; one not loaded yet gets a few seconds.
+    if not landing["ts"] or w.current_buffer() != landing["buffer"]:
+        return w.WEECHAT_RC_OK  # the user moved on
+    msgs = messages(landing["buffer"])
+    tag = "slack_ts_" + landing["ts"]
+    index = next((i for i, m in enumerate(msgs) if tag in m[0]), None)
+    if index is not None:
+        landing["ts"] = ""
+        if menu["open"]:
+            close_menu()
+        menu.update(open=True, buffer=landing["buffer"], index=index)
+        mark(msgs)
+        w.bar_item_update("slack_hints")
+    elif landing["tries"] < LANDING_TRIES:
+        landing["tries"] += 1
+        w.hook_timer(200, 0, 1, "land_cb", "")
+    else:
+        landing["ts"] = ""
+        show_notice("that message is older than wee has loaded")
+    return w.WEECHAT_RC_OK
 
 
 def view_images(buffer, urls):
@@ -391,6 +477,8 @@ def escape_cmd_cb(data, buffer, args):
         w.command(buffer, "/go")
     elif close_viewer():
         pass
+    elif editing["buffer"]:
+        stop_editing(cancel=True)
     elif any(feh.poll() is None for feh in staged["fehs"]):
         # First Esc only hides the preview; the images stay attached.
         for feh in staged["fehs"]:
@@ -566,6 +654,8 @@ def core_print_cb(data, buffer, date, tags, displayed, highlight, prefix, messag
 
 
 def buffer_switch_cb(data, signal, buffer):
+    if editing["buffer"] and buffer != editing["buffer"]:
+        stop_editing(cancel=True)
     if staged["paths"] and buffer != staged["buffer"]:
         drop_images()
         show_notice("images dropped")
@@ -669,7 +759,7 @@ def tick_cb(data, remaining_calls):
 
 def main():
     w.register(
-        "slack_hints", "", "1.20", "MIT",
+        "slack_hints", "", "1.21", "MIT",
         "Hint bar of wee-slack shortcuts with a loading indicator", "", "",
     )
     w.bar_item_new("slack_hints", "hints_item_cb", "")
@@ -692,6 +782,7 @@ def main():
     w.hook_command_run("/input return", "input_return_cb", "")
     w.hook_modifier("input_text_display_with_cursor", "input_display_cb", "")
     w.hook_signal("slack_download_done", "download_done_cb", "")
+    w.hook_signal("slack_link_opened", "link_opened_cb", "")
     w.hook_signal("key_pressed", "key_pressed_cb", "")
     w.hook_signal("key_combo_default", "key_combo_cb", "")
 
