@@ -109,8 +109,8 @@ assign [class="(?i)thunderbird"] $ws10
 # beat later, and the assign has already been skipped by then; for_window is
 # re-checked when WM_CLASS changes, so it catches that case. Same class of bug
 # as i3/i3#2060.
-for_window [class="firefox"] move to workspace $ws1
-for_window [class="Microsoft Teams - Preview"] move to workspace $ws10
+for_window [class="firefox"] move --no-auto-back-and-forth to workspace $ws1
+for_window [class="Microsoft Teams - Preview"] move --no-auto-back-and-forth to workspace $ws10
 for_window [class="Yad"] floating enable
 # xev, getting keycodes etc
 for_window [title="Event Tester"] floating enable
