@@ -127,6 +127,11 @@ def linkarchive(data, signal, hashtable):
               "/input insert https://x.slack.com/archives/C1/p0000000002200000")
     return w.WEECHAT_RC_OK
 w.hook_hsignal("slack_cursor_linkarchive", "linkarchive", "")
+# The menu's delete goes to wee-slack's cursor action: record which message.
+def delete(data, signal, hashtable):
+    w.prnt("", "DELETE=" + hashtable["_chat_line_tags"].split(",")[0])
+    return w.WEECHAT_RC_OK
+w.hook_hsignal("slack_cursor_delete", "delete", "")
 """)
 
 script = ";".join([
@@ -336,6 +341,20 @@ pump(0.5)
 os.write(fd, b"kE")
 pump(1)
 not_yours_shown = b"only your own messages" in screen
+# D asks first: n keeps the message, y deletes it; no one else's.
+for answer in (b"n", b"y"):
+    os.write(fd, b"\x1b ")
+    pump(0.5)
+    os.write(fd, b"D")
+    pump(1)
+    os.write(fd, answer)
+    pump(1)
+delete_asked = b"delete this message?" in screen
+os.write(fd, b"\x1b ")
+pump(0.5)
+os.write(fd, b"kD")
+pump(1)
+delete_refused = b"can be deleted" in screen
 # Both teams connect: wee leaves the core buffer for the home buffer.
 os.write(fd, b"/print Connected to Slack team T1 (a) with username x\r")
 pump(0.5)
@@ -479,6 +498,11 @@ edits = [c for c in slacks if c.startswith("/slack edit")]
 if edits != ["/slack edit 9.9", "/slack edit"] * 2 or not editing_shown or not not_yours_shown:
     print("menu E: edits=%s, editing marker and cancel notice=%s, refused another's=%s"
           % (edits, editing_shown, not_yours_shown))
+    failed = True
+deletes = [l.rsplit("=", 1)[1] for l in log if "\tDELETE=" in l]
+if deletes != ["slack_ts_9.9"] or not delete_asked or not delete_refused:
+    print("menu D: deleted=%s, asked=%s, refused another's=%s"
+          % (deletes, delete_asked, delete_refused))
     failed = True
 if slacks.count("/slack parent") != 1:
     print("menu t in a thread should run /slack parent once:", slacks)

@@ -29,7 +29,7 @@
 #
 # The menu's E puts one of your messages in the input (wee-slack's /slack
 # edit); Enter replaces it, and Esc, an emptied input or leaving the buffer
-# cancels.
+# cancels. D deletes one of your messages after a y to confirm.
 # Installed from the dotfiles repo.
 import math
 import os
@@ -67,6 +67,7 @@ MENU = [
     ("t", "open thread", "thread"),
     ("e", "react", "react"),
     ("E", "edit yours", "edit"),
+    ("D", "delete yours", "delete"),
     ("y", "copy", "copy"),
     ("Y", "copy all (whole thread)", "copy_all"),
     ("l", "copy permalink", "permalink"),
@@ -91,7 +92,7 @@ landing = {"buffer": "", "ts": "", "tries": 0}
 LANDING_TRIES = 25  # of 200 ms: a thread's replies arrive over the network
 IMAGE = re.compile(r"https://files\.slack\.com/files-pri/\S+\.(png|jpe?g|gif|webp)$", re.I)
 menu = {"open": False, "buffer": "", "index": 0, "links": [], "marked": None,
-        "scrolled": False}
+        "scrolled": False, "confirm": False}
 # Trailing punctuation is the sentence's, not the URL's.
 URL = re.compile(r"https?://[^\s<>\"]+[^\s<>\").,;:!?'\]]")
 
@@ -494,6 +495,7 @@ def escape_cmd_cb(data, buffer, args):
 def close_menu():
     menu["open"] = False
     menu["links"] = []
+    menu["confirm"] = False
     unmark()
 
 
@@ -587,11 +589,26 @@ def key_combo_cb(data, signal, key):
             open_url(urls[int(key) - 1])
             return w.WEECHAT_RC_OK_EAT
         return w.WEECHAT_RC_OK_EAT if key == "q" else w.WEECHAT_RC_OK
+    msgs = messages(menu["buffer"])
+    if menu["confirm"]:
+        # Only y deletes; any other key keeps the message and is swallowed.
+        close_menu()
+        if key == "y" and menu["index"] < len(msgs):
+            # wee-slack sends "$id s///", which deletes only your own.
+            slack_line_event("delete", msgs[menu["index"]])
+        return w.WEECHAT_RC_OK_EAT
     action = next((a for k, _, a in MENU if k == key), None)
     if not action:
         close_menu()
         return w.WEECHAT_RC_OK
-    msgs = messages(menu["buffer"])
+    if action == "delete" and menu["index"] < len(msgs):
+        if "self_msg" in msgs[menu["index"]][0]:
+            menu["confirm"] = True  # the menu stays, asking
+        else:
+            close_menu()
+            show_notice("only your own messages can be deleted")
+        w.bar_item_update("slack_hints")
+        return w.WEECHAT_RC_OK_EAT
     if action == "older":
         menu["index"] = min(menu["index"] + 1, len(msgs) - 1)
         mark(msgs)
@@ -635,6 +652,10 @@ def menu_rows():
     preview = one_line(as_text(msgs[menu["index"]]), width - w.strlen_screen(head) - 2)
     target = "{c}{h}{r} {p}".format(
         c=w.color("black,yellow"), h=head, r=w.color("reset"), p=preview)
+    if menu["confirm"]:
+        return target + "\n{c} delete this message? {r}".format(
+            c=w.color("*white,red"), r=w.color("reset")) + render_rows(
+            [[("y", "delete it"), ("any other key", "keep it")]])
     return target + "\n" + render_rows([[(k, d) for k, d, _ in MENU]])
 
 
