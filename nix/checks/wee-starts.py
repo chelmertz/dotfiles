@@ -36,6 +36,11 @@ opened = os.path.join(tmp, "opened")
 with open(os.path.join(stubs, "xdg-open"), "w") as f:
     f.write('#!/bin/sh\necho "$1" >> %s\n' % opened)
 os.chmod(os.path.join(stubs, "xdg-open"), 0o755)
+# The message menu's "claude review PRs" starts one ghostty per PR.
+reviews = os.path.join(tmp, "reviews")
+with open(os.path.join(stubs, "ghostty"), "w") as f:
+    f.write('#!/bin/sh\necho "$4" >> %s\n' % reviews)
+os.chmod(os.path.join(stubs, "ghostty"), 0o755)
 # Ctrl+V reads the clipboard through xclip and previews images with feh. The
 # stub clipboard holds an image unless clipmode says "text".
 clipmode = os.path.join(tmp, "clipmode")
@@ -135,6 +140,18 @@ def delete(data, signal, hashtable):
     w.prnt("", "DELETE=" + hashtable["_chat_line_tags"].split(",")[0])
     return w.WEECHAT_RC_OK
 w.hook_hsignal("slack_cursor_delete", "delete", "")
+# As wee-slack's message event: types the message's id. What R then sends as
+# input (the 👀 reaction) is recorded instead of reaching the core buffer.
+def message(data, signal, hashtable):
+    w.command(hashtable["_buffer"], "/input insert $" + hashtable["_chat_line_tags"].split(",")[0])
+    return w.WEECHAT_RC_OK
+w.hook_hsignal("slack_cursor_message", "message", "")
+def sent(data, modifier, buffer, text):
+    if text.startswith("$"):
+        w.prnt("", "SENT=" + text)
+        return ""
+    return text
+w.hook_modifier("input_text_for_buffer", "sent", "")
 # A conversation with one person in its nicklist: records what gets sent.
 def said(data, buffer, text):
     w.prnt("", "SAID=[%s]" % text)
@@ -146,6 +163,9 @@ w.nicklist_add_nick(nickprobe, "", "TobiasHill", "", "", "", 1)
 
 script = ";".join([
     "/print Connecting to 2 slack teams.",
+    # Oldest: two PRs, each linked twice as Slack renders them, and a repo.
+    "/print -tags slack_ts_0.1 hal\\thttps://github.com/o/r/pull/75 (github.com/o/r/pull/75)"
+    " https://github.com/o/r https://github.com/o/w/pull/9/files https://github.com/o/w/pull/9",
     "/print -tags slack_ts_0.5 fay\\thttps://files.slack.com/files-pri/T1-F1/pic.png (pic.png)",
     "/print -tags slack_ts_1.1 alice\\tfirst",
     "/print -tags slack_ts_2.2 bob\\tsecond",
@@ -343,6 +363,12 @@ os.write(fd, b"T")
 pump(1)
 long_quote = [l for l in open(todo_path).read().splitlines() if l.startswith("  >")] \
     if os.path.exists(todo_path) else []
+# R on hal's message: one review per distinct PR, none for the repo link.
+os.write(fd, b"\x1b ")
+pump(0.5)
+os.write(fd, b"kkkkkkR")
+pump(1)
+review_prs = [l.split()[1].rstrip(".") for l in open(reviews)] if os.path.exists(reviews) else []
 # t in a thread goes back to its message (/slack parent), not deeper.
 os.write(fd, b"/buffer add threadprobe\r")
 pump(0.3)
@@ -612,6 +638,12 @@ if not error_chip_drawn:
     failed = True
 if not loading_drawn:
     print("LOADING chip never drawn")
+    failed = True
+if review_prs != ["https://github.com/o/r/pull/75", "https://github.com/o/w/pull/9"]:
+    print("claude review: want one per distinct PR; got", review_prs)
+    failed = True
+if not any(l.endswith("\tSENT=$slack_ts_0.1+:eyes:") for l in log):
+    print("claude review: no 👀 reaction sent:", [l for l in log if "\tSENT=" in l])
     failed = True
 if not menu_drawn:
     print("message menu never drawn")

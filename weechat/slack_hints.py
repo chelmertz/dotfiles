@@ -36,6 +36,10 @@
 # daily template shows the next few in a Slack section. A message already
 # linked anywhere in the vault, open, done or cancelled, is not added again.
 # notify-send reports either way.
+#
+# The menu's R opens one ghostty per GitHub PR linked in the message, each
+# running claude on a review that ends in an approval hint and posts nothing
+# unasked, and reacts 👀 to the message.
 # Installed from the dotfiles repo.
 import math
 import os
@@ -74,6 +78,7 @@ MENU = [
     ("Y", "copy all (whole thread)", "copy_all"),
     ("l", "copy permalink", "permalink"),
     ("L", "copy wee link", "weelink"),
+    ("R", "claude review PRs", "review"),
     ("T", "todo", "todo"),
     ("!", "todo now", "todo_now"),
     ("o", "open link", "open"),
@@ -97,6 +102,10 @@ LANDING_TRIES = 25  # of 200 ms: a thread's replies arrive over the network
 IMAGE = re.compile(r"https://files\.slack\.com/files-pri/\S+\.(png|jpe?g|gif|webp)$", re.I)
 menu = {"open": False, "buffer": "", "index": 0, "links": [], "marked": None,
         "scrolled": False, "confirm": False}
+PR = re.compile(r"https://github\.com/[\w.-]+/[\w.-]+/pull/\d+")
+REVIEW = ("Review {}. Post nothing to GitHub unless asked. End with an approval"
+          " hint: approve, comment or request changes, and the one reason that"
+          " decides it.")
 # Trailing punctuation is the sentence's, not the URL's.
 URL = re.compile(r"https?://[^\s<>\"]+[^\s<>\").,;:!?'\]]")
 
@@ -369,6 +378,23 @@ def run_action(action, msgs):
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif action == "view":
         view_images(buffer, [u for u in links(msg) if IMAGE.match(u)])
+    elif action == "review":
+        prs = []
+        for url in links(msg):
+            pr = PR.match(url)
+            if pr and pr.group() not in prs:
+                prs.append(pr.group())
+        if not prs:
+            show_notice("no PR link in this message")
+            return
+        # 👀 tells the author someone is on it. "$id+:eyes:" adds, never
+        # toggles, so a second R leaves it in place.
+        w.command(buffer, typed(buffer, "message", msg) + "+:eyes:")
+        for pr in prs:
+            subprocess.Popen(["ghostty", "--working-directory=" + os.path.expanduser("~/p"),
+                              "-e", "claude", REVIEW.format(pr)],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
     elif action == "open":
         urls = links(msg)
         if not urls:
@@ -381,17 +407,21 @@ def run_action(action, msgs):
             w.bar_item_update("slack_hints")
 
 
-def permalink(buffer, msg):
-    # linkarchive types the URL into the input; take it and put back what
-    # was there.
+def typed(buffer, event, msg):
+    # Some cursor events type their result into the input; take it and put
+    # back what was there.
     saved = w.buffer_get_string(buffer, "input")
     pos = w.buffer_get_integer(buffer, "input_pos")
     w.buffer_set(buffer, "input", "")
-    slack_line_event("linkarchive", msg)
-    url = w.buffer_get_string(buffer, "input")
+    slack_line_event(event, msg)
+    text = w.buffer_get_string(buffer, "input")
     w.buffer_set(buffer, "input", saved)
     w.buffer_set(buffer, "input_pos", str(pos))
-    return url
+    return text
+
+
+def permalink(buffer, msg):
+    return typed(buffer, "linkarchive", msg)
 
 
 def weelink(buffer, msg):

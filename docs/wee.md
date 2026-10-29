@@ -66,8 +66,11 @@ with), `>` someone is typing there.
   thread, in a thread buffer), **l** copy the permalink, **L** copy a wee link
   for your notes (below), **o** open its link (with several, the bar numbers
   them and a digit picks), **v** view its images in a floating feh (arrow keys
-  step through several; Esc or Enter in wee closes it), **T** todo and **!**
-  todo now (below).
+  step through several; Esc or Enter in wee closes it), **R** claude review:
+  one ghostty per GitHub PR the message links, each running `claude` on a
+  review that ends in an approval hint and posts nothing unasked, plus a 👀
+  reaction so the author sees someone is on it, **T** todo and **!** todo now
+  (below).
 - **Todos**: **T** appends `- [ ] author: start of the message [wee](wee://…)
   [Slack](https://…) ➕ date`, with up to five lines of the message quoted under it, to
   `slack.md` in `~/sync/notes` (`plugins.var.wee.todo_vault`). The daily
