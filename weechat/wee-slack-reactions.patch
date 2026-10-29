@@ -1,0 +1,13 @@
+--- a/wee_slack.py
++++ b/wee_slack.py
+@@ -4068,7 +4068,9 @@
+ 
+ 
+ def handle_reactionsadd(json, eventrouter, team, channel, metadata):
+-    if not json["ok"]:
++    # Already there is what adding asked for: the menu's R adds :eyes:
++    # every time it is pressed.
++    if not json["ok"] and json["error"] != "already_reacted":
+         print_error(
+             "Couldn't add reaction {}: {}".format(metadata["reaction"], json["error"])
+         )

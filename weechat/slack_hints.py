@@ -387,7 +387,9 @@ def run_action(action, msgs):
             show_notice("no PR link in this message")
             return
         # 👀 tells the author someone is on it. "$id+:eyes:" adds, never
-        # toggles, so a second R leaves it in place. Without an id a bare
+        # toggles, so a second R leaves it in place (Slack answers
+        # already_reacted, which wee-slack-reactions.patch keeps quiet).
+        # Without an id a bare
         # "+:eyes:" would land on the channel's newest message instead.
         msg_id = typed(buffer, "message", msg)
         if msg_id.startswith("$"):

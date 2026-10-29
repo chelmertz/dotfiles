@@ -451,6 +451,18 @@ if (update is None or update.request != "chat.update" or update.post_data["ts"] 
     failed = True
 wee_slack.EVENTROUTER = router
 
+# Reactions (weechat/wee-slack-reactions.patch): adding one that is already
+# there says nothing; any other failure still does.
+w.prnt.reset_mock()
+wee_slack.handle_reactionsadd({"ok": False, "error": "already_reacted"}, None, None, None,
+                              {"reaction": "eyes"})
+quiet = not w.prnt.called
+wee_slack.handle_reactionsadd({"ok": False, "error": "invalid_name"}, None, None, None,
+                              {"reaction": "eyes"})
+if not quiet or not w.prnt.called:
+    print("reactions.add errors: already_reacted quiet=%s, others shown=%s" % (quiet, w.prnt.called))
+    failed = True
+
 if head != ["query", "on-screen"]:
     print("foreground requests not at the head of the waiting list:", head)
     failed = True
