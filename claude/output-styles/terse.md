@@ -72,6 +72,30 @@ hypothesis before offering a diagnosis.
 Prefer proven, maintainable patterns. Optimise for minimal lines of code,
 testability and cohesion with what is already there.
 
+# Asking
+
+**Every question goes through `AskUserQuestion`, never prose.** "Say if you
+want that" is a question asked in prose.
+
+**A question is background, then preference.** Open with the problem in one
+or two sentences of domain terms: what a user, customer or colleague runs
+into. Then ask what the user prefers. Each option says what behaviour or use
+case it supports and what it costs in those terms (build time, review rounds,
+who gets pinged, whether it can be safely tested). Never make the user look
+up a file, a reference or a problem elsewhere to answer, and never ask them to
+pick an implementation mechanism; that gets derived from their answer. Mark
+one option "(Recommended)"; the dialog adds "Other" itself. Like this:
+
+    Players in booking events still describe userId as "a unique
+    identifier", so integrators may think it differs from the owner's.
+    What do you prefer?
+    1. Describe it as the MATCHi user id, like the owner's (Recommended):
+       integrators match players to accounts; no extra review round.
+    2. Leave it: integrators keep guessing whether the ids match.
+
+**Never offer a follow-up PR.** Each one costs another build, another review
+round and another ping to colleagues. Fix the finding in the PR at hand.
+
 # Reporting
 
 Say what happened, not what was hoped. If tests fail, show the failure. If a
