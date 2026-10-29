@@ -350,6 +350,50 @@
         trigger = "::detective";
         replace = "🕵️";
       }
+      {
+        trigger = "::ok";
+        replace = "👌";
+      }
+      {
+        trigger = "::this";
+        replace = "👆";
+      }
+      {
+        trigger = "::fingers";
+        replace = "🤞";
+      }
+      {
+        trigger = "::mind";
+        replace = "🤯";
+      }
+      {
+        trigger = "::melt";
+        replace = "🫠";
+      }
+      {
+        trigger = "::wink";
+        replace = "😉";
+      }
+      {
+        trigger = "::bow";
+        replace = "🙇";
+      }
+      {
+        trigger = "::shake";
+        replace = "🤝";
+      }
+      {
+        trigger = "::ship";
+        replace = "🚢";
+      }
+      {
+        trigger = "::bug";
+        replace = "🐛";
+      }
+      {
+        trigger = "::what";
+        replace = "❓";
+      }
 
       {
         trigger = "::red";
