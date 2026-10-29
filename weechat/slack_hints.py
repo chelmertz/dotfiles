@@ -39,7 +39,8 @@
 #
 # The menu's R opens one ghostty per GitHub PR linked in the message, each
 # running claude on a review that ends in an approval hint and posts nothing
-# unasked, and reacts 👀 to the message.
+# unasked, and reacts 👀 to the message. A PR whose review is still running
+# gets no second one, so a double-pressed R opens each review once.
 # Installed from the dotfiles repo.
 import math
 import os
@@ -395,7 +396,12 @@ def run_action(action, msgs):
         msg_id = typed(buffer, "message", msg)
         if msg_id.startswith("$"):
             w.command(buffer, msg_id + "+:eyes:")
+        running = [pr for pr in prs if reviewing(REVIEW.format(pr))]
+        if running:
+            show_notice("already reviewing " + " ".join(running))
         for pr in prs:
+            if pr in running:
+                continue
             subprocess.Popen(["ghostty", "--working-directory=" + os.path.expanduser("~/p"),
                               "-e", "claude", REVIEW.format(pr)],
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -410,6 +416,19 @@ def run_action(action, msgs):
             # Several: the bar lists them and a digit picks one.
             menu.update(open=True, links=urls[:9])
             w.bar_item_update("slack_hints")
+
+
+def reviewing(prompt):
+    # The review's claude, or the ghostty around it, carries the prompt as
+    # one argv entry for as long as its window is open.
+    for pid in os.listdir("/proc"):
+        try:
+            with open("/proc/{}/cmdline".format(pid), "rb") as f:
+                if prompt.encode() in f.read().split(b"\0"):
+                    return True
+        except OSError:
+            pass  # not a pid, or gone since listdir
+    return False
 
 
 def typed(buffer, event, msg):
