@@ -37,10 +37,9 @@
 # linked anywhere in the vault, open, done or cancelled, is not added again.
 # notify-send reports either way.
 #
-# The menu's R opens one ghostty per GitHub PR linked in the message, each
-# running claude on a review that ends in an approval hint and posts nothing
-# unasked, and reacts 👀 to the message. A PR whose review is still running
-# gets no second one, so a double-pressed R opens each review once.
+# The menu's R hands each GitHub PR linked in the message to claude-review as
+# claude-review://owner/repo/number, the link the GitHub button opens too, and
+# reacts 👀 to the message. claude-review decides whether a review starts.
 # Installed from the dotfiles repo.
 import math
 import os
@@ -104,9 +103,6 @@ IMAGE = re.compile(r"https://files\.slack\.com/files-pri/\S+\.(png|jpe?g|gif|web
 menu = {"open": False, "buffer": "", "index": 0, "links": [], "marked": None,
         "scrolled": False, "confirm": False}
 PR = re.compile(r"https://github\.com/[\w.-]+/[\w.-]+/pull/\d+")
-REVIEW = ("Review {}. Post nothing to GitHub unless asked. End with an approval"
-          " hint: approve, comment or request changes, and the one reason that"
-          " decides it.")
 # Trailing punctuation is the sentence's, not the URL's.
 URL = re.compile(r"https?://[^\s<>\"]+[^\s<>\").,;:!?'\]]")
 
@@ -396,16 +392,8 @@ def run_action(action, msgs):
         msg_id = typed(buffer, "message", msg)
         if msg_id.startswith("$"):
             w.command(buffer, msg_id + "+:eyes:")
-        running = [pr for pr in prs if reviewing(REVIEW.format(pr))]
-        if running:
-            show_notice("already reviewing " + " ".join(running))
         for pr in prs:
-            if pr in running:
-                continue
-            subprocess.Popen(["ghostty", "--working-directory=" + os.path.expanduser("~/p"),
-                              "-e", "claude", REVIEW.format(pr)],
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                             start_new_session=True)
+            open_url(pr.replace("https://github.com/", "claude-review://").replace("/pull/", "/"))
     elif action == "open":
         urls = links(msg)
         if not urls:
@@ -416,19 +404,6 @@ def run_action(action, msgs):
             # Several: the bar lists them and a digit picks one.
             menu.update(open=True, links=urls[:9])
             w.bar_item_update("slack_hints")
-
-
-def reviewing(prompt):
-    # The review's claude, or the ghostty around it, carries the prompt as
-    # one argv entry for as long as its window is open.
-    for pid in os.listdir("/proc"):
-        try:
-            with open("/proc/{}/cmdline".format(pid), "rb") as f:
-                if prompt.encode() in f.read().split(b"\0"):
-                    return True
-        except OSError:
-            pass  # not a pid, or gone since listdir
-    return False
 
 
 def typed(buffer, event, msg):

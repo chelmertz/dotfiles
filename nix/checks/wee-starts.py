@@ -36,11 +36,6 @@ opened = os.path.join(tmp, "opened")
 with open(os.path.join(stubs, "xdg-open"), "w") as f:
     f.write('#!/bin/sh\necho "$1" >> %s\n' % opened)
 os.chmod(os.path.join(stubs, "xdg-open"), 0o755)
-# The message menu's "claude review PRs" starts one ghostty per PR.
-reviews = os.path.join(tmp, "reviews")
-with open(os.path.join(stubs, "ghostty"), "w") as f:
-    f.write('#!/bin/sh\necho "$4" >> %s\n' % reviews)
-os.chmod(os.path.join(stubs, "ghostty"), 0o755)
 # Ctrl+V reads the clipboard through xclip and previews images with feh. The
 # stub clipboard holds an image unless clipmode says "text".
 clipmode = os.path.join(tmp, "clipmode")
@@ -368,7 +363,8 @@ os.write(fd, b"\x1b ")
 pump(0.5)
 os.write(fd, b"kkkkkkR")
 pump(1)
-review_prs = [l.split()[1].rstrip(".") for l in open(reviews)] if os.path.exists(reviews) else []
+review_prs = [u for u in open(opened).read().split() if u.startswith("claude-review://")] \
+    if os.path.exists(opened) else []
 # t in a thread goes back to its message (/slack parent), not deeper.
 os.write(fd, b"/buffer add threadprobe\r")
 pump(0.3)
@@ -532,7 +528,8 @@ if not recent_listed or stale_listed:
     print("buflist: recent buffer listed=%s (want True), stale listed=%s"
           " (want False)" % (recent_listed, stale_listed))
     failed = True
-urls = open(opened).read().split() if os.path.exists(opened) else []
+urls = [u for u in open(opened).read().split() if not u.startswith("claude-review://")] \
+    if os.path.exists(opened) else []
 if urls != ["https://two.example/y", "https://one.example/a"]:
     print("open link: want the second of two, then the only one; got", urls)
     failed = True
@@ -653,7 +650,7 @@ if not error_chip_drawn:
 if not loading_drawn:
     print("LOADING chip never drawn")
     failed = True
-if review_prs != ["https://github.com/o/r/pull/75", "https://github.com/o/w/pull/9"]:
+if review_prs != ["claude-review://o/r/75", "claude-review://o/w/9"]:
     print("claude review: want one per distinct PR; got", review_prs)
     failed = True
 if not any(l.endswith("\tSENT=$slack_ts_0.1+:eyes:") for l in log):
