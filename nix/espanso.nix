@@ -359,7 +359,7 @@
         replace = "👆";
       }
       {
-        trigger = "::fingers";
+        trigger = "::hope";
         replace = "🤞";
       }
       {
