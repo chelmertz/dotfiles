@@ -388,8 +388,11 @@ def run_action(action, msgs):
             show_notice("no PR link in this message")
             return
         # 👀 tells the author someone is on it. "$id+:eyes:" adds, never
-        # toggles, so a second R leaves it in place.
-        w.command(buffer, typed(buffer, "message", msg) + "+:eyes:")
+        # toggles, so a second R leaves it in place. Without an id a bare
+        # "+:eyes:" would land on the channel's newest message instead.
+        msg_id = typed(buffer, "message", msg)
+        if msg_id.startswith("$"):
+            w.command(buffer, msg_id + "+:eyes:")
         for pr in prs:
             subprocess.Popen(["ghostty", "--working-directory=" + os.path.expanduser("~/p"),
                               "-e", "claude", REVIEW.format(pr)],
