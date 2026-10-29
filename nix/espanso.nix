@@ -342,6 +342,14 @@
         trigger = "::robot";
         replace = "🤖";
       }
+      {
+        trigger = "::monocle";
+        replace = "🧐";
+      }
+      {
+        trigger = "::detective";
+        replace = "🕵️";
+      }
 
       {
         trigger = "::red";
