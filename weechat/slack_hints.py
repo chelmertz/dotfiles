@@ -123,13 +123,15 @@ SETTLE_TICKS = 6
 # the occasional single request later does not flicker it.
 IDLE_TICKS = 2
 
-state = {"expected": 0, "connected": 0, "on_time": SETTLE_TICKS, "last": None,
+# connected: the domains of the teams up now. A reconnect announces itself
+# again, so a count would climb past expected (LOADING 4/2).
+state = {"expected": 0, "connected": set(), "on_time": SETTLE_TICKS, "last": None,
          "fetching": False, "idle": 0, "errors": 0, "notice": ""}
 NOTICE_MS = 2000
 
 
 def loading():
-    return state["connected"] < state["expected"] or state["on_time"] < SETTLE_TICKS
+    return len(state["connected"]) < state["expected"] or state["on_time"] < SETTLE_TICKS
 
 
 def requests_running():
@@ -813,7 +815,7 @@ def hints_item_cb(data, item, window):
         return hints
     # Deliberately loud: first on the bar so a narrow window cannot clip it.
     chip = "{c} ⏳ LOADING {n}/{e} – keys may lag {r}".format(
-        c=w.color("*yellow,red"), n=state["connected"],
+        c=w.color("*yellow,red"), n=len(state["connected"]),
         e=state["expected"], r=w.color("reset"),
     )
     return chip + hints
@@ -840,14 +842,15 @@ def connecting_cb(data, buffer, date, tags, displayed, highlight, prefix, messag
     # "Connecting to 2 slack teams." / "Connecting to 1 slack team."
     words = message.split()
     if len(words) > 2 and words[2].isdigit():
-        state.update(expected=int(words[2]), connected=0, on_time=0,
+        state.update(expected=int(words[2]), connected=set(), on_time=0,
                      fetching=True, idle=0)
         w.bar_item_update("slack_hints")
     return w.WEECHAT_RC_OK
 
 
 def connected_cb(data, buffer, date, tags, displayed, highlight, prefix, message):
-    state["connected"] += 1
+    # "Connected to Slack team T037JMLTB (matchi.slack.com) with username …"
+    state["connected"].add(message.split("(", 1)[-1].split(")", 1)[0])
     state["on_time"] = 0
     # The connect notice put the team buffer on the hotlist and made Alt+A
     # stop there first; drop just that. Later lines still count: wee-slack
@@ -861,9 +864,18 @@ def connected_cb(data, buffer, date, tags, displayed, highlight, prefix, message
     home = w.config_string(w.config_get("plugins.var.wee.home_buffer"))
     current = w.buffer_get_string(w.current_buffer(), "full_name")
     if (home and not state["errors"] and current == "core.weechat"
-            and state["connected"] >= state["expected"]):
+            and len(state["connected"]) >= state["expected"]):
         w.command("", "/buffer " + home)
     w.bar_item_update("slack_hints")
+    return w.WEECHAT_RC_OK
+
+
+def lost_cb(data, buffer, date, tags, displayed, highlight, prefix, message):
+    # "Lost connection to slack team matchi.slack.com (no pong), reconnecting."
+    words = message.split()
+    if len(words) > 5:
+        state["connected"].discard(words[5])
+        w.bar_item_update("slack_hints")
     return w.WEECHAT_RC_OK
 
 
@@ -895,6 +907,7 @@ def main():
         w.command("", "/bar add hints root bottom 1 0 slack_hints")
     w.hook_print("", "", "Connecting to ", 1, "connecting_cb", "")
     w.hook_print("", "", "Connected to Slack team", 1, "connected_cb", "")
+    w.hook_print("", "", "Lost connection to slack team", 1, "lost_cb", "")
     w.hook_timer(TICK_MS, 0, 0, "tick_cb", "")
     w.hook_print(w.buffer_search_main(), "", "", 1, "core_print_cb", "")
     w.hook_signal("buffer_switch", "buffer_switch_cb", "")

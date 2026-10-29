@@ -423,11 +423,19 @@ os.write(fd, b"Tob\thi\r")
 pump(0.5)
 os.write(fd, b"/buffer core.weechat\r")
 pump(0.3)
-# Both teams connect: wee leaves the core buffer for the home buffer.
-os.write(fd, b"/print Connected to Slack team T1 (a) with username x\r")
+# Both teams connect: wee leaves the core buffer for the home buffer, and not
+# before. a reconnects and drops on the way, so b alone is one team up of two.
+# wee-slack itself has announced 0 teams by now (the token list is ",").
+for line in (b"Connecting to 2 slack teams.",
+             b"Connected to Slack team T1 (a) with username x",
+             b"Connected to Slack team T1 (a) with username x",
+             b"Lost connection to slack team a (no pong), reconnecting.",
+             b"Connected to Slack team T2 (b) with username x",
+             b"-core BOTH-NOT-UP",
+             b"Connected to Slack team T1 (a) with username x"):
+    os.write(fd, b"/print " + line + b"\r")
+    pump(0.5)
 pump(0.5)
-os.write(fd, b"/print Connected to Slack team T2 (b) with username x\r")
-pump(1)
 # An error while away from core must show on the bar. SELFTEST lines are the
 # one error the run expects; any other still fails it.
 os.write(fd, b"/print -core =!=\\tSELFTEST error\r")
@@ -492,6 +500,12 @@ for mark in ("MENU-CLOSED", "GO-CLOSED"):
         print("Esc did not close it:", mark)
         failed = True
 bufs = [l.rsplit("=", 1)[1] for l in log if "\tCURBUF=" in l]
+not_up = next((i for i, l in enumerate(log) if l.endswith("\tBOTH-NOT-UP")), len(log))
+if any("\tCURBUF=core.homeprobe" in l for l in log[:not_up]):
+    print("moved to the home buffer before both teams were up:",
+          [l.split("\t", 2)[-1] for l in log[:not_up + 1]
+           if "CURBUF=" in l or "BOTH-NOT-UP" in l or "lack team" in l])
+    failed = True
 if bufs.count("core.homeprobe") != 1:
     print("expected one move to the home buffer (clean start) and none after"
           " a start with errors:", bufs)
