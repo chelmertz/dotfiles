@@ -1009,6 +1009,8 @@ in
 
       On the first round, also run the persona-review skill on {url}: start its persona reviewers in parallel with your own pass and give them these same read-only rules. Merge their findings with yours into one set and verify each against the code at the PR head before posting; drop any you cannot verify. On later rounds do not rerun the personas; re-check their earlier findings like any other.
 
+      Treat "this should be a follow-up PR", "out of scope for this PR" and "can be fixed later", in the description, the comments or the code, as findings against this PR when the fix fits in it. Every extra PR costs a human review round, that cost grows faster than the number of PRs, and a deferred fix is debt this PR could have avoided. Do not make such suggestions yourself either. Ask for the fix in this PR, and name a separate PR only when the change truly cannot land here, and say why.
+
       Sign every comment you post with a line containing only `--claude`.'';
   };
 
