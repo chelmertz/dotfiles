@@ -59,9 +59,13 @@
   # writes the key and there is no write left to revert. Custom styles still
   # load: probed on 2.1.258, `claude --settings '{"outputStyle":"Terse"}' -p`
   # sees this file's `# Register` heading and `--settings '{}'` does not.
+  #
+  # Targets the clone path from nix/README.md, not ~/dotfiles: that symlink is
+  # hand-made and nothing here creates it, so on a fresh machine the style
+  # dangled and Claude Code silently fell back to its default.
   home.file.".claude/output-styles/terse.md".source =
     config.lib.file.mkOutOfStoreSymlink
-      "${config.home.homeDirectory}/dotfiles/claude/output-styles/terse.md";
+      "${config.home.homeDirectory}/code/github/chelmertz/dotfiles/claude/output-styles/terse.md";
 
   # `editorMode = "vim"` makes escape the insert-to-normal key, but Claude Code
   # also binds it to `chat:cancel` in the Chat context, so an escape pressed in
