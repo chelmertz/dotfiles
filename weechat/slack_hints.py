@@ -217,8 +217,11 @@ def links(msg):
 
 
 def open_url(url):
-    subprocess.Popen(["xdg-open", url], stdout=subprocess.DEVNULL,
-                     stderr=subprocess.DEVNULL, start_new_session=True)
+    # stdin too: inheriting wee's tty makes claude-review think it already
+    # runs in a terminal, so it starts claude invisibly instead of in ghostty.
+    subprocess.Popen(["xdg-open", url], stdin=subprocess.DEVNULL,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
 
 
 def clipboard(target=None):
