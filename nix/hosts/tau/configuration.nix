@@ -330,6 +330,22 @@
   virtualisation.docker.rootless = {
     enable = true;
     setSocketVariable = true;
+    # Containers are started by the daemon, not by the `docker run` client, so
+    # `capped docker run ...` caps only the client and each container lands in
+    # its own unlimited scope. On 2026-10-30 a CDK deploy bundling Lambdas
+    # (one `go build` container each) drove load to 31 with IO pressure at 72%
+    # while the go tests beside it sat correctly under `capped`.
+    daemon.settings.cgroup-parent = "containers.slice";
+  };
+  # Shared by every container, with bin/capped's limits; see its header for
+  # why MemoryMax and never MemoryHigh. No E-core pinning: user@.service is
+  # not delegated cpuset, so AllowedCPUs would silently do nothing.
+  systemd.user.slices.containers.sliceConfig = {
+    CPUQuota = "400%";
+    CPUWeight = 20;
+    MemoryMax = "12G";
+    MemorySwapMax = 0;
+    IOWeight = 20;
   };
 
   # ── Users ───────────────────────────────────────────────────────────────
