@@ -144,9 +144,9 @@ next write.
 
 ```
 PUT    /api/v0/prs/{prUrl}/annotations/{source}
-       {"state":"needs_you","note":"…","links":[{"label":"…","url":"…"}],"ttlSeconds":900}
+       {"state":"needs_you","note":"…","links":[{"label":"…","url":"…"}],"expiresAt":"2026-10-30T14:15:00Z"}
 DELETE /api/v0/prs/{prUrl}/annotations/{source}
-GET    /api/v0/prs    each row gains Annotations: [...], unexpired only
+GET    /api/v0/prs    each row gains Annotations: [...], unexpired only, expiresAt as stored
 ```
 
 `{prUrl}` is encoded as in the existing bury and golden routes. `source` is
@@ -174,7 +174,7 @@ on render.
 | `links` | at most 4, each exactly `{label, url}` |
 | `label` | at most 40 characters, plain text |
 | `url` | at most 2048 characters; scheme `https` or one named in elly's `-annotation-schemes` flag, empty by default |
-| `ttlSeconds` | 60–86400 |
+| `expiresAt` | RFC 3339, between 1 minute and 24 hours from now; stored as is in `expires_at` and returned unchanged |
 | body | at most 4 KiB, unknown fields rejected |
 
 - The page uses `html/template` since elly bde870b, so `note` and `label` are
