@@ -394,6 +394,10 @@
         trigger = "::what";
         replace = "❓";
       }
+      {
+        trigger = "::comment";
+        replace = "💬";
+      }
 
       {
         trigger = "::red";
