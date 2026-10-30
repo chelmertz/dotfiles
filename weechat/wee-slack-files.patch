@@ -1,0 +1,52 @@
+--- a/wee_slack.py
++++ b/wee_slack.py
+@@ -4329,6 +4329,24 @@
+         )
+ 
+ 
++def fetch_file_info(message, file_id):
++    file_info[file_id] = None
++    message.channel.eventrouter.receive(
++        SlackRequest(
++            message.team,
++            "files.info",
++            {"file": file_id},
++            channel=message.channel,
++            metadata={"file": file_id, "ts": message.ts},
++        )
++    )
++
++
++def handle_filesinfo(json, eventrouter, team, channel, metadata):
++    file_info[metadata["file"]] = json["file"] if json["ok"] else {}
++    channel.change_message(metadata["ts"])
++
++
+ def handle_chatdelete(json, eventrouter, team, channel, metadata):
+     if not json["ok"]:
+         print_error("Couldn't delete message: {}".format(json["error"]))
+@@ -5381,9 +5399,24 @@
+     return "\n".join(huddle_texts)
+ 
+ 
++# File id -> files.info's file; None while the request is out, {} if it failed.
++file_info = {}
++
++
+ def unwrap_files(message, message_json, text_before):
+     files_texts = []
+     for f in message_json.get("files", []):
++        # Slack Connect events carry only a stub of each file, every
++        # message_changed included; files.info has the rest.
++        if f.get("file_access") == "check_file_info":
++            if f["id"] not in file_info:
++                fetch_file_info(message, f["id"])
++            if file_info[f["id"]] is None:
++                files_texts.append(
++                    colorize_string(config.color_deleted, "(Loading file...)")
++                )
++                continue
++            f = file_info[f["id"]] or f
+         if f.get("mode", "") == "tombstone":
+             text = colorize_string(config.color_deleted, "(This file was deleted.)")
+         elif f.get("mode", "") == "hidden_by_limit":

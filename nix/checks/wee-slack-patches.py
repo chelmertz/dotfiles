@@ -463,6 +463,25 @@ if not quiet or not w.prnt.called:
     print("reactions.add errors: already_reacted quiet=%s, others shown=%s" % (quiet, w.prnt.called))
     failed = True
 
+# Files (weechat/wee-slack-files.patch): a Slack Connect stub asks files.info
+# once, reads as loading meanwhile, and renders the real file when it lands.
+stub = {"id": "F1", "file_access": "check_file_info"}
+fchan = mock.MagicMock()
+fmsg = types.SimpleNamespace(team=team, channel=fchan, ts="1.2")
+wee_slack.colorize_string = lambda color, text: text
+loading = wee_slack.unwrap_files(fmsg, {"files": [stub]}, None)
+wee_slack.unwrap_files(fmsg, {"files": [stub]}, None)
+asked = [c.args[0].request for c in fchan.eventrouter.receive.call_args_list]
+wee_slack.handle_filesinfo(
+    {"ok": True, "file": {"id": "F1", "url_private": "https://files.slack.com/F1", "title": "a.png"}},
+    None, team, fchan, {"file": "F1", "ts": "1.2"})
+shown = wee_slack.unwrap_files(fmsg, {"files": [stub]}, None)
+if (asked != ["files.info"] or loading != "(Loading file...)"
+        or shown != "https://files.slack.com/F1 (a.png)"
+        or fchan.change_message.call_args != mock.call("1.2")):
+    print("file stubs: asked=%s loading=%r shown=%r" % (asked, loading, shown))
+    failed = True
+
 if head != ["query", "on-screen"]:
     print("foreground requests not at the head of the waiting list:", head)
     failed = True

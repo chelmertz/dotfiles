@@ -502,7 +502,8 @@ in
           # The edit patch puts one of your messages in the input for the
           # menu's E (/slack edit) and saves it on Enter. The reactions patch
           # keeps quiet when a reaction is already there (the menu's R re-adds
-          # :eyes:).
+          # :eyes:). The files patch fetches files.info for the stubs Slack
+          # Connect events carry, which upstream shows as "cannot be handled".
           (wee-slack.overrideAttrs (o: {
             patches = (o.patches or [ ]) ++ [
               ../weechat/wee-slack-unreads.patch
@@ -517,6 +518,7 @@ in
               ../weechat/wee-slack-openlink.patch
               ../weechat/wee-slack-edit.patch
               ../weechat/wee-slack-reactions.patch
+              ../weechat/wee-slack-files.patch
             ];
           }))
           # Ctrl+K drew its "Go to:" prompt only on the next redraw, and Esc on
