@@ -119,8 +119,17 @@ New pieces besides `tick`:
   automation.
 
 An approve line conditioned on CI ("approve once green") counts as approve: a
-red build is the author's to fix, and the work repos checked so far keep the
-approval across the author's pushes.
+red build is the author's to fix.
+
+Whether an approval survives the author's next push is a per-repo setting
+(dismiss stale approvals), and it can change. `tick` never reads the setting;
+it reads the result. After a clean round it asks GitHub for the user's latest
+review on the PR. Only when no approval of the user's stands does the round
+become `needs_you` with an Approve link; otherwise it is `handled`. In a repo
+that keeps approvals, a CI-fix push costs nothing; in one that dismisses them,
+the push triggers a round and a clean round brings the Approve link back. elly's
+`ReviewStatus` is not used for this: it is the PR's overall decision, so
+another reviewer's approval would read as the user's.
 
 ## elly annotations: storage and API
 
@@ -247,9 +256,6 @@ process that can do that can already replace the PAT.
 
 ## Open questions
 
-- `needs_you` matches elly's single-user model; `attention` would keep the API
-  neutral at no cost.
-- Whether a systemd user service can reach the desktop's notification daemon
-  (D-Bus session bus and display); unchecked.
-- Which work repos beyond the first one checked keep an approval across the
-  author's pushes; the CI-conditioned approve relies on it.
+None. Settled: the state is named `needs_you`; a systemd user unit reaches
+the notification daemon over the session bus (checked 2026-10-30); approval
+survival is read per PR, not per repo setting (above).
