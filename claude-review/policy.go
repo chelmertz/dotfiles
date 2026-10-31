@@ -25,7 +25,9 @@ func UnattendedArgs(cfg Config, pr PR, remote string) []string {
 		"--strict-mcp-config",
 		"--resume", pr.SessionID(), BuildPrompt(posting, pr, remote, true),
 		"--allowedTools",
-		"Read(./**)", "Grep", "Glob",
+		// Scoped like Read: a bare Grep or Glob searched the parent directory
+		// in a live check on 2026-10-31, naming and matching files outside.
+		"Read(./**)", "Grep(./**)", "Glob(./**)",
 		"Bash(gh pr view " + n + ")", "Bash(gh pr diff " + n + ")",
 		"Bash(git fetch " + remote + " pull/" + n + "/head)", "Bash(git show FETCH_HEAD:*)", "Bash(git rev-parse FETCH_HEAD)",
 		threadsRule(pr), postRule(pr),

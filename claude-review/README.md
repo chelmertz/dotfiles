@@ -619,7 +619,8 @@ cover only `gh api`, the `gh pr`/`gh issue` write commands and
 `tick` owns the launch arguments:
 
 - an explicit permission mode, with the user's settings excluded;
-- an allow list scoped to the PR: read the clone, `gh pr view` and
+- an allow list scoped to the PR: read and search the clone (`Read`, `Grep`
+  and `Glob` all scoped to `./**`; a bare `Grep` or `Glob` reaches outside it), `gh pr view` and
   `gh pr diff` for that PR, `claude-review threads` and `post` for that PR;
 - everything else denied, including reads of secret-shaped paths (`.env`,
   key and credential files);

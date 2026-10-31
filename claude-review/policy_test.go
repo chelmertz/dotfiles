@@ -18,7 +18,7 @@ func TestUnattendedArgsArePinned(t *testing.T) {
 		"--strict-mcp-config",
 		"--resume", widgetsPR.SessionID(), prompt,
 		"--allowedTools",
-		"Read(./**)", "Grep", "Glob",
+		"Read(./**)", "Grep(./**)", "Glob(./**)",
 		"Bash(gh pr view 42)", "Bash(gh pr diff 42)",
 		"Bash(git fetch upstream pull/42/head)", "Bash(git show FETCH_HEAD:*)", "Bash(git rev-parse FETCH_HEAD)",
 		"Bash(claude-review threads https://github.com/acme/widgets/pull/42)",
