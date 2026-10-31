@@ -2,6 +2,7 @@
 let
   # toggle off during vacation; flip back to true to re-enable the elly service
   ellyEnabled = true;
+  claudeReview = pkgs.callPackage ../claude-review/package.nix { };
   # Outer corner radius shared by the dunst cards, the rofi window and picom,
   # which clips the rofi shadow to the same curve.
   cardRadius = 14;
@@ -334,6 +335,9 @@ in
     file
     vivid
     elly
+    # On PATH because review sessions run `claude-review post` and
+    # `threads` from their own shell.
+    claudeReview
     flameshot
     fzf
     gh
@@ -983,17 +987,36 @@ in
   };
 
   # Clickable claude-review://<owner>/<repo>/<number> links, emitted by the
-  # GitHub userscript in matchi-backend/scripts/claude-review: click to start
-  # or resume the Claude Code review session for that PR in its local clone.
-  # The binary is installed with `go install` from that module (not nix: the
-  # source is a private work repo), so it lives in ~/go/bin.
+  # GitHub userscript in claude-review/userscript: click to start or resume
+  # the Claude Code review session for that PR in its local clone. Built from
+  # ../claude-review, whose Go tests run in the package build.
   #
   # Mime registration handled by home.activation.xdgDefaultApps.
   xdg.desktopEntries.claude-review = {
     name = "claude review";
-    exec = "${config.home.homeDirectory}/go/bin/claude-review %u";
+    exec = "${lib.getExe claudeReview} %u";
     noDisplay = true;
     mimeType = [ "x-scheme-handler/claude-review" ];
+  };
+
+  # `claude-review tick`, the unattended runner. Shipped disabled: neither
+  # unit has an Install section, so nothing starts until one is added. Try
+  # `claude-review tick --dry-run` first; `systemctl --user start
+  # claude-review-tick` runs one real tick by hand.
+  systemd.user.services.claude-review-tick = {
+    Unit.Description = "claude-review: run owed review rounds";
+    Service = {
+      Type = "oneshot";
+      ExecStart = "${lib.getExe claudeReview} tick";
+    };
+  };
+  systemd.user.timers.claude-review-tick = {
+    Unit.Description = "claude-review: tick every 5 minutes";
+    Timer = {
+      OnCalendar = "*:0/5";
+      # A tick missed during suspend runs on wake.
+      Persistent = true;
+    };
   };
 
   # The tool's per-user config. review_prompt replaces its built-in prompt
@@ -1003,6 +1026,9 @@ in
   # adversarial review, first round only: personas cost minutes per run.
   xdg.configFile."claude-review/config.json".text = builtins.toJSON {
     post_without_asking = true;
+    # The repos `claude-review tick` may run in are listed in a
+    # machine-local review-repos file beside this config, not in this repo.
+    round_wrapper = [ "capped" ];
     clone_path = "~/code/github/{owner}/{repo}";
     review_prompt = ''
       Perform an adversarial code review of {url}.

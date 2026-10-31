@@ -1,0 +1,152 @@
+# Carried over with the module from the work repo it started in, minus that
+# repo's own path rules; `golangci-lint run ./...` from this directory.
+version: "2"
+linters:
+  default: none
+  enable:
+    # --- Base Linters (Correctness & Best Practices) ---
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+
+    # --- Security ---
+    - gosec
+
+    # --- Common Bug & Leak Prevention ---
+    - bodyclose
+    - errorlint
+    - nilerr
+
+    # --- Style, Simplicity & Maintainability ---
+    - goconst
+    - revive
+    - unparam
+    - whitespace
+
+    # --- Complexity ---
+    - gocyclo
+
+    # --- Other Good Linters ---
+    - depguard
+    - ineffassign
+  settings:
+    depguard:
+      rules:
+        prevent_unmaintained_packages:
+          list-mode: lax
+          files:
+            - $all
+            - "!$test"
+          deny:
+            - pkg: io/ioutil
+              desc: "replaced by io and os packages since Go 1.16: https://tip.golang.org/doc/go1.16#ioutil"
+    dupl:
+      threshold: 100
+    errorlint:
+      asserts: true
+    funlen:
+      lines: -1
+      statements: 50
+    gocyclo:
+      min-complexity: 15
+    revive:
+      # Set a confidence level to avoid overly speculative warnings.
+      confidence: 0.8
+      rules:
+        # --- ✅ Excellent Rules to Enable ---
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: if-return
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: struct-tag
+        - name: unreachable-code
+        - name: unchecked-type-assertion
+        - name: unused-parameter
+          exclude:
+            - "**/*_test.go"
+        - name: use-any
+
+        # --- ⚙️ Rules to Configure ---
+        - name: argument-limit
+          arguments: [7] # Set a limit on the number of function arguments.
+        - name: cognitive-complexity
+          arguments: [20] # Recommended complexity metric. More intuitive than cyclomatic.
+          exclude:
+            - _test.go
+
+        # --- ❌ Disabled Rules (Often Noisy or Redundant) ---
+        - name: cyclomatic # Disabled in favor of cognitive-complexity.
+          disabled: true
+        - name: add-constant # Can be very noisy.
+          disabled: true
+        - name: bare-return
+          disabled: true
+        - name: function-result-limit
+          disabled: true
+        - name: superfluous-else
+          disabled: true
+        - name: get-return # Often stylistic and can have false positives.
+          disabled: true
+        - name: var-naming # Can conflict with team styles.
+          disabled: true
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - dupl
+          - errcheck
+          - gocyclo
+          - gosec
+        path: _test\.go
+
+      - linters:
+          - revive
+        path: _test\.go
+        text: cognitive-complexity
+
+      - linters:
+          - revive
+        path: _test\.go
+        text: unchecked-type-assertion
+
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+      - ^.*\/generated.*$
+severity:
+  default: error
+  rules:
+    - linters:
+        - dupl
+      severity: info
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+      - ^.*\/generated.*$
+issues:
+  # these higher limits try to show you more errors at a time, so that you don't have to fix errors, learn new errors, fix those, ... hamster wheel
+  max-issues-per-linter: 300
+  max-same-issues: 300
+  uniq-by-line: false
