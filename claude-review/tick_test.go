@@ -31,14 +31,14 @@ func (e *fakeElly) Put(u string, a Annotation, _ time.Time) error {
 	e.put[u] = a
 	return nil
 }
-func (e *fakeElly) Delete(u string) error                         { e.deleted = append(e.deleted, u); return nil }
+func (e *fakeElly) Delete(u string) error { e.deleted = append(e.deleted, u); return nil }
 
 type fakeTickGitHub struct {
 	fakeGate
-	facts     RoundFacts
-	state     string
-	head      string
-	user      *Review
+	facts      RoundFacts
+	state      string
+	head       string
+	user       *Review
 	dismissed  []int64
 	dismissErr error
 }
