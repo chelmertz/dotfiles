@@ -368,10 +368,22 @@ the user reading each one, inside the launch policy; Approve is one click with
 a ledger token; `tick` dismisses the user's own approval when a later round
 posts findings; rounds resume the PR's session; own-PR scoring stays as it is.
 
-The policy questions are settled too (2026-10-31): unattended posting and
-one-click Approve on a round's verdict are acceptable; the tool stays personal
-tooling, and later feeds something more generic; every push triggers a round;
-rounds run on the user's own Claude seat, with the per-PR daily cap as the
-only brake. Which repos get rounds is the `review_repos` allowlist, which can
-include one repo of an owner and leave out another; elly's `-work-owners`
-only decides how loudly an owner notifies.
+## Policy decisions
+
+These are answers about people and permission, not engineering. Each one
+holds until whoever owns it says otherwise; the last column says what changes
+in the design when it flips. Settled 2026-10-31.
+
+| Question | Asked of | Answer | If it flips |
+| --- | --- | --- | --- |
+| Is it OK that the reviewer posts follow-up review comments on colleagues' PRs automatically, signed --claude, without the user reading each one first? | Engineering manager, or whoever owns AI use | Yes | Unattended rounds stop posting; each round's comments wait for the user as a draft, and `needs_you` carries "review the draft" |
+| Does the user's approval count as the required review when the user clicks Approve on the reviewer's verdict for a follow-up push, without re-reading the diff? | Engineering manager | Yes | The Approve link opens the diff since the user's last approval instead of approving; the user approves from there |
+| Is AI PR review a team deliverable, or personal tooling? | Team lead | Personal; the experiment feeds something more generic later | The tool moves to a team repo, and prompt and runner changes go through review |
+| Which repos may get automated review comments? | Each repo's owning team | A per-repo allowlist in the config (`review_repos`); a large shared monorepo is deliberately left out | Add or remove the repo in `review_repos`; nothing else changes |
+| Should a new round run on every push to a reviewed PR, or only after a re-review request? | Colleagues reviewed most often | Every push | Drop "new head commit" from the triggers; re-review requests and thread replies still start rounds |
+| May one Claude seat run background reviews, a few dozen a day, or does that need a separate budget? | Owner of the Claude licences | The user's seat covers it; the per-PR daily cap is the only brake | Add a daily total across all PRs, past which `tick` starts nothing and rows read "paused" |
+| Is anyone using or waiting on the earlier team-repo draft? | Colleagues | No one had seen it | Nothing; the draft is closed when the code moves |
+
+The policy questions are answered under "Policy decisions" above. elly's
+`-work-owners` only decides how loudly an owner notifies; which repos get
+rounds is `review_repos`.
