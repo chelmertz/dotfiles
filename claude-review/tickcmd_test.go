@@ -1,6 +1,9 @@
 package main
 
 import (
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -50,6 +53,38 @@ func TestClickRecordsAcceptanceOnlyForReviewRepos(t *testing.T) {
 		_ = l.Close()
 		if ok != c.want || (ok && (a.Head != "h7" || a.Base != "main")) {
 			t.Errorf("%s: accepted=%v %+v", c.cfg, ok, a)
+		}
+	}
+}
+
+func TestRunTickAsksGitHubWhoTheUserIs(t *testing.T) {
+	down := httptest.NewServer(http.NotFoundHandler())
+	down.Close()
+	for _, c := range []struct {
+		cfg    string
+		ghErr  error
+		want   int
+		asksGh bool
+	}{
+		{`{"review_repos":["acme/*"],"elly_url":"` + down.URL + `"}`, nil, 1, true},
+		{`{"review_repos":["acme/*"],"elly_url":"` + down.URL + `","github_user":"me"}`, nil, 1, false},
+		{`{"review_repos":["acme/*"],"elly_url":"` + down.URL + `"}`, errors.New("401"), 1, true},
+	} {
+		h := newHost(t, c.cfg, true, true)
+		h.d.Home = t.TempDir()
+		t.Setenv("XDG_STATE_HOME", "") // the ledger goes under Home, never the real state dir
+		asked := false
+		h.d.Gh = func(args ...string) (string, error) {
+			if strings.Join(args, " ") == "api user --jq .login" {
+				asked = true
+			}
+			return "me\n", c.ghErr
+		}
+		if code := run([]string{"tick"}, h.d); code != c.want || asked != c.asksGh {
+			t.Errorf("%s (gh err %v): exit %d, asked gh %v; stderr %q", c.cfg, c.ghErr, code, asked, h.stderr)
+		}
+		if c.ghErr == nil && !strings.Contains(h.stderr.String(), "elly") {
+			t.Errorf("elly being down is not what failed: %q", h.stderr)
 		}
 	}
 }

@@ -13,6 +13,7 @@ import (
 type fakeElly struct {
 	prs     []EllyPR
 	down    bool
+	putErr  error
 	put     map[string]Annotation
 	deleted []string
 }
@@ -23,7 +24,13 @@ func (e *fakeElly) PRs() ([]EllyPR, error) {
 	}
 	return e.prs, nil
 }
-func (e *fakeElly) Put(u string, a Annotation, _ time.Time) error { e.put[u] = a; return nil }
+func (e *fakeElly) Put(u string, a Annotation, _ time.Time) error {
+	if e.putErr != nil {
+		return e.putErr
+	}
+	e.put[u] = a
+	return nil
+}
 func (e *fakeElly) Delete(u string) error                         { e.deleted = append(e.deleted, u); return nil }
 
 type fakeTickGitHub struct {
@@ -32,7 +39,8 @@ type fakeTickGitHub struct {
 	state     string
 	head      string
 	user      *Review
-	dismissed []int64
+	dismissed  []int64
+	dismissErr error
 }
 
 func (g *fakeTickGitHub) RoundFacts(PR, Round) (RoundFacts, error) { return g.facts, nil }
@@ -40,6 +48,9 @@ func (g *fakeTickGitHub) Standing(PR) (string, string, *Review, error) {
 	return g.state, g.head, g.user, nil
 }
 func (g *fakeTickGitHub) Dismiss(_ PR, id int64, _ string) error {
+	if g.dismissErr != nil {
+		return g.dismissErr
+	}
 	g.dismissed = append(g.dismissed, id)
 	return nil
 }
@@ -262,5 +273,63 @@ func TestTickFreshLookGateStartsNothing(t *testing.T) {
 	}
 	if a := w.elly.put[pr.URL()]; a.State != stateNeedsYou || !strings.Contains(a.Note, "look again") {
 		t.Errorf("elly got %+v", a)
+	}
+}
+
+func TestTickARetryCountsAsRunning(t *testing.T) {
+	w := newTickWorld(t)
+	failed := w.accept(t, 1)
+	if _, err := w.h.ledger.StartRound(failed, "h1", "new_head", t0); err != nil {
+		t.Fatal(err)
+	}
+	// The round ended with nothing to show: tick retries it.
+	w.gh.facts = RoundFacts{State: "open", Head: "h1"}
+	w.h.tcfg.MaxRunning = 1
+	w.accept(t, 2)
+	w.elly.prs = []EllyPR{requestedPR(2)}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.started) != 1 || !slices.Contains(w.started[0], failed.SessionID()) {
+		t.Errorf("with one slot, the retry must take it: started %q", w.started)
+	}
+}
+
+func TestTickAFailedDismissalLeavesTheRoundForTheNextTick(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0); err != nil {
+		t.Fatal(err)
+	}
+	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewComments: 1, UserReview: &Review{ID: 7, State: "APPROVED", CommitID: "h0"}}
+	w.gh.dismissErr = errors.New("403")
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if unread, _ := w.h.ledger.UnreadRounds(); len(unread) != 1 {
+		t.Errorf("a round whose dismissal failed was marked read: %v", unread)
+	}
+	if !strings.Contains(w.out.String(), "403") {
+		t.Errorf("the failure was not reported: %q", w.out.String())
+	}
+}
+
+func TestTickOneEllyFailureDoesNotStopTheRest(t *testing.T) {
+	w := newTickWorld(t)
+	for n := 1; n <= 2; n++ {
+		pr := w.accept(t, n)
+		if err := w.h.ledger.SetAnnotation(pr, Annotation{State: stateNeedsYou, Note: "look"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.elly.putErr = errors.New("404 elly does not list that PR")
+	if err := w.h.tick(); err != nil {
+		t.Fatalf("one PR elly does not list failed the whole tick: %v", err)
+	}
+	if strings.Count(w.out.String(), "404") != 2 {
+		t.Errorf("want both failures reported: %q", w.out.String())
+	}
+	if all, _ := w.h.ledger.Annotations(); len(all) != 2 {
+		t.Errorf("a failed send dropped an annotation from the ledger: %v", all)
 	}
 }
