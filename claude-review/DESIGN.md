@@ -106,8 +106,9 @@ claude-review alone. It holds:
 
 1. Read `GET /api/v0/prs` from elly. If elly does not answer, write nothing
    and exit; existing annotations expire on their own.
-2. Pick candidates: the repo owner is in `work_owners` in claude-review's
-   config, the user did not author the PR, it is accepted and not ignored, and
+2. Pick candidates: the repo is in `review_repos` in claude-review's config
+   (`owner/*` for a whole owner, `owner/repo` for one repo), the user did not
+   author the PR, it is accepted and not ignored, and
    it is the user's turn: review requested, re-review requested,
    `ThreadsActionable` above zero, or a new head commit since the last round.
    Changes made by the user's own account trigger nothing, so a round's own
@@ -367,6 +368,10 @@ the user reading each one, inside the launch policy; Approve is one click with
 a ledger token; `tick` dismisses the user's own approval when a later round
 posts findings; rounds resume the PR's session; own-PR scoring stays as it is.
 
-Policy questions for colleagues (posting automatically, approval on an AI
-verdict, Eversports repos, licence budget) are open with the people who own
-them, and could still change the posting and approve rules.
+The policy questions are settled too (2026-10-31): unattended posting and
+one-click Approve on a round's verdict are acceptable; the tool stays personal
+tooling, and later feeds something more generic; every push triggers a round;
+rounds run on the user's own Claude seat, with the per-PR daily cap as the
+only brake. Which repos get rounds is the `review_repos` allowlist, which can
+include one repo of an owner and leave out another; elly's `-work-owners`
+only decides how loudly an owner notifies.
