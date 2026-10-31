@@ -324,7 +324,7 @@ otherwise every comment anywhere would ping.
   or a note must not restyle it (a bold "safe to merge").
 - Normal urgency, so it times out: the inbox and the count hold the state, a
   missed notification loses nothing.
-- Clicking it opens the elly page.
+- Its default action opens the elly page (middle click in this dunst config; left click only closes).
 - Sent once per PR and reason kind, not reason text, so a comment count
   changing in the text does not notify again. The last reason kinds per PR are
   kept in elly's database so a restart does not re-send.
