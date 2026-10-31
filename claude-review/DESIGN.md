@@ -51,11 +51,10 @@ annotation. GitHub holds the approval and the annotation is an expiring cache,
 so no state is kept in two places.
 
 claude-review moves from a draft PR in a work repo into this public repo, so
-prompt changes and the runner ship without review rounds. The move scrubs the
-MATCHi naming first: README examples and its "Home in matchi-backend"
-decision row, the `go.mod` module path, the userscript `@namespace`, and the
-`matchiapp/...` fixture URLs in the tests. Nothing secret was found in it. A
-cut-down version can return to the team later.
+prompt changes and the runner ship without review rounds. The move first
+scrubs the work repo's org and repo names from the README, the `go.mod`
+module path, the userscript `@namespace` and the test fixtures. Nothing secret
+was found in it. A cut-down version can return to the team later.
 
 ## Flow
 
