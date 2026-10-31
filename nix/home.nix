@@ -1911,7 +1911,7 @@ in
       ExecStart = "${pkgs.writeShellScript "elly" ''
         export PATH=${lib.makeBinPath [ pkgs.libnotify pkgs.xdg-utils ]}:$PATH
         exec ${pkgs.elly}/bin/elly "$@"
-      ''} -db %h/.local/share/elly/elly.db -notify -work-owners=matchiapp,eversport";
+      ''} -db %h/.local/share/elly/elly.db -notify -work-owners=matchiapp,eversport -annotation-schemes=claude-review";
       Restart = "on-failure";
     };
     Install = {
