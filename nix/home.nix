@@ -1906,7 +1906,12 @@ in
       Description = "Elly - Github PR dashbaord";
     };
     Service = {
-      ExecStart = "${pkgs.elly}/bin/elly -db %h/.local/share/elly/elly.db";
+      # -notify forks notify-send, and xdg-open when a notification is
+      # clicked; the wrapper carries both rather than a pinned PATH.
+      ExecStart = "${pkgs.writeShellScript "elly" ''
+        export PATH=${lib.makeBinPath [ pkgs.libnotify pkgs.xdg-utils ]}:$PATH
+        exec ${pkgs.elly}/bin/elly "$@"
+      ''} -db %h/.local/share/elly/elly.db -notify -work-owners=matchiapp,eversport";
       Restart = "on-failure";
     };
     Install = {
