@@ -1907,11 +1907,14 @@ in
     };
     Service = {
       # -notify forks notify-send, and xdg-open when a notification is
-      # clicked; the wrapper carries both rather than a pinned PATH.
+      # clicked; the wrapper carries both rather than a pinned PATH. The work
+      # owners (comma-separated) live in a machine-local file, not in this
+      # public repo; without it every owner notifies on every change.
       ExecStart = "${pkgs.writeShellScript "elly" ''
         export PATH=${lib.makeBinPath [ pkgs.libnotify pkgs.xdg-utils ]}:$PATH
-        exec ${pkgs.elly}/bin/elly "$@"
-      ''} -db %h/.local/share/elly/elly.db -notify -work-owners=matchiapp,eversport -annotation-schemes=claude-review";
+        owners=$(cat "''${XDG_CONFIG_HOME:-$HOME/.config}/elly/work-owners" 2>/dev/null || true)
+        exec ${pkgs.elly}/bin/elly "$@" -work-owners="$owners"
+      ''} -db %h/.local/share/elly/elly.db -notify -annotation-schemes=claude-review";
       Restart = "on-failure";
     };
     Install = {
