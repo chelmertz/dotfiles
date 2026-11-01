@@ -31,6 +31,9 @@ type TickConfig struct {
 	DailyCap int
 	// MaxRunning is how many rounds may run at once.
 	MaxRunning int
+	// TotalDailyCap is how many rounds, retries included, may start in 24
+	// hours across all PRs before the breaker trips. 0 starts nothing.
+	TotalDailyCap int
 	// Wrapper prefixes each round's command, e.g. ["capped"].
 	Wrapper []string
 }

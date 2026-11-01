@@ -53,7 +53,7 @@ const usageText = `usage: claude-review [--dry-run] <pr>
        claude-review threads <pr>
        claude-review approve <pr> --at SHA
        claude-review slack [--dry-run] <pr>...
-       claude-review tick [--dry-run]
+       claude-review tick [--dry-run | --reset]
 
   <pr>   a GitHub PR URL, claude-review://owner/repo/number or owner/repo/number
 

@@ -42,6 +42,9 @@ type Config struct {
 	DailyCap int `json:"daily_cap"`
 	// MaxRunning is how many unattended rounds may run at once (default 2).
 	MaxRunning int `json:"max_running"`
+	// TotalDailyCap is how many unattended rounds may start in 24 hours
+	// across all PRs before tick stops starting any (default 24).
+	TotalDailyCap int `json:"total_daily_cap"`
 	// RoundWrapper prefixes each unattended round, e.g. ["capped"].
 	RoundWrapper []string `json:"round_wrapper"`
 	// EllyURL is elly's address (default http://localhost:9876).
@@ -114,6 +117,9 @@ func LoadConfig(path, home string) (Config, error) {
 	}
 	if cfg.MaxRunning == 0 {
 		cfg.MaxRunning = 2
+	}
+	if cfg.TotalDailyCap == 0 {
+		cfg.TotalDailyCap = 24
 	}
 	if cfg.EllyURL == "" {
 		cfg.EllyURL = "http://localhost:9876"

@@ -68,7 +68,21 @@ func (h tickHost) tick() error {
 	if err := h.startOwed(prs, running); err != nil {
 		return err
 	}
-	return h.refresh()
+	if err := h.refresh(); err != nil {
+		return err
+	}
+	// A failed run is what the timer's journal shows.
+	if reason, err := h.ledger.Tripped(); err != nil || reason != "" {
+		return errors.Join(err, breakerError(reason))
+	}
+	return nil
+}
+
+func breakerError(reason string) error {
+	if reason == "" {
+		return nil
+	}
+	return fmt.Errorf("no round starts: %s; `claude-review tick --reset` lets them start again", reason)
 }
 
 // settle reads every round the ledger started and has not read, and returns
@@ -123,10 +137,7 @@ func (h tickHost) settle() (int, error) {
 func (h tickHost) apply(pr PR, r Round, d Decision) (bool, error) {
 	if d.Retry {
 		return true, h.do("retry "+pr.Slug(), func() error {
-			if err := h.ledger.MarkRetried(r.ID); err != nil {
-				return err
-			}
-			return h.launch(pr)
+			return h.launch(pr, func() error { return h.ledger.MarkRetried(r.ID) })
 		})
 	}
 	if d.DismissReviewID != 0 {
@@ -169,14 +180,9 @@ func (h tickHost) startOwed(prs []EllyPR, running int) error {
 		return err
 	}
 	for _, p := range plans {
-		var gate *Annotation
-		switch p.Gate {
-		case gateFreshLook:
-			gate = &Annotation{State: stateNeedsYou, Note: "the PR changed under its first look (force-push or new base); click claude review to look again",
-				Links: []Link{ignoreLink(p.PR)}}
-		case gatePaused:
-			gate = &Annotation{State: stateNeedsYou, Note: "paused: the daily round limit for this PR is reached",
-				Links: []Link{attachLink(p.PR), ignoreLink(p.PR)}}
+		gate, err := h.gateNote(p)
+		if err != nil {
+			return err
 		}
 		if gate != nil {
 			if err := h.do(fmt.Sprintf("mark %s %s: %s", p.PR.Slug(), gate.State, gate.Note), func() error { return h.ledger.SetAnnotation(p.PR, *gate) }); err != nil {
@@ -194,10 +200,10 @@ func (h tickHost) startOwed(prs []EllyPR, running int) error {
 			continue
 		}
 		if err := h.do(fmt.Sprintf("start a round on %s at %.9s (%s)", p.PR.Slug(), p.Head, p.Trigger), func() error {
-			if _, err := h.ledger.StartRound(p.PR, p.Head, p.Trigger, h.now()); err != nil {
+			return h.launch(p.PR, func() error {
+				_, err := h.ledger.StartRound(p.PR, p.Head, p.Trigger, h.now())
 				return err
-			}
-			return h.launch(p.PR)
+			})
 		}); err != nil {
 			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", p.PR.Slug(), err)
 			continue
@@ -207,12 +213,48 @@ func (h tickHost) startOwed(prs []EllyPR, running int) error {
 	return nil
 }
 
-// launch starts an unattended round on pr in its clone. Every caller runs
-// it through do; the check here makes a caller that forgets fail loudly
-// instead of posting from a dry run.
-func (h tickHost) launch(pr PR) error {
+// gateNote is the annotation that holds p back, or nil when it may start.
+func (h tickHost) gateNote(p Planned) (*Annotation, error) {
+	switch p.Gate {
+	case gateFreshLook:
+		return &Annotation{State: stateNeedsYou, Note: "the PR changed under its first look (force-push or new base); click claude review to look again",
+			Links: []Link{ignoreLink(p.PR)}}, nil
+	case gatePaused:
+		return &Annotation{State: stateNeedsYou, Note: "paused: the daily round limit for this PR is reached",
+			Links: []Link{attachLink(p.PR), ignoreLink(p.PR)}}, nil
+	}
+	reason, err := h.ledger.Tripped()
+	if err != nil || reason == "" {
+		return nil, err
+	}
+	return &Annotation{State: stateNeedsYou, Note: "paused: " + reason + "; claude-review starts no round until it is reset",
+		Links: []Link{attachLink(p.PR), ignoreLink(p.PR)}}, nil
+}
+
+// launch records a round with record and starts it on pr in its clone. It
+// is the only way tick starts a round, so both failsafes live here. Every
+// caller runs it through do; the dry-run check makes a caller that forgets
+// fail loudly instead of posting. The breaker trips at TotalDailyCap starts
+// in 24 hours and stays tripped until the user resets it, so a loop that
+// keeps starting rounds stops at the cap even after the window moves on.
+func (h tickHost) launch(pr PR, record func() error) error {
 	if h.dry {
 		return errors.New("refusing to start a round in a dry run")
+	}
+	reason, err := h.ledger.Tripped()
+	if err != nil || reason != "" {
+		return errors.Join(err, breakerError(reason))
+	}
+	n, err := h.ledger.Launches(h.now().Add(-24 * time.Hour))
+	if err != nil {
+		return err
+	}
+	if n >= h.tcfg.TotalDailyCap {
+		reason = fmt.Sprintf("%d rounds started in 24 hours, the limit across all PRs", n)
+		return errors.Join(h.ledger.Trip(reason), breakerError(reason))
+	}
+	if err := record(); err != nil {
+		return err
 	}
 	dir, remote, err := h.findRepo(pr)
 	if err != nil {

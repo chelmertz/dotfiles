@@ -83,7 +83,7 @@ func TestRecordedRounds(t *testing.T) {
 			var started [][]string
 			out := &bytes.Buffer{}
 			h := tickHost{
-				tcfg:        TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 6, MaxRunning: 2},
+				tcfg:        TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 6, MaxRunning: 2, TotalDailyCap: 24},
 				ledger:      l,
 				elly:        &fakeElly{put: map[string]Annotation{}},
 				gh:          gh,

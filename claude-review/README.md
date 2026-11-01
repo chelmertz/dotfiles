@@ -429,7 +429,7 @@ The timer ships disabled.
 
 1. List the repos in `review_repos` in the config (`owner/*` or
    `owner/repo`), or one per line in a `review-repos` file beside it, for
-   names that should stay out of a shared config. Optional: `daily_cap` (6), `max_running` (2),
+   names that should stay out of a shared config. Optional: `daily_cap` (6), `max_running` (2), `total_daily_cap` (24),
    `round_wrapper` (a command prefix such as `["capped"]`), `elly_url`
    (`http://localhost:9876`), `github_user` (asked of gh when empty).
 2. Start elly with `-annotation-schemes=claude-review`, so its page renders
@@ -567,7 +567,8 @@ claude-review alone. It holds:
    or its base branch changed since acceptance.
 4. Skip a PR the ledger already started a round for at the same head and
    trigger. Past the per-PR daily cap, mark it `needs_you` with "paused"
-   instead of starting a round.
+   instead of starting a round. While the breaker is tripped (below), mark
+   every owed PR "paused" the same way.
 5. Start the round in the PR's session, resumed, with `terminal: false`, at
    most 2 at once, under `capped`, and under the launch policy below. A PR
    whose session is running or open in a terminal starts nothing, by the same
@@ -584,6 +585,16 @@ claude-review alone. It holds:
    positive evidence: the user's own approval stands at the current head, or
    GitHub reports the PR merged or closed. A PR missing from one elly read is
    not evidence; its annotation expires instead.
+
+#### The breaker
+
+Every round start and retry goes through one function, and that function
+counts. At `total_daily_cap` (24) starts and retries in 24 hours, across all
+PRs, it trips: it starts nothing, writes the reason to the ledger, and every
+later tick exits non-zero, so the timer's journal shows a failed run. It
+stays tripped after the 24 hours have passed; a loop that tripped it once
+would trip it again. `claude-review tick --reset` closes it and counts afresh
+from that moment. A cap of 0 starts nothing.
 
 #### Reading a round's outcome
 
@@ -853,7 +864,7 @@ in the design when it flips. Settled 2026-10-31.
 | Is AI PR review a team deliverable, or personal tooling? | Team lead | Personal; the experiment feeds something more generic later | The tool moves to a team repo, and prompt and runner changes go through review |
 | Which repos may get automated review comments? | Each repo's owning team | A per-repo allowlist in the config (`review_repos`); a large shared monorepo is deliberately left out | Add or remove the repo in `review_repos`; nothing else changes |
 | Should a new round run on every push to a reviewed PR, or only after a re-review request? | Colleagues reviewed most often | Every push | Drop "new head commit" from the triggers; re-review requests and thread replies still start rounds |
-| May one Claude seat run background reviews, a few dozen a day, or does that need a separate budget? | Owner of the Claude licences | The user's seat covers it; the per-PR daily cap is the only brake | Add a daily total across all PRs, past which `tick` starts nothing and rows read "paused" |
+| May one Claude seat run background reviews, a few dozen a day, or does that need a separate budget? | Owner of the Claude licences | The user's seat covers it; the per-PR daily cap is the budget brake, and `total_daily_cap` only stops a runaway | Lower `total_daily_cap` to the budget |
 | Is anyone using or waiting on the earlier team-repo draft? | Colleagues | No one had seen it | Nothing; the draft is closed when the code moves |
 
 The policy questions are answered under "Policy decisions" above. elly's

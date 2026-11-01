@@ -28,6 +28,7 @@ create table if not exists rounds (
 	started_at integer not null, read_at integer, retries integer not null default 0);
 create table if not exists tokens (token text primary key, pr text not null, sha text not null, used integer not null default 0);
 create table if not exists annotations (pr text primary key, state text not null, note text not null, links text not null);
+create table if not exists breaker (id integer primary key check (id = 1), tripped text, reset_at integer not null default 0);
 `
 
 // LedgerPath is where the ledger lives: XDG state, beside nothing else.
@@ -121,6 +122,37 @@ func (l *Ledger) RoundsSince(pr PR, since time.Time) (int, error) {
 	var n int
 	err := l.db.QueryRow(`select count(*) from rounds where pr = ? and started_at >= ?`, pr.URL(), since.Unix()).Scan(&n)
 	return n, err
+}
+
+// Launches counts the round starts and retries since since, across all PRs,
+// for the breaker. Starts before the last reset do not count.
+func (l *Ledger) Launches(since time.Time) (int, error) {
+	var n int
+	err := l.db.QueryRow(`select coalesce(sum(1 + retries), 0) from rounds
+		where started_at >= max(?, coalesce((select reset_at from breaker), 0))`, since.Unix()).Scan(&n)
+	return n, err
+}
+
+// Trip latches the breaker: no round starts until Reset.
+func (l *Ledger) Trip(reason string) error {
+	_, err := l.db.Exec(`insert into breaker (id, tripped) values (1, ?) on conflict (id) do update set tripped = excluded.tripped`, reason)
+	return err
+}
+
+// Tripped is the reason the breaker tripped, or "" while it is closed.
+func (l *Ledger) Tripped() (string, error) {
+	var reason sql.NullString
+	err := l.db.QueryRow(`select tripped from breaker`).Scan(&reason)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return reason.String, err
+}
+
+// Reset closes the breaker and starts its count afresh at.
+func (l *Ledger) Reset(at time.Time) error {
+	_, err := l.db.Exec(`insert into breaker (id, tripped, reset_at) values (1, null, ?) on conflict (id) do update set tripped = null, reset_at = excluded.reset_at`, at.Unix())
+	return err
 }
 
 // UnreadRounds are rounds whose outcome has not been processed yet.

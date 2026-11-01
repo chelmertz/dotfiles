@@ -76,7 +76,7 @@ func newTickWorld(t *testing.T) *tickWorld {
 		out:     &bytes.Buffer{},
 	}
 	w.h = tickHost{
-		tcfg:        TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 6, MaxRunning: 2, Wrapper: []string{"capped"}},
+		tcfg:        TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 6, MaxRunning: 2, TotalDailyCap: 24, Wrapper: []string{"capped"}},
 		ledger:      openTestLedger(t),
 		elly:        w.elly,
 		gh:          w.gh,
@@ -380,7 +380,7 @@ func TestTickOneEllyFailureDoesNotStopTheRest(t *testing.T) {
 func TestLaunchRefusesInADryRun(t *testing.T) {
 	w := newTickWorld(t)
 	w.h.dry = true
-	if err := w.h.launch(widgetsPR); err == nil || len(w.started) != 0 {
+	if err := w.h.launch(widgetsPR, func() error { return nil }); err == nil || len(w.started) != 0 {
 		t.Errorf("launch in a dry run: err %v, started %q", err, w.started)
 	}
 }
@@ -405,5 +405,87 @@ func TestTickABlockedRoundNeedsTheUser(t *testing.T) {
 	a := all[pr.URL()]
 	if a.State != stateNeedsYou || !strings.Contains(a.Note, "permission") || !hasLink(&a, "attach") {
 		t.Errorf("annotation %+v", a)
+	}
+}
+
+// A loop that keeps starting rounds stops at the cap across all PRs, and
+// stays stopped after the 24 hours have passed: only a reset reopens it.
+func TestTickBreakerStopsARunawayLoopUntilReset(t *testing.T) {
+	w := newTickWorld(t)
+	w.h.tcfg.TotalDailyCap = 2
+	w.h.tcfg.MaxRunning = 10
+	for n := 1; n <= 3; n++ {
+		w.accept(t, n)
+		w.elly.prs = append(w.elly.prs, requestedPR(n))
+	}
+	if err := w.h.tick(); err == nil || !strings.Contains(err.Error(), "2 rounds started in 24 hours") {
+		t.Errorf("a tripped tick reported %v", err)
+	}
+	if len(w.started) != 2 {
+		t.Fatalf("started %d rounds past a cap of 2", len(w.started))
+	}
+	if rounds, _ := w.h.ledger.UnreadRounds(); len(rounds) != 2 {
+		t.Errorf("the refused start left a round in the ledger: %+v", rounds)
+	}
+
+	w.h.now = func() time.Time { return t0.Add(25 * time.Hour) }
+	for n := 1; n <= 2; n++ {
+		w.live[PR{Owner: "acme", Repo: "widgets", Number: n}.SessionID()] = true
+	}
+	if err := w.h.tick(); err == nil {
+		t.Error("the breaker closed on its own")
+	}
+	if len(w.started) != 2 {
+		t.Errorf("a round started while tripped: %d", len(w.started))
+	}
+	if a, _ := w.h.ledger.Annotations(); !strings.HasPrefix(a[PR{Owner: "acme", Repo: "widgets", Number: 3}.URL()].Note, "paused: 2 rounds started") {
+		t.Errorf("an owed PR does not say why it waits: %+v", a)
+	}
+
+	if err := w.h.ledger.Reset(w.h.now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.started) != 3 {
+		t.Errorf("after a reset: started %d", len(w.started))
+	}
+}
+
+func TestTickBreakerCountsRetries(t *testing.T) {
+	w := newTickWorld(t)
+	failed := w.accept(t, 1)
+	if _, err := w.h.ledger.StartRound(failed, "h1", "new_head", t0); err != nil {
+		t.Fatal(err)
+	}
+	w.gh.facts = RoundFacts{State: "open", Head: "h1"}
+	w.h.tcfg.TotalDailyCap = 1
+	if err := w.h.tick(); err == nil {
+		t.Error("a retry past the cap did not trip the breaker")
+	}
+	if len(w.started) != 0 {
+		t.Errorf("a retry started past the cap: %q", w.started)
+	}
+}
+
+func TestLaunchWithoutACapStartsNothing(t *testing.T) {
+	w := newTickWorld(t)
+	w.h.tcfg.TotalDailyCap = 0
+	if err := w.h.launch(widgetsPR, func() error { return nil }); err == nil || len(w.started) != 0 {
+		t.Errorf("launch with no cap: err %v, started %q", err, w.started)
+	}
+}
+
+// The retry path reaches launch without passing the owed-PR gate, so the
+// latch has to hold in launch itself.
+func TestLaunchRefusesWhileTripped(t *testing.T) {
+	w := newTickWorld(t)
+	if err := w.h.ledger.Trip("too many"); err != nil {
+		t.Fatal(err)
+	}
+	recorded := false
+	if err := w.h.launch(widgetsPR, func() error { recorded = true; return nil }); err == nil || recorded || len(w.started) != 0 {
+		t.Errorf("launch while tripped: err %v, recorded %v, started %q", err, recorded, w.started)
 	}
 }

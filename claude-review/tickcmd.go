@@ -10,12 +10,13 @@ import (
 	"time"
 )
 
-// runTick is `claude-review tick [--dry-run]`, run by a timer.
+// runTick is `claude-review tick [--dry-run | --reset]`, run by a timer.
 func runTick(args []string, d Deps) int {
 	fs := flag.NewFlagSet("claude-review tick", flag.ContinueOnError)
 	fs.SetOutput(d.Stderr)
 	dry := fs.Bool("dry-run", false, "print what tick would do, and do none of it")
-	if err := fs.Parse(args); err != nil || fs.NArg() != 0 {
+	reset := fs.Bool("reset", false, "let rounds start again after the breaker tripped, and do nothing else")
+	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || *dry && *reset {
 		return 2
 	}
 	cfg, err := LoadConfig(ConfigPath(d.UserConfigDir), d.Home)
@@ -36,6 +37,9 @@ func runTick(args []string, d Deps) int {
 		return fail(d, err)
 	}
 	defer unlock()
+	if *reset {
+		return resetBreaker(d)
+	}
 
 	user := cfg.GitHubUser
 	if user == "" {
@@ -53,7 +57,7 @@ func runTick(args []string, d Deps) int {
 
 	h := tickHost{
 		cfg:         cfg,
-		tcfg:        TickConfig{ReviewRepos: cfg.ReviewRepos, User: user, DailyCap: cfg.DailyCap, MaxRunning: cfg.MaxRunning, Wrapper: cfg.RoundWrapper},
+		tcfg:        TickConfig{ReviewRepos: cfg.ReviewRepos, User: user, DailyCap: cfg.DailyCap, MaxRunning: cfg.MaxRunning, TotalDailyCap: cfg.TotalDailyCap, Wrapper: cfg.RoundWrapper},
 		ledger:      l,
 		elly:        Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile()},
 		gh:          GitHub{Gh: d.Gh, User: user},
@@ -77,6 +81,18 @@ func runTick(args []string, d Deps) int {
 	if err := h.tick(); err != nil {
 		fmt.Fprintln(d.Stderr, "claude-review tick:", err)
 		return 1
+	}
+	return 0
+}
+
+func resetBreaker(d Deps) int {
+	l, err := OpenLedger(LedgerPath(d.Home))
+	if err != nil {
+		return fail(d, err)
+	}
+	defer func() { _ = l.Close() }()
+	if err := l.Reset(time.Now()); err != nil {
+		return fail(d, err)
 	}
 	return 0
 }

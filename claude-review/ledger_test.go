@@ -122,3 +122,43 @@ func TestLedgerAnnotations(t *testing.T) {
 		t.Errorf("cleared annotation still there: %+v", all)
 	}
 }
+
+func TestLedgerBreaker(t *testing.T) {
+	l := openTestLedger(t)
+	other := PR{Owner: owner, Repo: repoName, Number: 43}
+	id, err := l.StartRound(widgetsPR, "h1", "new_head", t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.MarkRetried(id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.StartRound(other, "h1", "new_head", t0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.StartRound(other, "h0", "new_head", t0.Add(-25*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := l.Launches(t0.Add(-24 * time.Hour)); err != nil || n != 3 {
+		t.Errorf("two starts and a retry across PRs, one start too old: %d %v", n, err)
+	}
+
+	if reason, err := l.Tripped(); err != nil || reason != "" {
+		t.Errorf("a new ledger is tripped: %q %v", reason, err)
+	}
+	if err := l.Trip("too many"); err != nil {
+		t.Fatal(err)
+	}
+	if reason, _ := l.Tripped(); reason != "too many" {
+		t.Errorf("tripped: %q", reason)
+	}
+	if err := l.Reset(t0.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if reason, _ := l.Tripped(); reason != "" {
+		t.Errorf("still tripped after a reset: %q", reason)
+	}
+	if n, _ := l.Launches(t0.Add(-24 * time.Hour)); n != 0 {
+		t.Errorf("starts before the reset still count: %d", n)
+	}
+}
