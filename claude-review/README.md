@@ -437,11 +437,19 @@ The timer ships disabled.
 3. Click claude review on a PR as usual: in a listed repo, that click is the
    acceptance tick needs.
 4. `claude-review tick --dry-run` prints what a tick would do and changes
-   nothing: no round, no ledger row, no annotation.
+   nothing: no round, no ledger row, no annotation. It also names each owed
+   PR it leaves alone because its session is open in a window.
 5. In these dotfiles the `claude-review-tick` service and timer exist in
    `nix/home.nix` without an Install section, so nothing runs until one is
    added there; `systemctl --user start claude-review-tick` runs one tick by
    hand.
+
+`replay/replay.sh [--as-open] <pr-url>...` runs that dry run against past
+sessions: a fake elly lists the PRs with a re-review requested, a scratch
+ledger holds each session's last round unread, and GitHub and the transcripts
+are read for real. `--as-open` reports merged PRs as open, so their rounds
+reach the outcome rules, and refuses any `gh` call that could write.
+`CLAUDE_REVIEW=<binary>` replays a local build.
 
 elly becomes the review inbox: claude-review runs rounds unattended and marks
 each PR in elly as handled or needing the user, with Approve and Open-session
@@ -552,7 +560,8 @@ claude-review alone. It holds:
    `ThreadsActionable` above zero, or a new head commit since the last round.
    Changes made by the user's own account trigger nothing, so a round's own
    review cannot start the next round.
-3. Send a PR back to the first-look gate (no rounds, a `needs_you` row asking
+3. Skip a PR GitHub reports merged or closed: elly lists it until its next
+   poll. Send a PR back to the first-look gate (no rounds, a `needs_you` row asking
    for a fresh look) when its head no longer descends from the accepted head
    or its base branch changed since acceptance.
 4. Skip a PR the ledger already started a round for at the same head and
@@ -572,11 +581,12 @@ claude-review alone. It holds:
 
 #### Reading a round's outcome
 
-The session's last message carries one of two fixed lines: the approve line
-(`claude-review approve <url> --at <sha>`) or the question line,
+The session's last message carries one of three fixed lines: the approve
+line (`claude-review approve <url> --at <sha>`), the question line,
 `claude-review: question for the user`, which every prompt asks for when a
-round ends on a question only the user can answer.
-Neither is trusted on its own.
+round ends on a question only the user can answer, or the nothing line,
+`claude-review: nothing to post`, which a later round ends on when there are
+no new commits and no reply that needs an answer. None is trusted on its own.
 
 - **Approve link**: only when the session's approve line names the PR and the
   head `tick` recorded at the round's start, and GitHub shows that the round
@@ -587,10 +597,15 @@ Neither is trusted on its own.
   confirmation dialog. An approve line conditioned on CI ("approve once
   green") counts as approve: a red build is the author's to fix.
 - **Question line**: `needs_you` with an Open-session link.
+- **Nothing line**, and GitHub shows nothing posted: `handled`. Without the
+  line such a round would read as a failed one and be retried; replays of
+  past rounds found two of 33 ending this way.
 - **Findings after the user's approval**: when the round posted new review
   comments at the current head while the user's approval stands at an earlier
-  commit, `tick` dismisses that approval, with a message ending `--claude`,
-  and marks the PR `needs_you`. Any new finding counts; severity is not
+  commit and was given before the round started, `tick` dismisses that
+  approval, with a message ending `--claude`, and marks the PR `needs_you`.
+  An approval given after the round started was given with its findings in
+  view, and stays. Any new finding counts; severity is not
   judged. A steered round can therefore block a merge, never let one through.
   This needs write access and no dismissal restriction on the repo.
 - **Clean round under a standing approval**: `handled`. Approval survival is a
@@ -599,8 +614,10 @@ Neither is trusted on its own.
   which is the PR's overall decision and would count another reviewer's
   approval as the user's.
 - **`handled` otherwise** needs positive evidence: a review by the user's
-  account at the round's head, posted during the round. It links to that
-  review.
+  account at the round's head, or inline review comments by it, posted
+  during the round. Comments alone count because a push between planning and
+  the round puts the review on a newer head than the one `tick` recorded. It
+  links to the review when there is one.
 - **Anything else** (a crash, an expired `gh` token, a rate limit, a stalled
   prompt, a reboot, neither line printed): retry once, then `needs_you` with
   "round failed" and an Open-session link.

@@ -156,6 +156,46 @@ func TestTickDryRunWritesNothing(t *testing.T) {
 	}
 }
 
+// A window left open on a PR holds its rounds back; a dry run says so, or
+// it reads as tick having found nothing owed.
+func TestTickDryRunNamesAnOpenSession(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	w.elly.prs = []EllyPR{requestedPR(42)}
+	w.live[pr.SessionID()] = true
+	w.h.dry = true
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(w.out.String(), "would leave acme/widgets#42: its session is open") {
+		t.Errorf("dry run said %q", w.out.String())
+	}
+}
+
+// A dry run once started three real rounds through the retry path, which
+// launched outside the dry-run guard.
+func TestTickDryRunRetriesNothing(t *testing.T) {
+	w := newTickWorld(t)
+	failed := w.accept(t, 1)
+	if _, err := w.h.ledger.StartRound(failed, "h1", "new_head", t0); err != nil {
+		t.Fatal(err)
+	}
+	w.gh.facts = RoundFacts{State: "open", Head: "h1"}
+	w.h.dry = true
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.started) != 0 {
+		t.Errorf("a dry run started %q", w.started)
+	}
+	if rounds, _ := w.h.ledger.UnreadRounds(); len(rounds) != 1 || rounds[0].Retries != 0 {
+		t.Errorf("a dry run changed the round: %+v", rounds)
+	}
+	if !strings.Contains(w.out.String(), "would retry acme/widgets#1") {
+		t.Errorf("dry run said %q", w.out.String())
+	}
+}
+
 func TestTickAtMostTwoRunning(t *testing.T) {
 	w := newTickWorld(t)
 	for n := 1; n <= 3; n++ {
@@ -331,5 +371,13 @@ func TestTickOneEllyFailureDoesNotStopTheRest(t *testing.T) {
 	}
 	if all, _ := w.h.ledger.Annotations(); len(all) != 2 {
 		t.Errorf("a failed send dropped an annotation from the ledger: %v", all)
+	}
+}
+
+func TestLaunchRefusesInADryRun(t *testing.T) {
+	w := newTickWorld(t)
+	w.h.dry = true
+	if err := w.h.launch(widgetsPR); err == nil || len(w.started) != 0 {
+		t.Errorf("launch in a dry run: err %v, started %q", err, w.started)
 	}
 }

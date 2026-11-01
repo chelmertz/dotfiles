@@ -21,6 +21,8 @@ func TestReadOutcome(t *testing.T) {
 		{"short sha is not an approve line", "`! claude-review approve https://github.com/acme/widgets/pull/7 --at 0123456`", Outcome{Kind: OutcomeOther}},
 		{"question marker quoted mid-message does not count", "I will end with " + questionLine + " if needed.\nPosted 2 comments.", Outcome{Kind: OutcomeOther}},
 		{"both: the question wins", "approve with `! claude-review approve https://github.com/acme/widgets/pull/7 --at " + sha + "`\n" + questionLine, Outcome{Kind: OutcomeQuestion}},
+		{"nothing line", "Head unchanged, no replies.\n\n" + nothingLine + "\n", Outcome{Kind: OutcomeNothing}},
+		{"nothing line quoted mid-message does not count", "Would have ended with " + nothingLine + ".\nPosted 1 reply.", Outcome{Kind: OutcomeOther}},
 		{"empty", "", Outcome{Kind: OutcomeOther}},
 	}
 	for _, c := range cases {
@@ -39,6 +41,14 @@ func TestBuildPromptAsksForTheQuestionLine(t *testing.T) {
 			if !strings.Contains(p, questionLine) {
 				t.Errorf("resume=%v custom=%q: prompt lacks the question line", resume, custom)
 			}
+		}
+	}
+}
+
+func TestRereviewPromptAsksForTheNothingLine(t *testing.T) {
+	for _, custom := range []string{"", "my own prompt"} {
+		if p := BuildPrompt(Config{ReviewPrompt: custom}, testPR, "origin", true); !strings.Contains(p, "end with a line containing only `"+nothingLine+"`") {
+			t.Errorf("custom=%q: the re-review prompt lacks the nothing line", custom)
 		}
 	}
 }

@@ -44,9 +44,9 @@ func (g GitHub) pull(pr PR) (ghPull, error) {
 	return p, err
 }
 
-func (g GitHub) Base(pr PR) (string, error) {
+func (g GitHub) Base(pr PR) (string, bool, error) {
 	p, err := g.pull(pr)
-	return p.Base.Ref, err
+	return p.Base.Ref, pullState(p) == prOpen, err
 }
 
 // Descends: GitHub's compare of from...head is "ahead" or "identical" when
@@ -136,7 +136,7 @@ func (g GitHub) userReview(reviewList []ghItem) *Review {
 	var user *Review
 	for _, rv := range reviewList {
 		if strings.EqualFold(rv.User.Login, g.User) && (rv.State == reviewApproved || rv.State == "CHANGES_REQUESTED" || rv.State == "DISMISSED") {
-			user = &Review{ID: rv.ID, State: rv.State, CommitID: rv.CommitID}
+			user = &Review{ID: rv.ID, State: rv.State, CommitID: rv.CommitID, SubmittedAt: rv.SubmittedAt}
 		}
 	}
 	return user

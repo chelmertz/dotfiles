@@ -35,8 +35,12 @@ func TestGitHubGate(t *testing.T) {
 		"repos/acme/widgets/compare/hx...h2": `{"status":"diverged"}`,
 	}}
 	gh := GitHub{Gh: g.run, User: "me"}
-	if base, err := gh.Base(widgetsPR); err != nil || base != "main" {
-		t.Errorf("base %q %v", base, err)
+	if base, open, err := gh.Base(widgetsPR); err != nil || base != "main" || !open {
+		t.Errorf("base %q open %v %v", base, open, err)
+	}
+	merged := GitHub{Gh: (&routeGh{routes: map[string]string{"repos/acme/widgets/pulls/42": `{"state":"closed","merged":true,"base":{"ref":"main"}}`}}).run}
+	if _, open, err := merged.Base(widgetsPR); err != nil || open {
+		t.Errorf("a merged PR reads as open: %v %v", open, err)
 	}
 	if ok, err := gh.Descends(widgetsPR, "h1", "h2"); err != nil || !ok {
 		t.Errorf("ahead: %v %v", ok, err)
@@ -78,7 +82,7 @@ func TestGitHubRoundFacts(t *testing.T) {
 	if f.UnresolvedUserThreads != 1 {
 		t.Errorf("unresolved user threads %d, want 1", f.UnresolvedUserThreads)
 	}
-	if f.UserReview == nil || f.UserReview.ID != 1 || f.UserReview.State != "APPROVED" {
+	if f.UserReview == nil || f.UserReview.ID != 1 || f.UserReview.State != "APPROVED" || !f.UserReview.SubmittedAt.Equal(start.Add(-time.Hour)) {
 		t.Errorf("the user's standing review: %+v (a COMMENTED review must not replace an approval)", f.UserReview)
 	}
 	if f.RoundReviewURL != "r3" {

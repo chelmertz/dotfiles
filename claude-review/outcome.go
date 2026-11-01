@@ -13,12 +13,18 @@ const questionLine = "claude-review: question for the user"
 // questionRound follows cleanRound in every prompt.
 const questionRound = "\n\nIf the round ends on a question only the user can answer (intent, a product decision, something neither the PR nor the code can tell you), ask it, then end with a line containing only `" + questionLine + "`."
 
+// nothingLine ends a later round that found nothing to post: no new commits
+// and no reply that needs an answer. Without it such a round reads as one
+// that failed. Same byte-for-byte contract as questionLine.
+const nothingLine = "claude-review: nothing to post"
+
 type OutcomeKind int
 
 const (
 	OutcomeOther OutcomeKind = iota
 	OutcomeApprove
 	OutcomeQuestion
+	OutcomeNothing
 )
 
 // Outcome is what a round's last message says it ended on. It is the
@@ -31,13 +37,16 @@ type Outcome struct {
 
 var approveLine = regexp.MustCompile(`claude-review approve (https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/pull/[1-9][0-9]*) --at ([0-9a-f]{40})\b`)
 
-// ReadOutcome reads a round's last message. The question line counts only as
-// the message's last non-empty line; when both are present the question wins,
+// ReadOutcome reads a round's last message. The question and nothing lines
+// count only as the message's last non-empty line; when both are present the question wins,
 // since it needs the user either way.
 func ReadOutcome(msg string) Outcome {
 	lines := strings.Split(strings.TrimSpace(msg), "\n")
-	if strings.TrimSpace(lines[len(lines)-1]) == questionLine {
+	switch strings.TrimSpace(lines[len(lines)-1]) {
+	case questionLine:
 		return Outcome{Kind: OutcomeQuestion}
+	case nothingLine:
+		return Outcome{Kind: OutcomeNothing}
 	}
 	if m := approveLine.FindStringSubmatch(msg); m != nil {
 		return Outcome{Kind: OutcomeApprove, PrURL: m[1], SHA: m[2]}

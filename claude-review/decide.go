@@ -38,6 +38,8 @@ type TickConfig struct {
 const (
 	gateFreshLook = "fresh_look"
 	gatePaused    = "paused"
+	// gateClosed drops a PR merged or closed since elly last polled it.
+	gateClosed = "closed"
 
 	// GitHub's words for a PR and a review, as tick compares them.
 	prOpen         = "open"
@@ -80,8 +82,8 @@ func roundTrigger(p EllyPR, user, lastHead string) string {
 type Gate interface {
 	// Descends reports whether head has from in its history.
 	Descends(pr PR, from, head string) (bool, error)
-	// Base is the PR's base branch now.
-	Base(pr PR) (string, error)
+	// Base is the PR's base branch now, and whether the PR is still open.
+	Base(pr PR) (base string, open bool, err error)
 }
 
 // Planned is one PR this tick acts on: a round to start, or a gate that
@@ -137,7 +139,7 @@ func planOne(p EllyPR, cfg TickConfig, l *Ledger, g Gate, now time.Time) (Planne
 		return Planned{}, false, err
 	}
 	gate, err := gateFor(pr, acc, p.HeadRefOid, cfg, l, g, now)
-	return Planned{PR: pr, Head: p.HeadRefOid, Trigger: trigger, Gate: gate}, err == nil, err
+	return Planned{PR: pr, Head: p.HeadRefOid, Trigger: trigger, Gate: gate}, err == nil && gate != gateClosed, err
 }
 
 // eligible: a PR in review_repos that the user did not write.
@@ -146,10 +148,17 @@ func eligible(p EllyPR, cfg TickConfig) (PR, bool) {
 	return pr, err == nil && repoAllowed(p.RepoOwner, p.RepoName, cfg.ReviewRepos) && !strings.EqualFold(p.Author, cfg.User)
 }
 
-// gateFor is what stops an owed round: a PR that changed under its first
-// look, or the daily cap. "" lets it run.
+// gateFor is what stops an owed round: a PR closed since elly's last poll,
+// one that changed under its first look, or the daily cap. "" lets it run.
 func gateFor(pr PR, acc Acceptance, head string, cfg TickConfig, l *Ledger, g Gate, now time.Time) (string, error) {
-	fresh, err := needsFreshLook(pr, acc, head, g)
+	base, open, err := g.Base(pr)
+	if err != nil {
+		return "", err
+	}
+	if !open {
+		return gateClosed, nil
+	}
+	fresh, err := needsFreshLook(pr, acc, base, head, g)
 	if err != nil {
 		return "", err
 	}
@@ -168,11 +177,7 @@ func gateFor(pr PR, acc Acceptance, head string, cfg TickConfig, l *Ledger, g Ga
 
 // needsFreshLook: a head that no longer contains the accepted one, or a new
 // base, is not the PR the user looked at.
-func needsFreshLook(pr PR, acc Acceptance, head string, g Gate) (bool, error) {
-	base, err := g.Base(pr)
-	if err != nil {
-		return false, err
-	}
+func needsFreshLook(pr PR, acc Acceptance, base, head string, g Gate) (bool, error) {
 	if base != acc.Base {
 		return true, nil
 	}
@@ -185,9 +190,10 @@ func needsFreshLook(pr PR, acc Acceptance, head string, g Gate) (bool, error) {
 
 // Review is the user's latest review on a PR.
 type Review struct {
-	ID       int64
-	State    string
-	CommitID string
+	ID          int64
+	State       string
+	CommitID    string
+	SubmittedAt time.Time
 }
 
 // RoundFacts is what GitHub says about a PR after a round. NewComments
@@ -220,15 +226,14 @@ type Decision struct {
 // (o) never suffice: an Approve link also needs GitHub to show a quiet round
 // at the head tick recorded, and "handled" needs the round's review.
 func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
-	attach := Link{Label: "Open session", URL: verbURL(pr, "attach")}
-	ignore := Link{Label: "Ignore", URL: verbURL(pr, "ignore")}
+	attach, ignore := attachLink(pr), ignoreLink(pr)
 	summary := func(links ...Link) []Link {
 		if f.RoundReviewURL != "" {
 			links = append(links, Link{Label: "Round summary", URL: f.RoundReviewURL})
 		}
 		return links
 	}
-	approvedEarlier := f.UserReview != nil && f.UserReview.State == reviewApproved && f.UserReview.CommitID != f.Head
+	approvedEarlier := approvedBefore(r, f)
 
 	switch {
 	case f.State != prOpen:
@@ -247,13 +252,30 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 			note += fmt.Sprintf("; %d commits since your last approval", f.CommitsSinceApproval)
 		}
 		return Decision{MintFor: r.Head, Annotation: &Annotation{State: stateNeedsYou, Note: note, Links: summary(attach, ignore)}}
-	case f.RoundReviewURL != "":
+	// Findings count without the summary: a push between planning and the
+	// round puts the summary on a newer head than the one tick recorded.
+	case f.RoundReviewURL != "" || f.NewComments > 0:
 		return Decision{Annotation: &Annotation{State: stateHandled, Note: "round posted its review", Links: summary()}}
+	// Trusted like the question line: a crashed round never prints it, and
+	// GitHub confirmed above that the round posted nothing.
+	case o.Kind == OutcomeNothing:
+		return Decision{Annotation: &Annotation{State: stateHandled, Note: "round found nothing to post", Links: summary()}}
 	case r.Retries == 0:
 		return Decision{Retry: true}
 	}
 	return Decision{Annotation: &Annotation{State: stateNeedsYou, Note: "round failed twice", Links: []Link{attach, ignore}}}
 }
+
+// approvedBefore: the user approved an older head before the round started.
+// An approval given after was given with the round's findings in view, so the
+// round does not overturn it.
+func approvedBefore(r Round, f RoundFacts) bool {
+	u := f.UserReview
+	return u != nil && u.State == reviewApproved && u.CommitID != f.Head && u.SubmittedAt.Before(r.StartedAt)
+}
+
+func attachLink(pr PR) Link { return Link{Label: "Open session", URL: verbURL(pr, "attach")} }
+func ignoreLink(pr PR) Link { return Link{Label: "Ignore", URL: verbURL(pr, "ignore")} }
 
 // quietApprove: the session's approve line names this PR at the head tick
 // recorded, the head has not moved, and GitHub shows the round posted no

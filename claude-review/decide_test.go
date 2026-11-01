@@ -59,10 +59,11 @@ func TestRoundTrigger(t *testing.T) {
 type fakeGate struct {
 	descends bool
 	base     string
+	closed   bool
 }
 
 func (f fakeGate) Descends(PR, string, string) (bool, error) { return f.descends, nil }
-func (f fakeGate) Base(PR) (string, error)                   { return f.base, nil }
+func (f fakeGate) Base(PR) (string, bool, error)             { return f.base, !f.closed, nil }
 
 func TestPlanTick(t *testing.T) {
 	cfg := TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 3}
@@ -105,6 +106,10 @@ func TestPlanTick(t *testing.T) {
 	}
 	if got := plan(l, fakeGate{descends: true, base: "release"}, ellyPR(requested)); len(got) != 1 || got[0].Gate != gateFreshLook {
 		t.Errorf("base changed since acceptance: %+v", got)
+	}
+	// elly lags GitHub by up to a poll: a PR merged since still looks owed.
+	if got := plan(l, fakeGate{descends: true, base: "main", closed: true}, ellyPR(requested)); len(got) != 0 {
+		t.Errorf("a PR merged since elly's last poll got %+v", got)
 	}
 
 	trig := plan(l, ok, ellyPR(requested))[0].Trigger
@@ -171,6 +176,12 @@ func TestDecide(t *testing.T) {
 			func(d Decision) bool { return d.MintFor == "" }, "no Approve link"},
 		{"findings after the user's approval dismiss it", round, Outcome{}, RoundFacts{State: "open", Head: head, NewComments: 1, UserReview: approved("old"), RoundReviewURL: roundReview},
 			func(d Decision) bool { return d.DismissReviewID == 9 && d.Annotation.State == stateNeedsYou }, "dismiss + needs_you"},
+		// The user read the findings and approved anyway, before tick settled the round.
+		{"an approval given after the round started is not dismissed", round, Outcome{}, RoundFacts{State: "open", Head: head, NewComments: 1, UserReview: &Review{ID: 9, State: "APPROVED", CommitID: "old", SubmittedAt: t0.Add(time.Minute)}, RoundReviewURL: roundReview},
+			func(d Decision) bool { return d.DismissReviewID == 0 && d.Annotation.State == stateHandled }, "no dismissal, handled"},
+		// A push between planning and the round puts its summary on a newer commit.
+		{"findings without a summary at the recorded head: handled, not rerun", round, Outcome{}, RoundFacts{State: "open", Head: "moved", NewComments: 2},
+			func(d Decision) bool { return !d.Retry && d.Annotation != nil && d.Annotation.State == stateHandled }, "handled"},
 		{"findings with the approval at the current head do not dismiss", round, Outcome{}, RoundFacts{State: "open", Head: head, NewComments: 1, UserReview: approved(head), RoundReviewURL: roundReview},
 			func(d Decision) bool { return d.DismissReviewID == 0 }, "no dismissal"},
 		{"question", round, Outcome{Kind: OutcomeQuestion}, open,
@@ -179,6 +190,8 @@ func TestDecide(t *testing.T) {
 			func(d Decision) bool {
 				return d.Annotation.State == stateHandled && hasLink(d.Annotation, "pullrequestreview-5")
 			}, "handled + summary link"},
+		{"nothing to post, said so: handled, not retried", round, Outcome{Kind: OutcomeNothing}, open,
+			func(d Decision) bool { return !d.Retry && d.Annotation != nil && d.Annotation.State == stateHandled }, "handled"},
 		{"nothing to show for it: retry once", round, Outcome{}, open,
 			func(d Decision) bool { return d.Retry && d.Annotation == nil }, "retry"},
 		{"nothing again: round failed", Round{ID: 1, PR: round.PR, Head: head, Retries: 1}, Outcome{}, open,

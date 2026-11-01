@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -111,10 +112,12 @@ func (h tickHost) settle() (int, error) {
 // apply carries out one decision; it reports whether a retry started.
 func (h tickHost) apply(pr PR, r Round, d Decision) (bool, error) {
 	if d.Retry {
-		if err := h.do("retry "+pr.Slug(), func() error { return h.ledger.MarkRetried(r.ID) }); err != nil {
-			return false, err
-		}
-		return true, h.launch(pr)
+		return true, h.do("retry "+pr.Slug(), func() error {
+			if err := h.ledger.MarkRetried(r.ID); err != nil {
+				return err
+			}
+			return h.launch(pr)
+		})
 	}
 	if d.DismissReviewID != 0 {
 		msg := "A later review round found new problems at the current head, so this approval no longer covers it."
@@ -160,10 +163,10 @@ func (h tickHost) startOwed(prs []EllyPR, running int) error {
 		switch p.Gate {
 		case gateFreshLook:
 			gate = &Annotation{State: stateNeedsYou, Note: "the PR changed under its first look (force-push or new base); click claude review to look again",
-				Links: []Link{{Label: "Ignore", URL: verbURL(p.PR, "ignore")}}}
+				Links: []Link{ignoreLink(p.PR)}}
 		case gatePaused:
 			gate = &Annotation{State: stateNeedsYou, Note: "paused: the daily round limit for this PR is reached",
-				Links: []Link{{Label: "Open session", URL: verbURL(p.PR, "attach")}, {Label: "Ignore", URL: verbURL(p.PR, "ignore")}}}
+				Links: []Link{attachLink(p.PR), ignoreLink(p.PR)}}
 		}
 		if gate != nil {
 			if err := h.do(fmt.Sprintf("mark %s %s: %s", p.PR.Slug(), gate.State, gate.Note), func() error { return h.ledger.SetAnnotation(p.PR, *gate) }); err != nil {
@@ -171,7 +174,13 @@ func (h tickHost) startOwed(prs []EllyPR, running int) error {
 			}
 			continue
 		}
-		if running >= h.tcfg.MaxRunning || h.running(p.PR.SessionID()) {
+		if h.running(p.PR.SessionID()) {
+			if h.dry {
+				fmt.Fprintf(h.out, "would leave %s: its session is open\n", p.PR.Slug())
+			}
+			continue
+		}
+		if running >= h.tcfg.MaxRunning {
 			continue
 		}
 		if err := h.do(fmt.Sprintf("start a round on %s at %.9s (%s)", p.PR.Slug(), p.Head, p.Trigger), func() error {
@@ -188,8 +197,13 @@ func (h tickHost) startOwed(prs []EllyPR, running int) error {
 	return nil
 }
 
-// launch starts an unattended round on pr in its clone.
+// launch starts an unattended round on pr in its clone. Every caller runs
+// it through do; the check here makes a caller that forgets fail loudly
+// instead of posting from a dry run.
 func (h tickHost) launch(pr PR) error {
+	if h.dry {
+		return errors.New("refusing to start a round in a dry run")
+	}
 	dir, remote, err := h.findRepo(pr)
 	if err != nil {
 		return err

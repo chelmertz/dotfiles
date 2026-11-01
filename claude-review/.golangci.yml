@@ -107,9 +107,12 @@ linters:
       - legacy
       - std-error-handling
     rules:
+      # goconst: golangci-lint 2.15 started counting test literals, where a
+      # spelled-out URL or flag reads better than a named constant.
       - linters:
           - dupl
           - errcheck
+          - goconst
           - gocyclo
           - gosec
         path: _test\.go
