@@ -9,6 +9,11 @@ var secretReadRules = []string{
 	"Read(**/*credentials*)", "Read(**/*secret*)",
 }
 
+// unattendedRules follows the prompt of every unattended round. The first
+// real rounds (2026-11-01) lost 22 of 61 tool calls to refused chains,
+// `git -C` and `git ls-remote`, which match none of the pinned rules.
+const unattendedRules = "\n\nThis round runs unattended, and a command it is not allowed is refused, not asked about. Run one command per Bash call: no `;`, `&&`, `|` or redirection, and no `git -C` (the session already runs in the clone). Get the PR head with `git fetch {remote} pull/{number}/head` and `git rev-parse FETCH_HEAD`, never `git ls-remote`. A refused command stays refused: work without it, or end with the question line."
+
 // UnattendedArgs is the command for a round nobody watches. It inherits
 // nothing from the user's own Claude Code setup: no user settings (which run
 // in auto mode with broad gh and curl rules), no MCP servers, and dontAsk,
@@ -23,11 +28,16 @@ func UnattendedArgs(cfg Config, pr PR, remote string) []string {
 		"--permission-mode", "dontAsk",
 		"--setting-sources", "project,local",
 		"--strict-mcp-config",
-		"--resume", pr.SessionID(), BuildPrompt(posting, pr, remote, true),
+		"--resume", pr.SessionID(), BuildPrompt(posting, pr, remote, true) + fill(pr, remote, unattendedRules),
 		"--allowedTools",
 		// Scoped like Read: a bare Grep or Glob searched the parent directory
 		// in a live check on 2026-10-31, naming and matching files outside.
 		"Read(./**)", "Grep(./**)", "Glob(./**)",
+		// Claude Code saves a large tool output under the session and has
+		// the model Read it back; without this, a big `gh pr diff` is lost.
+		// Scoped to this session: checked live 2026-11-01, another id's
+		// file is refused.
+		"Read(~/.claude/projects/*/" + pr.SessionID() + "/tool-results/**)",
 		"Bash(gh pr view " + n + ")", "Bash(gh pr diff " + n + ")",
 		"Bash(git fetch " + remote + " pull/" + n + "/head)", "Bash(git show FETCH_HEAD:*)", "Bash(git rev-parse FETCH_HEAD)",
 		threadsRule(pr), postRule(pr),

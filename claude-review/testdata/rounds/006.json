@@ -1,0 +1,22 @@
+{
+  "pr": "https://github.com/acme/widgets/pull/6",
+  "round": {
+    "head": "7b0df5d82766d32b6288d7319dfe22db467835cb",
+    "started_at": "2026-11-01T01:53:36.261Z"
+  },
+  "settle_at": "2026-11-01T02:23:36.261Z",
+  "last_message": "(prose omitted)",
+  "gh": {
+    "api --paginate repos/acme/widgets/pulls/6/comments": "null",
+    "api --paginate repos/acme/widgets/pulls/6/reviews": "null",
+    "api graphql -f query=query($owner: String!, $repo: String!, $n: Int!) {\n  repository(owner: $owner, name: $repo) { pullRequest(number: $n) {\n    reviewThreads(first: 100) { nodes { isResolved comments(first: 1) { nodes { author { login } } } } } } } } -F owner=acme -F repo=widgets -F n=6": "{\"data\":{\"repository\":{\"pullRequest\":{\"reviewThreads\":{\"nodes\":null}}}}}",
+    "api repos/acme/widgets/pulls/6": "{\"base\":{\"ref\":\"main\"},\"head\":{\"sha\":\"7b0df5d82766d32b6288d7319dfe22db467835cb\"},\"merged\":false,\"state\":\"open\"}"
+  },
+  "happened": "Unattended round started by mistake on an open PR: head unchanged, no replies, posted nothing. Its prompt predates the nothing line, so tick cannot tell it from a failed round and retries once.",
+  "want": {
+    "annotation": "",
+    "note": "",
+    "retry": true,
+    "dismiss": false
+  }
+}

@@ -10,7 +10,8 @@ import (
 // round may do. Loosening it is a decision, so it has to show up here.
 func TestUnattendedArgsArePinned(t *testing.T) {
 	args := UnattendedArgs(Config{}, widgetsPR, "upstream")
-	prompt := BuildPrompt(Config{PostWithoutAsking: true}, widgetsPR, "upstream", true)
+	prompt := BuildPrompt(Config{PostWithoutAsking: true}, widgetsPR, "upstream", true) +
+		"\n\nThis round runs unattended, and a command it is not allowed is refused, not asked about. Run one command per Bash call: no `;`, `&&`, `|` or redirection, and no `git -C` (the session already runs in the clone). Get the PR head with `git fetch upstream pull/42/head` and `git rev-parse FETCH_HEAD`, never `git ls-remote`. A refused command stays refused: work without it, or end with the question line."
 	want := []string{
 		"claude", "--bg",
 		"--permission-mode", "dontAsk",
@@ -19,6 +20,7 @@ func TestUnattendedArgsArePinned(t *testing.T) {
 		"--resume", widgetsPR.SessionID(), prompt,
 		"--allowedTools",
 		"Read(./**)", "Grep(./**)", "Glob(./**)",
+		"Read(~/.claude/projects/*/" + widgetsPR.SessionID() + "/tool-results/**)",
 		"Bash(gh pr view 42)", "Bash(gh pr diff 42)",
 		"Bash(git fetch upstream pull/42/head)", "Bash(git show FETCH_HEAD:*)", "Bash(git rev-parse FETCH_HEAD)",
 		"Bash(claude-review threads https://github.com/acme/widgets/pull/42)",

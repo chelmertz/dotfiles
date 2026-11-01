@@ -223,3 +223,42 @@ func TestLockUnderCache(t *testing.T) {
 		t.Error("no usable cache dir: want an error")
 	}
 }
+
+func writeJob(t *testing.T, dir, id, state string) {
+	t.Helper()
+	d := filepath.Join(dir, "jobs", id[:8])
+	if err := os.MkdirAll(d, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(d, "state.json"), []byte(`{"state":"`+state+`","tempo":"idle"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A background worker stays alive and idle after its round ends (seen for
+// 25 minutes on 2.1.314), so a live worker alone does not mean a round runs.
+func TestRoundRunning(t *testing.T) {
+	dir := t.TempDir()
+	old := processAlive
+	defer func() { processAlive = old }()
+	processAlive = func(pid int) bool { return pid == 100 }
+	writeRoster(t, dir, fmt.Sprintf(`{"workers":{"aa": {"sessionId": %q, "pid": 100}}}`, sid))
+
+	if !RoundRunning(dir, sid) {
+		t.Error("a live worker with no job state must count as running")
+	}
+	for state, want := range map[string]bool{"working": true, "done": false, "blocked": false, "stopped": false} {
+		writeJob(t, dir, sid, state)
+		if JobState(dir, sid) != state {
+			t.Errorf("job state %q read as %q", state, JobState(dir, sid))
+		}
+		if got := RoundRunning(dir, sid); got != want {
+			t.Errorf("live worker, job %s: running %v", state, got)
+		}
+	}
+	writeRoster(t, dir, `{"workers":{}}`)
+	writeJob(t, dir, sid, "working")
+	if RoundRunning(dir, sid) {
+		t.Error("a job left at working with no live worker is not running")
+	}
+}

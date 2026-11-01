@@ -138,3 +138,36 @@ func psLstart(pid int) (string, error) {
 var processAlive = func(pid int) bool {
 	return syscall.Kill(pid, 0) == nil
 }
+
+// JobState is Claude Code's state for a background session's job, from
+// jobs/<short id>/state.json: "working", "blocked", "done", "stopped", or ""
+// when there is no readable job. Observed on 2.1.314.
+func JobState(claudeDir, id string) string {
+	if len(id) < 8 {
+		return ""
+	}
+	b, err := os.ReadFile(filepath.Join(claudeDir, "jobs", id[:8], "state.json")) //nolint:gosec // path under the user's own config dir
+	if err != nil {
+		return ""
+	}
+	var j struct {
+		State string `json:"state"`
+	}
+	if json.Unmarshal(b, &j) != nil {
+		return ""
+	}
+	return j.State
+}
+
+// RoundRunning reports whether a round is still in progress in id. A
+// background worker stays alive and idle after its round ends, so for one
+// the job state decides; without a readable state it counts as running.
+// Any other live session, a window or a `claude -p`, is running.
+func RoundRunning(claudeDir, id string) bool {
+	live := SessionRunning(claudeDir, id)
+	if !live.Background {
+		return live.PID > 0
+	}
+	state := JobState(claudeDir, id)
+	return state == "" || state == "working"
+}

@@ -52,14 +52,13 @@ func runTick(args []string, d Deps) int {
 	defer func() { _ = l.Close() }()
 
 	h := tickHost{
-		cfg:    cfg,
-		tcfg:   TickConfig{ReviewRepos: cfg.ReviewRepos, User: user, DailyCap: cfg.DailyCap, MaxRunning: cfg.MaxRunning, Wrapper: cfg.RoundWrapper},
-		ledger: l,
-		elly:   Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile()},
-		gh:     GitHub{Gh: d.Gh, User: user},
-		running: func(id string) bool {
-			return d.SessionRunning(d.ClaudeDir, id).PID > 0
-		},
+		cfg:         cfg,
+		tcfg:        TickConfig{ReviewRepos: cfg.ReviewRepos, User: user, DailyCap: cfg.DailyCap, MaxRunning: cfg.MaxRunning, Wrapper: cfg.RoundWrapper},
+		ledger:      l,
+		elly:        Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile()},
+		gh:          GitHub{Gh: d.Gh, User: user},
+		running:     func(id string) bool { return RoundRunning(d.ClaudeDir, id) },
+		blocked:     func(id string) bool { return JobState(d.ClaudeDir, id) == "blocked" },
 		lastMessage: func(id string) (string, error) { return LastMessage(d.ClaudeDir, id) },
 		findRepo: func(pr PR) (string, string, error) {
 			return d.FindRepo(cfg.GitRepoRoots, cfg.ClonePath, pr)

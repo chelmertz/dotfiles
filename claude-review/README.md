@@ -444,12 +444,13 @@ The timer ships disabled.
    added there; `systemctl --user start claude-review-tick` runs one tick by
    hand.
 
-`replay/replay.sh [--as-open] <pr-url>...` runs that dry run against past
-sessions: a fake elly lists the PRs with a re-review requested, a scratch
-ledger holds each session's last round unread, and GitHub and the transcripts
-are read for real. `--as-open` reports merged PRs as open, so their rounds
-reach the outcome rules, and refuses any `gh` call that could write.
-`CLAUDE_REVIEW=<binary>` replays a local build.
+`testdata/rounds/` holds real rounds as fixtures, recorded read-only and
+renamed: `CR_RECORD="<pr-url>..." go test -tags record -run TestRecord .`
+records the session's last round as GitHub stood five minutes after its
+last post, through a `gh` that refuses everything but reads, and builds no
+runner, so it cannot post or start a round. Each fixture's expected outcome
+is written by hand from what happened on the PR; `TestRecordedRounds` runs
+the real adapter and `tick` over it with every writer faked.
 
 elly becomes the review inbox: claude-review runs rounds unattended and marks
 each PR in elly as handled or needing the user, with Approve and Open-session
@@ -570,11 +571,16 @@ claude-review alone. It holds:
 5. Start the round in the PR's session, resumed, with `terminal: false`, at
    most 2 at once, under `capped`, and under the launch policy below. A PR
    whose session is running or open in a terminal starts nothing, by the same
-   check a click uses today.
-6. For every round the ledger started and has not marked read, decide the
+   check a click uses today. A background worker stays alive and idle after
+   its round ends, so for one only Claude Code's job state `working` counts as
+   running.
+6. A round whose job is `blocked` (waiting for a permission it was not
+   given) gets `needs_you` with an Open-session link and no retry: a retry
+   would resume on top of the waiting worker.
+7. For every other round the ledger started and has not marked read, decide the
    outcome from GitHub and the ledger, never from the session's text alone
    (next section). Mark it read.
-7. Re-send every live annotation with a fresh expiry. Delete one only on
+8. Re-send every live annotation with a fresh expiry. Delete one only on
    positive evidence: the user's own approval stands at the current head, or
    GitHub reports the PR merged or closed. A PR missing from one elly read is
    not evidence; its annotation expires instead.
@@ -638,7 +644,16 @@ cover only `gh api`, the `gh pr`/`gh issue` write commands and
 - an explicit permission mode, with the user's settings excluded;
 - an allow list scoped to the PR: read and search the clone (`Read`, `Grep`
   and `Glob` all scoped to `./**`; a bare `Grep` or `Glob` reaches outside it), `gh pr view` and
-  `gh pr diff` for that PR, `claude-review threads` and `post` for that PR;
+  `gh pr diff` for that PR, `claude-review threads` and `post` for that PR,
+  and `Read` of the session's own spilled tool output
+  (`~/.claude/projects/*/<session id>/tool-results/**`), where Claude Code
+  puts a large result such as a big diff; checked live on 2026-11-01 to
+  refuse another session's;
+- instructions appended to the prompt: one command per Bash call (no `;`,
+  `&&`, `|`, redirection or `git -C`), the head from `git fetch` and
+  `git rev-parse FETCH_HEAD`, and the question line when a refused command
+  blocks the round. The first real unattended rounds lost 22 of 61 tool
+  calls to exactly these, which no pinned rule matches;
 - everything else denied, including reads of secret-shaped paths (`.env`,
   key and credential files);
 - a test that fails if the launch arguments loosen.

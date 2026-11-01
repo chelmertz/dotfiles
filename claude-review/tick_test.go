@@ -61,17 +61,19 @@ type tickWorld struct {
 	gh      *fakeTickGitHub
 	started [][]string
 	live    map[string]bool
+	blocked map[string]bool
 	msgs    map[string]string
 	out     *bytes.Buffer
 }
 
 func newTickWorld(t *testing.T) *tickWorld {
 	w := &tickWorld{
-		elly: &fakeElly{put: map[string]Annotation{}},
-		gh:   &fakeTickGitHub{fakeGate: fakeGate{descends: true, base: "main"}, state: "open", head: "h1"},
-		live: map[string]bool{},
-		msgs: map[string]string{},
-		out:  &bytes.Buffer{},
+		elly:    &fakeElly{put: map[string]Annotation{}},
+		gh:      &fakeTickGitHub{fakeGate: fakeGate{descends: true, base: "main"}, state: "open", head: "h1"},
+		live:    map[string]bool{},
+		blocked: map[string]bool{},
+		msgs:    map[string]string{},
+		out:     &bytes.Buffer{},
 	}
 	w.h = tickHost{
 		tcfg:        TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 6, MaxRunning: 2, Wrapper: []string{"capped"}},
@@ -79,6 +81,7 @@ func newTickWorld(t *testing.T) *tickWorld {
 		elly:        w.elly,
 		gh:          w.gh,
 		running:     func(id string) bool { return w.live[id] },
+		blocked:     func(id string) bool { return w.blocked[id] },
 		lastMessage: func(id string) (string, error) { return w.msgs[id], nil },
 		findRepo:    func(PR) (string, string, error) { return "/clone", "upstream", nil },
 		start:       func(_ string, argv []string) error { w.started = append(w.started, argv); return nil },
@@ -379,5 +382,28 @@ func TestLaunchRefusesInADryRun(t *testing.T) {
 	w.h.dry = true
 	if err := w.h.launch(widgetsPR); err == nil || len(w.started) != 0 {
 		t.Errorf("launch in a dry run: err %v, started %q", err, w.started)
+	}
+}
+
+// A round stalled on a permission it lacks waits for the user; a retry would
+// resume on top of the live, blocked worker.
+func TestTickABlockedRoundNeedsTheUser(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 1)
+	if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0); err != nil {
+		t.Fatal(err)
+	}
+	w.gh.facts = RoundFacts{State: "open", Head: "h1"}
+	w.blocked[pr.SessionID()] = true
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.started) != 0 {
+		t.Errorf("a blocked round was retried: %q", w.started)
+	}
+	all, _ := w.h.ledger.Annotations()
+	a := all[pr.URL()]
+	if a.State != stateNeedsYou || !strings.Contains(a.Note, "permission") || !hasLink(&a, "attach") {
+		t.Errorf("annotation %+v", a)
 	}
 }

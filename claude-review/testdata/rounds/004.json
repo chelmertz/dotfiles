@@ -1,0 +1,20 @@
+{
+  "pr": "https://github.com/acme/widgets/pull/4",
+  "round": {
+    "head": "d7847feb44d9d3d3c8020833689c236f6eab41b3",
+    "started_at": "2026-11-01T01:44:50.651Z"
+  },
+  "settle_at": "2026-11-01T02:14:50.651Z",
+  "last_message": "(prose omitted)\n\nclaude-review: question for the user",
+  "gh": {
+    "api --paginate repos/acme/widgets/pulls/4/reviews": "[{\"commit_id\":\"5bff4c956704fcaa832162a05ca4cb3ec7108077\",\"html_url\":\"https://github.com/acme/widgets/pull/4#pullrequestreview-5699160417\",\"id\":5699160417,\"state\":\"COMMENTED\",\"submitted_at\":\"2026-10-29T14:13:29Z\",\"user\":{\"login\":\"me\"}},{\"commit_id\":\"a110702b6d17a9eb6a8354cf8c4f901be3d2470f\",\"html_url\":\"https://github.com/acme/widgets/pull/4#pullrequestreview-5699284368\",\"id\":5699284368,\"state\":\"COMMENTED\",\"submitted_at\":\"2026-10-29T14:21:26Z\",\"user\":{\"login\":\"author\"}},{\"commit_id\":\"a110702b6d17a9eb6a8354cf8c4f901be3d2470f\",\"html_url\":\"https://github.com/acme/widgets/pull/4#pullrequestreview-5699284915\",\"id\":5699284915,\"state\":\"COMMENTED\",\"submitted_at\":\"2026-10-29T14:21:29Z\",\"user\":{\"login\":\"author\"}},{\"commit_id\":\"a110702b6d17a9eb6a8354cf8c4f901be3d2470f\",\"html_url\":\"https://github.com/acme/widgets/pull/4#pullrequestreview-5699285566\",\"id\":5699285566,\"state\":\"COMMENTED\",\"submitted_at\":\"2026-10-29T14:21:32Z\",\"user\":{\"login\":\"author\"}},{\"commit_id\":\"d7847feb44d9d3d3c8020833689c236f6eab41b3\",\"html_url\":\"https://github.com/acme/widgets/pull/4#pullrequestreview-5700229226\",\"id\":5700229226,\"state\":\"COMMENTED\",\"submitted_at\":\"2026-10-29T15:19:32Z\",\"user\":{\"login\":\"author\"}},{\"commit_id\":\"d7847feb44d9d3d3c8020833689c236f6eab41b3\",\"html_url\":\"https://github.com/acme/widgets/pull/4#pullrequestreview-5700229710\",\"id\":5700229710,\"state\":\"COMMENTED\",\"submitted_at\":\"2026-10-29T15:19:34Z\",\"user\":{\"login\":\"author\"}},{\"commit_id\":\"d7847feb44d9d3d3c8020833689c236f6eab41b3\",\"html_url\":\"https://github.com/acme/widgets/pull/4#pullrequestreview-5700230155\",\"id\":5700230155,\"state\":\"COMMENTED\",\"submitted_at\":\"2026-10-29T15:19:36Z\",\"user\":{\"login\":\"author\"}},{\"commit_id\":\"d7847feb44d9d3d3c8020833689c236f6eab41b3\",\"html_url\":\"https://github.com/acme/widgets/pull/4#pullrequestreview-5700497560\",\"id\":5700497560,\"state\":\"COMMENTED\",\"submitted_at\":\"2026-10-29T15:35:50Z\",\"user\":{\"login\":\"me\"}},{\"commit_id\":\"d7847feb44d9d3d3c8020833689c236f6eab41b3\",\"html_url\":\"https://github.com/acme/widgets/pull/4#pullrequestreview-5700649508\",\"id\":5700649508,\"state\":\"APPROVED\",\"submitted_at\":\"2026-10-29T15:45:18Z\",\"user\":{\"login\":\"me\"}}]",
+    "api repos/acme/widgets/pulls/4": "{\"base\":{\"ref\":\"main\"},\"head\":{\"sha\":\"d7847feb44d9d3d3c8020833689c236f6eab41b3\"},\"merged\":true,\"state\":\"closed\"}"
+  },
+  "happened": "Unattended round started by mistake on a merged PR; refused Bash calls stalled it and it ended on the question line. Merged wins over the question.",
+  "want": {
+    "annotation": "",
+    "note": "",
+    "retry": false,
+    "dismiss": false
+  }
+}

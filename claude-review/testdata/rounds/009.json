@@ -1,0 +1,22 @@
+{
+  "pr": "https://github.com/acme/widgets/pull/9",
+  "round": {
+    "head": "dd7d4b93706279ecae2e58b0fed1bddd2413db44",
+    "started_at": "2026-10-14T11:45:39.261Z"
+  },
+  "settle_at": "2026-10-14T12:09:57Z",
+  "last_message": "(prose omitted)",
+  "gh": {
+    "api --paginate repos/acme/widgets/pulls/9/comments": "[{\"created_at\":\"2026-10-14T07:41:03Z\",\"id\":4268046412,\"user\":{\"login\":\"me\"}},{\"created_at\":\"2026-10-14T11:47:09Z\",\"id\":4270334623,\"user\":{\"login\":\"me\"}},{\"created_at\":\"2026-10-14T11:47:13Z\",\"id\":4270335285,\"user\":{\"login\":\"me\"}},{\"created_at\":\"2026-10-14T12:04:55Z\",\"id\":4270499645,\"user\":{\"login\":\"me\"}},{\"created_at\":\"2026-10-14T12:04:57Z\",\"id\":4270499957,\"user\":{\"login\":\"me\"}}]",
+    "api --paginate repos/acme/widgets/pulls/9/reviews": "[{\"commit_id\":\"659a644c0e744789cce72d5e77d374b95b71ffc0\",\"html_url\":\"https://github.com/acme/widgets/pull/9#pullrequestreview-5514590981\",\"id\":5514590981,\"state\":\"COMMENTED\",\"submitted_at\":\"2026-10-14T07:41:03Z\",\"user\":{\"login\":\"me\"}},{\"commit_id\":\"659a644c0e744789cce72d5e77d374b95b71ffc0\",\"html_url\":\"https://github.com/acme/widgets/pull/9#pullrequestreview-5517372880\",\"id\":5517372880,\"state\":\"COMMENTED\",\"submitted_at\":\"2026-10-14T11:47:09Z\",\"user\":{\"login\":\"me\"}},{\"commit_id\":\"659a644c0e744789cce72d5e77d374b95b71ffc0\",\"html_url\":\"https://github.com/acme/widgets/pull/9#pullrequestreview-5517373653\",\"id\":5517373653,\"state\":\"COMMENTED\",\"submitted_at\":\"2026-10-14T11:47:13Z\",\"user\":{\"login\":\"me\"}},{\"commit_id\":\"659a644c0e744789cce72d5e77d374b95b71ffc0\",\"html_url\":\"https://github.com/acme/widgets/pull/9#pullrequestreview-5517375359\",\"id\":5517375359,\"state\":\"COMMENTED\",\"submitted_at\":\"2026-10-14T11:47:21Z\",\"user\":{\"login\":\"me\"}},{\"commit_id\":\"dd7d4b93706279ecae2e58b0fed1bddd2413db44\",\"html_url\":\"https://github.com/acme/widgets/pull/9#pullrequestreview-5517572741\",\"id\":5517572741,\"state\":\"COMMENTED\",\"submitted_at\":\"2026-10-14T12:04:55Z\",\"user\":{\"login\":\"me\"}},{\"commit_id\":\"dd7d4b93706279ecae2e58b0fed1bddd2413db44\",\"html_url\":\"https://github.com/acme/widgets/pull/9#pullrequestreview-5517573129\",\"id\":5517573129,\"state\":\"COMMENTED\",\"submitted_at\":\"2026-10-14T12:04:57Z\",\"user\":{\"login\":\"me\"}}]",
+    "api graphql -f query=query($owner: String!, $repo: String!, $n: Int!) {\n  repository(owner: $owner, name: $repo) { pullRequest(number: $n) {\n    reviewThreads(first: 100) { nodes { isResolved comments(first: 1) { nodes { author { login } } } } } } } } -F owner=acme -F repo=widgets -F n=9": "{\"data\":{\"repository\":{\"pullRequest\":{\"reviewThreads\":{\"nodes\":[{\"isResolved\":true,\"comments\":{\"nodes\":[{\"author\":{\"login\":\"me\"}}]}},{\"isResolved\":false,\"comments\":{\"nodes\":[{\"author\":{\"login\":\"me\"}}]}},{\"isResolved\":false,\"comments\":{\"nodes\":[{\"author\":{\"login\":\"me\"}}]}}]}}}}}",
+    "api repos/acme/widgets/pulls/9": "{\"base\":{\"ref\":\"main\"},\"head\":{\"sha\":\"dd7d4b93706279ecae2e58b0fed1bddd2413db44\"},\"merged\":false,\"state\":\"open\"}"
+  },
+  "happened": "Interactive round on the user's own PR: posted 4 inline findings and a summary at the head; no approval possible.",
+  "want": {
+    "annotation": "handled",
+    "note": "round posted its review",
+    "retry": false,
+    "dismiss": false
+  }
+}
