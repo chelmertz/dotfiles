@@ -443,7 +443,7 @@ command instead.
 Design, 2026-10-30, persona-reviewed and revised 2026-10-31, built
 2026-10-31. elly's side (escaping, notifications, Host/Origin checks,
 annotations) and this tool's `tick`, launch policy and URL verbs follow it.
-The timer ships disabled.
+The timer runs since 2026-11-02, after one round watched by hand.
 
 ### Running it
 
@@ -459,10 +459,10 @@ The timer ships disabled.
 4. `claude-review tick --dry-run` prints what a tick would do and changes
    nothing: no round, no ledger row, no annotation. It also names each owed
    PR it leaves alone because its session is open in a window.
-5. In these dotfiles the `claude-review-tick` service and timer exist in
-   `nix/home.nix` without an Install section, so nothing runs until one is
-   added there; `systemctl --user start claude-review-tick` runs one tick by
-   hand.
+5. In these dotfiles the `claude-review-tick` timer in `nix/home.nix` runs
+   a tick every 5 minutes; `systemctl --user start claude-review-tick` runs
+   one by hand, and `systemctl --user stop claude-review-tick.timer` pauses
+   the timer until the next login.
 
 `testdata/rounds/` holds real rounds as fixtures, recorded read-only and
 renamed: `CR_RECORD="<pr-url>..." go test -tags record -run TestRecord .`

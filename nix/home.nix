@@ -999,10 +999,10 @@ in
     mimeType = [ "x-scheme-handler/claude-review" ];
   };
 
-  # `claude-review tick`, the unattended runner. Shipped disabled: neither
-  # unit has an Install section, so nothing starts until one is added. Try
-  # `claude-review tick --dry-run` first; `systemctl --user start
-  # claude-review-tick` runs one real tick by hand.
+  # `claude-review tick`, the unattended runner, every 5 minutes since the
+  # first watched round on 2026-11-02. `claude-review tick --dry-run` shows
+  # what the next tick would do; `systemctl --user stop
+  # claude-review-tick.timer` pauses it until the next login.
   systemd.user.services.claude-review-tick = {
     Unit.Description = "claude-review: run owed review rounds";
     Service = {
@@ -1017,6 +1017,7 @@ in
       # A tick missed during suspend runs on wake.
       Persistent = true;
     };
+    Install.WantedBy = [ "timers.target" ];
   };
 
   # The tool's per-user config. review_prompt replaces its built-in prompt
