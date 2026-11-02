@@ -775,13 +775,23 @@ cover only `gh api`, the `gh pr`/`gh issue` write commands and
 - a test that fails if the launch arguments loosen.
 
 A click on a PR in `review_repos` runs under the same arguments, with the
-first-round prompt on its first click. Nobody watches it either. `Agent` is
-allowed for the first round's persona pass; a subagent is held to the same
-allow list (checked live 2026-11-02: one was refused a `touch` its parent
-was refused too). Skills from `~/.claude/skills` do not load without a
-settings source (2.1.314 answered "Unknown skill: persona-review"), so the
-persona-review skill that `review_prompt` asks for is unavailable in rounds
-and the round runs without it; nothing is widened to bring it back.
+first-round prompt on its first click. Nobody watches it either.
+
+The first round's persona pass (in `review_prompt`) runs without the skill
+machinery: skills from `~/.claude/skills` do not load without a settings
+source (2.1.314 answered "Unknown skill: persona-review"). The prompt has
+the round read `SKILL.md` and the persona prompts from
+`~/.claude/skills/persona-review` and start one reviewer per persona with
+`Agent`, and it writes no review file. The policy allows `Agent` and Read
+of that one folder. Claude Code checks a Read rule on every hop of a
+symlink, and home-manager links each file through its generation's
+`home-manager-files` into a store path named after the source, so the rule
+is pinned on all three hops (`~/.claude/skills/persona-review/**`,
+`//nix/store/*-home-manager-files/.claude/skills/persona-review/**`,
+`//nix/store/*-hm_personareview/**`); with any one missing the read was
+refused. Checked live 2026-11-02 under these flags: the round read
+`SKILL.md` and a persona, a subagent read a persona too and was refused a
+`touch`, and a sibling skill's `SKILL.md` was refused.
 
 The policy is one flag set per session, saved by Claude Code at the
 session's first background launch and kept for every later round. A
@@ -791,9 +801,8 @@ to the launch arguments needs a new version: `TestUnattendedArgsArePinned`
 fails until the version's pinned fingerprint matches the new flags. **A
 policy change starts a fresh session for every PR; the review history up to
 then stays in the old session**, which no round resumes again (`claude
---resume <old id>` still opens it by hand). The same holds for the first
-round under version 2: every session from before has saved, or would be
-given, older flags, and is left as it is. The window path outside
+--resume <old id>` still opens it by hand). Every session from before version 2 has saved, or would be given, older
+flags, and is left as it is; version 3 added the persona reads. The window path outside
 `review_repos` keeps the PR's own session id.
 
 The posting-policy section above states what a round can reach under the

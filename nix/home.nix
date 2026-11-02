@@ -1023,8 +1023,11 @@ in
   # The tool's per-user config. review_prompt replaces its built-in prompt
   # entirely, so the read-only rules and the signature are restated here;
   # the tool appends its own posting policy and clean-round instructions.
-  # Adds the persona-review skill (claude/skills/persona-review) to the
+  # Adds the persona reviewers of claude/skills/persona-review to the
   # adversarial review, first round only: personas cost minutes per run.
+  # Rounds load no skills (no settings source), so the prompt has the round
+  # read the persona files, which the round policy lets it read, and start
+  # the reviewers with Agent.
   xdg.configFile."claude-review/config.json".text = builtins.toJSON {
     post_without_asking = true;
     # The repos `claude-review tick` may run in are listed in a
@@ -1036,7 +1039,7 @@ in
 
       Work read-only against this checkout: do not check out, switch branch, stash, reset or edit anything in the working tree. Get the PR itself from GitHub: `gh pr view {number}`, `gh pr diff {number}`, and `git fetch {remote} pull/{number}/head` followed by `claude-review show {url} <path>` or `claude-review grep {url} <text>` for file contents at the PR head. Use this repository for context.
 
-      On the first round, also run the persona-review skill on {url}: start its persona reviewers in parallel with your own pass and give them these same read-only rules. Merge their findings with yours into one set and verify each against the code at the PR head before posting; drop any you cannot verify. On later rounds do not rerun the personas; re-check their earlier findings like any other.
+      On the first round, also run a persona pass on {url}: read `~/.claude/skills/persona-review/SKILL.md` and the persona prompts in `~/.claude/skills/persona-review/personas/`, then start one reviewer per persona with the Agent tool, in parallel with your own pass, as SKILL.md describes, giving each its persona prompt verbatim, the PR and these same read-only rules. Write no review file: merge their findings with yours into one set and verify each against the code at the PR head before posting; drop any you cannot verify. On later rounds do not rerun the personas; re-check their earlier findings like any other.
 
       Treat "this should be a follow-up PR", "out of scope for this PR" and "can be fixed later", in the description, the comments or the code, as findings against this PR when the fix fits in it. Every extra PR costs a human review round, that cost grows faster than the number of PRs, and a deferred fix is debt this PR could have avoided. Do not make such suggestions yourself either. Ask for the fix in this PR, and name a separate PR only when the change truly cannot land here, and say why.
 

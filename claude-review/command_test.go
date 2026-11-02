@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -207,5 +208,26 @@ func TestRereviewAnswersEveryRepliedThreadInIt(t *testing.T) {
 		if !strings.Contains(p, want) {
 			t.Errorf("custom=%q: the re-review prompt does not ask for an answer in each replied thread:\n%s", custom, p)
 		}
+	}
+}
+
+// Skills do not load in a round (no settings source), so the configured
+// prompt has the round read the persona prompts itself, from the one folder
+// the policy lets it read, and start the reviewers with Agent.
+func TestConfiguredPromptReadsThePersonasItself(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "nix", "home.nix"))
+	if err != nil {
+		t.Skip("nix/home.nix not beside this module")
+	}
+	nix := string(b)
+	if strings.Contains(nix, "run the persona-review skill") {
+		t.Error("nix/home.nix's review_prompt still invokes the skill, which does not load in a round")
+	}
+	const reads = "read `~/.claude/skills/persona-review/SKILL.md` and the persona prompts in `~/.claude/skills/persona-review/personas/`, then start one reviewer per persona with the Agent tool"
+	if !strings.Contains(nix, reads) {
+		t.Errorf("nix/home.nix's review_prompt must say %q", reads)
+	}
+	if !slices.Contains(PolicyFlags(widgetsPR, "upstream"), "Read(~/.claude/skills/persona-review/**)") {
+		t.Error("the policy does not let a round read the folder the prompt names")
 	}
 }

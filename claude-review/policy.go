@@ -28,10 +28,10 @@ const unattendedRules = "\n\nThis round runs unattended, and a command it is not
 // is part of the session id (PR.RoundSessionID). Bump it whenever
 // PolicyFlags changes; TestUnattendedArgsArePinned fails until
 // pinnedPolicyFingerprint matches the new flags.
-const policyVersion = "2"
+const policyVersion = "3"
 
 // pinnedPolicyFingerprint is policyFingerprint() for policyVersion.
-const pinnedPolicyFingerprint = "698dc36792da235f"
+const pinnedPolicyFingerprint = "35d4aac1ebc62a87"
 
 // PolicyFlags is the round policy. It inherits nothing from the user's own
 // Claude Code setup: no settings file at all (the user's run in auto mode
@@ -39,11 +39,9 @@ const pinnedPolicyFingerprint = "698dc36792da235f"
 // `Bash(python3:*)`, and its committed one can add hooks, which are shell
 // commands its authors wrote), no MCP servers, and dontAsk, which denies
 // every tool not allowed here instead of asking. What is allowed is pinned
-// to this PR. Agent is allowed for the first round's persona pass: a
-// subagent is held to the same allow list (checked live 2026-11-02, it was
-// refused a `touch`). The persona-review skill itself does not load
-// without a settings source ("Unknown skill", 2.1.314), and no source is
-// added for it. Claude Code saves these flags with the session on its
+// to this PR. Agent and personaReadRules serve the first round's persona
+// pass: a subagent is held to the same allow list (checked live 2026-11-02,
+// it was refused a `touch`). Claude Code saves these flags with the session on its
 // first background launch, in this order (jobs/<short>/state.json
 // respawnFlags), and every later round is checked against them.
 func PolicyFlags(pr PR, remote string) []string {
@@ -70,12 +68,27 @@ func policyFlags(pr PR, remote, id string) []string {
 		threadsRule(pr),
 	}
 	args = append(args, readRules(pr)...)
-	args = append(append(args, postRule(pr), "Agent", "--disallowedTools"), denyRules...)
+	args = append(args, postRule(pr))
+	args = append(append(append(args, personaReadRules...), "Agent", "--disallowedTools"), denyRules...)
 	// Not left to dontAsk: Claude Code lets some git reads through without
 	// a rule (`git status` did on 2026-10-31), and these four take --output.
 	args = append(args, "Bash(git show *)", "Bash(git diff *)", "Bash(git log *)", "Bash(git grep *)")
 	args = append(args, secretReadRules...)
 	return append(args, "Bash(curl *)", "Bash(wget *)", "WebFetch", "WebSearch")
+}
+
+// personaReadRules let a round read the persona reviewer prompts in
+// ~/.claude/skills/persona-review for its first-round persona pass: skills
+// do not load without a settings source, so the round reads the files and
+// starts the reviewers with Agent itself. Claude Code checks a Read rule on
+// every hop of a symlink (2.1.314: allowed only with all three), and
+// home-manager links each file through its generation's
+// home-manager-files into a store path named after the source, so each hop
+// is pinned to this one folder; a sibling skill stays refused.
+var personaReadRules = []string{
+	"Read(~/.claude/skills/persona-review/**)",
+	"Read(//nix/store/*-home-manager-files/.claude/skills/persona-review/**)",
+	"Read(//nix/store/*-hm_personareview/**)",
 }
 
 // policyHead is how many leading PolicyFlags come before the tool lists;

@@ -26,6 +26,12 @@ func TestUnattendedArgsArePinned(t *testing.T) {
 		"Bash(claude-review grep https://github.com/acme/widgets/pull/42 *)",
 		"Bash(claude-review diff https://github.com/acme/widgets/pull/42)",
 		"Bash(claude-review post https://github.com/acme/widgets/pull/42 *)",
+		// The persona reviewer prompts, for the first round's persona pass.
+		// Claude Code checks a Read rule on every hop of a symlink, and
+		// home-manager links the folder in through two store paths.
+		"Read(~/.claude/skills/persona-review/**)",
+		"Read(//nix/store/*-home-manager-files/.claude/skills/persona-review/**)",
+		"Read(//nix/store/*-hm_personareview/**)",
 		"Agent",
 		"--disallowedTools",
 	}
@@ -63,7 +69,7 @@ func TestRoundSessionIDIsVersioned(t *testing.T) {
 	if got := widgetsPR.RoundSessionID(); got != uuidV5(urlNamespace, widgetsPR.URL()+" round-policy "+policyVersion) || got == widgetsPR.SessionID() {
 		t.Errorf("round session id %s", got)
 	}
-	if policyVersion != "2" {
+	if policyVersion != "3" {
 		t.Errorf("policyVersion %q: the literal here moves with it", policyVersion)
 	}
 }
