@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -158,8 +160,11 @@ func sameArgv(t *testing.T, what string, got, want []string) {
 
 func TestRun_PostSubcommandRoutesToRunPost(t *testing.T) {
 	h := newHost(t, "", true, false)
+	h.d.Home = t.TempDir()
+	t.Setenv("XDG_STATE_HOME", "") // the ledger goes under Home, never the real state dir
 	code := run([]string{"post", target, kindComment, bodyFlag, "hi"}, h.d)
-	if code != 0 || h.stdout.String() != "posted\n" || len(h.ghCalls) != 2 {
+	// The duplicate check, the head for the budget, the post.
+	if code != 0 || h.stdout.String() != "posted\n" || len(h.ghCalls) != 3 {
 		t.Errorf("code %d out %q gh %q stderr %q", code, h.stdout.String(), h.ghCalls, h.stderr.String())
 	}
 	if code := run([]string{"post"}, h.d); code != 2 {
@@ -648,5 +653,59 @@ func TestRun_Window_AttachDoesNotWait(t *testing.T) {
 	run([]string{target}, h.d)
 	if h.sleeps != 0 {
 		t.Errorf("an attach window adds no session to wait for: sleeps %d", h.sleeps)
+	}
+}
+
+// Every session's posts count, whoever started it: past the limit at one
+// head nothing is sent, and the refusal is recorded for tick.
+func TestRun_PostStopsAtTheLimit(t *testing.T) {
+	h := newHost(t, "", true, false)
+	h.d.Home = t.TempDir()
+	t.Setenv("XDG_STATE_HOME", "")
+	for i := range newPostLimit {
+		if code := run([]string{"post", target, kindComment, bodyFlag, fmt.Sprint("finding ", i)}, h.d); code != 0 {
+			t.Fatalf("post %d: code %d stderr %q", i, code, h.stderr)
+		}
+	}
+	sent := len(h.ghCalls)
+	if code := run([]string{"post", target, kindComment, bodyFlag, "one more"}, h.d); code != 1 || !strings.Contains(h.stderr.String(), "limit of 12 posts") {
+		t.Errorf("post past the limit: code %d stderr %q", code, h.stderr)
+	}
+	if last := h.ghCalls[len(h.ghCalls)-1]; len(h.ghCalls) != sent+2 || slices.Contains(last, "POST") {
+		t.Errorf("a refused post reached GitHub: %q", h.ghCalls[sent:])
+	}
+}
+
+func TestRun_PostFailsClosedWithoutTheLedger(t *testing.T) {
+	h := newHost(t, "", true, false)
+	h.d.Home = "/nonexistent/home"
+	t.Setenv("XDG_STATE_HOME", "")
+	if code := run([]string{"post", target, kindComment, bodyFlag, "hi"}, h.d); code != 1 {
+		t.Errorf("posted with no ledger: code %d", code)
+	}
+	for _, c := range h.ghCalls {
+		if slices.Contains(c, "POST") {
+			t.Errorf("a post reached GitHub without a budget: %q", c)
+		}
+	}
+}
+
+// Replies are bounded by the threads already there: one per thread at a
+// head, so a round cannot pile replies onto one thread.
+func TestRun_PostOneReplyPerThread(t *testing.T) {
+	h := newHost(t, "", true, false)
+	h.d.Home = t.TempDir()
+	t.Setenv("XDG_STATE_HOME", "")
+	reply := func(to, body string) int {
+		return run([]string{"post", target, kindReply, "--to", to, bodyFlag, body}, h.d)
+	}
+	if code := reply("7", "first"); code != 0 {
+		t.Fatalf("first reply: code %d stderr %q", code, h.stderr)
+	}
+	if code := reply("7", "second"); code != 1 {
+		t.Errorf("a second reply to the same thread: code %d", code)
+	}
+	if code := reply("8", "other thread"); code != 0 {
+		t.Errorf("a reply to another thread: code %d stderr %q", code, h.stderr)
 	}
 }

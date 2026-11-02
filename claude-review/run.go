@@ -51,6 +51,7 @@ type Deps struct {
 const usageText = `usage: claude-review [--dry-run] <pr>
        claude-review post <pr> comment|inline|reply|review ...
        claude-review threads <pr>
+       claude-review show <pr> <path> | grep <pr> <text> | diff <pr>
        claude-review approve <pr> --at SHA
        claude-review slack [--dry-run] <pr>...
        claude-review tick [--dry-run | --reset]
@@ -60,7 +61,8 @@ const usageText = `usage: claude-review [--dry-run] <pr>
 Starts, or resumes, the Claude Code review session for that PR in the local
 clone. Config: ` + "`claude-review/config.json`" + ` under the user config directory.
 ` + "`claude-review post`" + ` is what the session uses to post; see its --help.
-` + "`claude-review threads`" + ` prints what is already on the PR.
+` + "`claude-review threads`" + ` prints what is already on the PR; ` + "`show`, `grep` and `diff`" + `
+read the PR's code at its head without giving the session git.
 ` + "`claude-review approve <pr> --at SHA`" + ` approves SHA if it is still the head;
 it is yours to run, and the session is denied it.
 ` + "`claude-review slack`" + ` prints a line per PR to paste to its reviewer, and
@@ -71,15 +73,32 @@ and reports them to elly; a timer runs it.
 
 // subcommands are the gh-backed commands beside the default launch.
 var subcommands = map[string]func([]string, Gh, io.Writer, io.Writer) int{
-	"post":    runPost,
 	"threads": runThreads,
 	"approve": runApprove,
+}
+
+// runSessionCommand runs the commands a review session uses: post, with
+// its budget, and the git reads.
+func runSessionCommand(args []string, d Deps) (int, bool) {
+	if len(args) == 0 {
+		return 0, false
+	}
+	if args[0] == "post" {
+		return runPost(args[1:], d.Gh, ledgerSpend(d), d.Stdout, d.Stderr), true
+	}
+	if sub, ok := readCommands[args[0]]; ok {
+		return sub(args[1:], newPRReader(d), d.Stdout, d.Stderr), true
+	}
+	return 0, false
 }
 
 // run is main without os: returns the exit code. 0 ok, 1 failure, 2 usage.
 func run(args []string, d Deps) int {
 	if len(args) > 0 && args[0] == "tick" {
 		return runTick(args[1:], d)
+	}
+	if code, ok := runSessionCommand(args, d); ok {
+		return code
 	}
 	if len(args) > 0 && args[0] == "slack" {
 		// Needs Claude as well as gh, so it takes the whole host.

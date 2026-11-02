@@ -11,7 +11,7 @@ import (
 // may be someone's live work.
 const defaultPrompt = `Perform an adversarial code review of {url}.
 
-Work read-only against this checkout: do not check out, switch branch, stash, reset or edit anything in the working tree. Get the PR itself from GitHub: ` + "`gh pr view {number}`, `gh pr diff {number}`, and `git fetch {remote} pull/{number}/head` followed by `git show FETCH_HEAD:<path>`" + ` for file contents at the PR head. Use this repository for context.
+Work read-only against this checkout: do not check out, switch branch, stash, reset or edit anything in the working tree. Get the PR itself from GitHub: ` + "`gh pr view {number}`, `gh pr diff {number}`, and `git fetch {remote} pull/{number}/head` followed by `claude-review show {url} <path>` or `claude-review grep {url} <text>`" + ` for file contents at the PR head. Use this repository for context.
 
 ` + deferralRule + `
 
@@ -25,7 +25,7 @@ const deferralRule = `Treat "this should be a follow-up PR", "out of scope for t
 const cleanRound = "\n\nIf the round finds nothing worth raising, say in the summary which commit you reviewed (`git rev-parse FETCH_HEAD`), then end by telling the user they can approve with `! claude-review approve {url} --at <that full sha>`. Never approve yourself."
 
 // rereviewPreface is prepended on every click after the first.
-const rereviewPreface = "New review round for {url}: re-check your earlier findings against the new commits and the replies on the PR, then review what changed since. `claude-review threads {url}` prints every comment, review and inline thread with its id. Answer an existing thread instead of opening a new one, and never post a finding that is already on the PR. If there are no new commits and no reply that needs an answer, say so, post nothing, and end with a line containing only `" + nothingLine + "`.\n\n"
+const rereviewPreface = "New review round for {url}: re-check your earlier findings against the new commits and the replies on the PR, then review what changed since. `claude-review diff {url}` prints the commits and the diff since the last round. `claude-review threads {url}` prints every comment, review and inline thread with its id. Answer an existing thread instead of opening a new one, and never post a finding that is already on the PR. If there are no new commits and no reply that needs an answer, say so, post nothing, and end with a line containing only `" + nothingLine + "`.\n\n"
 
 const postAuto = "\n\nWhen done, post the findings as inline review comments and one PR-level summary comment, without asking. Post only through `claude-review post {url} inline --path FILE --line N --at SHA --body TEXT` (SHA is the full `git rev-parse FETCH_HEAD` you reviewed), `claude-review post {url} reply --to COMMENT_ID --body TEXT`, `claude-review post {url} comment --body TEXT` and `claude-review post {url} review --body TEXT`; those run without a prompt and sign for you. Pass the body as inline text."
 const postAsk = "\n\nWhen done, present the findings here and wait for approval before posting anything to GitHub."
@@ -81,7 +81,7 @@ func ReviewArgs(cfg Config, pr PR, remote string, resume, detached bool) []strin
 		args = append(args, "--bg")
 	}
 	args = append(args, "--resume", pr.SessionID(), BuildPrompt(cfg, pr, remote, resume))
-	args = append(args, "--allowedTools", threadsRule(pr))
+	args = append(append(args, "--allowedTools", threadsRule(pr)), readRules(pr)...)
 	if cfg.PostWithoutAsking {
 		// One rule, pinned to the PR, for a tool with no file-reading flag.
 		// gh itself is never pre-approved: a prefix rule cannot constrain

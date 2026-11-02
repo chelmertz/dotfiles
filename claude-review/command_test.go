@@ -93,6 +93,9 @@ func TestReviewArgs_FirstRoundWithTerminal(t *testing.T) {
 	got := ReviewArgs(cfg, testPR, "origin", false, false)
 	want := []string{claudeBin, resume, testPR.SessionID(), BuildPrompt(cfg, testPR, "origin", false),
 		"--allowedTools", threadsAllow,
+		"Bash(claude-review show https://github.com/acme/widgets/pull/42 *)",
+		"Bash(claude-review grep https://github.com/acme/widgets/pull/42 *)",
+		"Bash(claude-review diff https://github.com/acme/widgets/pull/42)",
 		"--disallowedTools", "Bash(gh api *)", "Bash(gh pr comment *)", "Bash(gh pr review *)", "Bash(gh pr edit *)",
 		"Bash(gh pr merge *)", "Bash(gh pr close *)", "Bash(gh issue comment *)",
 		"Bash(claude-review approve *)"}
@@ -106,6 +109,9 @@ func TestReviewArgs_RereviewDetachedAuto(t *testing.T) {
 	got := ReviewArgs(cfg, testPR, "origin", true, true)
 	want := []string{claudeBin, "--bg", resume, testPR.SessionID(), BuildPrompt(cfg, testPR, "origin", true),
 		"--allowedTools", threadsAllow,
+		"Bash(claude-review show https://github.com/acme/widgets/pull/42 *)",
+		"Bash(claude-review grep https://github.com/acme/widgets/pull/42 *)",
+		"Bash(claude-review diff https://github.com/acme/widgets/pull/42)",
 		"Bash(claude-review post https://github.com/acme/widgets/pull/42 *)",
 		"--disallowedTools", "Bash(gh api *)", "Bash(gh pr comment *)", "Bash(gh pr review *)", "Bash(gh pr edit *)",
 		"Bash(gh pr merge *)", "Bash(gh pr close *)", "Bash(gh issue comment *)",

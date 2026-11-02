@@ -11,7 +11,7 @@ import (
 func TestUnattendedArgsArePinned(t *testing.T) {
 	args := UnattendedArgs(Config{}, widgetsPR, "upstream")
 	prompt := BuildPrompt(Config{PostWithoutAsking: true}, widgetsPR, "upstream", true) +
-		"\n\nThis round runs unattended, and a command it is not allowed is refused, not asked about. Run one command per Bash call: no `;`, `&&`, `|` or redirection, and no `git -C` (the session already runs in the clone). Get the PR head with `git fetch upstream pull/42/head` and `git rev-parse FETCH_HEAD`, never `git ls-remote`. A refused command stays refused: work without it, or end with the question line."
+		"\n\nThis round runs unattended, and a command it is not allowed is refused, not asked about. Run one command per Bash call: no `;`, `&&`, `|` or redirection, and no `git -C` (the session already runs in the clone). Get the PR head with `git fetch upstream pull/42/head` and `git rev-parse FETCH_HEAD`, never `git ls-remote`. Read the PR's code with `claude-review show https://github.com/acme/widgets/pull/42 <path>`, `claude-review grep https://github.com/acme/widgets/pull/42 <text>` and `claude-review diff https://github.com/acme/widgets/pull/42`; raw `git show`, `git diff`, `git log` and `git grep` are refused. A refused command stays refused: work without it, or end with the question line."
 	want := []string{
 		"claude", "--bg",
 		"--permission-mode", "dontAsk",
@@ -22,12 +22,16 @@ func TestUnattendedArgsArePinned(t *testing.T) {
 		"Read(./**)", "Grep(./**)", "Glob(./**)",
 		"Read(~/.claude/projects/*/" + widgetsPR.SessionID() + "/tool-results/**)",
 		"Bash(gh pr view 42)", "Bash(gh pr diff 42)",
-		"Bash(git fetch upstream pull/42/head)", "Bash(git show FETCH_HEAD:*)", "Bash(git rev-parse FETCH_HEAD)",
+		"Bash(git fetch upstream pull/42/head)", "Bash(git rev-parse FETCH_HEAD)",
 		"Bash(claude-review threads https://github.com/acme/widgets/pull/42)",
+		"Bash(claude-review show https://github.com/acme/widgets/pull/42 *)",
+		"Bash(claude-review grep https://github.com/acme/widgets/pull/42 *)",
+		"Bash(claude-review diff https://github.com/acme/widgets/pull/42)",
 		"Bash(claude-review post https://github.com/acme/widgets/pull/42 *)",
 		"--disallowedTools",
 	}
 	want = append(want, denyRules...)
+	want = append(want, "Bash(git show *)", "Bash(git diff *)", "Bash(git log *)", "Bash(git grep *)")
 	want = append(want, secretReadRules...)
 	want = append(want, "Bash(curl *)", "Bash(wget *)", "WebFetch", "WebSearch")
 	if !slices.Equal(args, want) {

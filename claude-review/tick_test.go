@@ -489,3 +489,41 @@ func TestLaunchRefusesWhileTripped(t *testing.T) {
 		t.Errorf("launch while tripped: err %v, recorded %v, started %q", err, recorded, w.started)
 	}
 }
+
+// A round pushed over its post limit is suspect whatever it says: even a
+// clean approve line gets no Approve link and no retry, and the PR gets no
+// more rounds until the user clicks it again.
+func TestTickARoundOverItsPostLimitStopsThatPR(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	w.elly.prs = []EllyPR{requestedPR(42)}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	full := strings.Repeat("a", 40)
+	if _, err := w.h.ledger.db.Exec(`update rounds set head = ?`, full); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if _, err := w.h.ledger.SpendPost(pr, full, postSlotNew, 1, t0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.msgs[pr.SessionID()] = "Clean. `! claude-review approve " + pr.URL() + " --at " + full + "`"
+	w.gh.facts = RoundFacts{State: "open", Head: full, CommitsSinceApproval: -1}
+	w.gh.head = full
+	w.elly.prs = []EllyPR{ellyPR(func(p *EllyPR) { p.Url = pr.URL(); p.HeadRefOid = "h9" })}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	a := w.elly.put[pr.URL()]
+	if a.State != stateNeedsYou || !strings.Contains(a.Note, "refused over the limit") || slices.ContainsFunc(a.Links, func(l Link) bool { return l.Label == "Approve" }) {
+		t.Errorf("elly got %+v", a)
+	}
+	if len(w.started) != 1 {
+		t.Errorf("rounds after the limit: %q", w.started)
+	}
+	if ignored, _ := w.h.ledger.Ignored(pr); !ignored {
+		t.Error("the PR is not held back until the next click")
+	}
+}

@@ -140,16 +140,8 @@ func (h tickHost) apply(pr PR, r Round, d Decision) (bool, error) {
 			return h.launch(pr, func() error { return h.ledger.MarkRetried(r.ID) })
 		})
 	}
-	if d.DismissReviewID != 0 {
-		msg := "A later review round found new problems at the current head, so this approval no longer covers it."
-		if err := h.do(fmt.Sprintf("dismiss review %d on %s", d.DismissReviewID, pr.Slug()), func() error { return h.gh.Dismiss(pr, d.DismissReviewID, msg) }); err != nil {
-			return false, err
-		}
-	}
-	if d.Clear {
-		if err := h.do("clear "+pr.Slug(), func() error { return h.clear(pr) }); err != nil {
-			return false, err
-		}
+	if err := h.sideEffects(pr, d); err != nil {
+		return false, err
 	}
 	if a := d.Annotation; a != nil {
 		if d.MintFor != "" && !h.dry {
@@ -164,6 +156,26 @@ func (h tickHost) apply(pr PR, r Round, d Decision) (bool, error) {
 		}
 	}
 	return false, h.do("mark round "+pr.Slug()+" read", func() error { return h.ledger.MarkRead(r.ID) })
+}
+
+// sideEffects are the decision's writes besides the annotation: dismiss
+// the user's approval, clear the PR, hold it back from rounds.
+func (h tickHost) sideEffects(pr PR, d Decision) error {
+	if d.DismissReviewID != 0 {
+		msg := "A later review round found new problems at the current head, so this approval no longer covers it."
+		if err := h.do(fmt.Sprintf("dismiss review %d on %s", d.DismissReviewID, pr.Slug()), func() error { return h.gh.Dismiss(pr, d.DismissReviewID, msg) }); err != nil {
+			return err
+		}
+	}
+	if d.Clear {
+		if err := h.do("clear "+pr.Slug(), func() error { return h.clear(pr) }); err != nil {
+			return err
+		}
+	}
+	if d.Ignore {
+		return h.do("ignore "+pr.Slug(), func() error { return h.ledger.Ignore(pr) })
+	}
+	return nil
 }
 
 func (h tickHost) clear(pr PR) error {

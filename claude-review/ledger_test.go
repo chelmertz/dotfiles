@@ -162,3 +162,66 @@ func TestLedgerBreaker(t *testing.T) {
 		t.Errorf("starts before the reset still count: %d", n)
 	}
 }
+
+func TestLedgerPostBudget(t *testing.T) {
+	l := openTestLedger(t)
+	spend := func(head, slot string) bool {
+		t.Helper()
+		ok, err := l.SpendPost(widgetsPR, head, slot, 2, t0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ok
+	}
+	for i, want := range []bool{true, true, false} {
+		if got := spend("h1", "new"); got != want {
+			t.Errorf("post %d of a budget of 2: %v", i+1, got)
+		}
+	}
+	if !spend("h1", "thread 7") || !spend("h2", "new") {
+		t.Error("another slot or another head has its own budget")
+	}
+	if _, err := l.StartRound(widgetsPR, "h1", "new_head", t0.Add(-time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.StartRound(PR{Owner: owner, Repo: repoName, Number: 43}, "h1", "new_head", t0); err != nil {
+		t.Fatal(err)
+	}
+	rounds, _ := l.UnreadRounds()
+	if len(rounds) != 2 || !rounds[0].PostRefused || rounds[1].PostRefused {
+		t.Errorf("the refusal belongs to the PR's round only: %+v", rounds)
+	}
+}
+
+func TestLedgerDiffBase(t *testing.T) {
+	l := openTestLedger(t)
+	if _, ok, _ := l.DiffBase(widgetsPR); ok {
+		t.Error("a base for a PR the ledger never saw")
+	}
+	if err := l.Accept(widgetsPR, "acc", "main", t0); err != nil {
+		t.Fatal(err)
+	}
+	if base, ok, _ := l.DiffBase(widgetsPR); !ok || base != "acc" {
+		t.Errorf("before any round: %q %v", base, ok)
+	}
+	id, _ := l.StartRound(widgetsPR, "h1", "x", t0)
+	if base, _, _ := l.DiffBase(widgetsPR); base != "acc" {
+		t.Errorf("an unread round is the one running, not the last: %q", base)
+	}
+	if err := l.MarkRead(id); err != nil {
+		t.Fatal(err)
+	}
+	id2, err := l.StartRound(widgetsPR, "h2", "x", t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if base, _, _ := l.DiffBase(widgetsPR); base != "h1" {
+		t.Errorf("after a read round: %q", base)
+	}
+	if err := l.MarkRead(id2); err != nil {
+		t.Fatal(err)
+	}
+	if base, _, _ := l.DiffBase(widgetsPR); base != "h2" {
+		t.Errorf("after two read rounds, the newest: %q", base)
+	}
+}

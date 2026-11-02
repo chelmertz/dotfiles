@@ -11,6 +11,9 @@ claude-review acme/widgets/1234
 claude-review --dry-run <pr>     # print the claude command instead of running it
 claude-review post <pr> comment|inline|reply|review --body TEXT   # what the session posts with
 claude-review threads <pr>       # what is already on the PR, with ids to reply to
+claude-review show <pr> <path>   # a file at the PR head
+claude-review grep <pr> <text>   # fixed-string search at the PR head
+claude-review diff <pr>          # commits and diff since the last round
 claude-review approve <pr> --at SHA   # yours: approve SHA if it is still the head
 claude-review slack [--dry-run] <pr>...   # lines to paste when pinging a reviewer
 ```
@@ -232,6 +235,19 @@ the session reviewed (`git rev-parse FETCH_HEAD`), not on the head at
 posting time: a push in between would otherwise put the old line number on
 new code.
 
+Every post counts against a budget per PR and head commit, whichever
+session makes it: at most 12 new comments or reviews, and one reply per
+existing thread. A hijacked round multiplies new comments, while replies are
+bounded by the threads already there; the largest real rounds by October
+2026 made 8 new posts, and 18 replies, one per thread. Past the budget the
+post is refused before anything is sent, and an unattended round that hit
+it ends as `needs_you` with the PR held back until the next click. The
+budget lives in the runner's ledger, and a post that cannot read it is
+refused. A post whose body holds the value of a secret-shaped environment
+variable (a name with token, key, secret, pass, auth or cred) is refused
+too: the shell expands a bare `$NAME` in a command that matches the post
+rule, and no permission rule stops it (checked live on 2026-11-02).
+
 ### Approving is one command, and never the session's
 
 The session never approves. A round that finds nothing says in its summary
@@ -253,7 +269,8 @@ branch protection under your name, and the session reads untrusted PR
 content.
 
 Every launch, with or without `post_without_asking`, also passes
-`--allowedTools` for the read-only `claude-review threads <pr>` and
+`--allowedTools` for the read-only `claude-review threads`, `show`, `grep`
+and `diff` for the PR, and
 `--disallowedTools` for the ways around this command: `gh api`,
 `gh pr comment|review|edit|merge|close`, `gh issue comment` and
 `claude-review approve`. That
@@ -295,8 +312,9 @@ them. Cross-repo context may come back once there is usage to judge it by.
 It reads CLAUDE.md, skills
 and history from the clone, and gets the PR itself from GitHub with
 `gh pr view`, `gh pr diff` and `git fetch <remote> pull/N/head` followed by
-`git show`, where `<remote>` is the clone's remote that points at the PR's
-repository (`upstream` in a fork-style clone). Two rules follow.
+`claude-review show` and `grep`, where `<remote>` is the clone's remote that
+points at the PR's repository (`upstream` in a fork-style clone). Two rules
+follow.
 
 - **The CLI never runs a git command that writes or touches the network.**
   Finding the clone is reading remotes. No fetch, no checkout, and never a
@@ -322,7 +340,7 @@ repository (`upstream` in a fork-style clone). Two rules follow.
 Three ways to give the session the PR's code were on the table.
 
 - **Read-only in the existing clone (chosen).** The session fetches the PR ref
-  and reads it with `git show` and `gh pr diff`. The developer's checkout is
+  and reads it with `claude-review show` and `gh pr diff`. The developer's checkout is
   untouched. Cost: the reviewer cannot run the PR's tests or build.
 - **A worktree per review.** Claude Code's `--worktree` flag gives the session
   its own checkout of the PR head, so tests can run. Cost: a directory per PR
@@ -655,7 +673,8 @@ cover only `gh api`, the `gh pr`/`gh issue` write commands and
 - an explicit permission mode, with the user's settings excluded;
 - an allow list scoped to the PR: read and search the clone (`Read`, `Grep`
   and `Glob` all scoped to `./**`; a bare `Grep` or `Glob` reaches outside it), `gh pr view` and
-  `gh pr diff` for that PR, `claude-review threads` and `post` for that PR,
+  `gh pr diff` for that PR, `claude-review threads`, `show`, `grep`, `diff`
+  and `post` for that PR,
   and `Read` of the session's own spilled tool output
   (`~/.claude/projects/*/<session id>/tool-results/**`), where Claude Code
   puts a large result such as a big diff; checked live on 2026-11-01 to
@@ -666,7 +685,13 @@ cover only `gh api`, the `gh pr`/`gh issue` write commands and
   blocks the round. The first real unattended rounds lost 22 of 61 tool
   calls to exactly these, which no pinned rule matches;
 - everything else denied, including reads of secret-shaped paths (`.env`,
-  key and credential files);
+  key and credential files), and raw `git show`, `git diff`, `git log` and
+  `git grep` by name: Claude Code lets some git reads through without a rule,
+  and these four take `--output`, which writes any file, while `git grep -O`
+  runs a command. A round reads the PR's code through the subcommands below;
+  checked live on 2026-11-02 with a stub on PATH, which saw the reads pinned
+  to the PR and none of the raw git, the other PR, an extra `--since`,
+  `$(...)`, backticks, `;`, `|` or an environment prefix;
 - a test that fails if the launch arguments loosen.
 
 The posting-policy section above states what a round can reach under the
@@ -676,6 +701,22 @@ Rounds resume the PR's one session, accepting that an instruction planted in
 an earlier commit or reply stays in the transcript after the author removes
 it. The launch policy and the GitHub checks on Approve bound what it can do:
 bad comments or a blocked merge, never an approval.
+
+#### Reading the PR's code
+
+`claude-review show <pr> <path>`, `grep <pr> <text>` and `diff <pr>` run git
+themselves, so the session supplies at most one operand that never reaches
+git as a flag (`grep` passes it after `-e`, as a fixed string; `show` after
+`<head>:`). Each reads at the PR's head on GitHub, refuses unless the
+working directory is a clone of the PR's repository holding that commit,
+ignores the user's global git config (`log.showSignature`,
+`grep.patternType=perl` and the like would otherwise run on the PR's
+content), stops after a minute and cuts its output at 4 MB. `diff` takes
+its base from the ledger, never from the session: the head of the newest
+round `tick` read on the PR, else the head the user accepted. A base the
+session chose could be a stash or an unpushed branch in the user's clone,
+and the diff would carry that work into a post. After a rebase the base is
+no longer in the PR's history, and `diff` says to use `gh pr diff`.
 
 #### URL verbs
 

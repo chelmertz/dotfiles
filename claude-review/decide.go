@@ -223,6 +223,8 @@ type Decision struct {
 	MintFor         string
 	DismissReviewID int64
 	Retry           bool
+	// Ignore holds the PR back from rounds until the user's next click.
+	Ignore bool
 }
 
 // decide reads one finished round against GitHub. The session's own words
@@ -241,6 +243,12 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 	switch {
 	case f.State != prOpen:
 		return Decision{Clear: true}
+	// Before any reading of the round's words or findings: a round pushed
+	// over its post limit is suspect whatever it says, and never earns an
+	// Approve link or a retry.
+	case r.PostRefused:
+		return Decision{Ignore: true, Annotation: &Annotation{State: stateNeedsYou,
+			Note: "a post was refused over the limit; no more rounds on this PR until you click it again", Links: summary(attach)}}
 	case o.Kind == OutcomeQuestion:
 		return Decision{Annotation: &Annotation{State: stateNeedsYou, Note: "the round has a question for you", Links: summary(attach, ignore)}}
 	case f.NewComments > 0 && approvedEarlier:

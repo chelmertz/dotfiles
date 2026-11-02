@@ -31,7 +31,7 @@ func (g *fakeGh) run(args ...string) (string, error) {
 func post(t *testing.T, g *fakeGh, args ...string) (int, string, string) {
 	t.Helper()
 	var out, errb bytes.Buffer
-	code := runPost(args, g.run, &out, &errb)
+	code := runPost(args, g.run, func(PR, string, int) error { return nil }, &out, &errb)
 	return code, out.String(), errb.String()
 }
 
@@ -288,5 +288,20 @@ func TestPost_DuplicateCheckFailureStopsThePost(t *testing.T) {
 func TestThreadsRule(t *testing.T) {
 	if got := threadsRule(widgetsPR); got != threadsAllow {
 		t.Errorf("got %q", got)
+	}
+}
+
+// A bare $NAME in a post command is expanded by the shell before the
+// permission rule sees it, so the value of a token in the session's
+// environment would reach the PR.
+func TestPostRefusesASecretFromTheEnvironment(t *testing.T) {
+	t.Setenv("SOME_API_TOKEN", "s3cr3t-value")
+	g := &fakeGh{}
+	code, _, errb := post(t, g, prURL, kindComment, "--body", "leak: s3cr3t-value")
+	if code != 1 || !strings.Contains(errb, "$SOME_API_TOKEN") || strings.Contains(errb, "s3cr3t-value") || len(g.calls) != 0 {
+		t.Errorf("code %d stderr %q gh %q", code, errb, g.calls)
+	}
+	if name := secretIn("short x", []string{"PASS=x", "HOME=/home/u"}); name != "" {
+		t.Errorf("a short value or a harmless name: %q", name)
 	}
 }

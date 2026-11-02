@@ -12,7 +12,7 @@ var secretReadRules = []string{
 // unattendedRules follows the prompt of every unattended round. The first
 // real rounds (2026-11-01) lost 22 of 61 tool calls to refused chains,
 // `git -C` and `git ls-remote`, which match none of the pinned rules.
-const unattendedRules = "\n\nThis round runs unattended, and a command it is not allowed is refused, not asked about. Run one command per Bash call: no `;`, `&&`, `|` or redirection, and no `git -C` (the session already runs in the clone). Get the PR head with `git fetch {remote} pull/{number}/head` and `git rev-parse FETCH_HEAD`, never `git ls-remote`. A refused command stays refused: work without it, or end with the question line."
+const unattendedRules = "\n\nThis round runs unattended, and a command it is not allowed is refused, not asked about. Run one command per Bash call: no `;`, `&&`, `|` or redirection, and no `git -C` (the session already runs in the clone). Get the PR head with `git fetch {remote} pull/{number}/head` and `git rev-parse FETCH_HEAD`, never `git ls-remote`. Read the PR's code with `claude-review show {url} <path>`, `claude-review grep {url} <text>` and `claude-review diff {url}`; raw `git show`, `git diff`, `git log` and `git grep` are refused. A refused command stays refused: work without it, or end with the question line."
 
 // UnattendedArgs is the command for a round nobody watches. It inherits
 // nothing from the user's own Claude Code setup: no user settings (which run
@@ -39,11 +39,14 @@ func UnattendedArgs(cfg Config, pr PR, remote string) []string {
 		// file is refused.
 		"Read(~/.claude/projects/*/" + pr.SessionID() + "/tool-results/**)",
 		"Bash(gh pr view " + n + ")", "Bash(gh pr diff " + n + ")",
-		"Bash(git fetch " + remote + " pull/" + n + "/head)", "Bash(git show FETCH_HEAD:*)", "Bash(git rev-parse FETCH_HEAD)",
-		threadsRule(pr), postRule(pr),
-		"--disallowedTools",
+		"Bash(git fetch " + remote + " pull/" + n + "/head)", "Bash(git rev-parse FETCH_HEAD)",
+		threadsRule(pr),
 	}
-	args = append(args, denyRules...)
+	args = append(args, readRules(pr)...)
+	args = append(append(args, postRule(pr), "--disallowedTools"), denyRules...)
+	// Not left to dontAsk: Claude Code lets some git reads through without
+	// a rule (`git status` did on 2026-10-31), and these four take --output.
+	args = append(args, "Bash(git show *)", "Bash(git diff *)", "Bash(git log *)", "Bash(git grep *)")
 	args = append(args, secretReadRules...)
 	return append(args, "Bash(curl *)", "Bash(wget *)", "WebFetch", "WebSearch")
 }

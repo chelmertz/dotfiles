@@ -28,6 +28,8 @@ create table if not exists rounds (
 	started_at integer not null, read_at integer, retries integer not null default 0);
 create table if not exists tokens (token text primary key, pr text not null, sha text not null, used integer not null default 0);
 create table if not exists annotations (pr text primary key, state text not null, note text not null, links text not null);
+create table if not exists posts (pr text not null, head text not null, slot text not null, n integer not null, primary key (pr, head, slot));
+create table if not exists post_refusals (pr text not null, at integer not null);
 create table if not exists breaker (id integer primary key check (id = 1), tripped text, reset_at integer not null default 0);
 `
 
@@ -100,6 +102,9 @@ type Round struct {
 	Trigger   string
 	StartedAt time.Time
 	Retries   int
+	// PostRefused: a post on the PR was refused over its limit since the
+	// round started.
+	PostRefused bool
 }
 
 func (l *Ledger) StartRound(pr PR, head, trigger string, at time.Time) (int64, error) {
@@ -122,6 +127,36 @@ func (l *Ledger) RoundsSince(pr PR, since time.Time) (int, error) {
 	var n int
 	err := l.db.QueryRow(`select count(*) from rounds where pr = ? and started_at >= ?`, pr.URL(), since.Unix()).Scan(&n)
 	return n, err
+}
+
+// SpendPost takes one post from pr's budget in slot at head, and reports
+// false, recording the refusal, when limit posts were already made there.
+// One conditional update, so two posts at once cannot both take the last.
+func (l *Ledger) SpendPost(pr PR, head, slot string, limit int, at time.Time) (bool, error) {
+	if _, err := l.db.Exec(`insert or ignore into posts (pr, head, slot, n) values (?, ?, ?, 0)`, pr.URL(), head, slot); err != nil {
+		return false, err
+	}
+	res, err := l.db.Exec(`update posts set n = n + 1 where pr = ? and head = ? and slot = ? and n < ?`, pr.URL(), head, slot, limit)
+	if err != nil {
+		return false, err
+	}
+	if n, err := res.RowsAffected(); err != nil || n == 1 {
+		return n == 1, err
+	}
+	_, err = l.db.Exec(`insert into post_refusals (pr, at) values (?, ?)`, pr.URL(), at.Unix())
+	return false, err
+}
+
+// DiffBase is the commit a later round diffs from: the head of the newest
+// round tick has read for pr, else the head the user accepted.
+func (l *Ledger) DiffBase(pr PR) (string, bool, error) {
+	var head string
+	err := l.db.QueryRow(`select head from rounds where pr = ? and read_at is not null order by id desc limit 1`, pr.URL()).Scan(&head)
+	if errors.Is(err, sql.ErrNoRows) {
+		a, ok, err := l.Acceptance(pr)
+		return a.Head, ok, err
+	}
+	return head, err == nil, err
 }
 
 // Launches counts the round starts and retries since since, across all PRs,
@@ -157,7 +192,9 @@ func (l *Ledger) Reset(at time.Time) error {
 
 // UnreadRounds are rounds whose outcome has not been processed yet.
 func (l *Ledger) UnreadRounds() ([]Round, error) {
-	rows, err := l.db.Query(`select id, pr, head, trigger, started_at, retries from rounds where read_at is null order by id`)
+	rows, err := l.db.Query(`select id, pr, head, trigger, started_at, retries,
+		exists (select 1 from post_refusals f where f.pr = rounds.pr and f.at >= rounds.started_at)
+		from rounds where read_at is null order by id`)
 	if err != nil {
 		return nil, fmt.Errorf("unread rounds: %w", err)
 	}
@@ -166,7 +203,7 @@ func (l *Ledger) UnreadRounds() ([]Round, error) {
 	for rows.Next() {
 		var r Round
 		var started int64
-		if err := rows.Scan(&r.ID, &r.PR, &r.Head, &r.Trigger, &started, &r.Retries); err != nil {
+		if err := rows.Scan(&r.ID, &r.PR, &r.Head, &r.Trigger, &started, &r.Retries, &r.PostRefused); err != nil {
 			return nil, err
 		}
 		r.StartedAt = time.Unix(started, 0).UTC()

@@ -6,6 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -54,8 +56,24 @@ const (
 // Gh runs gh with args and returns stdout. A variable so tests can fake it.
 type Gh func(args ...string) (string, error)
 
+// Post limits per PR and head commit, from any session. A hijacked round
+// multiplies new comments; replies are bounded by the threads already
+// there. The largest real rounds (October 2026) made 8 new posts, and 18
+// replies, one per thread.
+const (
+	newPostLimit    = 12
+	threadPostLimit = 1
+)
+
+// spendFunc takes one post from the PR's budget in slot (postSlotNew, or a
+// thread's), and errs when the budget is spent or cannot be read.
+type spendFunc func(pr PR, slot string, limit int) error
+
+const postSlotNew = "new"
+
 // runPost is `claude-review post`. Exit codes as run: 0, 1, 2 for usage.
-func runPost(args []string, gh Gh, stdout, stderr io.Writer) int {
+// spend runs after the duplicate check and before anything is sent.
+func runPost(args []string, gh Gh, spend spendFunc, stdout, stderr io.Writer) int {
 	if len(args) < 2 {
 		fmt.Fprintln(stderr, "claude-review post: need <pr> and a kind (comment, inline, reply or review)")
 		fmt.Fprint(stderr, postUsage)
@@ -83,19 +101,32 @@ func runPost(args []string, gh Gh, stdout, stderr io.Writer) int {
 		fs.Usage()
 		return 2
 	}
+	if name := secretIn(*body, os.Environ()); name != "" {
+		fmt.Fprintf(stderr, "claude-review post: the body holds the value of $%s; not posted\n", name)
+		return 1
+	}
 	in := postInput{pr: pr, kind: kind, body: sign(*body), path: *path, line: *line, side: *side, to: *to, at: *at}
 	if err := in.validate(); err != nil {
 		fmt.Fprintln(stderr, "claude-review post:", err)
 		fs.Usage()
 		return 2
 	}
-	if url, err := in.existing(gh); err != nil {
+	url, root, err := in.existing(gh)
+	if err != nil {
 		fmt.Fprintf(stderr, "claude-review post: checking for an earlier copy: %v\n", err)
 		return 1
 	} else if url != "" {
 		fmt.Fprintln(stderr, "claude-review post: already on the PR, not posted again")
 		fmt.Fprintln(stdout, url)
 		return 0
+	}
+	slot, limit := postSlotNew, newPostLimit
+	if in.kind == kindReply {
+		slot, limit = fmt.Sprintf("thread %d", root), threadPostLimit
+	}
+	if err := spend(pr, slot, limit); err != nil {
+		fmt.Fprintln(stderr, "claude-review post: not posted:", err)
+		return 1
 	}
 	out, err := in.send(gh)
 	if err != nil {
@@ -140,7 +171,7 @@ func (in postInput) validate() error {
 // stored it (seen as a 422 on an inline comment) is then safe to retry.
 // A PR-level comment or review has no place, so only one from the last
 // retryWindow counts: a later round may repeat a short summary.
-func (in postInput) existing(gh Gh) (string, error) {
+func (in postInput) existing(gh Gh) (string, int64, error) {
 	api := fmt.Sprintf("repos/%s/%s", in.pr.Owner, in.pr.Repo)
 	endpoint := map[string]string{
 		kindComment: issueComments,
@@ -150,7 +181,7 @@ func (in postInput) existing(gh Gh) (string, error) {
 	}[in.kind]
 	items, err := ghList(gh, api+"/"+fmt.Sprintf(endpoint, in.pr.Number))
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	// GitHub files a reply to a reply under the thread's root comment, so
 	// --to with any comment in the thread must look for the root.
@@ -162,10 +193,10 @@ func (in postInput) existing(gh Gh) (string, error) {
 	}
 	for _, c := range items {
 		if in.sameAs(c, root) {
-			return c.HTMLURL, nil
+			return c.HTMLURL, root, nil
 		}
 	}
-	return "", nil
+	return "", root, nil
 }
 
 // sameAs reports whether c is this post already made: the same signed body
@@ -205,6 +236,24 @@ func (in postInput) send(gh Gh) (string, error) {
 	default: // reply; validate admits nothing else
 		return gh("api", "-X", "POST", fmt.Sprintf("%s/pulls/%d/comments/%d/replies", api, in.pr.Number, in.to), "-f", "body="+in.body)
 	}
+}
+
+// secretName is an environment variable whose value must never be posted.
+var secretName = regexp.MustCompile(`(?i)token|key|secret|pass|auth|cred`)
+
+// secretIn names the secret-shaped variable in environ whose value body
+// contains, or returns "". The shell expands a bare $NAME inside a command
+// that matches the post rule (checked live 2026-11-02 with
+// --body $HOME), and no permission rule stops it, so a planted "post
+// $SOME_TOKEN" is caught here, where every post passes.
+func secretIn(body string, environ []string) string {
+	for _, kv := range environ {
+		name, value, _ := strings.Cut(kv, "=")
+		if len(value) >= 8 && secretName.MatchString(name) && strings.Contains(body, value) {
+			return name
+		}
+	}
+	return ""
 }
 
 // sign appends the signature line unless the body already ends with it.
@@ -312,6 +361,16 @@ var denyRules = []string{
 // threadsRule pre-approves the read-only `claude-review threads` for this PR.
 func threadsRule(pr PR) string {
 	return "Bash(claude-review threads " + pr.URL() + ")"
+}
+
+// readRules allow the git reads (gitread.go), pinned to the PR. diff takes
+// no operand; show and grep take one, which their parsing keeps an operand.
+func readRules(pr PR) []string {
+	return []string{
+		"Bash(claude-review show " + pr.URL() + " *)",
+		"Bash(claude-review grep " + pr.URL() + " *)",
+		"Bash(claude-review diff " + pr.URL() + ")",
+	}
 }
 
 // postRule is the one permission a post_without_asking session gets: this
