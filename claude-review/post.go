@@ -123,7 +123,7 @@ func runPostText(args []string, gh Gh, spend spendFunc, stdout, stderr io.Writer
 		fs.Usage()
 		return 2
 	}
-	url, root, err := in.existing(gh)
+	url, root, last, err := in.existing(gh)
 	if err != nil {
 		fmt.Fprintf(stderr, "claude-review post: checking for an earlier copy: %v\n", err)
 		return 1
@@ -134,7 +134,10 @@ func runPostText(args []string, gh Gh, spend spendFunc, stdout, stderr io.Writer
 	}
 	slot, limit := postSlotNew, newPostLimit
 	if in.kind == kindReply {
-		slot, limit = fmt.Sprintf("thread %d", root), threadPostLimit
+		// One answer per comment from the other side, at a commit: a second
+		// author reply gets its answer, and our own replies, signed, never
+		// open a slot, so a round cannot keep answering itself.
+		slot, limit = fmt.Sprintf("thread %d after %d", root, last), threadPostLimit
 	}
 	if err := spend(pr, slot, limit); err != nil {
 		fmt.Fprintln(stderr, "claude-review post: not posted:", err)
@@ -187,8 +190,9 @@ func (in postInput) validate() error {
 // signed body in the same place, or "". A post that fails after GitHub
 // stored it (seen as a 422 on an inline comment) is then safe to retry.
 // A PR-level comment or review has no place, so only one from the last
-// retryWindow counts: a later round may repeat a short summary.
-func (in postInput) existing(gh Gh) (string, int64, error) {
+// retryWindow counts: a later round may repeat a short summary. For a
+// reply it also returns the thread's root and its latest unsigned comment.
+func (in postInput) existing(gh Gh) (url string, root, last int64, err error) {
 	api := fmt.Sprintf("repos/%s/%s", in.pr.Owner, in.pr.Repo)
 	endpoint := map[string]string{
 		kindComment: issueComments,
@@ -198,22 +202,27 @@ func (in postInput) existing(gh Gh) (string, int64, error) {
 	}[in.kind]
 	items, err := ghList(gh, api+"/"+fmt.Sprintf(endpoint, in.pr.Number))
 	if err != nil {
-		return "", 0, err
+		return "", 0, 0, err
 	}
 	// GitHub files a reply to a reply under the thread's root comment, so
 	// --to with any comment in the thread must look for the root.
-	root := in.to
+	root = in.to
 	for _, c := range items {
 		if c.ID == in.to && c.InReplyTo != 0 {
 			root = c.InReplyTo
 		}
 	}
 	for _, c := range items {
-		if in.sameAs(c, root) {
-			return c.HTMLURL, root, nil
+		if (c.ID == root || c.InReplyTo == root) && !signed(c.Body) && c.ID > last {
+			last = c.ID
 		}
 	}
-	return "", root, nil
+	for _, c := range items {
+		if in.sameAs(c, root) {
+			return c.HTMLURL, root, last, nil
+		}
+	}
+	return "", root, last, nil
 }
 
 // sameAs reports whether c is this post already made: the same signed body
@@ -278,10 +287,17 @@ func secretIn(body string, environ []string) string {
 // sign appends the signature line unless the body already ends with it.
 func sign(body string) string {
 	b := strings.TrimRight(body, " \t\n")
-	if strings.HasSuffix(b, "\n"+signature) || b == signature {
+	if signed(b) {
 		return b
 	}
 	return b + "\n\n" + signature
+}
+
+// signed: body ends with the signature line, as everything posted through
+// claude-review does, whatever whitespace GitHub kept after it.
+func signed(body string) bool {
+	b := strings.ReplaceAll(strings.TrimRight(body, " \t\r\n"), "\r\n", "\n")
+	return strings.HasSuffix(b, "\n"+signature) || b == signature
 }
 
 // headSHA is the PR's current head commit, which approve checks --at against.

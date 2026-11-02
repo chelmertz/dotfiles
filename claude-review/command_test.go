@@ -68,6 +68,12 @@ func TestBuildPrompt_CustomPromptKeepsPlaceholdersAndPolicy(t *testing.T) {
 	if !strings.Contains(got, "they can approve with `! claude-review approve https://github.com/acme/widgets/pull/42 --at <that full sha>`. Never approve yourself.") {
 		t.Errorf("clean-round sentence missing:\n%s", got)
 	}
+	// The author reads the summary, not the session: it opens with the
+	// verdict, and a clean one says the approval follows from a human.
+	if !strings.Contains(got, "`Reviewed at <short sha>: nothing found. Recommended for approval; a human approval follows separately.`") ||
+		!strings.Contains(got, "`Reviewed at <short sha>: N points to address before approval.`") {
+		t.Errorf("summary verdict lines missing:\n%s", got)
+	}
 	if !strings.HasSuffix(got, "end with a line containing only `claude-review: question for the user`.") {
 		t.Errorf("question sentence missing or not last:\n%s", got)
 	}

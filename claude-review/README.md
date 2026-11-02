@@ -269,10 +269,14 @@ head, a summary of the old commit made a push during the round look reviewed
 (seen 2026-11-02).
 
 Every post counts against a budget per PR and head commit, whichever
-session makes it: at most 12 new comments or reviews, and one reply per
-existing thread. A hijacked round multiplies new comments, while replies are
-bounded by the threads already there; the largest real rounds by October
-2026 made 8 new posts, and 18 replies, one per thread. Past the budget the
+session makes it: at most 12 new comments or reviews, and in an existing
+thread one reply per comment from the other side. A hijacked round
+multiplies new comments, while replies are bounded by what others wrote;
+the largest real rounds by October 2026 made 8 new posts, and 18 replies,
+one per thread. Our own replies are signed and never open a slot, so a
+round cannot keep answering itself, and an author who replies twice at one
+commit gets two answers (a per-thread limit paused such a PR on
+2026-11-02). Past the budget the
 post is refused before anything is sent, and an unattended round that hit
 it ends as `needs_you` with the PR held back until the next click. The
 budget lives in the runner's ledger, and a post that cannot read it is
@@ -734,6 +738,12 @@ round ends on a question only the user can answer, or the nothing line,
 `claude-review: nothing to post`, which a later round ends on when there are
 no new commits and no reply that needs an answer. None is trusted on its own.
 
+The posted summary opens with a verdict for the author, who sees it with no
+approval beside it: "Reviewed at <sha>: nothing found. Recommended for
+approval; a human approval follows separately." or "Reviewed at <sha>: N
+points to address before approval." An author once read "nothing else is
+outstanding" without an approval as unclear.
+
 - **Approve link**: only when the session's approve line names the PR and the
   head `tick` recorded at the round's start, and GitHub shows that the round
   started no new review thread, and none of the user's threads on the PR are
@@ -771,7 +781,7 @@ no new commits and no reply that needs an answer. None is trusted on its own.
   `needs_you` with an Open-session link. Inline comments without a summary
   mean the round was cut off while posting: the retry resumes the same
   session, which knows what it posted, and the post budget caps what it can
-  add at that commit (one reply per thread); a second cut-off reads "round stopped twice
+  add at that commit (one reply per author comment); a second cut-off reads "round stopped twice
   before posting its summary". A suspended laptop needs none of this: the
   round continues on wake-up, and the timer's missed tick runs then.
 

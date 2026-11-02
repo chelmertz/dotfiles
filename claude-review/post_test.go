@@ -376,3 +376,28 @@ func TestPost_ResolveRefusals(t *testing.T) {
 		t.Errorf("resolve with a body: code %d", code)
 	}
 }
+
+// A reply's budget is one answer per comment from the other side: an author
+// who replies twice in a thread at one commit gets two answers, and a reply
+// of ours never opens a new slot, so a round cannot answer itself.
+func TestPost_ReplyBudgetIsPerAuthorComment(t *testing.T) {
+	for _, c := range []struct {
+		name, thread, want string
+	}{
+		{"author's first comment", `[{"id":77,"body":"why?"}]`, "thread 77 after 77"},
+		{"after our answer, nothing new", `[{"id":77,"body":"why?"},{"id":78,"in_reply_to_id":77,"body":"because\n\n--claude"}]`, "thread 77 after 77"},
+		{"the author replied again", `[{"id":77,"body":"why?"},{"id":78,"in_reply_to_id":77,"body":"because\n\n--claude"},{"id":79,"in_reply_to_id":77,"body":"but"}]`, "thread 77 after 79"},
+		{"our answer as GitHub stores it, with CRLF and a trailing newline", `[{"id":77,"body":"why?"},{"id":78,"in_reply_to_id":77,"body":"because\r\n\r\n--claude\r\n"}]`, "thread 77 after 77"},
+		{"another thread's comments do not count", `[{"id":77,"body":"why?"},{"id":90,"body":"elsewhere"},{"id":91,"in_reply_to_id":90,"body":"x"}]`, "thread 77 after 77"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			g := &fakeGh{outs: []string{c.thread, urlU}}
+			var slots []string
+			var out, errb bytes.Buffer
+			code := runPost([]string{prURL, kindReply, bodyFlag, "Answer.", toFlag, "77"}, g.run, func(_ PR, slot string, _ int) error { slots = append(slots, slot); return nil }, &out, &errb)
+			if code != 0 || !slices.Equal(slots, []string{c.want}) {
+				t.Errorf("code %d slots %q, want %q (stderr %q)", code, slots, c.want, errb.String())
+			}
+		})
+	}
+}
