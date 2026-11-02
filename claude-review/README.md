@@ -762,14 +762,18 @@ no new commits and no reply that needs an answer. None is trusted on its own.
   on the PR from GitHub, never the setting and never elly's `ReviewStatus`,
   which is the PR's overall decision and would count another reviewer's
   approval as the user's.
-- **`handled` otherwise** needs positive evidence: a review by the user's
-  account at the round's head, or inline review comments by it (new
-  threads or replies), posted during the round. Comments alone count because a push between planning and
-  the round puts the review on a newer head than the one `tick` recorded. It
-  links to the review when there is one.
-- **Anything else** (a crash, an expired `gh` token, a rate limit, a stalled
-  prompt, a reboot, neither line printed): retry once, then `needs_you` with
-  "round failed" and an Open-session link.
+- **`handled` otherwise** needs the round's summary: a review by the user's
+  account posted during the round, at any head (a push mid-round puts it on
+  a newer one than `tick` recorded). The summary is posted last, so it is
+  what says the round finished. It links to the review.
+- **Anything else** (a crash, a shutdown mid-round, an expired `gh` token, a
+  rate limit, a stalled prompt, neither line printed): retry once, then
+  `needs_you` with an Open-session link. Inline comments without a summary
+  mean the round was cut off while posting: the retry resumes the same
+  session, which knows what it posted, and the post budget caps what it can
+  add at that commit (one reply per thread); a second cut-off reads "round stopped twice
+  before posting its summary". A suspended laptop needs none of this: the
+  round continues on wake-up, and the timer's missed tick runs then.
 
 `handled` suppresses only the review-owed reasons in elly. A reason outside
 the triggers, such as a top-level question from the author, still counts.

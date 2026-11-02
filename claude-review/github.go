@@ -105,7 +105,7 @@ func (g GitHub) RoundFacts(pr PR, r Round) (RoundFacts, error) {
 // ever come out clean.
 func (g GitHub) roundActivity(pr PR, r Round, reviewList []ghItem) (review string, threads, replies int, err error) {
 	for _, rv := range reviewList {
-		if strings.EqualFold(rv.User.Login, g.User) && rv.SubmittedAt.After(r.StartedAt) && rv.CommitID == r.Head {
+		if strings.EqualFold(rv.User.Login, g.User) && rv.SubmittedAt.After(r.StartedAt) {
 			review = rv.HTMLURL
 		}
 	}

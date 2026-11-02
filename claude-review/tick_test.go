@@ -812,7 +812,7 @@ func TestTickResumesFlaglessUnderTheSavedPolicy(t *testing.T) {
 	}
 	delete(w.fresh, pr.RoundSessionID())
 	w.fs.states[pr.RoundSessionID()] = jobDone
-	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewThreads: 1}
+	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewThreads: 1, RoundReviewURL: "r"}
 	w.elly.prs = []EllyPR{ellyPR(func(p *EllyPR) { p.Url = pr.URL(); p.HeadRefOid = "h2" })}
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)

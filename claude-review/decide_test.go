@@ -191,14 +191,19 @@ func TestDecide(t *testing.T) {
 			func(d Decision) bool { return d.DismissReviewID == 9 && d.Annotation.State == stateNeedsYou }, "dismiss + needs_you"},
 		{"replies after the user's approval do not dismiss it", round, Outcome{}, RoundFacts{State: "open", Head: head, NewReplies: 2, UserReview: approved("old"), RoundReviewURL: roundReview},
 			func(d Decision) bool { return d.DismissReviewID == 0 && d.Annotation.State == stateHandled }, "no dismissal, handled"},
-		{"replies without a summary at the recorded head: handled, not rerun", round, Outcome{}, RoundFacts{State: "open", Head: "moved", NewReplies: 1},
-			func(d Decision) bool { return !d.Retry && d.Annotation != nil && d.Annotation.State == stateHandled }, "handled"},
 		// The user read the findings and approved anyway, before tick settled the round.
 		{"an approval given after the round started is not dismissed", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 1, UserReview: &Review{ID: 9, State: "APPROVED", CommitID: "old", SubmittedAt: t0.Add(time.Minute)}, RoundReviewURL: roundReview},
 			func(d Decision) bool { return d.DismissReviewID == 0 && d.Annotation.State == stateHandled }, "no dismissal, handled"},
-		// A push between planning and the round puts its summary on a newer commit.
-		{"findings without a summary at the recorded head: handled, not rerun", round, Outcome{}, RoundFacts{State: "open", Head: "moved", NewThreads: 2},
-			func(d Decision) bool { return !d.Retry && d.Annotation != nil && d.Annotation.State == stateHandled }, "handled"},
+		// The summary is posted last: without it the round was cut off
+		// (a shutdown, a crash) partway through posting, and resumes.
+		{"findings without a summary: interrupted, resumed", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 2},
+			func(d Decision) bool { return d.Retry && d.Annotation == nil }, "retry"},
+		{"replies without a summary: interrupted, resumed", round, Outcome{}, RoundFacts{State: "open", Head: head, NewReplies: 1},
+			func(d Decision) bool { return d.Retry && d.Annotation == nil }, "retry"},
+		{"cut off again: needs the user", Round{ID: 1, PR: round.PR, Head: head, Retries: 1}, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 2},
+			func(d Decision) bool {
+				return !d.Retry && d.Annotation.State == stateNeedsYou && strings.Contains(d.Annotation.Note, "summary")
+			}, "needs_you, names the missing summary"},
 		{"findings with the approval at the current head do not dismiss", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 1, UserReview: approved(head), RoundReviewURL: roundReview},
 			func(d Decision) bool { return d.DismissReviewID == 0 }, "no dismissal"},
 		{"question", round, Outcome{Kind: OutcomeQuestion}, open,

@@ -210,8 +210,8 @@ type RoundFacts struct {
 	NewReplies            int
 	UnresolvedUserThreads int
 	UserReview            *Review
-	// RoundReviewURL is a review by the user's account at the round's head,
-	// posted since the round started: the round's own summary.
+	// RoundReviewURL is a review by the user's account posted since the round
+	// started, at any head (a push mid-round moves it): the round's summary.
 	RoundReviewURL string
 	// CommitsSinceApproval counts commits since the user's last approval,
 	// -1 when unknown or when there is none.
@@ -265,24 +265,33 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 			note += fmt.Sprintf("; %d commits since your last approval", f.CommitsSinceApproval)
 		}
 		return Decision{MintFor: r.Head, Annotation: &Annotation{State: stateNeedsYou, Note: note, Links: summary(attach, ignore)}}
-	// Findings count without the summary: a push between planning and the
-	// round puts the summary on a newer head than the one tick recorded.
-	case posted(f):
+	// The summary is posted last, so it is what says the round finished.
+	case f.RoundReviewURL != "":
 		return Decision{Annotation: &Annotation{State: stateHandled, Note: "round posted its review", Links: summary()}}
 	// Trusted like the question line: a crashed round never prints it, and
 	// GitHub confirmed above that the round posted nothing.
-	case o.Kind == OutcomeNothing:
+	case o.Kind == OutcomeNothing && !postedInline(f):
 		return Decision{Annotation: &Annotation{State: stateHandled, Note: "round found nothing to post", Links: summary()}}
+	// Cut off (a shutdown, a crash) before its summary: the retry resumes the
+	// same session, which knows what it posted, and the post budget caps what
+	// it can add at that commit.
 	case r.Retries == 0:
 		return Decision{Retry: true}
 	}
-	return Decision{Annotation: &Annotation{State: stateNeedsYou, Note: "round failed twice", Links: []Link{attach, ignore}}}
+	return Decision{Annotation: &Annotation{State: stateNeedsYou, Note: failedTwice(f), Links: []Link{attach, ignore}}}
 }
 
-// posted: GitHub shows the round's review at its head, or inline comments
-// (threads or replies) it made.
-func posted(f RoundFacts) bool {
-	return f.RoundReviewURL != "" || f.NewThreads > 0 || f.NewReplies > 0
+// failedTwice names how a round that never finished failed.
+func failedTwice(f RoundFacts) string {
+	if postedInline(f) {
+		return "round stopped twice before posting its summary"
+	}
+	return "round failed twice"
+}
+
+// postedInline: inline comments (threads or replies) the round made.
+func postedInline(f RoundFacts) bool {
+	return f.NewThreads > 0 || f.NewReplies > 0
 }
 
 // approvedBefore: the user approved an older head before the round started.

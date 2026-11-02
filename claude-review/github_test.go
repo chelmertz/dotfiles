@@ -91,6 +91,11 @@ func TestGitHubRoundFacts(t *testing.T) {
 	if f.RoundReviewURL != "r3" {
 		t.Errorf("round review %q", f.RoundReviewURL)
 	}
+	// A push mid-round puts the summary on a newer commit than the one tick
+	// recorded; it is still the round's summary, the sign it finished.
+	if moved, err := (GitHub{Gh: g.run, User: "me"}).RoundFacts(widgetsPR, Round{Head: "h1", StartedAt: start}); err != nil || moved.RoundReviewURL != "r3" {
+		t.Errorf("summary on a newer head: %q %v", moved.RoundReviewURL, err)
+	}
 	if f.CommitsSinceApproval != 3 {
 		t.Errorf("commits since approval %d", f.CommitsSinceApproval)
 	}
