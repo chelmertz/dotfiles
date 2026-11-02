@@ -199,13 +199,15 @@ type Review struct {
 	SubmittedAt time.Time
 }
 
-// RoundFacts is what GitHub says about a PR after a round. NewComments
-// counts inline review comments the user's account posted since the round
-// started: the findings, not the summary.
+// RoundFacts is what GitHub says about a PR after a round. NewThreads
+// counts review threads the user's account started since the round
+// started: the findings, not the summary. NewReplies counts its replies in
+// threads, which answer or confirm and are no finding.
 type RoundFacts struct {
 	State                 string
 	Head                  string
-	NewComments           int
+	NewThreads            int
+	NewReplies            int
 	UnresolvedUserThreads int
 	UserReview            *Review
 	// RoundReviewURL is a review by the user's account at the round's head,
@@ -251,7 +253,7 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 			Note: "a post was refused over the limit; no more rounds on this PR until you click it again", Links: summary(attach)}}
 	case o.Kind == OutcomeQuestion:
 		return Decision{Annotation: &Annotation{State: stateNeedsYou, Note: "the round has a question for you", Links: summary(attach, ignore)}}
-	case f.NewComments > 0 && approvedEarlier:
+	case f.NewThreads > 0 && approvedEarlier:
 		return Decision{DismissReviewID: f.UserReview.ID, Annotation: &Annotation{State: stateNeedsYou,
 			Note: "new findings after your approval; your approval was dismissed", Links: summary(attach, ignore)}}
 	case quietApprove(r, o, f, pr):
@@ -265,7 +267,7 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 		return Decision{MintFor: r.Head, Annotation: &Annotation{State: stateNeedsYou, Note: note, Links: summary(attach, ignore)}}
 	// Findings count without the summary: a push between planning and the
 	// round puts the summary on a newer head than the one tick recorded.
-	case f.RoundReviewURL != "" || f.NewComments > 0:
+	case posted(f):
 		return Decision{Annotation: &Annotation{State: stateHandled, Note: "round posted its review", Links: summary()}}
 	// Trusted like the question line: a crashed round never prints it, and
 	// GitHub confirmed above that the round posted nothing.
@@ -275,6 +277,12 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 		return Decision{Retry: true}
 	}
 	return Decision{Annotation: &Annotation{State: stateNeedsYou, Note: "round failed twice", Links: []Link{attach, ignore}}}
+}
+
+// posted: GitHub shows the round's review at its head, or inline comments
+// (threads or replies) it made.
+func posted(f RoundFacts) bool {
+	return f.RoundReviewURL != "" || f.NewThreads > 0 || f.NewReplies > 0
 }
 
 // approvedBefore: the user approved an older head before the round started.
@@ -289,11 +297,12 @@ func attachLink(pr PR) Link { return Link{Label: "Open session", URL: verbURL(pr
 func ignoreLink(pr PR) Link { return Link{Label: "Ignore", URL: verbURL(pr, "ignore")} }
 
 // quietApprove: the session's approve line names this PR at the head tick
-// recorded, the head has not moved, and GitHub shows the round posted no
-// findings and leaves none of the user's threads open.
+// recorded, the head has not moved, and GitHub shows the round started no
+// thread and leaves none of the user's threads open. Replies do not count:
+// a round that only confirms fixes, and resolves those threads, is clean.
 func quietApprove(r Round, o Outcome, f RoundFacts, pr PR) bool {
 	return o.Kind == OutcomeApprove && o.PrURL == pr.URL() && o.SHA == r.Head && f.Head == r.Head &&
-		f.NewComments == 0 && f.UnresolvedUserThreads == 0
+		f.NewThreads == 0 && f.UnresolvedUserThreads == 0
 }
 
 // verbURL is a claude-review:// link with a verb, as the URL handler reads it.

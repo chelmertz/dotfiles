@@ -330,6 +330,8 @@ func (h tickHost) apply(pr PR, r Round, d Decision, retry bool) (bool, error) {
 				return false, err
 			}
 			a.Links = append([]Link{{Label: "Approve", URL: approveURL(pr, d.MintFor, tok)}}, a.Links...)
+			// The approval stays the user's click; this only says one waits.
+			h.notify(fmt.Sprintf("%s clean at %.9s: approve?", pr.URL(), d.MintFor))
 		}
 		if err := h.do(fmt.Sprintf("mark %s %s: %s", pr.Slug(), a.State, a.Note), func() error { return h.ledger.SetAnnotation(pr, *a) }); err != nil {
 			return false, err

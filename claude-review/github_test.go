@@ -62,7 +62,9 @@ func TestGitHubRoundFacts(t *testing.T) {
 		"repos/acme/widgets/pulls/42/comments": `[
 			{"id":10,"user":{"login":"me"},"created_at":"` + after + `"},
 			{"id":11,"user":{"login":"me"},"created_at":"` + before + `"},
-			{"id":12,"user":{"login":"bob"},"created_at":"` + after + `"}]`,
+			{"id":12,"user":{"login":"bob"},"created_at":"` + after + `"},
+			{"id":13,"user":{"login":"me"},"in_reply_to_id":11,"created_at":"` + after + `"},
+			{"id":14,"user":{"login":"me"},"in_reply_to_id":12,"created_at":"` + after + `"}]`,
 		"repos/acme/widgets/issues/42/comments": `[{"id":20,"user":{"login":"me"},"created_at":"` + after + `"}]`,
 		"graphql":                               `{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[{"isResolved":false,"comments":{"nodes":[{"author":{"login":"me"}}]}},{"isResolved":true,"comments":{"nodes":[{"author":{"login":"me"}}]}},{"isResolved":false,"comments":{"nodes":[{"author":{"login":"bob"}}]}}]}}}}}`,
 		"repos/acme/widgets/compare/h1...h2":    `{"status":"ahead","ahead_by":3}`,
@@ -74,10 +76,11 @@ func TestGitHubRoundFacts(t *testing.T) {
 	if f.State != "open" || f.Head != "h2" {
 		t.Errorf("state/head: %+v", f)
 	}
-	// Inline comment 10 only: the user's account, after the start. The
-	// summary review (3) and the PR comment (20) are not findings.
-	if f.NewComments != 1 {
-		t.Errorf("new comments %d, want 1", f.NewComments)
+	// Inline comment 10 only: a new thread by the user's account, after the
+	// start. The replies 13 and 14 confirm or answer, and the summary review
+	// (3) and the PR comment (20) are not findings either.
+	if f.NewThreads != 1 || f.NewReplies != 2 {
+		t.Errorf("new threads %d, want 1; new replies %d, want 2", f.NewThreads, f.NewReplies)
 	}
 	if f.UnresolvedUserThreads != 1 {
 		t.Errorf("unresolved user threads %d, want 1", f.UnresolvedUserThreads)

@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -311,5 +314,65 @@ func TestPostRefusesASecretFromTheEnvironment(t *testing.T) {
 	}
 	if name := secretIn("short x", []string{"PASS=x", "HOME=/home/u"}); name != "" {
 		t.Errorf("a short value or a harmless name: %q", name)
+	}
+}
+
+// threadsJSON is the review threads query's answer: thread T1 started by
+// the viewer (comments 7, then the author's 8), T2 started by bob (9).
+func threadsJSON(t1Resolved bool) string {
+	return `{"data":{"viewer":{"login":"me"},"repository":{"pullRequest":{"reviewThreads":{"nodes":[
+		{"id":"T1","isResolved":` + strconv.FormatBool(t1Resolved) + `,"comments":{"nodes":[
+			{"databaseId":7,"url":"u7","author":{"login":"me"}},{"databaseId":8,"url":"u8","author":{"login":"bob"}}]}},
+		{"id":"T2","isResolved":false,"comments":{"nodes":[{"databaseId":9,"url":"u9","author":{"login":"bob"}}]}}]}}}}}`
+}
+
+// A round resolves a thread of ours it judges settled, named by any comment
+// in it, and spends the thread's resolve budget first.
+func TestPost_ResolveOwnThread(t *testing.T) {
+	g := &fakeGh{outs: []string{threadsJSON(false), `{"data":{"resolveReviewThread":{"thread":{"isResolved":true}}}}`}}
+	var spent []string
+	var out, errb bytes.Buffer
+	code := runPost([]string{prURL, kindResolve, threadFlag, "8"}, g.run, func(_ PR, slot string, limit int) error {
+		spent = append(spent, fmt.Sprint(slot, " ", limit))
+		return nil
+	}, &out, &errb)
+	if code != 0 || out.String() != "u7\n" {
+		t.Fatalf("code %d out %q stderr %q", code, out.String(), errb.String())
+	}
+	if len(g.calls) != 2 || g.calls[0][1] != "graphql" || !slices.Contains(g.calls[1], "threadId=T1") || !strings.Contains(strings.Join(g.calls[1], " "), "resolveReviewThread") {
+		t.Errorf("calls %q", g.calls)
+	}
+	if !slices.Equal(spent, []string{"resolve T1 1"}) {
+		t.Errorf("spent %q", spent)
+	}
+}
+
+// Someone else's thread, a comment in no thread, a thread already resolved
+// and a spent budget resolve nothing; usage errors never reach GitHub.
+func TestPost_ResolveRefusals(t *testing.T) {
+	for _, c := range []struct {
+		name, thread, threads string
+		spendErr              error
+		code                  int
+		says                  string
+	}{
+		{"bob's thread", "9", threadsJSON(false), nil, 1, "not one this account started"},
+		{"no such comment", "99", threadsJSON(false), nil, 1, "in no review thread"},
+		{"already resolved", "7", threadsJSON(true), nil, 0, "already resolved"},
+		{"budget spent", "7", threadsJSON(false), errors.New("the limit"), 1, "the limit"},
+		{"no thread", "0", "", nil, 2, "--thread with the id"},
+	} {
+		g := &fakeGh{outs: []string{c.threads}}
+		var out, errb bytes.Buffer
+		code := runPost([]string{prURL, kindResolve, threadFlag, c.thread}, g.run, func(PR, string, int) error { return c.spendErr }, &out, &errb)
+		if code != c.code || !strings.Contains(errb.String(), c.says) {
+			t.Errorf("%s: code %d stderr %q", c.name, code, errb.String())
+		}
+		if len(g.calls) > 1 {
+			t.Errorf("%s: resolved anyway: %q", c.name, g.calls)
+		}
+	}
+	if code, _, _ := post(t, &fakeGh{}, prURL, kindResolve, threadFlag, "7", bodyFlag, "x"); code != 2 {
+		t.Errorf("resolve with a body: code %d", code)
 	}
 }

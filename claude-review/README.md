@@ -241,7 +241,16 @@ claude-review post <pr> comment --body TEXT
 claude-review post <pr> inline  --body TEXT --path FILE --line N [--side RIGHT|LEFT] --at SHA
 claude-review post <pr> reply   --body TEXT --to COMMENT_ID   # answer an existing thread
 claude-review post <pr> review  --body TEXT --at SHA # always a COMMENT review, on SHA
+claude-review post <pr> resolve --thread COMMENT_ID   # resolve a thread this account started
 ```
+
+`resolve` takes the id of any comment in the thread, as printed by
+`claude-review threads`, and resolves that thread only if this account
+started it; a thread someone else started is refused, one already resolved
+is left alone. A re-round resolves each thread of its own it judges settled
+and leaves open any it does not: an open thread of the user's keeps a clean
+round from earning an Approve link. It spends one post of the budget per
+thread and head commit.
 
 A review posted this way is always a COMMENT: approving or requesting
 changes stays a human action, since the command runs without a prompt.
@@ -272,7 +281,7 @@ variable (a name with token, key, secret, pass, auth or cred) is refused
 too: the shell expands a bare `$NAME` in a command that matches the post
 rule, and no permission rule stops it (checked live on 2026-11-02).
 
-Every kind of post (comment, inline, reply, review) is refused on a PR
+Every kind of post (comment, inline, reply, review, resolve) is refused on a PR
 GitHub reports merged or closed, read from the PR in the same call that
 finds the head for the budget, and refused as well when that read fails.
 A round still running when its PR merges would otherwise keep posting until
@@ -389,7 +398,7 @@ Three ways to give the session the PR's code were on the table.
 - **re-review**: same command every time. A finished session resumes with the
   prompt, which points it at `claude-review threads` and tells it to reply in
   existing threads (every thread the author replied in gets its answer
-  there, settled or not, not only in the summary), never to repeat a finding already on the PR, and to post
+  there, settled or not, not only in the summary, and every thread of its own it judges settled gets resolved), never to repeat a finding already on the PR, and to post
   nothing when there are no new commits or replies. Outside `review_repos` a running background one is attached instead, and one open in a window is left alone; in `review_repos` an idle worker is stopped and relaunched, and a working one is left to finish. "Re-review" means a
   transcript exists, so if the first click's bootstrap succeeded but the
   review never started (window closed mid-way, `--bg` failed), the next click carries the re-review preface
@@ -544,7 +553,7 @@ does everything Claude-shaped, including deciding when a round runs.
 | Poll GitHub, store PR facts | yes | no |
 | Score whose turn it is (points) | yes | no |
 | Show the inbox: page, i3blocks count | yes | no |
-| Send desktop notifications | yes | no |
+| Send desktop notifications | yes | its own results only: clicks, a failed self-check, an Approve link |
 | Store and render annotations, with expiry | yes, generic | no |
 | Review one PR in a session (prompts, clone, PR-derived session id) | no | yes, as today |
 | Refuse a round while the PR's session is open | no | yes, as today |
@@ -727,23 +736,26 @@ no new commits and no reply that needs an answer. None is trusted on its own.
 
 - **Approve link**: only when the session's approve line names the PR and the
   head `tick` recorded at the round's start, and GitHub shows that the round
-  posted no new review comments and opened no threads, and none of the user's
-  threads on the PR are unresolved. The link is built from the ledger, never
+  started no new review thread, and none of the user's threads on the PR are
+  unresolved. Replies in existing threads do not count: a re-round that only
+  confirms fixes ("Settled by <sha>") and resolves those threads is clean. The link is built from the ledger, never
   from the session's text, and carries a one-time token. The row shows the
   round summary and how much changed since the user's last approval. No
   confirmation dialog. An approve line conditioned on CI ("approve once
-  green") counts as approve: a red build is the author's to fix.
+  green") counts as approve: a red build is the author's to fix. `tick`
+  also sends a desktop notification, "<url> clean at <sha>: approve?";
+  approving stays the user's click on the link.
 - **Question line**: `needs_you` with an Open-session link.
 - **Nothing line**, and GitHub shows nothing posted: `handled`. Without the
   line such a round would read as a failed one and be retried; replays of
   past rounds found two of 33 ending this way.
-- **Findings after the user's approval**: when the round posted new review
-  comments at the current head while the user's approval stands at an earlier
+- **Findings after the user's approval**: when the round started new review
+  threads at the current head while the user's approval stands at an earlier
   commit and was given before the round started, `tick` dismisses that
   approval, with a message ending `--claude`, and marks the PR `needs_you`.
   An approval given after the round started was given with its findings in
-  view, and stays. Any new finding counts; severity is not
-  judged. A steered round can therefore block a merge, never let one through.
+  view, and stays. Any new finding counts, a reply in an existing thread
+  does not; severity is not judged. A steered round can therefore block a merge, never let one through.
   This needs write access and no dismissal restriction on the repo.
 - **Clean round under a standing approval**: `handled`. Approval survival is a
   per-repo setting that can change, so `tick` reads the user's latest review
@@ -751,8 +763,8 @@ no new commits and no reply that needs an answer. None is trusted on its own.
   which is the PR's overall decision and would count another reviewer's
   approval as the user's.
 - **`handled` otherwise** needs positive evidence: a review by the user's
-  account at the round's head, or inline review comments by it, posted
-  during the round. Comments alone count because a push between planning and
+  account at the round's head, or inline review comments by it (new
+  threads or replies), posted during the round. Comments alone count because a push between planning and
   the round puts the review on a newer head than the one `tick` recorded. It
   links to the review when there is one.
 - **Anything else** (a crash, an expired `gh` token, a rate limit, a stalled
@@ -966,13 +978,15 @@ or reviewer-less own PR keeps counting until it is closed or shipped.
 
 ### Notifications
 
-elly sends every notification, and claude-review sends none: one notifier
-covers the user's own PRs and claude-review's results alike.
+elly sends the notifications about PR state. claude-review sends its own
+for its clicks' results, a failed self-check, and an Approve link that waits
+("<url> clean at <sha>: approve?").
 
 On each fetch elly compares every PR's point reasons with the previous fetch.
 A PR that gains one of the reasons below gets one desktop notification: the PR
-title and the new reason in elly's own words. A `needs_you` annotation counts
-as a reason, its note as the words.
+title and the new reason in elly's own words. A `needs_you` annotation is
+meant to count as a reason, its note as the words, but elly's notifier does
+not read annotations yet, so the row for claude-review below does not fire.
 
 | Event | Reason elly already computes |
 | --- | --- |

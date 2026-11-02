@@ -17,6 +17,7 @@ const (
 	originName  = "origin"
 	minimalPath = "PATH=/bin:/usr/bin"
 	toFlag      = "--to"
+	threadFlag  = "--thread"
 	detachedCfg = `{"terminal": false}`
 )
 

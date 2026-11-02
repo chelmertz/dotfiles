@@ -25,6 +25,7 @@ const postUsage = `usage: claude-review post <pr> comment --body TEXT
        claude-review post <pr> inline  --body TEXT --path FILE --line N [--side RIGHT|LEFT] --at SHA
        claude-review post <pr> reply   --body TEXT --to COMMENT_ID
        claude-review post <pr> review  --body TEXT --at SHA
+       claude-review post <pr> resolve --thread COMMENT_ID
 
 Posts to the PR through gh, taking the body only as inline text, and appends
 the ` + "`--claude`" + ` signature. This is what a review session with
@@ -38,7 +39,8 @@ posts nothing, so a retry after an ambiguous error cannot duplicate it; for
 a comment or review that holds only within 10 minutes. An inline comment
 anchors on --at, the full sha of the commit the line was read in, so a push
 since the review cannot move it onto other code; a review attaches to --at
-too, so a push during the round does not look reviewed.
+too, so a push during the round does not look reviewed. resolve resolves
+the thread holding COMMENT_ID, only one this account started.
 `
 
 // The post kinds, and the GitHub list endpoint (under repos/OWNER/REPO/,
@@ -48,6 +50,7 @@ const (
 	kindInline  = "inline"
 	kindReply   = "reply"
 	kindReview  = "review"
+	kindResolve = "resolve"
 
 	issueComments  = "issues/%d/comments"
 	reviews        = "pulls/%d/reviews"
@@ -75,8 +78,16 @@ const postSlotNew = "new"
 // runPost is `claude-review post`. Exit codes as run: 0, 1, 2 for usage.
 // spend runs after the duplicate check and before anything is sent.
 func runPost(args []string, gh Gh, spend spendFunc, stdout, stderr io.Writer) int {
+	if len(args) >= 2 && args[1] == kindResolve {
+		return runResolve(args[0], args[2:], gh, spend, stdout, stderr)
+	}
+	return runPostText(args, gh, spend, stdout, stderr)
+}
+
+// runPostText posts a comment, inline comment, reply or review.
+func runPostText(args []string, gh Gh, spend spendFunc, stdout, stderr io.Writer) int {
 	if len(args) < 2 {
-		fmt.Fprintln(stderr, "claude-review post: need <pr> and a kind (comment, inline, reply or review)")
+		fmt.Fprintln(stderr, "claude-review post: need <pr> and a kind (comment, inline, reply, review or resolve)")
 		fmt.Fprint(stderr, postUsage)
 		return 2
 	}

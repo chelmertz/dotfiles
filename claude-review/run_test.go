@@ -106,6 +106,8 @@ func newHost(t *testing.T, cfgJSON string, repoFound bool, exists bool) *fakeHos
 			switch {
 			case args[1] == paginate:
 				return "[]", nil
+			case args[1] == "graphql" && strings.Contains(args[3], "viewer"):
+				return threadsJSON(false), nil
 			case len(args) == 2 && args[1] == "repos/acme/widgets/pulls/42" && h.pull != "":
 				return h.pull, h.pullErr
 			case len(args) == 2 && args[1] == "repos/acme/widgets/pulls/42":
@@ -739,6 +741,7 @@ func TestRun_PostRefusesOnAClosedPR(t *testing.T) {
 		kindInline:  {pathFlag, "main.go", lineFlag, "3", atFlag, sha},
 		kindReply:   {"--to", "7"},
 		kindReview:  {atFlag, sha},
+		kindResolve: {threadFlag, "7"},
 	}
 	for name, set := range map[string]func(h *fakeHost){
 		"merged":  func(h *fakeHost) { h.pull = `{"state":"closed","merged":true,"head":{"sha":"h7"}}` },
@@ -750,7 +753,10 @@ func TestRun_PostRefusesOnAClosedPR(t *testing.T) {
 			h.d.Home = t.TempDir()
 			t.Setenv("XDG_STATE_HOME", "")
 			set(h)
-			args := append([]string{"post", target, kind, bodyFlag, "hi"}, flags...)
+			args := append([]string{"post", target, kind}, flags...)
+			if kind != kindResolve {
+				args = append(args, bodyFlag, "hi")
+			}
 			if code := run(args, h.d); code != 1 {
 				t.Errorf("%s %s: code %d stderr %q", name, kind, code, h.stderr)
 			}
@@ -758,7 +764,7 @@ func TestRun_PostRefusesOnAClosedPR(t *testing.T) {
 				t.Errorf("%s %s: stderr %q", name, kind, h.stderr)
 			}
 			for _, c := range h.ghCalls {
-				if slices.Contains(c, "POST") {
+				if slices.Contains(c, "POST") || strings.Contains(strings.Join(c, " "), "resolveReviewThread") {
 					t.Errorf("%s %s: a post reached GitHub: %q", name, kind, c)
 				}
 			}

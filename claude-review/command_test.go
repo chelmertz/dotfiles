@@ -211,6 +211,17 @@ func TestRereviewAnswersEveryRepliedThreadInIt(t *testing.T) {
 	}
 }
 
+// A round that confirms a fix resolves the thread, or the user's open
+// threads keep a clean round from earning an Approve link; it never
+// resolves a thread it still disputes, nor one it did not start.
+func TestRereviewResolvesSettledThreadsOfOurs(t *testing.T) {
+	p := BuildPrompt(Config{PostWithoutAsking: true}, testPR, "origin", true)
+	want := "Then resolve each thread you started that you judge settled with `claude-review post https://github.com/acme/widgets/pull/42 resolve --thread <id>`, and leave open every thread you do not judge settled; never resolve a thread someone else started."
+	if !strings.Contains(p, want) {
+		t.Errorf("the re-review prompt does not ask to resolve settled threads:\n%s", p)
+	}
+}
+
 // Skills do not load in a round (no settings source), so the configured
 // prompt has the round read the persona prompts itself, from the one folder
 // the policy lets it read, and start the reviewers with Agent.

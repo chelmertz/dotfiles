@@ -56,19 +56,20 @@ func (g *fakeTickGitHub) Dismiss(_ PR, id int64, _ string) error {
 }
 
 type tickWorld struct {
-	h       tickHost
-	elly    *fakeElly
-	gh      *fakeTickGitHub
-	started [][]string
-	live    map[string]bool
-	blocked map[string]bool
-	msgs    map[string]string
-	out     *bytes.Buffer
-	fs      *fakeSessions
-	fresh   map[string]bool // round sessions with no transcript yet
-	locked  map[string]bool
-	trusted []string
-	pid     int
+	h        tickHost
+	elly     *fakeElly
+	gh       *fakeTickGitHub
+	started  [][]string
+	live     map[string]bool
+	blocked  map[string]bool
+	msgs     map[string]string
+	out      *bytes.Buffer
+	fs       *fakeSessions
+	fresh    map[string]bool // round sessions with no transcript yet
+	locked   map[string]bool
+	trusted  []string
+	pid      int
+	notified []string
 }
 
 func newTickWorld(t *testing.T) *tickWorld {
@@ -124,7 +125,7 @@ func newTickWorld(t *testing.T) *tickWorld {
 		trust:     func(dir string) error { w.trusted = append(w.trusted, dir); return nil },
 		version:   func() (string, error) { return "2.1.314 (Claude Code)", nil },
 		selfCheck: func() error { return nil },
-		notify:    func(string) {},
+		notify:    func(msg string) { w.notified = append(w.notified, msg) },
 	}
 	w.fs.saved = map[string][]string{}
 	return w
@@ -298,6 +299,9 @@ func TestTickCleanRoundGetsAWorkingApproveLink(t *testing.T) {
 	if ok, _ := w.h.ledger.UseToken(pr, u.Query().Get("at"), u.Query().Get("token")); !ok {
 		t.Errorf("the Approve link's token is not one the ledger minted: %s", a.Links[0].URL)
 	}
+	if want := []string{pr.URL() + " clean at aaaaaaaaa: approve?"}; !slices.Equal(w.notified, want) {
+		t.Errorf("notified %q, want %q", w.notified, want)
+	}
 }
 
 func TestTickFindingsAfterApprovalDismiss(t *testing.T) {
@@ -306,7 +310,7 @@ func TestTickFindingsAfterApprovalDismiss(t *testing.T) {
 	if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0); err != nil {
 		t.Fatal(err)
 	}
-	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewComments: 2, UserReview: &Review{ID: 7, State: "APPROVED", CommitID: "h0"}}
+	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewThreads: 2, UserReview: &Review{ID: 7, State: "APPROVED", CommitID: "h0"}}
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
@@ -391,7 +395,7 @@ func TestTickAFailedDismissalLeavesTheRoundForTheNextTick(t *testing.T) {
 	if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0); err != nil {
 		t.Fatal(err)
 	}
-	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewComments: 1, UserReview: &Review{ID: 7, State: "APPROVED", CommitID: "h0"}}
+	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewThreads: 1, UserReview: &Review{ID: 7, State: "APPROVED", CommitID: "h0"}}
 	w.gh.dismissErr = errors.New("403")
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
@@ -647,7 +651,7 @@ func TestTickLeavesALockedPRAlone(t *testing.T) {
 	if _, err := w.h.ledger.StartRound(other, "h1", "new_head", t0); err != nil {
 		t.Fatal(err)
 	}
-	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewComments: 1}
+	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewThreads: 1}
 	w.elly.prs = []EllyPR{requestedPR(42)}
 	w.locked[pr.SessionID()] = true
 	w.locked[other.SessionID()] = true
@@ -673,7 +677,7 @@ func TestTickSettlesTheLastRoundBeforeStoppingItsWorker(t *testing.T) {
 	}
 	w.fs.workers = []Worker{workerFor(pr.RoundSessionID(), 500)}
 	w.fs.states[pr.RoundSessionID()] = "done"
-	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewComments: 1}
+	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewThreads: 1}
 	w.elly.prs = []EllyPR{requestedPR(42)}
 	calls := 0
 	w.h.running = func(string) bool { calls++; return calls == 1 } // still running when the settle pass looks
@@ -808,7 +812,7 @@ func TestTickResumesFlaglessUnderTheSavedPolicy(t *testing.T) {
 	}
 	delete(w.fresh, pr.RoundSessionID())
 	w.fs.states[pr.RoundSessionID()] = jobDone
-	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewComments: 1}
+	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewThreads: 1}
 	w.elly.prs = []EllyPR{ellyPR(func(p *EllyPR) { p.Url = pr.URL(); p.HeadRefOid = "h2" })}
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)

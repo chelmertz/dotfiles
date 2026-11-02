@@ -81,7 +81,7 @@ func (g GitHub) RoundFacts(pr PR, r Round) (RoundFacts, error) {
 		return f, err
 	}
 	f.UserReview = g.userReview(reviewList)
-	if f.RoundReviewURL, f.NewComments, err = g.roundActivity(pr, r, reviewList); err != nil {
+	if f.RoundReviewURL, f.NewThreads, f.NewReplies, err = g.roundActivity(pr, r, reviewList); err != nil {
 		return f, err
 	}
 	if f.UnresolvedUserThreads, err = g.unresolvedUserThreads(pr); err != nil {
@@ -99,11 +99,11 @@ func (g GitHub) RoundFacts(pr PR, r Round) (RoundFacts, error) {
 }
 
 // roundActivity is what the user's account posted since r started: the
-// round's own review at its head, and the findings. Findings are inline
-// review comments, new threads and replies alike; the PR-level summary every
-// round posts is not one, or no round could ever come out clean.
-func (g GitHub) roundActivity(pr PR, r Round, reviewList []ghItem) (string, int, error) {
-	review := ""
+// round's own review at its head, the findings (inline comments that start
+// a thread) and the replies in threads. Neither the PR-level summary every
+// round posts nor a reply confirming a fix is a finding, or no round could
+// ever come out clean.
+func (g GitHub) roundActivity(pr PR, r Round, reviewList []ghItem) (review string, threads, replies int, err error) {
 	for _, rv := range reviewList {
 		if strings.EqualFold(rv.User.Login, g.User) && rv.SubmittedAt.After(r.StartedAt) && rv.CommitID == r.Head {
 			review = rv.HTMLURL
@@ -111,15 +111,18 @@ func (g GitHub) roundActivity(pr PR, r Round, reviewList []ghItem) (string, int,
 	}
 	inline, err := ghList(g.Gh, g.api(pr, reviewComments, pr.Number))
 	if err != nil {
-		return "", 0, err
+		return "", 0, 0, err
 	}
-	n := 0
 	for _, c := range inline {
-		if strings.EqualFold(c.User.Login, g.User) && c.CreatedAt.After(r.StartedAt) {
-			n++
+		switch {
+		case !strings.EqualFold(c.User.Login, g.User) || !c.CreatedAt.After(r.StartedAt):
+		case c.InReplyTo == 0:
+			threads++
+		default:
+			replies++
 		}
 	}
-	return review, n, nil
+	return review, threads, replies, nil
 }
 
 // pullState folds merged into closed: either way no round is owed.
