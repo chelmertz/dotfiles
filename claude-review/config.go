@@ -40,7 +40,7 @@ type Config struct {
 	ReviewRepos []string `json:"review_repos"`
 	// DailyCap is how many rounds one PR may start in 24 hours (default 6).
 	DailyCap int `json:"daily_cap"`
-	// MaxRunning is how many unattended rounds may run at once (default 2).
+	// MaxRunning is how many unattended rounds may run at once (default 3).
 	MaxRunning int `json:"max_running"`
 	// TotalDailyCap is how many unattended rounds may start in 24 hours
 	// across all PRs before tick stops starting any (default 24).
@@ -116,7 +116,7 @@ func LoadConfig(path, home string) (Config, error) {
 		cfg.DailyCap = 6
 	}
 	if cfg.MaxRunning == 0 {
-		cfg.MaxRunning = 2
+		cfg.MaxRunning = 3
 	}
 	if cfg.TotalDailyCap == 0 {
 		cfg.TotalDailyCap = 24

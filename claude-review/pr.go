@@ -79,3 +79,15 @@ func (p PR) SessionID() string {
 func (p PR) RoundSessionID() string {
 	return uuidV5(urlNamespace, p.URL()+" round-policy "+policyVersion)
 }
+
+// workerIDs are every session id a background worker of the PR may run
+// under: its round session under each policy version up to the current
+// one, and its window session, where rounds ran before round sessions.
+func (p PR) workerIDs() []string {
+	ids := []string{p.SessionID()}
+	n, _ := strconv.Atoi(policyVersion)
+	for v := 1; v <= n; v++ {
+		ids = append(ids, uuidV5(urlNamespace, p.URL()+" round-policy "+strconv.Itoa(v)))
+	}
+	return ids
+}

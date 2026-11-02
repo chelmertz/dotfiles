@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"time"
 )
 
@@ -72,8 +73,8 @@ func (h tickHost) do(what string, fn func() error) error {
 	return fn()
 }
 
-// tick is one pass: read elly, settle finished rounds, start owed ones,
-// refresh annotations. Without elly it does nothing at all; the annotations
+// tick is one pass: read elly, stop rounds on closed PRs, settle finished
+// rounds, start owed ones, refresh annotations. Without elly it does nothing at all; the annotations
 // already written expire on their own.
 func (h tickHost) tick() error {
 	prs, err := h.elly.PRs()
@@ -81,6 +82,9 @@ func (h tickHost) tick() error {
 		return err
 	}
 	if err := h.checkClaude(); err != nil {
+		return err
+	}
+	if err := h.sweep(); err != nil {
 		return err
 	}
 	running, err := h.settle()
@@ -140,6 +144,91 @@ func breakerError(reason string) error {
 		return nil
 	}
 	return fmt.Errorf("no round starts: %s; `claude-review tick --reset` lets them start again", reason)
+}
+
+// sweep stops every background worker whose PR GitHub reports merged or
+// closed, and settles that PR's unread rounds as closed. It is what makes
+// tick converge from whatever state it finds, whoever left it: a click's
+// round, a merge mid-round, a worker blocked on a question, a crash between
+// any two steps. It keeps no state of its own and repeats safely. GitHub is
+// asked only about PRs with a live worker or an unread round. An unreadable
+// roster, a PR GitHub does not answer for and a PR a click holds are left
+// for a later tick.
+func (h tickHost) sweep() error {
+	all, err := h.sess.Roster()
+	if err != nil {
+		fmt.Fprintf(h.out, "claude-review tick: no worker on a closed PR stopped: %v\n", err)
+		return nil
+	}
+	urls, err := h.ledger.PRs()
+	if err != nil {
+		return err
+	}
+	rounds, err := h.ledger.UnreadRounds()
+	if err != nil {
+		return err
+	}
+	unread := map[string][]Round{}
+	for _, r := range rounds {
+		unread[r.PR] = append(unread[r.PR], r)
+	}
+	for _, u := range urls {
+		pr, err := ParseTarget(u)
+		if err != nil || (len(unread[u]) == 0 && len(h.workersOf(pr, all)) == 0) {
+			continue
+		}
+		_, open, err := h.gh.Base(pr)
+		if err == nil && !open {
+			err = h.closeOut(pr, unread[u])
+		}
+		if err != nil {
+			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.Slug(), err)
+		}
+	}
+	return nil
+}
+
+// workersOf are pr's live workers under any id it ever ran under, forks
+// included.
+func (h tickHost) workersOf(pr PR, all []Worker) []Worker {
+	var out []Worker
+	for _, id := range pr.workerIDs() {
+		for _, w := range h.sess.workersFor(id, all) {
+			if !slices.ContainsFunc(out, func(o Worker) bool { return o.Short == w.Short }) {
+				out = append(out, w)
+			}
+		}
+	}
+	return out
+}
+
+// closeOut stops closed pr's workers and settles its unread rounds the way
+// settle does a closed PR's, under the PR's lock and from a roster read
+// under it. A stop that fails leaves the rounds unread for the next tick.
+func (h tickHost) closeOut(pr PR, rounds []Round) error {
+	unlock, err := h.lock(pr.SessionID())
+	if errors.Is(err, errLocked) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	all, err := h.sess.Roster()
+	if err != nil {
+		return err
+	}
+	for _, w := range h.workersOf(pr, all) {
+		if err := h.do(fmt.Sprintf("stop worker %s on %s: the PR is merged or closed", w.Short, pr.Slug()), func() error { return h.sess.stopAndWait(w) }); err != nil {
+			return err
+		}
+	}
+	for _, r := range rounds {
+		if _, err := h.apply(pr, r, Decision{Clear: true}, false); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // settle reads every round the ledger started and has not read, and returns

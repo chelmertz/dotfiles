@@ -60,10 +60,20 @@ type fakeGate struct {
 	descends bool
 	base     string
 	closed   bool
+	// closedPRs closes single PRs by number; asked counts Base calls by
+	// number when set; baseErr is GitHub not answering for that number.
+	closedPRs map[int]bool
+	asked     map[int]int
+	baseErr   map[int]error
 }
 
 func (f fakeGate) Descends(PR, string, string) (bool, error) { return f.descends, nil }
-func (f fakeGate) Base(PR) (string, bool, error)             { return f.base, !f.closed, nil }
+func (f fakeGate) Base(pr PR) (string, bool, error) {
+	if f.asked != nil {
+		f.asked[pr.Number]++
+	}
+	return f.base, !f.closed && !f.closedPRs[pr.Number], f.baseErr[pr.Number]
+}
 
 func TestPlanTick(t *testing.T) {
 	cfg := TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 3}

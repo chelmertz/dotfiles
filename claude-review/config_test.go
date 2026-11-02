@@ -27,6 +27,9 @@ func TestLoadConfig_MissingFileIsDefaults(t *testing.T) {
 	if len(cfg.GitRepoRoots) != 1 || cfg.GitRepoRoots[0] != "/srv/x/code" {
 		t.Errorf("roots: %v", cfg.GitRepoRoots)
 	}
+	if cfg.DailyCap != 6 || cfg.MaxRunning != 3 || cfg.TotalDailyCap != 24 {
+		t.Errorf("runner defaults: daily_cap %d, max_running %d, total_daily_cap %d", cfg.DailyCap, cfg.MaxRunning, cfg.TotalDailyCap)
+	}
 }
 
 func TestLoadConfig_UnreadableFileIsAnError(t *testing.T) {

@@ -178,7 +178,12 @@ func launch(d Deps, cfg Config, pr PR, dir, remote string, dryRun bool) int {
 		return fail(d, fmt.Errorf("claude-review: locking %s: %w", pr.Slug(), err))
 	}
 	defer unlock()
-	head := recordAcceptance(d, cfg, pr)
+	head, closed := recordAcceptance(d, cfg, pr)
+	if closed {
+		// Only a PR in review_repos is asked about. tick's sweep would stop
+		// the round anyway; refusing here spares it a slot meanwhile.
+		return fail(d, fmt.Errorf("claude-review: %s is merged/closed; no round", pr.URL()))
+	}
 	if background {
 		return backgroundClick(d, cfg, pr, dir, remote, head)
 	}

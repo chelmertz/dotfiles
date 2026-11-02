@@ -173,12 +173,16 @@ func ellyTokenFile() string {
 // recordAcceptance is the user's click, written down: tick only ever runs a
 // PR the user opened, at the head and base they opened it at. Only for repos
 // the runner covers, and never fatal to the click. It returns the head it
-// recorded, "" when it recorded none.
-func recordAcceptance(d Deps, cfg Config, pr PR) string {
+// recorded, "" when it recorded none, and closed when GitHub reports the PR
+// merged or closed: then nothing is recorded and no round is owed.
+func recordAcceptance(d Deps, cfg Config, pr PR) (head string, closed bool) {
 	if !repoAllowed(pr.Owner, pr.Repo, cfg.ReviewRepos) {
-		return ""
+		return "", false
 	}
 	p, err := GitHub{Gh: d.Gh}.pull(pr)
+	if err == nil && pullState(p) != prOpen {
+		return "", true
+	}
 	if err == nil {
 		var l *Ledger
 		if l, err = OpenLedger(LedgerPath(d.Home)); err == nil {
@@ -188,7 +192,7 @@ func recordAcceptance(d Deps, cfg Config, pr PR) string {
 	}
 	if err != nil {
 		fmt.Fprintf(d.Stderr, "claude-review: %s not recorded for unattended rounds: %v\n", pr.Slug(), err)
-		return ""
+		return "", false
 	}
-	return p.Head.SHA
+	return p.Head.SHA, false
 }

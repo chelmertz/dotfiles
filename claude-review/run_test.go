@@ -35,6 +35,8 @@ type fakeHost struct {
 	ghCalls   [][]string
 	captures  [][]string
 	captured  []string // what each Capture returns, in order; "" once used up
+	pull      string   // gh's answer for the PR itself; "" is an open PR
+	pullErr   error
 }
 
 const (
@@ -101,8 +103,13 @@ func newHost(t *testing.T, cfgJSON string, repoFound bool, exists bool) *fakeHos
 		},
 		Gh: func(args ...string) (string, error) {
 			h.ghCalls = append(h.ghCalls, args)
-			if args[1] == paginate {
+			switch {
+			case args[1] == paginate:
 				return "[]", nil
+			case len(args) == 2 && args[1] == "repos/acme/widgets/pulls/42" && h.pull != "":
+				return h.pull, h.pullErr
+			case len(args) == 2 && args[1] == "repos/acme/widgets/pulls/42":
+				return `{"state":"open","head":{"sha":"h7"},"base":{"ref":"main"}}`, h.pullErr
 			}
 			return `{"html_url":"posted"}`, nil
 		},
@@ -719,5 +726,42 @@ func TestRun_PostOneReplyPerThread(t *testing.T) {
 	}
 	if code := reply("8", "other thread"); code != 0 {
 		t.Errorf("a reply to another thread: code %d stderr %q", code, h.stderr)
+	}
+}
+
+// A merged or closed PR gets no post of any kind, and neither does one
+// GitHub does not answer for: the round may still run until tick's next
+// sweep stops it.
+func TestRun_PostRefusesOnAClosedPR(t *testing.T) {
+	sha := strings.Repeat("a", 40)
+	kinds := map[string][]string{
+		kindComment: {},
+		kindInline:  {pathFlag, "main.go", lineFlag, "3", atFlag, sha},
+		kindReply:   {"--to", "7"},
+		kindReview:  {atFlag, sha},
+	}
+	for name, set := range map[string]func(h *fakeHost){
+		"merged":  func(h *fakeHost) { h.pull = `{"state":"closed","merged":true,"head":{"sha":"h7"}}` },
+		"closed":  func(h *fakeHost) { h.pull = `{"state":"closed","head":{"sha":"h7"}}` },
+		"unknown": func(h *fakeHost) { h.pullErr = errors.New("HTTP 502") },
+	} {
+		for kind, flags := range kinds {
+			h := newHost(t, "", true, false)
+			h.d.Home = t.TempDir()
+			t.Setenv("XDG_STATE_HOME", "")
+			set(h)
+			args := append([]string{"post", target, kind, bodyFlag, "hi"}, flags...)
+			if code := run(args, h.d); code != 1 {
+				t.Errorf("%s %s: code %d stderr %q", name, kind, code, h.stderr)
+			}
+			if name != "unknown" && !strings.Contains(h.stderr.String(), target+" is merged or closed") {
+				t.Errorf("%s %s: stderr %q", name, kind, h.stderr)
+			}
+			for _, c := range h.ghCalls {
+				if slices.Contains(c, "POST") {
+					t.Errorf("%s %s: a post reached GitHub: %q", name, kind, c)
+				}
+			}
+		}
 	}
 }

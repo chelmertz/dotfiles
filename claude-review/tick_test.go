@@ -835,3 +835,103 @@ func TestTickResumesFlaglessUnderTheSavedPolicy(t *testing.T) {
 		t.Errorf("rounds %+v", rounds)
 	}
 }
+
+// closedWithWorker is PR n closed on GitHub with a click's round unread and
+// its worker still working on it: the merge came mid-round.
+func (w *tickWorld) closedWithWorker(t *testing.T, n, pid int) PR {
+	pr := w.accept(t, n)
+	if _, err := w.h.ledger.StartRound(pr, "h1", clickTrigger(t0), t0); err != nil {
+		t.Fatal(err)
+	}
+	w.fs.workers = append(w.fs.workers, workerFor(pr.RoundSessionID(), pid))
+	w.fs.states[pr.RoundSessionID()] = "working"
+	w.live[pr.RoundSessionID()] = true
+	w.gh.closedPRs[n] = true
+	return pr
+}
+
+// Tick converges on a closed PR whoever left its worker: a working round,
+// a worker under an older id, a round already read. It stops them, settles
+// the unread round as closed, leaves a blocked worker on an open PR alone,
+// and asks GitHub only about PRs with a worker or an unread round.
+func TestTickStopsWorkersOnClosedPRs(t *testing.T) {
+	w := newTickWorld(t)
+	w.gh.closedPRs, w.gh.asked = map[int]bool{}, map[int]int{}
+	w.gh.facts = RoundFacts{State: "open", Head: "h1"}
+	merged := w.closedWithWorker(t, 42, 501)
+	if _, err := w.h.ledger.StartRound(merged, "h0", "new_head", t0); err != nil {
+		t.Fatal(err)
+	}
+	open := w.accept(t, 43)
+	w.fs.workers = append(w.fs.workers, workerFor(open.RoundSessionID(), 502))
+	w.fs.states[open.RoundSessionID()] = "blocked"
+	legacy := w.accept(t, 44)
+	w.fs.workers = append(w.fs.workers, workerFor(legacy.SessionID(), 503))
+	w.gh.closedPRs[44] = true
+	w.accept(t, 45) // no worker, no round
+
+	for range 2 {
+		if err := w.h.tick(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := []string{"stop " + merged.RoundSessionID()[:8], "stop " + legacy.SessionID()[:8]}
+	if got := slices.DeleteFunc(slices.Clone(w.fs.events), func(e string) bool { return !strings.HasPrefix(e, "stop ") }); !slices.Equal(got, want) {
+		t.Errorf("stopped %q, want %q", got, want)
+	}
+	if unread, _ := w.h.ledger.UnreadRounds(); len(unread) != 0 {
+		t.Errorf("the closed PR's round is still unread: %+v", unread)
+	}
+	if !slices.Contains(w.elly.deleted, merged.URL()) {
+		t.Errorf("the closed PR was not cleared in elly: %q", w.elly.deleted)
+	}
+	if w.gh.asked[42] != 1 || w.gh.asked[44] != 1 || w.gh.asked[45] != 0 {
+		t.Errorf("GitHub asked %v: once per closed PR with a worker, never for one without", w.gh.asked)
+	}
+}
+
+// A worker on a closed PR holds no slot: the owed round elsewhere starts in
+// the same tick.
+func TestTickClosedPRFreesItsSlot(t *testing.T) {
+	w := newTickWorld(t)
+	w.gh.closedPRs = map[int]bool{}
+	w.gh.facts = RoundFacts{State: "open", Head: "h1"}
+	w.h.tcfg.MaxRunning = 1
+	w.closedWithWorker(t, 42, 501)
+	owed := w.accept(t, 43)
+	w.elly.prs = []EllyPR{requestedPR(43)}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.started) != 1 || !slices.Contains(w.started[0], owed.RoundSessionID()) {
+		t.Errorf("started %q, want the owed round on #43", w.started)
+	}
+}
+
+// Unknown is hands off: an unreadable roster, a PR GitHub does not answer
+// for, a PR a click holds, and a dry run each stop nothing and leave the
+// round for a later tick.
+func TestTickSweepLeavesWhatItCannotRead(t *testing.T) {
+	for name, set := range map[string]func(w *tickWorld, pr PR){
+		"roster":  func(w *tickWorld, _ PR) { w.fs.unreadable = true },
+		"github":  func(w *tickWorld, _ PR) { w.gh.baseErr = map[int]error{42: errors.New("502")} },
+		"locked":  func(w *tickWorld, pr PR) { w.locked[pr.SessionID()] = true },
+		"dry run": func(w *tickWorld, _ PR) { w.h.dry = true },
+	} {
+		w := newTickWorld(t)
+		w.gh.closedPRs = map[int]bool{}
+		w.gh.facts = RoundFacts{State: "open", Head: "h1"}
+		pr := w.closedWithWorker(t, 42, 501)
+		set(w, pr)
+		_ = w.h.tick()
+		if slices.ContainsFunc(w.fs.events, func(e string) bool { return strings.HasPrefix(e, "stop ") }) {
+			t.Errorf("%s: stopped a worker: %q", name, w.fs.events)
+		}
+		if unread, _ := w.h.ledger.UnreadRounds(); len(unread) != 1 {
+			t.Errorf("%s: the round was settled: %+v", name, unread)
+		}
+		if name == "dry run" && !strings.Contains(w.out.String(), "would stop worker "+pr.RoundSessionID()[:8]+" on acme/widgets#42") {
+			t.Errorf("dry run said %q", w.out.String())
+		}
+	}
+}

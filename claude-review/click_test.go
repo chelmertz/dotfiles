@@ -94,6 +94,26 @@ func TestClickOnAReviewRepoRunsInTheBackground(t *testing.T) {
 	}
 }
 
+// A click on a merged PR starts nothing, records no acceptance and says so.
+func TestClickOnAClosedPRStartsNothing(t *testing.T) {
+	h, fs := clickHost(t, true)
+	h.d.Gh = func(...string) (string, error) {
+		return `{"state":"closed","merged":true,"head":{"sha":"h7"},"base":{"ref":"main"}}`, nil
+	}
+	if code := run([]string{target}, h.d); code == 0 {
+		t.Errorf("exit 0 on a merged PR")
+	}
+	if slices.Contains(fs.events, "launch") {
+		t.Errorf("launched on a merged PR: %q", fs.events)
+	}
+	if n := notified(h); n != target+" is merged/closed; no round" {
+		t.Errorf("notified %q", n)
+	}
+	if _, ok, _ := h.ledger(t).Acceptance(testPR); ok {
+		t.Error("a merged PR was accepted for unattended rounds")
+	}
+}
+
 func TestClickMidRoundStartsNothing(t *testing.T) {
 	h, fs := clickHost(t, true)
 	fs.workers = []Worker{workerFor(testPR.RoundSessionID(), 500)}

@@ -157,6 +157,10 @@ session saved under other options, a tripped breaker, or a worker that never
 appears is reported the same way and starts nothing. The click records its round in the ledger, so the next tick
 settles it like its own (a click's round counts toward neither cap).
 Watching is opt-in: `claude attach <id>`, or the Open-session link in elly.
+A PR GitHub reports merged or closed gets no round: the click records no
+acceptance, starts nothing and notifies "<url> is merged/closed; no round".
+That is only an early exit; the next tick stops any round still running on
+a closed PR, whoever started it ("Each tick", step 2).
 Questions end the round as in an unattended one, and answering means
 clicking again, which attaches.
 
@@ -267,6 +271,13 @@ refused. A post whose body holds the value of a secret-shaped environment
 variable (a name with token, key, secret, pass, auth or cred) is refused
 too: the shell expands a bare `$NAME` in a command that matches the post
 rule, and no permission rule stops it (checked live on 2026-11-02).
+
+Every kind of post (comment, inline, reply, review) is refused on a PR
+GitHub reports merged or closed, read from the PR in the same call that
+finds the head for the budget, and refused as well when that read fails.
+A round still running when its PR merges would otherwise keep posting until
+the next tick stops it, up to 5 minutes later ("Each tick", step 2). Such a
+refusal is not a budget refusal and holds nothing back.
 
 ### Approving is one command, and never the session's
 
@@ -455,7 +466,7 @@ command instead.
 | open | Per-session worktree | Would let the reviewer run the PR's tests. Needs a cleanup story first. |
 | decided | No `--add-dir`, for now | Claude's file tools read only the clone; reaching another repository takes a shell command, which the runner's launch policy denies. Cross-repo context gets revisited once the tool sees usage. |
 | decided | `slack` gates in code, words from Claude | Whether a PR may be sent is a fact gh can answer; only the summary needs a model, and the URL never comes from it. |
-| open | Clearing finished background sessions | They stay in `claude agents` until `claude rm`. A `claude-review gc` for merged or closed PRs would need `gh`. |
+| open | Clearing finished background sessions | They stay in `claude agents` until `claude rm`. `tick` stops a merged or closed PR's worker ("Each tick", step 2) but removes nothing. |
 
 ## Unattended runner and elly annotations
 
@@ -468,7 +479,7 @@ The timer runs since 2026-11-02, after one round watched by hand.
 
 1. List the repos in `review_repos` in the config (`owner/*` or
    `owner/repo`), or one per line in a `review-repos` file beside it, for
-   names that should stay out of a shared config. Optional: `daily_cap` (6), `max_running` (2), `total_daily_cap` (24),
+   names that should stay out of a shared config. Optional: `daily_cap` (6), `max_running` (3), `total_daily_cap` (24),
    `round_wrapper` (a command prefix such as `["capped"]`), `elly_url`
    (`http://localhost:9876`), `github_user` (asked of gh when empty).
 2. Start elly with `-annotation-schemes=claude-review`, so its page renders
@@ -620,22 +631,37 @@ claude-review alone. It holds:
    the next tick checks again. A version that cannot be read starts nothing.
 1. Read `GET /api/v0/prs` from elly. If elly does not answer, write nothing
    and exit; existing annotations expire on their own.
-2. Pick candidates: the repo is in `review_repos` in claude-review's config
+2. Stop rounds on closed PRs. For every PR in the ledger that has a live
+   worker (under its round session, a round session of an older policy
+   version, its window session, or a fork of one) or an unread round, ask
+   GitHub whether it is still open. When it reports the PR merged or
+   closed, take the PR's lock, `claude stop` each such worker whatever its
+   job state (working, `blocked` on a question, idle), wait until its pid
+   has ended, and mark the PR's unread rounds read with the annotation
+   cleared, as step 8 does for a closed PR. elly no longer lists a closed
+   PR, so this step reads the ledger and the roster, not elly. It keeps no
+   state and repeats safely, so tick converges on a closed PR from any
+   state: a click's round, a merge mid-round, a crash between two writes.
+   An unreadable roster, a PR GitHub does not answer for, and a PR a click
+   holds are left for a later tick. A stopped round frees its slot in the
+   same tick. A worker on an open PR is never stopped here, a `blocked`
+   one included.
+3. Pick candidates: the repo is in `review_repos` in claude-review's config
    (`owner/*` for a whole owner, `owner/repo` for one repo), the user did not
    author the PR, it is accepted and not ignored, and
    it is the user's turn: review requested, re-review requested,
    `ThreadsActionable` above zero, or a new head commit since the last round.
    Changes made by the user's own account trigger nothing, so a round's own
    review cannot start the next round.
-3. Skip a PR GitHub reports merged or closed: elly lists it until its next
+4. Skip a PR GitHub reports merged or closed: elly lists it until its next
    poll. Send a PR back to the first-look gate (no rounds, a `needs_you` row asking
    for a fresh look) when its head no longer descends from the accepted head
    or its base branch changed since acceptance.
-4. Skip a PR the ledger already started a round for at the same head and
+5. Skip a PR the ledger already started a round for at the same head and
    trigger. Past the per-PR daily cap, mark it `needs_you` with "paused"
    instead of starting a round. While the breaker is tripped (below), mark
    every owed PR "paused" the same way.
-5. Start the round in the PR's round session, at most 2 at once, under
+6. Start the round in the PR's round session, at most `max_running` (3) at once, under
    `capped`, and under the launch policy below. Every launcher (a click, a
    tick start or retry, the attach verb) holds the PR's lock, the click's
    `flock`, from reading the session's state until the relaunched worker is
@@ -653,7 +679,7 @@ claude-review alone. It holds:
    flags. A worker stays alive and idle after its round ends, so:
    - no worker for the session: launch;
    - a worker whose job state is explicitly `done`: read its round first
-     (step 7), then `claude stop` it, wait until its pid has ended (the
+     (step 8), then `claude stop` it, wait until its pid has ended (the
      roster drops it before the process exits), and launch;
    - any other state, or none, is a round that may still be going: leave
      it. An unreadable roster starts nothing either;
@@ -667,13 +693,13 @@ claude-review alone. It holds:
      run"; the first tick that sees it gone clears that. Windows from
      before clicks went background hold the PR's window session, a
      different id, and no longer hold rounds back.
-6. A round whose job is `blocked` (waiting for a permission it was not
+7. A round whose job is `blocked` (waiting for a permission it was not
    given) gets `needs_you` with an Open-session link and no retry: a retry
    would resume on top of the waiting worker.
-7. For every other round the ledger started and has not marked read, decide the
+8. For every other round the ledger started and has not marked read, decide the
    outcome from GitHub and the ledger, never from the session's text alone
    (next section). Mark it read.
-8. Re-send every live annotation with a fresh expiry. Delete one only on
+9. Re-send every live annotation with a fresh expiry. Delete one only on
    positive evidence: the user's own approval stands at the current head, or
    GitHub reports the PR merged or closed. A PR missing from one elly read is
    not evidence; its annotation expires instead.

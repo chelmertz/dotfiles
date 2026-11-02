@@ -194,6 +194,24 @@ func (l *Ledger) Reset(at time.Time) error {
 	return err
 }
 
+// PRs are the URLs of every PR the ledger knows: accepted, or with a round.
+func (l *Ledger) PRs() ([]string, error) {
+	rows, err := l.db.Query(`select pr from acceptance union select pr from rounds order by pr`)
+	if err != nil {
+		return nil, fmt.Errorf("ledger prs: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []string
+	for rows.Next() {
+		var pr string
+		if err := rows.Scan(&pr); err != nil {
+			return nil, err
+		}
+		out = append(out, pr)
+	}
+	return out, rows.Err()
+}
+
 // UnreadRounds are rounds whose outcome has not been processed yet.
 func (l *Ledger) UnreadRounds() ([]Round, error) {
 	rows, err := l.db.Query(`select id, pr, head, trigger, started_at, retries,
