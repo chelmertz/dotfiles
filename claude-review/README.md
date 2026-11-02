@@ -672,7 +672,11 @@ cover only `gh api`, the `gh pr`/`gh issue` write commands and
 
 `tick` owns the launch arguments:
 
-- an explicit permission mode, with the user's settings excluded;
+- an explicit permission mode, with no settings file loaded at all
+  (`--setting-sources ""`): not the user's, and not the clone's own
+  `.claude/settings.local.json` or committed `.claude/settings.json`, whose
+  allow rules (one held `Bash(python3:*)`) and hooks would otherwise apply to
+  the round (checked live 2026-11-02);
 - an allow list scoped to the PR: read and search the clone (`Read`, `Grep`
   and `Glob` all scoped to `./**`; a bare `Grep` or `Glob` reaches outside it), `gh pr view` and
   `gh pr diff` for that PR, `claude-review threads`, `show`, `grep`, `diff`

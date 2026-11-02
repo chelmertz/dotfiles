@@ -15,7 +15,7 @@ func TestUnattendedArgsArePinned(t *testing.T) {
 	want := []string{
 		"claude", "--bg",
 		"--permission-mode", "dontAsk",
-		"--setting-sources", "project,local",
+		"--setting-sources", "",
 		"--strict-mcp-config",
 		"--resume", widgetsPR.SessionID(), prompt,
 		"--allowedTools",

@@ -15,8 +15,10 @@ var secretReadRules = []string{
 const unattendedRules = "\n\nThis round runs unattended, and a command it is not allowed is refused, not asked about. Run one command per Bash call: no `;`, `&&`, `|` or redirection, and no `git -C` (the session already runs in the clone). Get the PR head with `git fetch {remote} pull/{number}/head` and `git rev-parse FETCH_HEAD`, never `git ls-remote`. Read the PR's code with `claude-review show {url} <path>`, `claude-review grep {url} <text>` and `claude-review diff {url}`; raw `git show`, `git diff`, `git log` and `git grep` are refused. A refused command stays refused: work without it, or end with the question line."
 
 // UnattendedArgs is the command for a round nobody watches. It inherits
-// nothing from the user's own Claude Code setup: no user settings (which run
-// in auto mode with broad gh and curl rules), no MCP servers, and dontAsk,
+// nothing from the user's own Claude Code setup: no settings file at all (the
+// user's run in auto mode with broad gh and curl rules; a clone's local file
+// held `Bash(python3:*)`, and its committed one can add hooks, which are
+// shell commands its authors wrote), no MCP servers, and dontAsk,
 // which denies every tool not allowed here instead of asking. What is allowed
 // is pinned to this PR. TestUnattendedArgsArePinned fails on any change.
 func UnattendedArgs(cfg Config, pr PR, remote string) []string {
@@ -26,7 +28,7 @@ func UnattendedArgs(cfg Config, pr PR, remote string) []string {
 	args := []string{
 		claudeCmd, "--bg",
 		"--permission-mode", "dontAsk",
-		"--setting-sources", "project,local",
+		"--setting-sources", "",
 		"--strict-mcp-config",
 		"--resume", pr.SessionID(), BuildPrompt(posting, pr, remote, true) + fill(pr, remote, unattendedRules),
 		"--allowedTools",
