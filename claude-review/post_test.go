@@ -76,17 +76,25 @@ func TestPost_CommentAcceptsBareTarget(t *testing.T) {
 	}
 }
 
-func TestPost_ReviewIsAlwaysAComment(t *testing.T) {
+// A review attaches to the commit the session read, not to whatever the head
+// is when it posts: a push mid-round must not look reviewed.
+func TestPost_ReviewIsACommentOnTheReviewedCommit(t *testing.T) {
 	g := &fakeGh{outs: []string{"[]", urlU}}
-	code, _, _ := post(t, g, prURL, kindReview, bodyFlag, "Ship it.")
+	code, _, errb := post(t, g, prURL, kindReview, bodyFlag, "Ship it.", atFlag, olderSha)
 	if code != 0 {
-		t.Fatal(code)
+		t.Fatalf("code %d stderr %q", code, errb)
 	}
 	sameArgv(t, "duplicate check", g.calls[0], []string{api, paginate, reviewsURL})
-	sameArgv(t, "gh", g.calls[1], []string{api, "-X", httpPost, reviewsURL, "-f", "body=Ship it.\n\n--claude", "-f", "event=COMMENT"})
+	sameArgv(t, "gh", g.calls[1], []string{api, "-X", httpPost, reviewsURL, "-f", "body=Ship it.\n\n--claude", "-f", "event=COMMENT", "-f", "commit_id=" + olderSha})
 	// No way to approve or request changes through the pre-approved command.
-	if code, _, errb := post(t, &fakeGh{}, prURL, kindReview, bodyFlag, "x", "--event", "APPROVE"); code != 2 || !strings.Contains(errb, "flag provided but not defined") {
+	if code, _, errb := post(t, &fakeGh{}, prURL, kindReview, bodyFlag, "x", atFlag, olderSha, "--event", "APPROVE"); code != 2 || !strings.Contains(errb, "flag provided but not defined") {
 		t.Errorf("--event must not exist: code %d stderr %q", code, errb)
+	}
+	for _, at := range [][]string{{}, {atFlag, "abc1234"}} {
+		g := &fakeGh{}
+		if code, _, _ := post(t, g, append([]string{prURL, kindReview, bodyFlag, "x"}, at...)...); code != 2 || len(g.calls) != 0 {
+			t.Errorf("review %q: code %d calls %q", at, code, g.calls)
+		}
 	}
 }
 
@@ -230,7 +238,7 @@ func TestPost_AlreadyOnThePRIsNotPostedAgain(t *testing.T) {
 		// with a later comment's id must still find the stored copy.
 		{"reply to a reply", `[{"id":78,"in_reply_to_id":77},` + reply + `]`, "found-reply", []string{kindReply, bodyFlag, "x", toFlag, "78"}},
 		{"comment", `[{"body":"x\n\n--claude","created_at":"` + recent + `","html_url":"found-c"}]`, "found-c", []string{kindComment, bodyFlag, "x"}},
-		{"review", `[{"body":"x\n\n--claude","submitted_at":"` + recent + `","html_url":"found-r"}]`, "found-r", []string{kindReview, bodyFlag, "x"}},
+		{"review", `[{"body":"x\n\n--claude","submitted_at":"` + recent + `","html_url":"found-r"}]`, "found-r", []string{kindReview, bodyFlag, "x", atFlag, headSha}},
 	}
 	for _, c := range cases {
 		g := &fakeGh{outs: []string{c.list}}
@@ -262,7 +270,7 @@ func TestPost_SameTextElsewhereIsPosted(t *testing.T) {
 		{"other side", `[{"body":"x\n\n--claude","path":"a","original_line":3,"original_commit_id":"` + headSha + `","side":"RIGHT","html_url":"dup"}]`, []string{kindInline, bodyFlag, "x", pathFlag, "a", lineFlag, "3", "--side", "LEFT", atFlag, headSha}},
 		// A later round may say the same thing again; only a retry is a copy.
 		{"comment from an earlier round", `[{"body":"x\n\n--claude","created_at":"` + old + `","html_url":"dup"}]`, []string{kindComment, bodyFlag, "x"}},
-		{"review from an earlier round", `[{"body":"x\n\n--claude","submitted_at":"` + old + `","html_url":"dup"}]`, []string{kindReview, bodyFlag, "x"}},
+		{"review from an earlier round", `[{"body":"x\n\n--claude","submitted_at":"` + old + `","html_url":"dup"}]`, []string{kindReview, bodyFlag, "x", atFlag, headSha}},
 	}
 	for _, c := range cases {
 		g := &fakeGh{outs: []string{c.list, `{"html_url":"new"}`}}

@@ -218,7 +218,7 @@ hook enforces it:
 claude-review post <pr> comment --body TEXT
 claude-review post <pr> inline  --body TEXT --path FILE --line N [--side RIGHT|LEFT] --at SHA
 claude-review post <pr> reply   --body TEXT --to COMMENT_ID   # answer an existing thread
-claude-review post <pr> review  --body TEXT        # always a COMMENT review
+claude-review post <pr> review  --body TEXT --at SHA # always a COMMENT review, on SHA
 ```
 
 A review posted this way is always a COMMENT: approving or requesting
@@ -233,7 +233,9 @@ identical one from the last 10 minutes counts, and a later round can still
 repeat a short summary. An inline comment anchors on `--at`, the full sha
 the session reviewed (`git rev-parse FETCH_HEAD`), not on the head at
 posting time: a push in between would otherwise put the old line number on
-new code.
+new code. A review attaches to `--at` for the same reason: attached to the
+head, a summary of the old commit made a push during the round look reviewed
+(seen 2026-11-02).
 
 Every post counts against a budget per PR and head commit, whichever
 session makes it: at most 12 new comments or reviews, and one reply per

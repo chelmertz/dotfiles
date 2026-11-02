@@ -24,7 +24,7 @@ const signature = "--claude"
 const postUsage = `usage: claude-review post <pr> comment --body TEXT
        claude-review post <pr> inline  --body TEXT --path FILE --line N [--side RIGHT|LEFT] --at SHA
        claude-review post <pr> reply   --body TEXT --to COMMENT_ID
-       claude-review post <pr> review  --body TEXT
+       claude-review post <pr> review  --body TEXT --at SHA
 
 Posts to the PR through gh, taking the body only as inline text, and appends
 the ` + "`--claude`" + ` signature. This is what a review session with
@@ -37,7 +37,8 @@ already on the PR in the same place prints the existing comment's URL and
 posts nothing, so a retry after an ambiguous error cannot duplicate it; for
 a comment or review that holds only within 10 minutes. An inline comment
 anchors on --at, the full sha of the commit the line was read in, so a push
-since the review cannot move it onto other code.
+since the review cannot move it onto other code; a review attaches to --at
+too, so a push during the round does not look reviewed.
 `
 
 // The post kinds, and the GitHub list endpoint (under repos/OWNER/REPO/,
@@ -93,7 +94,7 @@ func runPost(args []string, gh Gh, spend spendFunc, stdout, stderr io.Writer) in
 	line := fs.Int("line", 0, "inline: line number in the file (new file for RIGHT, old file for LEFT)")
 	side := fs.String("side", "RIGHT", "inline: RIGHT (new code) or LEFT (old code)")
 	to := fs.Int64("to", 0, "reply: id of the review comment to answer, from `claude-review threads`")
-	at := fs.String("at", "", "inline: full sha of the reviewed commit (git rev-parse FETCH_HEAD)")
+	at := fs.String("at", "", "inline, review: full sha of the reviewed commit (git rev-parse FETCH_HEAD)")
 	if err := fs.Parse(args[2:]); err != nil {
 		return 2
 	}
@@ -149,7 +150,12 @@ type postInput struct {
 // validate checks the per-kind arguments before anything touches GitHub.
 func (in postInput) validate() error {
 	switch in.kind {
-	case kindComment, kindReview:
+	case kindComment:
+		return nil
+	case kindReview:
+		if !fullSHA.MatchString(in.at) {
+			return errors.New("review needs --at with the reviewed commit's full sha")
+		}
 		return nil
 	case kindInline:
 		if in.path == "" || in.line <= 0 || (in.side != "RIGHT" && in.side != "LEFT") || !fullSHA.MatchString(in.at) {
@@ -226,7 +232,9 @@ func (in postInput) send(gh Gh) (string, error) {
 	case kindReview:
 		// Always a COMMENT review: approving or requesting changes is the
 		// human's call, and this command runs without a prompt.
-		return gh("api", "-X", "POST", fmt.Sprintf("%s/pulls/%d/reviews", api, in.pr.Number), "-f", "body="+in.body, "-f", "event=COMMENT")
+		// Attached to the reviewed commit, so a push during the round does
+		// not look reviewed.
+		return gh("api", "-X", "POST", fmt.Sprintf("%s/pulls/%d/reviews", api, in.pr.Number), "-f", "body="+in.body, "-f", "event=COMMENT", "-f", "commit_id="+in.at)
 	case kindInline:
 		// The line number belongs to the reviewed commit; anchoring on the
 		// head instead would land it on other code after a push.
