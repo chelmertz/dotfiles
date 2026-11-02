@@ -398,6 +398,10 @@
         trigger = "::comment";
         replace = "💬";
       }
+      {
+        trigger = "::merge";
+        replace = "🔀";
+      }
 
       {
         trigger = "::red";
