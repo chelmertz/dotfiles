@@ -196,3 +196,16 @@ func TestConfiguredPromptReadsLikeTheDefault(t *testing.T) {
 		t.Error("nix/home.nix's review_prompt still asks for git show")
 	}
 }
+
+// An author's reply in a thread a round started must be answered in that
+// thread: settled only in the summary, the reply stays the last word on
+// GitHub and the thread reads, and counts in elly, as unanswered.
+func TestRereviewAnswersEveryRepliedThreadInIt(t *testing.T) {
+	for _, custom := range []string{"", "my own prompt"} {
+		p := BuildPrompt(Config{ReviewPrompt: custom, PostWithoutAsking: true}, testPR, "origin", true)
+		want := "Every thread where the author replied gets an answer in that thread with `claude-review post https://github.com/acme/widgets/pull/42 reply --to <id>`: one line naming what settled it (the commit, or the reply) when it is settled, or the point that remains when it is not. The summary may list them too, but it does not replace the reply in the thread."
+		if !strings.Contains(p, want) {
+			t.Errorf("custom=%q: the re-review prompt does not ask for an answer in each replied thread:\n%s", custom, p)
+		}
+	}
+}

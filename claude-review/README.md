@@ -359,7 +359,8 @@ Three ways to give the session the PR's code were on the table.
   `a:PR:` filters on the name prefix.
 - **re-review**: same command every time. A finished session resumes with the
   prompt, which points it at `claude-review threads` and tells it to reply in
-  existing threads, never to repeat a finding already on the PR, and to post
+  existing threads (every thread the author replied in gets its answer
+  there, settled or not, not only in the summary), never to repeat a finding already on the PR, and to post
   nothing when there are no new commits or replies; a running background one is attached instead, and one open in a window is left alone. "Re-review" means a
   transcript exists, so if the first click's bootstrap succeeded but the
   review never started (window closed mid-way, `--bg` failed), the next click carries the re-review preface
