@@ -1033,7 +1033,7 @@ in
     review_prompt = ''
       Perform an adversarial code review of {url}.
 
-      Work read-only against this checkout: do not check out, switch branch, stash, reset or edit anything in the working tree. Get the PR itself from GitHub: `gh pr view {number}`, `gh pr diff {number}`, and `git fetch {remote} pull/{number}/head` followed by `git show FETCH_HEAD:<path>` for file contents at the PR head. Use this repository for context.
+      Work read-only against this checkout: do not check out, switch branch, stash, reset or edit anything in the working tree. Get the PR itself from GitHub: `gh pr view {number}`, `gh pr diff {number}`, and `git fetch {remote} pull/{number}/head` followed by `claude-review show {url} <path>` or `claude-review grep {url} <text>` for file contents at the PR head. Use this repository for context.
 
       On the first round, also run the persona-review skill on {url}: start its persona reviewers in parallel with your own pass and give them these same read-only rules. Merge their findings with yours into one set and verify each against the code at the PR head before posting; drop any you cannot verify. On later rounds do not rerun the personas; re-check their earlier findings like any other.
 

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -175,5 +177,22 @@ func TestBuildPrompt_DeferralIsAFinding(t *testing.T) {
 	}
 	if custom := BuildPrompt(Config{ReviewPrompt: "Look at {url}"}, testPR, upstream, false); strings.Contains(custom, "follow-up PR") {
 		t.Errorf("a custom review_prompt replaces the default, deferral rule included:\n%s", custom)
+	}
+}
+
+// The configured review_prompt replaces defaultPrompt, so it must name the
+// same read commands: raw `git show` is refused in unattended rounds, and a
+// prompt that asks for it stalls the round.
+func TestConfiguredPromptReadsLikeTheDefault(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "nix", "home.nix"))
+	if err != nil {
+		t.Skip("nix/home.nix not beside this module")
+	}
+	const reads = "followed by `claude-review show {url} <path>` or `claude-review grep {url} <text>` for file contents at the PR head."
+	if !strings.Contains(defaultPrompt, reads) || !strings.Contains(string(b), reads) {
+		t.Errorf("defaultPrompt and nix/home.nix's review_prompt must both say %q", reads)
+	}
+	if strings.Contains(string(b), "git show") {
+		t.Error("nix/home.nix's review_prompt still asks for git show")
 	}
 }
