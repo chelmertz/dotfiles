@@ -151,6 +151,9 @@ func lockSession(dir, id string) (func(), error) {
 // reason on failure) must not leak into values such as a commit sha, so it
 // is attached to the error only.
 func ghRun(args ...string) (string, error) {
+	if err := graphqlVarsMismatch(args); err != nil {
+		return "", err
+	}
 	cmd := exec.Command("gh", args...) //nolint:gosec // args are built by this program
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

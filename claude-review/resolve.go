@@ -75,7 +75,7 @@ func resolveThread(pr PR, id int64, gh Gh, spend spendFunc, stdout, stderr io.Wr
 		fmt.Fprintln(stderr, "claude-review post: not resolved:", err)
 		return 1
 	}
-	if out, err := gh("api", "graphql", "-f", "query="+resolveThreadMutation, "-f", "threadId="+th.ID); err != nil {
+	if out, err := gh("api", "graphql", "-f", "query="+resolveThreadMutation, "-f", "id="+th.ID); err != nil {
 		fmt.Fprintf(stderr, "claude-review post: %v\n%s\n", err, strings.TrimSpace(out))
 		return 1
 	}

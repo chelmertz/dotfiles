@@ -20,6 +20,9 @@ type fakeGh struct {
 func (g *fakeGh) run(args ...string) (string, error) {
 	g.calls = append(g.calls, args)
 	i := len(g.calls) - 1
+	if err := graphqlVarsMismatch(args); err != nil {
+		return "", err
+	}
 	var out string
 	var err error
 	if i < len(g.outs) {
@@ -339,7 +342,7 @@ func TestPost_ResolveOwnThread(t *testing.T) {
 	if code != 0 || out.String() != "u7\n" {
 		t.Fatalf("code %d out %q stderr %q", code, out.String(), errb.String())
 	}
-	if len(g.calls) != 2 || g.calls[0][1] != "graphql" || !slices.Contains(g.calls[1], "threadId=T1") || !strings.Contains(strings.Join(g.calls[1], " "), "resolveReviewThread") {
+	if len(g.calls) != 2 || g.calls[0][1] != "graphql" || !slices.Contains(g.calls[1], "id=T1") || !strings.Contains(strings.Join(g.calls[1], " "), "resolveReviewThread") {
 		t.Errorf("calls %q", g.calls)
 	}
 	if !slices.Equal(spent, []string{"resolve T1 1"}) {
