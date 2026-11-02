@@ -106,7 +106,8 @@ func TestRecordedRounds(t *testing.T) {
 				version:   func() (string, error) { return "2.1.314", nil },
 				selfCheck: func() error { return nil },
 			}
-			if err := h.tick(); err != nil || out.Len() > 0 {
+			// Actions are logged now; only error lines fail a replay.
+			if err := h.tick(); err != nil || strings.Contains(out.String(), "claude-review tick:") {
 				t.Fatalf("tick: %v %s", err, out)
 			}
 			all, err := l.Annotations()

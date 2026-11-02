@@ -968,3 +968,16 @@ func TestTickNotifiesEachNewNeedsYouOnce(t *testing.T) {
 		t.Errorf("notified %q, want %q", got, want)
 	}
 }
+
+// An unattended tick's journal says what it did, not only what failed.
+func TestTickLogsWhatItDoes(t *testing.T) {
+	w := newTickWorld(t)
+	w.accept(t, 42)
+	w.elly.prs = []EllyPR{requestedPR(42)}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(w.out.String(), "start a round on acme/widgets#42") {
+		t.Errorf("journal %q names no started round", w.out)
+	}
+}

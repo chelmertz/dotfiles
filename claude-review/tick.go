@@ -70,6 +70,11 @@ func (h tickHost) do(what string, fn func() error) error {
 		fmt.Fprintln(h.out, "would", what)
 		return nil
 	}
+	// The journal is the only record of what an unattended tick did. A
+	// click's host has no out: it reports through its notification.
+	if h.out != nil {
+		fmt.Fprintln(h.out, what)
+	}
 	return fn()
 }
 
