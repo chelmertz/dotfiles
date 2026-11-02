@@ -330,10 +330,8 @@ func (h tickHost) apply(pr PR, r Round, d Decision, retry bool) (bool, error) {
 				return false, err
 			}
 			a.Links = append([]Link{{Label: "Approve", URL: approveURL(pr, d.MintFor, tok)}}, a.Links...)
-			// The approval stays the user's click; this only says one waits.
-			h.notify(fmt.Sprintf("%s clean at %.9s: approve?", pr.URL(), d.MintFor))
 		}
-		if err := h.do(fmt.Sprintf("mark %s %s: %s", pr.Slug(), a.State, a.Note), func() error { return h.ledger.SetAnnotation(pr, *a) }); err != nil {
+		if err := h.mark(pr, *a); err != nil {
 			return false, err
 		}
 	}
@@ -386,7 +384,7 @@ func (h tickHost) startOwed(prs []EllyPR, running int) error {
 			return err
 		}
 		if gate != nil {
-			if err := h.do(fmt.Sprintf("mark %s %s: %s", p.PR.Slug(), gate.State, gate.Note), func() error { return h.ledger.SetAnnotation(p.PR, *gate) }); err != nil {
+			if err := h.mark(p.PR, *gate); err != nil {
 				return err
 			}
 			continue
@@ -441,8 +439,28 @@ func (h tickHost) startOne(p Planned, running int) (bool, error) {
 }
 
 func (h tickHost) markWindow(pr PR) error {
-	a := Annotation{State: stateNeedsYou, Note: windowNote, Links: []Link{ignoreLink(pr)}}
-	return h.do(fmt.Sprintf("mark %s %s: %s", pr.Slug(), a.State, a.Note), func() error { return h.ledger.SetAnnotation(pr, a) })
+	return h.mark(pr, Annotation{State: stateNeedsYou, Note: windowNote, Links: []Link{ignoreLink(pr)}})
+}
+
+// mark sets pr's annotation, and tells the desktop when it newly needs the
+// user: a state elly shows only to someone already looking is no signal.
+// An unchanged state and note stay quiet, so a gate seen every tick
+// notifies once; an Approve link's fresh token does not count as a change.
+func (h tickHost) mark(pr PR, a Annotation) error {
+	return h.do(fmt.Sprintf("mark %s %s: %s", pr.Slug(), a.State, a.Note), func() error {
+		was, had, err := h.ledger.Annotation(pr)
+		if err != nil {
+			return err
+		}
+		if err := h.ledger.SetAnnotation(pr, a); err != nil {
+			return err
+		}
+		// A click builds its host without one: it tells the desktop itself.
+		if h.notify != nil && a.State == stateNeedsYou && (!had || was.State != a.State || was.Note != a.Note) {
+			h.notify(pr.URL() + " needs you: " + a.Note)
+		}
+		return nil
+	})
 }
 
 // gateNote is the annotation that holds p back, or nil when it may start.
@@ -511,7 +529,7 @@ func (h tickHost) starter() roundStarter {
 // recorded only once its worker is listed and alone.
 func (h tickHost) afterRelaunch(pr PR, res RelaunchResult, stopErr error, record func() error) (bool, error) {
 	needsYou := func(note string) error {
-		return h.ledger.SetAnnotation(pr, Annotation{State: stateNeedsYou, Note: note, Links: []Link{ignoreLink(pr)}})
+		return h.mark(pr, Annotation{State: stateNeedsYou, Note: note, Links: []Link{ignoreLink(pr)}})
 	}
 	switch res.Kind {
 	case relaunched:

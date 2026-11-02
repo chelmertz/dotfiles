@@ -299,6 +299,16 @@ func (l *Ledger) SetAnnotation(pr PR, a Annotation) error {
 	return err
 }
 
+// Annotation is pr's stored annotation, and whether it has one.
+func (l *Ledger) Annotation(pr PR) (Annotation, bool, error) {
+	all, err := l.Annotations()
+	if err != nil {
+		return Annotation{}, false, err
+	}
+	a, ok := all[pr.URL()]
+	return a, ok, nil
+}
+
 func (l *Ledger) ClearAnnotation(pr PR) error {
 	_, err := l.db.Exec(`delete from annotations where pr = ?`, pr.URL())
 	return err

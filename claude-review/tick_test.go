@@ -299,7 +299,7 @@ func TestTickCleanRoundGetsAWorkingApproveLink(t *testing.T) {
 	if ok, _ := w.h.ledger.UseToken(pr, u.Query().Get("at"), u.Query().Get("token")); !ok {
 		t.Errorf("the Approve link's token is not one the ledger minted: %s", a.Links[0].URL)
 	}
-	if want := []string{pr.URL() + " clean at aaaaaaaaa: approve?"}; !slices.Equal(w.notified, want) {
+	if want := []string{pr.URL() + " needs you: clean round at aaaaaaaaa"}; !slices.Equal(w.notified, want) {
 		t.Errorf("notified %q, want %q", w.notified, want)
 	}
 }
@@ -937,5 +937,34 @@ func TestTickSweepLeavesWhatItCannotRead(t *testing.T) {
 		if name == "dry run" && !strings.Contains(w.out.String(), "would stop worker "+pr.RoundSessionID()[:8]+" on acme/widgets#42") {
 			t.Errorf("dry run said %q", w.out.String())
 		}
+	}
+}
+
+// Every state that needs the user says so once on the desktop, whichever
+// path set it, and a tick that finds it unchanged stays quiet.
+func TestTickNotifiesEachNewNeedsYouOnce(t *testing.T) {
+	w := newTickWorld(t)
+	asked := w.accept(t, 1)
+	if _, err := w.h.ledger.StartRound(asked, "h1", "new_head", t0); err != nil {
+		t.Fatal(err)
+	}
+	w.msgs[asked.RoundSessionID()] = "Which one?\nclaude-review: question for the user"
+	w.gh.facts = RoundFacts{State: "open", Head: "h1"}
+	gated := w.accept(t, 42)
+	w.gh.descends = false
+	w.elly.prs = []EllyPR{requestedPR(42)}
+	for range 2 {
+		if err := w.h.tick(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := []string{
+		asked.URL() + " needs you: the round has a question for you",
+		gated.URL() + " needs you: " + w.elly.put[gated.URL()].Note,
+	}
+	slices.Sort(want)
+	got := slices.Sorted(slices.Values(w.notified))
+	if !slices.Equal(got, want) {
+		t.Errorf("notified %q, want %q", got, want)
 	}
 }

@@ -553,7 +553,7 @@ does everything Claude-shaped, including deciding when a round runs.
 | Poll GitHub, store PR facts | yes | no |
 | Score whose turn it is (points) | yes | no |
 | Show the inbox: page, i3blocks count | yes | no |
-| Send desktop notifications | yes | its own results only: clicks, a failed self-check, an Approve link |
+| Send desktop notifications | yes | its own results only: clicks, a failed self-check, every new `needs_you` |
 | Store and render annotations, with expiry | yes, generic | no |
 | Review one PR in a session (prompts, clone, PR-derived session id) | no | yes, as today |
 | Refuse a round while the PR's session is open | no | yes, as today |
@@ -743,8 +743,8 @@ no new commits and no reply that needs an answer. None is trusted on its own.
   round summary and how much changed since the user's last approval. No
   confirmation dialog. An approve line conditioned on CI ("approve once
   green") counts as approve: a red build is the author's to fix. `tick`
-  also sends a desktop notification, "<url> clean at <sha>: approve?";
-  approving stays the user's click on the link.
+  also sends a desktop notification, "<url> needs you: clean round at
+  <sha>"; approving stays the user's click on the link.
 - **Question line**: `needs_you` with an Open-session link.
 - **Nothing line**, and GitHub shows nothing posted: `handled`. Without the
   line such a round would read as a failed one and be retried; replays of
@@ -979,14 +979,16 @@ or reviewer-less own PR keeps counting until it is closed or shipped.
 ### Notifications
 
 elly sends the notifications about PR state. claude-review sends its own
-for its clicks' results, a failed self-check, and an Approve link that waits
-("<url> clean at <sha>: approve?").
+for its clicks' results, a failed self-check, and every `needs_you` it sets
+("<url> needs you: <note>"): a question, a clean round with its Approve link,
+a paused PR, a PR that changed under its first look, a window or worker in
+the way. One notification per change of state or note, so a gate tick sees
+again every five minutes notifies once.
 
 On each fetch elly compares every PR's point reasons with the previous fetch.
 A PR that gains one of the reasons below gets one desktop notification: the PR
-title and the new reason in elly's own words. A `needs_you` annotation is
-meant to count as a reason, its note as the words, but elly's notifier does
-not read annotations yet, so the row for claude-review below does not fire.
+title and the new reason in elly's own words. elly's notifier does not read
+annotations, so the claude-review row below is sent by tick, not elly.
 
 | Event | Reason elly already computes |
 | --- | --- |
