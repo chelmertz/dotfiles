@@ -46,6 +46,10 @@ type Deps struct {
 	WriteScript func(name, content string) (string, error)
 	// Gh runs the GitHub CLI, for the subcommands.
 	Gh Gh
+	// Sessions keeps one background worker per PR (see Relaunch).
+	Sessions Sessions
+	// Trust marks a clone trusted for Claude Code before a background launch.
+	Trust func(dir string) error
 }
 
 const usageText = `usage: claude-review [--dry-run] <pr>
@@ -145,10 +149,16 @@ func run(args []string, d Deps) int {
 	return launch(d, cfg, pr, dir, remote, *dryRun)
 }
 
-// launch plans one click on pr in dir and runs it, or prints it.
+// launch plans one click on pr in dir and runs it, or prints it. A PR in
+// review_repos runs in its background worker (backgroundClick); any other
+// opens a window, under the user's own settings.
 func launch(d Deps, cfg Config, pr PR, dir, remote string, dryRun bool) int {
+	background := repoAllowed(pr.Owner, pr.Repo, cfg.ReviewRepos)
 	if dryRun {
 		plan, err := planClick(d, cfg, pr, remote)
+		if background {
+			plan, err = planBackgroundClick(d, cfg, pr, remote)
+		}
 		if err != nil {
 			return fail(d, err)
 		}
@@ -159,7 +169,7 @@ func launch(d Deps, cfg Config, pr PR, dir, remote string, dryRun bool) int {
 	}
 	// One click at a time per PR, from reading the session's state to the
 	// end of the click: two clicks planned together would both see no
-	// session and both start one.
+	// session and both start one. Tick and the attach verb take it too.
 	unlock, err := d.Lock(pr.SessionID())
 	if errors.Is(err, errLocked) {
 		return fail(d, fmt.Errorf("claude-review: another click is already opening %s", pr.Slug()))
@@ -168,7 +178,10 @@ func launch(d Deps, cfg Config, pr PR, dir, remote string, dryRun bool) int {
 		return fail(d, fmt.Errorf("claude-review: locking %s: %w", pr.Slug(), err))
 	}
 	defer unlock()
-	recordAcceptance(d, cfg, pr)
+	head := recordAcceptance(d, cfg, pr)
+	if background {
+		return backgroundClick(d, cfg, pr, dir, remote, head)
+	}
 	plan, err := planClick(d, cfg, pr, remote)
 	if err != nil {
 		return fail(d, err)
@@ -179,11 +192,97 @@ func launch(d Deps, cfg Config, pr PR, dir, remote string, dryRun bool) int {
 	return 0
 }
 
+// clickStarter starts a click's round like tick's, through the
+// interactive shell (a URL handler's PATH rarely has claude).
+func clickStarter(d Deps, cfg Config) roundStarter {
+	return roundStarter{sess: d.Sessions, wrapper: cfg.RoundWrapper,
+		exists: func(id string) bool { return d.SessionExists(d.ClaudeDir, id) },
+		run: func(dir string, argv []string) error {
+			if out, err := d.Output(dir, viaInteractiveShell(shellLine(dir, argv))); err != nil {
+				return fmt.Errorf("%s: %s", argv[0], lastLineOr(out, err.Error()))
+			}
+			return nil
+		}}
+}
+
+// planBackgroundClick is what a click on a PR in review_repos would run,
+// for --dry-run: the round session's bootstrap when it has none, then its
+// launch, or nothing when the session saved other options.
+func planBackgroundClick(d Deps, cfg Config, pr PR, remote string) (click, error) {
+	id := pr.RoundSessionID()
+	existed := d.SessionExists(d.ClaudeDir, id)
+	argv, err := d.Sessions.LaunchArgv(id, PolicyFlags(pr, remote), RoundArgs(cfg, pr, remote, existed), ResumeArgs(cfg, pr, remote, existed))
+	if err != nil {
+		return click{}, fmt.Errorf("claude-review: %s: nothing starts: %w", pr.Slug(), err)
+	}
+	return click{pr: pr, bootstrap: !existed, round: true, detached: true, argv: append(append([]string{}, cfg.RoundWrapper...), argv...)}, nil
+}
+
+// backgroundClick runs a click on a PR in review_repos in the PR's one
+// background worker, under the pinned round policy, and notifies: nobody
+// watches it, and watching is `claude attach`. Like tick it starts nothing
+// while the breaker is tripped, settles the last round before stopping its
+// idle worker, and records the round once the worker is listed, so tick
+// settles it like its own. head is the PR head the click saw ("" when
+// GitHub did not say; then nothing is recorded).
+func backgroundClick(d Deps, cfg Config, pr PR, dir, remote, head string) int {
+	l, err := OpenLedger(LedgerPath(d.Home))
+	if err != nil {
+		return fail(d, err)
+	}
+	defer func() { _ = l.Close() }()
+	if reason, err := l.Tripped(); err != nil || reason != "" {
+		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.Slug(), errors.Join(err, breakerError(reason))))
+	}
+	if err := d.Trust(dir); err != nil {
+		return fail(d, fmt.Errorf("claude-review: trusting %s for Claude Code: %w", dir, err))
+	}
+	settle := func() error {
+		user, err := githubUser(d, cfg)
+		if err != nil {
+			return err
+		}
+		return newTickHost(d, cfg, l, user).settleUnread(pr)
+	}
+	at := time.Now()
+	res, err := clickStarter(d, cfg).start(cfg, pr, dir, remote, false, settle)
+	if err != nil && res.Kind != relaunchDuplicate {
+		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.Slug(), err))
+	}
+	h := tickHost{ledger: l}
+	started, err := h.afterRelaunch(pr, res, err, func() error {
+		if head == "" {
+			return nil
+		}
+		_, err := l.StartRound(pr, head, clickTrigger(at), at)
+		return err
+	})
+	return clickOutcome(d, pr, res, started, err)
+}
+
+// clickOutcome tells the user what a background click did.
+func clickOutcome(d Deps, pr PR, res RelaunchResult, started bool, err error) int {
+	switch {
+	case err != nil:
+		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.Slug(), err))
+	case started:
+		tell(d, "review of "+pr.URL()+" started")
+		return 0
+	case res.Kind == relaunchBusy:
+		tell(d, pr.URL()+" is mid-round; it continues in the background")
+		return 0
+	case res.Kind == relaunchWindow:
+		return fail(d, fmt.Errorf("claude-review: %s: %s", pr.URL(), windowNote))
+	}
+	return fail(d, fmt.Errorf("claude-review: %s: the round was launched but %s", pr.URL(), res.Detail))
+}
+
 // click is what one click will do, decided before anything runs.
 type click struct {
 	pr        PR
 	bootstrap bool     // no transcript yet: create the session headlessly first
 	attach    bool     // a background worker is running it: attach, do not resume
+	round     bool     // the PR's round session (review_repos), not its window session
 	detached  bool     // terminal: false
 	argv      []string // the review (or attach) command
 }
@@ -213,7 +312,10 @@ func planClick(d Deps, cfg Config, pr PR, remote string) (click, error) {
 // commands lists what execute will run, for --dry-run.
 func (c click) commands() [][]string {
 	var all [][]string
-	if c.bootstrap {
+	switch {
+	case c.bootstrap && c.round:
+		all = append(all, RoundBootstrapArgs(c.pr))
+	case c.bootstrap:
 		all = append(all, BootstrapArgs(c.pr))
 	}
 	return append(all, c.argv)
@@ -225,9 +327,10 @@ func (c click) execute(d Deps, cfg Config, dir string) error {
 	pr, id := c.pr, c.pr.SessionID()
 	switch {
 	case c.attach:
-		// A running background session refuses --resume (before 2.1.285) or
-		// takes the prompt (after); attaching is right on both and never
-		// forks. The user types the re-review request in the attached view.
+		// A running background session refuses --resume (before 2.1.285),
+		// takes the prompt (later) or is forked by it (2.1.314, when idle);
+		// attaching is right on all of them and never forks. The user types
+		// the re-review request in the attached view.
 		fmt.Fprintf(d.Stderr, "claude-review: %s is still running; attaching instead of resuming\n", pr.Slug())
 	case c.bootstrap && (c.detached || d.IsTTY):
 		// First click: create the session headlessly under our id, then
@@ -395,5 +498,7 @@ func realDeps() Deps {
 		Spawn:          spawnDetached,
 		WriteScript:    writeLauncherScript,
 		Gh:             ghRun,
+		Sessions:       realSessions(claudeDir, goos(), execOutput),
+		Trust:          func(dir string) error { return ensureTrusted(claudeJSONPath(home), dir) },
 	}
 }

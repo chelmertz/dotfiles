@@ -88,24 +88,28 @@ func TestIgnoreVerbStopsRounds(t *testing.T) {
 	}
 }
 
-func TestAttachVerbOpensTheSessionWithoutAPrompt(t *testing.T) {
-	h := newHost(t, `{"review_repos":["acme/*"]}`, true, true)
-	h.d.Home = t.TempDir()
-	t.Setenv("XDG_STATE_HOME", "")
+// attach never resumes a session interactively: that would be a window
+// under the user's own settings, which blocks rounds. A live worker is
+// attached to; with none there is nothing to watch.
+func TestAttachVerbNeverResumes(t *testing.T) {
+	h, fs := clickHost(t, true)
 	if code := run([]string{"claude-review://acme/widgets/42/attach"}, h.d); code != 0 {
 		t.Fatalf("exit %d: %s", code, h.stderr)
 	}
-	// The launcher script quotes each word inside a quoted shell line.
+	if len(h.scripts) != 0 || notified(h) != "no round running on "+target {
+		t.Errorf("no worker: scripts %q, notified %q", h.scripts, notified(h))
+	}
+	fs.workers = []Worker{workerFor(widgetsPR.RoundSessionID(), 500)}
+	if code := run([]string{"claude-review://acme/widgets/42/attach"}, h.d); code != 0 {
+		t.Fatalf("exit %d: %s", code, h.stderr)
+	}
 	script := strings.Join(mapValues(h.scripts), "\n")
-	if !strings.Contains(script, "--resume'\\'' '\\''"+widgetsPR.SessionID()) || strings.Contains(script, "New review round") {
-		t.Errorf("attach opened %q", script)
+	if !strings.Contains(script, "attach'\\'' '\\''"+widgetsPR.RoundSessionID()) || strings.Contains(script, "--resume") {
+		t.Errorf("a live worker was not attached: %q", script)
 	}
-	h.running = true
-	if code := run([]string{"claude-review://acme/widgets/42/attach"}, h.d); code != 0 {
-		t.Fatalf("exit %d: %s", code, h.stderr)
-	}
-	if script := strings.Join(mapValues(h.scripts), "\n"); !strings.Contains(script, "attach'\\'' '\\''"+widgetsPR.SessionID()) {
-		t.Errorf("a running background session was not attached: %q", script)
+	h.locked = true
+	if code := run([]string{"claude-review://acme/widgets/42/attach"}, h.d); code != 1 {
+		t.Errorf("attach ignored the PR's lock: exit %d", code)
 	}
 }
 

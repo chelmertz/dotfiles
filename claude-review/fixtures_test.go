@@ -82,6 +82,7 @@ func TestRecordedRounds(t *testing.T) {
 			}
 			var started [][]string
 			out := &bytes.Buffer{}
+			fs := newFakeSessions()
 			h := tickHost{
 				tcfg:        TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 6, MaxRunning: 2, TotalDailyCap: 24},
 				ledger:      l,
@@ -91,9 +92,19 @@ func TestRecordedRounds(t *testing.T) {
 				blocked:     func(string) bool { return false },
 				lastMessage: func(string) (string, error) { return rr.LastMessage, nil },
 				findRepo:    func(PR) (string, string, error) { return "/clone", "upstream", nil },
-				start:       func(_ string, argv []string) error { started = append(started, argv); return nil },
-				now:         func() time.Time { return rr.SettleAt },
-				out:         out,
+				start: func(_ string, argv []string) error {
+					started = append(started, argv)
+					fs.workers = append(fs.workers, workerFor(pr.RoundSessionID(), 700))
+					return nil
+				},
+				now:       func() time.Time { return rr.SettleAt },
+				out:       out,
+				lock:      func(string) (func(), error) { return func() {}, nil },
+				sess:      fs.sessions(),
+				exists:    func(string) bool { return true },
+				trust:     func(string) error { return nil },
+				version:   func() (string, error) { return "2.1.314", nil },
+				selfCheck: func() error { return nil },
 			}
 			if err := h.tick(); err != nil || out.Len() > 0 {
 				t.Fatalf("tick: %v %s", err, out)

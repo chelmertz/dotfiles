@@ -10,22 +10,20 @@ import (
 	"time"
 )
 
-// runTick is `claude-review tick [--dry-run | --reset]`, run by a timer.
+// runTick is `claude-review tick [--dry-run | --reset | --self-check]`, run
+// by a timer.
 func runTick(args []string, d Deps) int {
 	fs := flag.NewFlagSet("claude-review tick", flag.ContinueOnError)
 	fs.SetOutput(d.Stderr)
 	dry := fs.Bool("dry-run", false, "print what tick would do, and do none of it")
 	reset := fs.Bool("reset", false, "let rounds start again after the breaker tripped, and do nothing else")
-	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || *dry && *reset {
+	check := fs.Bool("self-check", false, "check Claude Code's background sessions in a scratch repo now, and do nothing else")
+	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || btoi(*dry)+btoi(*reset)+btoi(*check) > 1 {
 		return 2
 	}
 	cfg, err := LoadConfig(ConfigPath(d.UserConfigDir), d.Home)
 	if err != nil {
 		return fail(d, err)
-	}
-	if len(cfg.ReviewRepos) == 0 {
-		fmt.Fprintln(d.Stderr, "claude-review tick: review_repos is empty; nothing to run")
-		return 0
 	}
 	// One tick at a time: a timer run and a manual one would both start
 	// the same round.
@@ -40,14 +38,17 @@ func runTick(args []string, d Deps) int {
 	if *reset {
 		return resetBreaker(d)
 	}
+	if *check {
+		return selfCheckNow(d, cfg)
+	}
+	if len(cfg.ReviewRepos) == 0 {
+		fmt.Fprintln(d.Stderr, "claude-review tick: review_repos is empty; nothing to run")
+		return 0
+	}
 
-	user := cfg.GitHubUser
-	if user == "" {
-		out, err := d.Gh("api", "user", "--jq", ".login")
-		if err != nil {
-			return fail(d, fmt.Errorf("claude-review tick: who am I on GitHub: %w", err))
-		}
-		user = strings.TrimSpace(out)
+	user, err := githubUser(d, cfg)
+	if err != nil {
+		return fail(d, fmt.Errorf("claude-review tick: %w", err))
 	}
 	l, err := OpenLedger(LedgerPath(d.Home))
 	if err != nil {
@@ -55,7 +56,31 @@ func runTick(args []string, d Deps) int {
 	}
 	defer func() { _ = l.Close() }()
 
-	h := tickHost{
+	h := newTickHost(d, cfg, l, user)
+	h.dry = *dry
+	if err := h.tick(); err != nil {
+		fmt.Fprintln(d.Stderr, "claude-review tick:", err)
+		return 1
+	}
+	return 0
+}
+
+// githubUser is the login rounds post as: the config's, else gh's.
+func githubUser(d Deps, cfg Config) (string, error) {
+	if cfg.GitHubUser != "" {
+		return cfg.GitHubUser, nil
+	}
+	out, err := d.Gh("api", "user", "--jq", ".login")
+	if err != nil {
+		return "", fmt.Errorf("who am I on GitHub: %w", err)
+	}
+	return strings.TrimSpace(out), nil
+}
+
+// newTickHost wires a tickHost to the machine; a click uses one to settle
+// the PR's last round before it starts the next.
+func newTickHost(d Deps, cfg Config, l *Ledger, user string) tickHost {
+	return tickHost{
 		cfg:         cfg,
 		tcfg:        TickConfig{ReviewRepos: cfg.ReviewRepos, User: user, DailyCap: cfg.DailyCap, MaxRunning: cfg.MaxRunning, TotalDailyCap: cfg.TotalDailyCap, Wrapper: cfg.RoundWrapper},
 		ledger:      l,
@@ -74,14 +99,57 @@ func runTick(args []string, d Deps) int {
 			}
 			return nil
 		},
-		now: time.Now,
-		out: d.Stderr,
-		dry: *dry,
+		now:    time.Now,
+		out:    d.Stderr,
+		lock:   d.Lock,
+		sess:   d.Sessions,
+		exists: func(id string) bool { return d.SessionExists(d.ClaudeDir, id) },
+		trust:  d.Trust,
+		version: func() (string, error) {
+			out, err := d.Capture("", viaInteractiveShell(claudeCmd+" --version"))
+			if err != nil {
+				return "", err
+			}
+			// The interactive shell's rc files may print first.
+			if v := lastLineOr(out, ""); v != "" {
+				return v, nil
+			}
+			return "", errors.New("no output")
+		},
+		selfCheck: func() error {
+			return selfChecker{sess: d.Sessions, run: d.Output, trust: d.Trust, newID: randomUUID,
+				dir: filepath.Join(filepath.Dir(LedgerPath(d.Home)), "self-check"), sleep: d.Sleep}.check()
+		},
+		notify: func(msg string) { _, _ = d.Output("", notifyArgv(d.GOOS, "claude-review", msg)) },
 	}
-	if err := h.tick(); err != nil {
+}
+
+func btoi(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// selfCheckNow is `tick --self-check`: the check tick runs on a new Claude
+// Code version, run by hand. It records the version on a pass and trips the
+// breaker on a failure, as tick would.
+func selfCheckNow(d Deps, cfg Config) int {
+	l, err := OpenLedger(LedgerPath(d.Home))
+	if err != nil {
+		return fail(d, err)
+	}
+	defer func() { _ = l.Close() }()
+	h := newTickHost(d, cfg, l, "")
+	v, err := h.version()
+	if err != nil {
+		return fail(d, fmt.Errorf("claude-review tick: claude --version: %w", err))
+	}
+	if err := h.runSelfCheck(v); err != nil {
 		fmt.Fprintln(d.Stderr, "claude-review tick:", err)
 		return 1
 	}
+	fmt.Fprintln(d.Stderr, "claude-review tick: the self-check passed on", v)
 	return 0
 }
 
@@ -104,10 +172,11 @@ func ellyTokenFile() string {
 
 // recordAcceptance is the user's click, written down: tick only ever runs a
 // PR the user opened, at the head and base they opened it at. Only for repos
-// the runner covers, and never fatal to the click.
-func recordAcceptance(d Deps, cfg Config, pr PR) {
+// the runner covers, and never fatal to the click. It returns the head it
+// recorded, "" when it recorded none.
+func recordAcceptance(d Deps, cfg Config, pr PR) string {
 	if !repoAllowed(pr.Owner, pr.Repo, cfg.ReviewRepos) {
-		return
+		return ""
 	}
 	p, err := GitHub{Gh: d.Gh}.pull(pr)
 	if err == nil {
@@ -119,5 +188,7 @@ func recordAcceptance(d Deps, cfg Config, pr PR) {
 	}
 	if err != nil {
 		fmt.Fprintf(d.Stderr, "claude-review: %s not recorded for unattended rounds: %v\n", pr.Slug(), err)
+		return ""
 	}
+	return p.Head.SHA
 }

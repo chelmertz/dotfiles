@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -73,24 +74,41 @@ func approveWithToken(d Deps, pr PR, at, token string) int {
 	return 0
 }
 
-// attach opens the PR's session in a terminal without sending a prompt: a
-// background worker is attached to, any other session resumed.
+// attach opens the PR's live background worker in a terminal, under the
+// PR's lock. It never resumes a session interactively: that window would
+// run under the user's own settings and hold every round back. With no
+// worker there is nothing to watch, and it says so.
 func attach(d Deps, cfg Config, pr PR) int {
-	id := pr.SessionID()
-	live := d.SessionRunning(d.ClaudeDir, id)
-	if live.PID > 0 && !live.Background {
-		return fail(d, fmt.Errorf("claude-review: %s is already open (pid %d)", pr.Slug(), live.PID))
+	id := pr.RoundSessionID()
+	unlock, err := d.Lock(pr.SessionID())
+	if errors.Is(err, errLocked) {
+		return fail(d, fmt.Errorf("claude-review: %s is being started; try again in a moment", pr.Slug()))
 	}
-	argv := []string{claudeCmd, "--resume", id}
-	if live.PID > 0 {
-		argv = AttachArgs(pr)
-	}
-	dir, _, err := d.FindRepo(cfg.GitRepoRoots, cfg.ClonePath, pr)
 	if err != nil {
-		return fail(d, err)
+		return fail(d, fmt.Errorf("claude-review: locking %s: %w", pr.Slug(), err))
 	}
-	if err := openTerminal(d, cfg, dir, [][]string{argv}, pr); err != nil {
-		return fail(d, err)
+	defer unlock()
+	all, err := d.Sessions.Roster()
+	if err != nil {
+		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.Slug(), err))
+	}
+	live := false
+	for _, w := range d.Sessions.workersFor(id, all) {
+		live = live || w.SessionID == id
+	}
+	switch {
+	case live:
+		dir, _, err := d.FindRepo(cfg.GitRepoRoots, cfg.ClonePath, pr)
+		if err != nil {
+			return fail(d, err)
+		}
+		if err := openTerminal(d, cfg, dir, [][]string{{claudeCmd, "attach", id}}, pr); err != nil {
+			return fail(d, err)
+		}
+	case d.Sessions.WindowOpen(id):
+		return fail(d, fmt.Errorf("claude-review: %s is already open in a window", pr.Slug()))
+	default:
+		tell(d, "no round running on "+pr.URL())
 	}
 	return 0
 }

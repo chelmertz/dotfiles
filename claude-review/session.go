@@ -19,10 +19,11 @@ func SessionExists(claudeDir, id string) bool {
 	return len(matches) > 0
 }
 
-// roster is the part of ~/.claude/daemon/roster.json this tool reads: the
-// background workers the supervisor currently runs. The file is Claude
-// Code's own and may change shape; every failure to read it means "not
-// running", which only costs a forked copy, the behaviour without the check.
+// roster is the part of ~/.claude/daemon/roster.json the window path reads:
+// the background workers the supervisor currently runs. The file is Claude
+// Code's own and may change shape; here every failure to read it means "not
+// running", which only costs a forked copy. Rounds go through readRoster
+// instead, where an unreadable roster means no launch.
 type roster struct {
 	Workers map[string]struct {
 		SessionID string `json:"sessionId"`
@@ -38,8 +39,8 @@ type Live struct {
 }
 
 // SessionRunning reports the live process for id. `--resume` on a session
-// that is already open starts a second copy instead of continuing it, so
-// every click checks this first. A background worker is in the roster; every
+// that is already open starts a second copy instead of continuing it, so a
+// click outside review_repos (the window path) checks this first. A background worker is in the roster; every
 // other live session, a terminal window or a `claude -p`, is only in
 // sessions/. A worker wins: it may have its own sessions/ entry too, and it
 // is the one kind that can be attached to.
@@ -159,15 +160,23 @@ func JobState(claudeDir, id string) string {
 	return j.State
 }
 
-// RoundRunning reports whether a round is still in progress in id. A
+// RoundRunning reports whether a round may still be in progress in id. A
 // background worker stays alive and idle after its round ends, so for one
-// the job state decides; without a readable state it counts as running.
-// Any other live session, a window or a `claude -p`, is running.
+// the job state decides: only done, blocked (settle handles it) and stopped
+// are not running; no readable state, or one never seen, counts as running.
+// An unreadable roster counts as running too. Any other live session, a
+// window or a `claude -p`, is running.
 func RoundRunning(claudeDir, id string) bool {
+	if _, err := readRoster(claudeDir); err != nil {
+		return true
+	}
 	live := SessionRunning(claudeDir, id)
 	if !live.Background {
 		return live.PID > 0
 	}
-	state := JobState(claudeDir, id)
-	return state == "" || state == "working"
+	switch JobState(claudeDir, id) {
+	case jobDone, "blocked", "stopped":
+		return false
+	}
+	return true
 }

@@ -30,6 +30,7 @@ create table if not exists tokens (token text primary key, pr text not null, sha
 create table if not exists annotations (pr text primary key, state text not null, note text not null, links text not null);
 create table if not exists posts (pr text not null, head text not null, slot text not null, n integer not null, primary key (pr, head, slot));
 create table if not exists post_refusals (pr text not null, at integer not null);
+create table if not exists meta (key text primary key, value text not null);
 create table if not exists breaker (id integer primary key check (id = 1), tripped text, reset_at integer not null default 0);
 `
 
@@ -94,7 +95,8 @@ func (l *Ledger) Ignored(pr PR) (bool, error) {
 	return n > 0, err
 }
 
-// Round is one unattended review round, recorded when it starts.
+// Round is one review round, recorded once its worker is running: tick's,
+// or a click's (trigger clickTrigger).
 type Round struct {
 	ID        int64
 	PR        string
@@ -122,10 +124,11 @@ func (l *Ledger) RanAt(pr PR, head, trigger string) (bool, error) {
 	return n > 0, err
 }
 
-// RoundsSince counts pr's rounds started at or after since, for the daily cap.
+// RoundsSince counts pr's rounds tick started at or after since, for the
+// daily cap. A click's round is the user's own and does not count.
 func (l *Ledger) RoundsSince(pr PR, since time.Time) (int, error) {
 	var n int
-	err := l.db.QueryRow(`select count(*) from rounds where pr = ? and started_at >= ?`, pr.URL(), since.Unix()).Scan(&n)
+	err := l.db.QueryRow(`select count(*) from rounds where pr = ? and started_at >= ? and trigger not like 'click@%'`, pr.URL(), since.Unix()).Scan(&n)
 	return n, err
 }
 
@@ -159,11 +162,12 @@ func (l *Ledger) DiffBase(pr PR) (string, bool, error) {
 	return head, err == nil, err
 }
 
-// Launches counts the round starts and retries since since, across all PRs,
-// for the breaker. Starts before the last reset do not count.
+// Launches counts tick's round starts and retries since since, across all
+// PRs, for the breaker. Starts before the last reset do not count; a
+// click's round counts only through its retries, which tick starts.
 func (l *Ledger) Launches(since time.Time) (int, error) {
 	var n int
-	err := l.db.QueryRow(`select coalesce(sum(1 + retries), 0) from rounds
+	err := l.db.QueryRow(`select coalesce(sum(retries + (trigger not like 'click@%')), 0) from rounds
 		where started_at >= max(?, coalesce((select reset_at from breaker), 0))`, since.Unix()).Scan(&n)
 	return n, err
 }
@@ -312,4 +316,25 @@ func (l *Ledger) LastHead(pr PR) (string, error) {
 		return "", nil
 	}
 	return head, err
+}
+
+// clickTrigger is the trigger a click's round is recorded under.
+func clickTrigger(at time.Time) string { return "click@" + at.UTC().Format(time.RFC3339) }
+
+// metaClaudeVersion is the Claude Code version the last passing self-check ran on.
+const metaClaudeVersion = "claude_version"
+
+// Meta is a value the ledger keeps for the runner itself, "" when unset.
+func (l *Ledger) Meta(key string) (string, error) {
+	var v string
+	err := l.db.QueryRow(`select value from meta where key = ?`, key).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return v, err
+}
+
+func (l *Ledger) SetMeta(key, value string) error {
+	_, err := l.db.Exec(`replace into meta (key, value) values (?, ?)`, key, value)
+	return err
 }

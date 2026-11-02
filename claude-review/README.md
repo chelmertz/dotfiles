@@ -2,7 +2,9 @@
 
 One click on a GitHub PR page starts, or resumes, a Claude Code review
 session for that PR in your local clone. The agent never loops; the PR page is
-the inbox.
+the inbox. On a PR in `review_repos` (the repos the unattended runner covers)
+a click never opens a window: the round runs in the PR's one background
+session under the runner's pinned policy, and a notification says so.
 
 ```
 claude-review https://github.com/acme/widgets/pull/1234
@@ -16,6 +18,7 @@ claude-review grep <pr> <text>   # fixed-string search at the PR head
 claude-review diff <pr>          # commits and diff since the last round
 claude-review approve <pr> --at SHA   # yours: approve SHA if it is still the head
 claude-review slack [--dry-run] <pr>...   # lines to paste when pinging a reviewer
+claude-review tick [--dry-run | --reset | --self-check]   # the unattended runner
 ```
 
 ## Goal and non-goals
@@ -66,6 +69,8 @@ and 5 are done by `home-manager switch`. Elsewhere:
 
 2. Trust each repo once: run `claude` in your clone and accept the trust
    prompt. Without it the first click fails with "Workspace not trusted".
+   A clone of a repo in `review_repos` needs nothing: claude-review trusts it
+   before the first background round (see "Running it").
 
 3. Try it from a terminal:
 
@@ -142,7 +147,20 @@ policy.
 
 ### What a click does
 
-`terminal` decides one thing: whether the click opens a terminal window. The
+On a PR in `review_repos` the table below does not apply. The click takes
+the PR's lock, records the acceptance, and then runs the round the way
+`tick` does (see "Each tick"): in the PR's one round session, under the
+same launch policy as tick's rounds. A notification says "review of <url> started", or "<url> is
+mid-round; it continues in the background" when a round is still working
+there, in which case nothing starts. A window on the round session, a
+session saved under other options, a tripped breaker, or a worker that never
+appears is reported the same way and starts nothing. The click records its round in the ledger, so the next tick
+settles it like its own (a click's round counts toward neither cap).
+Watching is opt-in: `claude attach <id>`, or the Open-session link in elly.
+Questions end the round as in an unattended one, and answering means
+clicking again, which attaches.
+
+Everywhere else, `terminal` decides one thing: whether the click opens a terminal window. The
 session itself is the same either way and is found by the PR-derived id.
 `post_without_asking` is independent of it; all four combinations are
 meaningful.
@@ -361,7 +379,7 @@ Three ways to give the session the PR's code were on the table.
   prompt, which points it at `claude-review threads` and tells it to reply in
   existing threads (every thread the author replied in gets its answer
   there, settled or not, not only in the summary), never to repeat a finding already on the PR, and to post
-  nothing when there are no new commits or replies; a running background one is attached instead, and one open in a window is left alone. "Re-review" means a
+  nothing when there are no new commits or replies. Outside `review_repos` a running background one is attached instead, and one open in a window is left alone; in `review_repos` an idle worker is stopped and relaunched, and a working one is left to finish. "Re-review" means a
   transcript exists, so if the first click's bootstrap succeeded but the
   review never started (window closed mid-way, `--bg` failed), the next click carries the re-review preface
   although no review ran yet; the model copes with the missing round.
@@ -459,8 +477,21 @@ The timer runs since 2026-11-02, after one round watched by hand.
    acceptance tick needs.
 4. `claude-review tick --dry-run` prints what a tick would do and changes
    nothing: no round, no ledger row, no annotation. It also names each owed
-   PR it leaves alone because its session is open in a window.
-5. In these dotfiles the `claude-review-tick` timer in `nix/home.nix` runs
+   PR it leaves alone because its session is busy or a click holds it, and
+   a self-check it would run.
+5. `claude-review tick --self-check` runs, by hand, the check every tick
+   runs on a new `claude --version` (see "Each tick", step 0) and records
+   the version when it passes. It starts throwaway background sessions in
+   `~/.local/state/claude-review/self-check`, a git repo of its own that it
+   trusts, and stops them again.
+6. claude-review trusts a clone for Claude Code before the first background
+   round in it (`projects[<clone>].hasTrustDialogAccepted` in
+   `~/.claude.json`, the one key written, through a temp file and a rename,
+   then read back). `claude --bg` refuses an untrusted folder, and the
+   prompt guards the folder's settings and hooks, which rounds never load
+   (`--setting-sources ""`). If the write does not hold, nothing starts and
+   the error says why.
+7. In these dotfiles the `claude-review-tick` timer in `nix/home.nix` runs
    a tick every 5 minutes; `systemctl --user start claude-review-tick` runs
    one by hand, and `systemctl --user stop claude-review-tick.timer` pauses
    the timer until the next login.
@@ -566,13 +597,27 @@ claude-review alone. It holds:
 - **Ignore**: sticky, set from an Ignore link, cleared by the next first-look
   click. elly's bury stays a display preference: elly unburies a PR whose
   `LastUpdated` moves, so bury cannot stop rounds.
-- **Rounds**: each round is recorded when it starts (PR, head, trigger) and
-  marked read when its result is processed.
+- **Rounds**: each round is recorded once its worker is listed in Claude
+  Code's roster (PR, head, trigger), never before: a launch that failed
+  leaves no round to be settled from the previous round's message. Clicks
+  on a PR in `review_repos` record theirs too (trigger `click@<time>`), so
+  tick settles them; those count toward neither cap. Marked read when its
+  result is processed.
+- **Claude Code version** the last passing self-check ran on.
 - **Approve tokens**: one-time, minted by `tick` for one PR at one head.
 - **Daily round count** per PR.
 
 #### Each tick
 
+0. Run `claude --version`. On a version the ledger has not recorded, run
+   the self-check before anything else: in a scratch repo, start a
+   background session with one trivial turn under dontAsk, no settings and
+   an allow and a deny list, see its roster entry, its saved options equal
+   to those flags and its job state reach `done`, stop it and see its pid
+   end, resume it in the background without flags and see the same id
+   continue (no fork), stop it. Any mismatch trips the breaker with the reason and sends
+   a desktop notification; no round starts until the user resets it, and
+   the next tick checks again. A version that cannot be read starts nothing.
 1. Read `GET /api/v0/prs` from elly. If elly does not answer, write nothing
    and exit; existing annotations expire on their own.
 2. Pick candidates: the repo is in `review_repos` in claude-review's config
@@ -590,12 +635,38 @@ claude-review alone. It holds:
    trigger. Past the per-PR daily cap, mark it `needs_you` with "paused"
    instead of starting a round. While the breaker is tripped (below), mark
    every owed PR "paused" the same way.
-5. Start the round in the PR's session, resumed, with `terminal: false`, at
-   most 2 at once, under `capped`, and under the launch policy below. A PR
-   whose session is running or open in a terminal starts nothing, by the same
-   check a click uses today. A background worker stays alive and idle after
-   its round ends, so for one only Claude Code's job state `working` counts as
-   running.
+5. Start the round in the PR's round session, at most 2 at once, under
+   `capped`, and under the launch policy below. Every launcher (a click, a
+   tick start or retry, the attach verb) holds the PR's lock, the click's
+   `flock`, from reading the session's state until the relaunched worker is
+   listed; a PR whose lock a click holds is left for the next tick. Claude
+   Code keeps a background session's options from its first background
+   launch, and a later `claude --bg --resume` that passes flags forks the
+   session instead of continuing it, live worker or not (2.1.314). So the
+   first background launch carries the policy flags and every later round
+   none (`claude --bg --resume <id> "<prompt>"`), and only after the
+   session's saved options (`respawnFlags` in
+   `~/.claude/jobs/<first 8>/state.json`) were read and found equal to the
+   current policy; other options, or none readable, start nothing and mark
+   the PR `needs_you` with the reason. A session with no transcript yet is
+   first created with one headless turn under the policy's permission
+   flags. A worker stays alive and idle after its round ends, so:
+   - no worker for the session: launch;
+   - a worker whose job state is explicitly `done`: read its round first
+     (step 7), then `claude stop` it, wait until its pid has ended (the
+     roster drops it before the process exits), and launch;
+   - any other state, or none, is a round that may still be going: leave
+     it. An unreadable roster starts nothing either;
+   - after the launch, wait until the roster lists a worker for the id; if
+     none appears in a minute, mark the PR `needs_you` and record nothing.
+     A second worker for the id, or a fork of it, is stopped, the PR marked
+     `needs_you`, and the breaker tripped;
+   - a live session for the round session's id that is no worker's (a
+     window someone opened on it with `claude --resume`) starts nothing and
+     marks the PR `needs_you` "review window open; close it to let rounds
+     run"; the first tick that sees it gone clears that. Windows from
+     before clicks went background hold the PR's window session, a
+     different id, and no longer hold rounds back.
 6. A round whose job is `blocked` (waiting for a permission it was not
    given) gets `needs_you` with an Open-session link and no retry: a retry
    would resume on top of the waiting worker.
@@ -615,7 +686,9 @@ PRs, it trips: it starts nothing, writes the reason to the ledger, and every
 later tick exits non-zero, so the timer's journal shows a failed run. It
 stays tripped after the 24 hours have passed; a loop that tripped it once
 would trip it again. `claude-review tick --reset` closes it and counts afresh
-from that moment. A cap of 0 starts nothing.
+from that moment. A cap of 0 starts nothing. A failed self-check and a
+forked or second worker trip it too. While it is tripped, clicks on PRs in
+`review_repos` start nothing either.
 
 #### Reading a round's outcome
 
@@ -701,10 +774,32 @@ cover only `gh api`, the `gh pr`/`gh issue` write commands and
   `$(...)`, backticks, `;`, `|` or an environment prefix;
 - a test that fails if the launch arguments loosen.
 
+A click on a PR in `review_repos` runs under the same arguments, with the
+first-round prompt on its first click. Nobody watches it either. `Agent` is
+allowed for the first round's persona pass; a subagent is held to the same
+allow list (checked live 2026-11-02: one was refused a `touch` its parent
+was refused too). Skills from `~/.claude/skills` do not load without a
+settings source (2.1.314 answered "Unknown skill: persona-review"), so the
+persona-review skill that `review_prompt` asks for is unavailable in rounds
+and the round runs without it; nothing is widened to bring it back.
+
+The policy is one flag set per session, saved by Claude Code at the
+session's first background launch and kept for every later round. A
+round session is therefore named by the PR and the policy's version
+(`policyVersion` in `policy.go`, part of the session id), and any change
+to the launch arguments needs a new version: `TestUnattendedArgsArePinned`
+fails until the version's pinned fingerprint matches the new flags. **A
+policy change starts a fresh session for every PR; the review history up to
+then stays in the old session**, which no round resumes again (`claude
+--resume <old id>` still opens it by hand). The same holds for the first
+round under version 2: every session from before has saved, or would be
+given, older flags, and is left as it is. The window path outside
+`review_repos` keeps the PR's own session id.
+
 The posting-policy section above states what a round can reach under the
 user's own settings today.
 
-Rounds resume the PR's one session, accepting that an instruction planted in
+Rounds continue the PR's one session, accepting that an instruction planted in
 an earlier commit or reply stays in the transcript after the author removes
 it. The launch policy and the GitHub checks on Approve bound what it can do:
 bad comments or a blocked merge, never an approval.
@@ -738,7 +833,11 @@ org named like a verb cannot collide.
   can show the user a link (Slack, a web page) could get unreviewed code
   approved in one click, and the head check would not stop them, because the
   author knows the head.
-- `claude-review://<owner>/<repo>/<n>/attach` opens a terminal on the session.
+- `claude-review://<owner>/<repo>/<n>/attach` opens a terminal running
+  `claude attach` on the PR's live background worker, under the PR's lock.
+  It never resumes a session interactively, which would be a window under
+  the user's own settings and hold every round back; with no worker it
+  notifies "no round running on <url>".
 - `claude-review://<owner>/<repo>/<n>/ignore` sets the sticky ignore. A
   forged one only stops automation on that PR.
 
@@ -897,7 +996,7 @@ unit reaches the notification daemon over the session bus (checked
 2026-10-30); approval survival is read per PR; unattended rounds post without
 the user reading each one, inside the launch policy; Approve is one click with
 a ledger token; `tick` dismisses the user's own approval when a later round
-posts findings; rounds resume the PR's session; own-PR scoring stays as it is.
+posts findings; rounds continue the PR's one background worker; own-PR scoring stays as it is.
 
 ### Policy decisions
 
@@ -947,7 +1046,21 @@ the transcript under the given id; `--bg --session-id` and an interactive
 `claude --resume <id>` records `<id>` in `~/.claude/sessions/<pid>.json`, as
 does `claude -p --session-id <id>`, and `procStart` there is field 22 of
 `/proc/<pid>/stat` (`ps -o lstart=` without a /proc, read from the binary,
-not run on a Mac). Not yet verified: whether the deny rule also
+not run on a Mac). On 2.1.314: a background session keeps the options of its
+first background launch (`respawnFlags` in the job's `state.json`: the
+flags without `--bg`, `--resume` and the prompt, `--allowedTools` and
+`--disallowedTools` included); `--bg --resume <id>` with any flags on a
+session that has run in the background before forks it ("keeps its own
+saved options, so the flags you passed started a copy"; the roster's new
+worker has `dispatch.launch.fork: true` and `launch.sessionId` `<id>`),
+live worker or not, and without flags continues `<id>` in place under the
+saved options, which still refuse what they refused (checked with a denied
+Read); the first `--bg` launch of a session created with `claude -p`
+continues it in place with the flags given; `claude stop` and `claude agents --json` refuse to run without a
+terminal (claude-review runs `stop` under `script`); `stop` returns in about
+0.6 s while the worker's pid lives on for a moment, and closes any attached
+viewer; the job state in `~/.claude/jobs/<first 8>/state.json` stays `done`
+after a stop; `--bg --session-id` ignored the given id once more. Not yet verified: whether the deny rule also
 catches `command gh api` or `env gh api`, whether a `!` command typed by
 the user runs despite the session's deny rules (expected, since those govern
 the model's tool calls), whether `--allowedTools` on the resume line blocks sending a prompt

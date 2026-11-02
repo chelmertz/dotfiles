@@ -88,3 +88,21 @@ func TestRunTickAsksGitHubWhoTheUserIs(t *testing.T) {
 		}
 	}
 }
+
+// `tick --self-check` runs the check by hand, whatever version the ledger
+// holds; a failure trips the breaker like the timer's would.
+func TestTickSelfCheckFlagRunsTheCheck(t *testing.T) {
+	h, fs := clickHost(t, true)
+	h.captured = []string{"rc noise\n2.1.315 (Claude Code)\n"}
+	fs.unreadable = true
+	if code := run([]string{"tick", "--self-check"}, h.d); code != 1 {
+		t.Errorf("exit %d: %s", code, h.stderr)
+	}
+	reason, _ := h.ledger(t).Tripped()
+	if !strings.Contains(reason, "the self-check on 2.1.315 (Claude Code) failed") || !strings.Contains(notified(h), "self-check") {
+		t.Errorf("breaker %q, notified %q", reason, notified(h))
+	}
+	if len(h.ghCalls) != 0 {
+		t.Errorf("a self-check asked GitHub: %q", h.ghCalls)
+	}
+}

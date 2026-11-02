@@ -224,9 +224,9 @@ func TestLockUnderCache(t *testing.T) {
 	}
 }
 
-func writeJob(t *testing.T, dir, id, state string) {
+func writeJob(t *testing.T, dir, state string) {
 	t.Helper()
-	d := filepath.Join(dir, "jobs", id[:8])
+	d := filepath.Join(dir, "jobs", sid[:8])
 	if err := os.MkdirAll(d, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +248,7 @@ func TestRoundRunning(t *testing.T) {
 		t.Error("a live worker with no job state must count as running")
 	}
 	for state, want := range map[string]bool{"working": true, "done": false, "blocked": false, "stopped": false} {
-		writeJob(t, dir, sid, state)
+		writeJob(t, dir, state)
 		if JobState(dir, sid) != state {
 			t.Errorf("job state %q read as %q", state, JobState(dir, sid))
 		}
@@ -256,8 +256,19 @@ func TestRoundRunning(t *testing.T) {
 			t.Errorf("live worker, job %s: running %v", state, got)
 		}
 	}
+	// Unknown means hands off: a state this tool has never seen, or a
+	// roster it cannot read, is a round that may still be going.
+	writeJob(t, dir, "something new")
+	if !RoundRunning(dir, sid) {
+		t.Error("an unknown job state read as a finished round")
+	}
+	writeRoster(t, dir, "{not json")
+	writeJob(t, dir, "done")
+	if !RoundRunning(dir, sid) {
+		t.Error("an unreadable roster read as no round running")
+	}
 	writeRoster(t, dir, `{"workers":{}}`)
-	writeJob(t, dir, sid, "working")
+	writeJob(t, dir, "working")
 	if RoundRunning(dir, sid) {
 		t.Error("a job left at working with no live worker is not running")
 	}

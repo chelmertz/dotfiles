@@ -64,6 +64,11 @@ type tickWorld struct {
 	blocked map[string]bool
 	msgs    map[string]string
 	out     *bytes.Buffer
+	fs      *fakeSessions
+	fresh   map[string]bool // round sessions with no transcript yet
+	locked  map[string]bool
+	trusted []string
+	pid     int
 }
 
 func newTickWorld(t *testing.T) *tickWorld {
@@ -74,21 +79,63 @@ func newTickWorld(t *testing.T) *tickWorld {
 		blocked: map[string]bool{},
 		msgs:    map[string]string{},
 		out:     &bytes.Buffer{},
+		fs:      newFakeSessions(),
+		fresh:   map[string]bool{},
+		locked:  map[string]bool{},
+		pid:     1000,
 	}
 	w.h = tickHost{
-		tcfg:        TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 6, MaxRunning: 2, TotalDailyCap: 24, Wrapper: []string{"capped"}},
-		ledger:      openTestLedger(t),
-		elly:        w.elly,
-		gh:          w.gh,
-		running:     func(id string) bool { return w.live[id] },
-		blocked:     func(id string) bool { return w.blocked[id] },
-		lastMessage: func(id string) (string, error) { return w.msgs[id], nil },
-		findRepo:    func(PR) (string, string, error) { return "/clone", "upstream", nil },
-		start:       func(_ string, argv []string) error { w.started = append(w.started, argv); return nil },
-		now:         func() time.Time { return t0 },
-		out:         w.out,
+		tcfg:    TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 6, MaxRunning: 2, TotalDailyCap: 24, Wrapper: []string{"capped"}},
+		ledger:  openTestLedger(t),
+		elly:    w.elly,
+		gh:      w.gh,
+		running: func(id string) bool { return w.live[id] },
+		blocked: func(id string) bool { return w.blocked[id] },
+		lastMessage: func(id string) (string, error) {
+			w.fs.events = append(w.fs.events, "read "+id[:8])
+			return w.msgs[id], nil
+		},
+		findRepo: func(PR) (string, string, error) { return "/clone", "upstream", nil },
+		// A launch adds the worker Claude Code would: listed under the
+		// fixed id that follows --resume.
+		start: func(_ string, argv []string) error {
+			w.started = append(w.started, argv)
+			if !slices.Contains(argv, "--bg") {
+				return nil // the bootstrap
+			}
+			id := argv[slices.Index(argv, "--resume")+1]
+			w.pid++
+			w.fs.workers = append(w.fs.workers, workerFor(id, w.pid))
+			if _, ok := w.fs.saved[id]; !ok && len(argv) > 6 {
+				w.fs.saved[id] = savedFrom(argv)
+			}
+			return nil
+		},
+		exists: func(id string) bool { return !w.fresh[id] },
+		now:    func() time.Time { return t0 },
+		out:    w.out,
+		lock: func(id string) (func(), error) {
+			if w.locked[id] {
+				return nil, errLocked
+			}
+			return func() {}, nil
+		},
+		sess:      w.fs.sessions(),
+		trust:     func(dir string) error { w.trusted = append(w.trusted, dir); return nil },
+		version:   func() (string, error) { return "2.1.314 (Claude Code)", nil },
+		selfCheck: func() error { return nil },
+		notify:    func(string) {},
 	}
+	w.fs.saved = map[string][]string{}
 	return w
+}
+
+// savedFrom is what Claude Code saves from a first background launch: the
+// flags without the binary, --bg, --resume <id> and the prompt.
+func savedFrom(argv []string) []string {
+	i := slices.Index(argv, "--resume")
+	out := slices.Clone(argv[slices.Index(argv, "--bg")+1 : i])
+	return append(out, argv[i+3:]...)
 }
 
 func requestedPR(n int) EllyPR {
@@ -128,7 +175,7 @@ func TestTickStartsAnOwedRoundLockedDownAndCapped(t *testing.T) {
 	if len(w.started) != 1 {
 		t.Fatalf("started %v", w.started)
 	}
-	want := append([]string{"capped"}, UnattendedArgs(Config{}, pr, "upstream")...)
+	want := append([]string{"capped"}, RoundArgs(Config{}, pr, "upstream", true)...)
 	if !slices.Equal(w.started[0], want) {
 		t.Errorf("round command:\n%q\nwant\n%q", w.started[0], want)
 	}
@@ -165,7 +212,7 @@ func TestTickDryRunNamesAnOpenSession(t *testing.T) {
 	w := newTickWorld(t)
 	pr := w.accept(t, 42)
 	w.elly.prs = []EllyPR{requestedPR(42)}
-	w.live[pr.SessionID()] = true
+	w.live[pr.RoundSessionID()] = true
 	w.h.dry = true
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
@@ -212,7 +259,7 @@ func TestTickAtMostTwoRunning(t *testing.T) {
 		t.Fatalf("started %d rounds, want 2", len(w.started))
 	}
 	for n := 1; n <= 3; n++ {
-		w.live[PR{Owner: "acme", Repo: "widgets", Number: n}.SessionID()] = true
+		w.live[PR{Owner: "acme", Repo: "widgets", Number: n}.RoundSessionID()] = true
 	}
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
@@ -231,7 +278,7 @@ func TestTickCleanRoundGetsAWorkingApproveLink(t *testing.T) {
 	}
 	// ReadOutcome needs a full sha; make it the round's head.
 	full := strings.Repeat("a", 40)
-	w.msgs[pr.SessionID()] = "Clean. `! claude-review approve " + pr.URL() + " --at " + full + "`"
+	w.msgs[pr.RoundSessionID()] = "Clean. `! claude-review approve " + pr.URL() + " --at " + full + "`"
 	if _, err := w.h.ledger.db.Exec(`update rounds set head = ?`, full); err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +380,7 @@ func TestTickARetryCountsAsRunning(t *testing.T) {
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if len(w.started) != 1 || !slices.Contains(w.started[0], failed.SessionID()) {
+	if len(w.started) != 1 || !slices.Contains(w.started[0], failed.RoundSessionID()) {
 		t.Errorf("with one slot, the retry must take it: started %q", w.started)
 	}
 }
@@ -380,7 +427,7 @@ func TestTickOneEllyFailureDoesNotStopTheRest(t *testing.T) {
 func TestLaunchRefusesInADryRun(t *testing.T) {
 	w := newTickWorld(t)
 	w.h.dry = true
-	if err := w.h.launch(widgetsPR, func() error { return nil }); err == nil || len(w.started) != 0 {
+	if _, err := w.h.launch(widgetsPR, nil, func(time.Time) error { return nil }); err == nil || len(w.started) != 0 {
 		t.Errorf("launch in a dry run: err %v, started %q", err, w.started)
 	}
 }
@@ -394,7 +441,7 @@ func TestTickABlockedRoundNeedsTheUser(t *testing.T) {
 		t.Fatal(err)
 	}
 	w.gh.facts = RoundFacts{State: "open", Head: "h1"}
-	w.blocked[pr.SessionID()] = true
+	w.blocked[pr.RoundSessionID()] = true
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
@@ -430,7 +477,7 @@ func TestTickBreakerStopsARunawayLoopUntilReset(t *testing.T) {
 
 	w.h.now = func() time.Time { return t0.Add(25 * time.Hour) }
 	for n := 1; n <= 2; n++ {
-		w.live[PR{Owner: "acme", Repo: "widgets", Number: n}.SessionID()] = true
+		w.live[PR{Owner: "acme", Repo: "widgets", Number: n}.RoundSessionID()] = true
 	}
 	if err := w.h.tick(); err == nil {
 		t.Error("the breaker closed on its own")
@@ -472,7 +519,7 @@ func TestTickBreakerCountsRetries(t *testing.T) {
 func TestLaunchWithoutACapStartsNothing(t *testing.T) {
 	w := newTickWorld(t)
 	w.h.tcfg.TotalDailyCap = 0
-	if err := w.h.launch(widgetsPR, func() error { return nil }); err == nil || len(w.started) != 0 {
+	if _, err := w.h.launch(widgetsPR, nil, func(time.Time) error { return nil }); err == nil || len(w.started) != 0 {
 		t.Errorf("launch with no cap: err %v, started %q", err, w.started)
 	}
 }
@@ -485,7 +532,7 @@ func TestLaunchRefusesWhileTripped(t *testing.T) {
 		t.Fatal(err)
 	}
 	recorded := false
-	if err := w.h.launch(widgetsPR, func() error { recorded = true; return nil }); err == nil || recorded || len(w.started) != 0 {
+	if _, err := w.h.launch(widgetsPR, nil, func(time.Time) error { recorded = true; return nil }); err == nil || recorded || len(w.started) != 0 {
 		t.Errorf("launch while tripped: err %v, recorded %v, started %q", err, recorded, w.started)
 	}
 }
@@ -509,7 +556,7 @@ func TestTickARoundOverItsPostLimitStopsThatPR(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	w.msgs[pr.SessionID()] = "Clean. `! claude-review approve " + pr.URL() + " --at " + full + "`"
+	w.msgs[pr.RoundSessionID()] = "Clean. `! claude-review approve " + pr.URL() + " --at " + full + "`"
 	w.gh.facts = RoundFacts{State: "open", Head: full, CommitsSinceApproval: -1}
 	w.gh.head = full
 	w.elly.prs = []EllyPR{ellyPR(func(p *EllyPR) { p.Url = pr.URL(); p.HeadRefOid = "h9" })}
@@ -525,5 +572,266 @@ func TestTickARoundOverItsPostLimitStopsThatPR(t *testing.T) {
 	}
 	if ignored, _ := w.h.ledger.Ignored(pr); !ignored {
 		t.Error("the PR is not held back until the next click")
+	}
+}
+
+// A launch that fails leaves nothing in the ledger: a round recorded first
+// would be settled from the previous round's last message.
+func TestTickRecordsARoundOnlyAfterItsLaunch(t *testing.T) {
+	w := newTickWorld(t)
+	w.accept(t, 42)
+	w.elly.prs = []EllyPR{requestedPR(42)}
+	w.h.start = func(string, []string) error { return errors.New("Workspace not trusted") }
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if rounds, _ := w.h.ledger.UnreadRounds(); len(rounds) != 0 {
+		t.Errorf("a failed launch left a round: %+v", rounds)
+	}
+	if !strings.Contains(w.out.String(), "Workspace not trusted") {
+		t.Errorf("the failure was not reported: %q", w.out)
+	}
+}
+
+// Launched but never listed: nothing recorded, and the PR needs the user.
+func TestTickAWorkerThatNeverAppearsNeedsTheUser(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	w.elly.prs = []EllyPR{requestedPR(42)}
+	w.h.start = func(_ string, argv []string) error { w.started = append(w.started, argv); return nil }
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if rounds, _ := w.h.ledger.UnreadRounds(); len(rounds) != 0 {
+		t.Errorf("an unlisted launch left a round: %+v", rounds)
+	}
+	if a := w.elly.put[pr.URL()]; a.State != stateNeedsYou || !strings.Contains(a.Note, "no worker was listed") {
+		t.Errorf("elly got %+v", a)
+	}
+}
+
+// A launch that forks the session stops the fork, trips the breaker and
+// records nothing.
+func TestTickAForkedWorkerTripsTheBreaker(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	w.elly.prs = []EllyPR{requestedPR(42)}
+	start := w.h.start
+	w.h.start = func(dir string, argv []string) error {
+		w.fs.workers = append(w.fs.workers, Worker{Short: "188e19ec", SessionID: "188e19ec-1111", PID: 900, Fork: true, LaunchID: pr.RoundSessionID()})
+		return start(dir, argv)
+	}
+	if err := w.h.tick(); err == nil {
+		t.Error("a fork did not fail the tick")
+	}
+	if reason, _ := w.h.ledger.Tripped(); !strings.Contains(reason, "forked") {
+		t.Errorf("breaker: %q", reason)
+	}
+	if !slices.Contains(w.fs.events, "stop 188e19ec") {
+		t.Errorf("the fork was not stopped: %q", w.fs.events)
+	}
+	if rounds, _ := w.h.ledger.UnreadRounds(); len(rounds) != 0 {
+		t.Errorf("a forked launch left a round: %+v", rounds)
+	}
+	if a, _ := w.h.ledger.Annotations(); a[pr.URL()].State != stateNeedsYou {
+		t.Errorf("annotations %+v", a)
+	}
+}
+
+// A click holding the PR's lock keeps tick off it: no start, and its
+// unread round stays unread.
+func TestTickLeavesALockedPRAlone(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	other := w.accept(t, 43)
+	if _, err := w.h.ledger.StartRound(other, "h1", "new_head", t0); err != nil {
+		t.Fatal(err)
+	}
+	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewComments: 1}
+	w.elly.prs = []EllyPR{requestedPR(42)}
+	w.locked[pr.SessionID()] = true
+	w.locked[other.SessionID()] = true
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.started) != 0 {
+		t.Errorf("started %d rounds on a locked PR", len(w.started))
+	}
+	if rounds, _ := w.h.ledger.UnreadRounds(); len(rounds) != 1 {
+		t.Errorf("settled a locked PR's round: %+v", rounds)
+	}
+}
+
+// The idle worker of a finished round is stopped for the next one, but
+// only after that round was read: stopping first and reading later would
+// read the new round's words for the old one.
+func TestTickSettlesTheLastRoundBeforeStoppingItsWorker(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	if _, err := w.h.ledger.StartRound(pr, "h0", "click@x", t0); err != nil {
+		t.Fatal(err)
+	}
+	w.fs.workers = []Worker{workerFor(pr.RoundSessionID(), 500)}
+	w.fs.states[pr.RoundSessionID()] = "done"
+	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewComments: 1}
+	w.elly.prs = []EllyPR{requestedPR(42)}
+	calls := 0
+	w.h.running = func(string) bool { calls++; return calls == 1 } // still running when the settle pass looks
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(w.fs.events, ","); got != "read "+pr.RoundSessionID()[:8]+",stop "+pr.RoundSessionID()[:8] {
+		t.Errorf("events %s", got)
+	}
+	rounds, _ := w.h.ledger.UnreadRounds()
+	if len(w.started) != 1 || len(rounds) != 1 || rounds[0].Trigger == "click@x" {
+		t.Errorf("started %d, unread %+v", len(w.started), rounds)
+	}
+}
+
+const windowNoteWant = "review window open; close it to let rounds run"
+
+// A legacy window holds the PR's rounds back; tick says so in elly and
+// clears it on the first tick that sees the window gone.
+func TestTickNamesALegacyWindowAndClearsIt(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	w.elly.prs = []EllyPR{requestedPR(42)}
+	w.fs.window = 4242
+	w.h.running = func(string) bool { return w.fs.window > 0 }
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.started) != 0 {
+		t.Errorf("started beside a window: %q", w.started)
+	}
+	if a := w.elly.put[pr.URL()]; a.State != stateNeedsYou || a.Note != windowNoteWant {
+		t.Errorf("elly got %+v", a)
+	}
+	w.fs.window = 0
+	w.elly.prs = nil
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if all, _ := w.h.ledger.Annotations(); len(all) != 0 || !slices.Contains(w.elly.deleted, pr.URL()) {
+		t.Errorf("the window note outlived the window: ledger %+v, deleted %q", all, w.elly.deleted)
+	}
+}
+
+func TestTickTrustsTheCloneBeforeLaunching(t *testing.T) {
+	w := newTickWorld(t)
+	w.accept(t, 42)
+	w.elly.prs = []EllyPR{requestedPR(42)}
+	w.h.trust = func(string) error { return errors.New("trusting /clone did not hold") }
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.started) != 0 || !strings.Contains(w.out.String(), "did not hold") {
+		t.Errorf("launched %d rounds into an untrusted clone, out %q", len(w.started), w.out)
+	}
+	w = newTickWorld(t)
+	w.accept(t, 42)
+	w.elly.prs = []EllyPR{requestedPR(42)}
+	if err := w.h.tick(); err != nil || !slices.Equal(w.trusted, []string{"/clone"}) {
+		t.Errorf("trusted %q, err %v", w.trusted, err)
+	}
+}
+
+// A new Claude Code version runs the self-check once, before any round.
+func TestTickSelfChecksANewClaudeVersionOnce(t *testing.T) {
+	w := newTickWorld(t)
+	w.accept(t, 42)
+	w.elly.prs = []EllyPR{requestedPR(42)}
+	checks := 0
+	w.h.version = func() (string, error) { return "2.1.315 (Claude Code)", nil }
+	w.h.selfCheck = func() error { checks++; return nil }
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if checks != 1 || len(w.started) != 1 {
+		t.Errorf("checks %d, started %d", checks, len(w.started))
+	}
+	if v, _ := w.h.ledger.Meta(metaClaudeVersion); v != "2.1.315 (Claude Code)" {
+		t.Errorf("recorded version %q", v)
+	}
+	if err := w.h.tick(); err != nil || checks != 1 {
+		t.Errorf("the same version was checked again: %d %v", checks, err)
+	}
+}
+
+func TestTickAFailedSelfCheckTripsTheBreakerAndStartsNothing(t *testing.T) {
+	w := newTickWorld(t)
+	w.accept(t, 42)
+	w.elly.prs = []EllyPR{requestedPR(42)}
+	var told []string
+	w.h.notify = func(msg string) { told = append(told, msg) }
+	w.h.version = func() (string, error) { return "2.1.315", nil }
+	w.h.selfCheck = func() error { return errors.New("a resume after stop: it forked") }
+	if err := w.h.tick(); err == nil {
+		t.Error("a failed self-check passed the tick")
+	}
+	if len(w.started) != 0 {
+		t.Errorf("started %d rounds after a failed self-check", len(w.started))
+	}
+	reason, _ := w.h.ledger.Tripped()
+	if !strings.Contains(reason, "2.1.315") || !strings.Contains(reason, "it forked") || len(told) != 1 || !strings.Contains(told[0], "it forked") {
+		t.Errorf("breaker %q, told %q", reason, told)
+	}
+	if v, _ := w.h.ledger.Meta(metaClaudeVersion); v != "" {
+		t.Errorf("a failed version was recorded: %q", v)
+	}
+	w.h.version = func() (string, error) { return "", errors.New("claude: not found") }
+	if err := w.h.ledger.Reset(t0); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.h.tick(); err == nil || len(w.started) != 0 {
+		t.Errorf("no version, err %v, started %d", err, len(w.started))
+	}
+}
+
+// The first background round carries the policy and Claude Code saves it;
+// every later round carries no flags, which continues the session instead
+// of forking it, and only under that same saved policy.
+func TestTickResumesFlaglessUnderTheSavedPolicy(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	w.fresh[pr.RoundSessionID()] = true
+	w.elly.prs = []EllyPR{requestedPR(42)}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.started) != 2 || !slices.Equal(w.started[0], RoundBootstrapArgs(pr)) || !slices.Equal(w.started[1], append([]string{"capped"}, RoundArgs(Config{}, pr, "upstream", true)...)) {
+		t.Fatalf("first round: %d commands", len(w.started))
+	}
+	if !slices.Equal(w.fs.saved[pr.RoundSessionID()], PolicyFlags(pr, "upstream")) {
+		t.Fatalf("the fake saved %q", w.fs.saved[pr.RoundSessionID()])
+	}
+	delete(w.fresh, pr.RoundSessionID())
+	w.fs.states[pr.RoundSessionID()] = jobDone
+	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewComments: 1}
+	w.elly.prs = []EllyPR{ellyPR(func(p *EllyPR) { p.Url = pr.URL(); p.HeadRefOid = "h2" })}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.started) != 3 || !slices.Equal(w.started[2], append([]string{"capped"}, ResumeArgs(Config{}, pr, "upstream", true)...)) {
+		t.Errorf("later round: %q", w.started[2:])
+	}
+
+	// Saved under another policy: nothing starts, and the user hears why.
+	w = newTickWorld(t)
+	pr = w.accept(t, 42)
+	w.fs.saved[pr.RoundSessionID()] = []string{"--setting-sources", "project,local"}
+	w.elly.prs = []EllyPR{requestedPR(42)}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.started) != 0 {
+		t.Errorf("started %d commands on a session saved under other options", len(w.started))
+	}
+	if a, _ := w.h.ledger.Annotations(); a[pr.URL()].State != stateNeedsYou || !strings.Contains(a[pr.URL()].Note, "other options") {
+		t.Errorf("annotations %+v", a)
+	}
+	if rounds, _ := w.h.ledger.UnreadRounds(); len(rounds) != 0 {
+		t.Errorf("rounds %+v", rounds)
 	}
 }

@@ -225,3 +225,27 @@ func TestLedgerDiffBase(t *testing.T) {
 		t.Errorf("after two read rounds, the newest: %q", base)
 	}
 }
+
+// A click's round is the user's own act: it is settled like tick's, but it
+// counts toward neither the per-PR daily cap nor the breaker.
+func TestClickRoundsCountTowardNoCap(t *testing.T) {
+	l := openTestLedger(t)
+	if _, err := l.StartRound(widgetsPR, "h1", clickTrigger(t0), t0); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := l.RoundsSince(widgetsPR, t0.Add(-time.Hour)); n != 0 {
+		t.Errorf("RoundsSince counted a click: %d", n)
+	}
+	if n, _ := l.Launches(t0.Add(-time.Hour)); n != 0 {
+		t.Errorf("Launches counted a click: %d", n)
+	}
+	if rounds, _ := l.UnreadRounds(); len(rounds) != 1 {
+		t.Errorf("a click round is not settled: %+v", rounds)
+	}
+	if _, err := l.StartRound(widgetsPR, "h1", "new_head", t0); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := l.Launches(t0.Add(-time.Hour)); n != 1 {
+		t.Errorf("Launches: %d", n)
+	}
+}

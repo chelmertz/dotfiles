@@ -39,6 +39,13 @@ const bootstrapPrompt = "This session is for reviewing {url}. The review instruc
 // claudeCmd is the Claude Code binary, resolved on PATH by the shell.
 const claudeCmd = "claude"
 
+// Claude Code flags this tool passes in more than one place.
+const (
+	flagSessionID = "--session-id"
+	flagMaxTurns  = "--max-turns"
+	flagBg        = "--bg"
+)
+
 func fill(pr PR, remote, s string) string {
 	return strings.NewReplacer("{url}", pr.URL(), "{number}", fmt.Sprint(pr.Number), "{remote}", remote).Replace(s)
 }
@@ -64,7 +71,7 @@ func BuildPrompt(cfg Config, pr PR, remote string, resume bool) string {
 
 // BootstrapArgs is the headless command that creates the session.
 func BootstrapArgs(pr PR) []string {
-	return []string{claudeCmd, "-p", "--session-id", pr.SessionID(), "-n", "PR: " + pr.Slug(), "--max-turns", "1", fill(pr, "", bootstrapPrompt)}
+	return []string{claudeCmd, "-p", flagSessionID, pr.SessionID(), "-n", "PR: " + pr.Slug(), flagMaxTurns, "1", fill(pr, "", bootstrapPrompt)}
 }
 
 // ReviewArgs is the command for one click, run after the session exists:
@@ -78,7 +85,7 @@ func BootstrapArgs(pr PR) []string {
 func ReviewArgs(cfg Config, pr PR, remote string, resume, detached bool) []string {
 	args := []string{claudeCmd}
 	if detached {
-		args = append(args, "--bg")
+		args = append(args, flagBg)
 	}
 	args = append(args, "--resume", pr.SessionID(), BuildPrompt(cfg, pr, remote, resume))
 	args = append(append(args, "--allowedTools", threadsRule(pr)), readRules(pr)...)

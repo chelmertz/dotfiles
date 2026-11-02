@@ -72,3 +72,10 @@ const urlNamespace = "6ba7b811-9dad-11d1-80b4-00c04fd430c8"
 func (p PR) SessionID() string {
 	return uuidV5(urlNamespace, p.URL())
 }
+
+// RoundSessionID is the PR's background round session, under the round
+// policy policyVersion: a new version names a new session, so one saved
+// under older flags is never resumed. The window path keeps SessionID.
+func (p PR) RoundSessionID() string {
+	return uuidV5(urlNamespace, p.URL()+" round-policy "+policyVersion)
+}
