@@ -406,7 +406,7 @@ def run_action(action, msgs):
         elif len(urls) == 1:
             open_url(urls[0])
         else:
-            # Several: the bar lists them and a digit picks one.
+            # Several: the bar lists them; a digit picks one, a opens all.
             menu.update(open=True, links=urls[:9])
             w.bar_item_update("slack_hints")
 
@@ -695,6 +695,10 @@ def key_combo_cb(data, signal, key):
         if key.isdigit() and 1 <= int(key) <= len(urls):
             open_url(urls[int(key) - 1])
             return w.WEECHAT_RC_OK_EAT
+        if key == "a":
+            for url in urls:
+                open_url(url)
+            return w.WEECHAT_RC_OK_EAT
         return w.WEECHAT_RC_OK_EAT if key == "q" else w.WEECHAT_RC_OK
     msgs = messages(menu["buffer"])
     if menu["confirm"]:
@@ -750,7 +754,7 @@ def menu_rows():
         width = int(w.info_get("term_width", "") or 80)
         return "\n".join(
             render_rows([[(str(i), one_line(url, width - 8))]])
-            for i, url in enumerate(menu["links"], 1))
+            for i, url in enumerate(menu["links"], 1)) + "\n" + render_rows([[("a", "open all")]])
     msgs = messages(menu["buffer"])
     if menu["index"] >= len(msgs):
         return render_rows([[(k, d) for k, d, _ in MENU]])

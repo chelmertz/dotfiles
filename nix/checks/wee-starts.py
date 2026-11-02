@@ -225,8 +225,8 @@ pump(1)
 menu_drawn = b"reply in thread" in screen
 os.write(fd, b"q")  # closes it, swallowed
 pump(1)
-# Open link: dave's message has two, so a digit picks; erin's has one; the
-# newest (carol's) has none.
+# Open link: dave's message has two, so a digit picks one and a opens both;
+# erin's has one; the newest (carol's) has none.
 os.write(fd, b"\x1b ")  # the targeted message is marked in the chat itself
 pump(0.5)
 marked_drawn = "▶ carol".encode() in re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", bytes(screen))
@@ -236,7 +236,7 @@ before = len(screen)
 os.write(fd, b"/window refresh\r")
 pump(1)
 unmarked_after = "▶ carol".encode() not in re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", bytes(screen[before:]))
-for keys in (b"ko2", b"kko", b"o"):
+for keys in (b"ko2", b"koa", b"kko", b"o"):
     os.write(fd, b"\x1b ")
     pump(0.5)
     for key in keys:
@@ -530,8 +530,9 @@ if not recent_listed or stale_listed:
     failed = True
 urls = [u for u in open(opened).read().split() if not u.startswith("claude-review://")] \
     if os.path.exists(opened) else []
-if urls != ["https://two.example/y", "https://one.example/a"]:
-    print("open link: want the second of two, then the only one; got", urls)
+if urls != ["https://two.example/y", "https://two.example/x", "https://two.example/y",
+            "https://one.example/a"]:
+    print("open link: want the second of two, then both, then the only one; got", urls)
     failed = True
 if not marked_drawn or not unmarked_after:
     print("message marker: drawn while open=%s, gone after close=%s"

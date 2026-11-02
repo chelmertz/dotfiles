@@ -65,7 +65,7 @@ with), `>` someone is typing there.
   copy with date and author, **Y** copy every message in the buffer (the whole
   thread, in a thread buffer), **l** copy the permalink, **L** copy a wee link
   for your notes (below), **o** open its link (with several, the bar numbers
-  them and a digit picks), **v** view its images in a floating feh (arrow keys
+  them, a digit picks one and **a** opens all), **v** view its images in a floating feh (arrow keys
   step through several; Esc or Enter in wee closes it), **R** claude review:
   each GitHub PR the message links goes to `claude-review`, as the GitHub
   button's link does, plus a 👀
