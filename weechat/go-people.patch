@@ -11,26 +11,34 @@
  }
  
  # hooks management
-@@ -184,6 +188,9 @@
+@@ -184,6 +188,11 @@
  buffers = []
  buffers_pos = 0
  
 +# (buffer, name) pairs from the people_info info, read once per /go.
 +people = None
++# "/go -people" lists only people: one-to-one DMs, then people_info.
++people_only = False
 +
  
  def go_option_enabled(option):
      """Checks if a boolean script option is enabled or not."""
-@@ -233,6 +240,8 @@
+@@ -229,10 +238,13 @@
+             'input_text_display_with_cursor', 'go_input_modifier', '')
+ 
+ 
+-def go_start(buf):
++def go_start(buf, only_people=False):
      """Start go on buffer."""
      global saved_input, saved_input_pos, old_input, buffers_pos
      go_hook_all()
-+    global people
++    global people, people_only
 +    people = None
++    people_only = only_people
      saved_input = weechat.buffer_get_string(buf, 'input')
      saved_input_pos = weechat.buffer_get_integer(buf, 'input_pos')
      weechat.buffer_set(buf, 'input', ''); weechat.hook_signal_send('input_text_changed', weechat.WEECHAT_HOOK_SIGNAL_STRING, '')
-@@ -283,6 +292,24 @@
+@@ -283,6 +295,24 @@
      return True
  
  
@@ -55,7 +63,7 @@
  def go_now(buf, args):
      """Go to buffer specified by args."""
      listbuf = go_matching_buffers(args)
-@@ -293,12 +320,11 @@
+@@ -293,23 +323,23 @@
      if 'beginning' in weechat.config_get_plugin('sort').split(','):
          for index in range(len(listbuf)):
              if go_match_beginning(listbuf[index], args):
@@ -70,7 +78,21 @@
  
  
  def go_cmd(data, buf, args):
-@@ -320,6 +346,17 @@
+     """Command "/go": just hook what we need."""
+     global hooks
+-    if args:
++    only_people = args == '-people'
++    if args and not only_people:
+         go_now(buf, args)
+     elif 'modifier' in hooks:
+         go_end(buf)
+     else:
+-        go_start(buf)
++        go_start(buf, only_people)
+     return weechat.WEECHAT_RC_OK
+ 
+ 
+@@ -320,6 +350,17 @@
      if len(strinput) == 0:
          buffers_pos = 0
      strinput = strinput.lower()
@@ -88,7 +110,7 @@
      infolist = weechat.infolist_get('buffer', '', '')
      while weechat.infolist_next(infolist):
          pointer = weechat.infolist_pointer(infolist, 'pointer')
-@@ -342,14 +379,9 @@
+@@ -342,14 +383,14 @@
              full_name = '%s.%s' % (
                  weechat.infolist_string(infolist, 'plugin_name'),
                  weechat.infolist_string(infolist, 'name'))
@@ -102,11 +124,16 @@
 -        if len(strinput) == 0 or matching:
 +        # wee-slack prefixes a DM's short name with presence ("+", " ").
 +        all_names.add(re.sub(r'^\W+', '', short_name.lower()))
++        # A group DM is private too; its name joins the members with ",".
++        if people_only and (
++                weechat.buffer_get_string(pointer, 'localvar_type') != 'private'
++                or ',' in short_name):
++            continue
 +        if len(strinput) == 0 or _matching(name, number):
              listbuf.append({
                  'number': number,
                  'short_name': short_name,
-@@ -359,6 +391,16 @@
+@@ -359,6 +400,16 @@
              })
      weechat.infolist_free(infolist)
  
@@ -123,7 +150,18 @@
      # sort buffers
      hotlist = []
      infolist = weechat.infolist_get('hotlist', '', '')
-@@ -514,8 +556,7 @@
+@@ -485,7 +536,9 @@
+             buffers_pos = 0
+         old_input = new_input
+     names = go_buffers_to_string(buffers, buffers_pos, new_input.strip())
+-    return weechat.config_get_plugin('message') + string + names
++    message = ('Go to person: ' if people_only
++               else weechat.config_get_plugin('message'))
++    return message + string + names
+ 
+ 
+ def go_command_run_input(data, buf, command):
+@@ -514,8 +567,7 @@
          # switch to selected buffer (if any)
          go_end(buf)
          if len(buffers) > 0:

@@ -532,6 +532,7 @@ in
           # the way go.py already does when Tab cycles. go-people.patch adds
           # everyone in the Slack workspaces after the buffers (wee-slack's
           # slack_people info); Enter on a person opens the DM with /query.
+          # "/go -people" (Ctrl+Shift+K) lists only one-to-one DMs and people.
           (weechat-go.overrideAttrs (o: {
             installPhase = o.installPhase + ''
               substituteInPlace $out/share/go.py --replace-fail \

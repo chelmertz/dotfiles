@@ -54,6 +54,7 @@ import weechat as w
 HINTS = [
     [
         ("Ctrl+K", "channels, people"),
+        ("Ctrl+Shift+K", "people only"),
         ("Alt+A", "next unread"),
         ("+:emoji:", "react"),
         ("Ctrl+X", "nvim"),

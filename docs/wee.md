@@ -18,6 +18,7 @@ Electron Slack app for daily use; the app stays installed for huddles.
 | Key / command | Does |
 |---|---|
 | Ctrl+K | buffer picker, then everyone in the workspaces (type to filter, Enter picks: a person opens the DM; Esc cancels) |
+| Ctrl+Shift+K | the same, people only: one-to-one DMs and everyone in the workspaces, no channels or group DMs |
 | Alt+A | next buffer with unread activity; after the last, back to where you started; "nothing unread" in the bar when there is nowhere to go |
 | Alt+/ | back to the previous buffer (again: forward) |
 | Alt+← / Alt+→ (or Alt+< / Alt+>) | back / forward through visited buffers |

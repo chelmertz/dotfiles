@@ -184,6 +184,16 @@ script = ";".join([
     "/set plugins.var.python.go.people_info probe_people",
     "/buffer add yanbuf",
     "/mute /command -buffer core.yanbuf core /buffer set short_name +yan.person",
+    # Ctrl+Shift+K skips the channel and the group DM that also match "xu",
+    # though both sort before the DM in plain Ctrl+K.
+    "/buffer add xuchan",
+    "/mute /command -buffer core.xuchan core /buffer set short_name #xu-chan",
+    "/buffer add xugroup",
+    "/mute /command -buffer core.xugroup core /buffer set short_name @xu.person,zed.person",
+    "/mute /command -buffer core.xugroup core /buffer set localvar_set_type private",
+    "/buffer add xubuf",
+    "/mute /command -buffer core.xubuf core /buffer set short_name +xu.person",
+    "/mute /command -buffer core.xubuf core /buffer set localvar_set_type private",
 ])
 
 pid, fd = pty.fork()
@@ -279,6 +289,12 @@ pump(1)
 os.write(fd, b"yan")
 pump(1)
 os.write(fd, b"\t")
+pump(1)
+os.write(fd, b"\r")
+pump(1)
+os.write(fd, b"\x1bK")  # Ctrl+Shift+K, as ghostty sends it in the wee window
+pump(1)
+os.write(fd, b"xu")
 pump(1)
 os.write(fd, b"\r")
 pump(1)
@@ -554,6 +570,10 @@ if not any(l.endswith("\tQUERY=core.homeprobe /query zed.person") for l in log):
     failed = True
 if any("/query yan.person" in l for l in log):
     print("Ctrl+K listed a person a second time beside their DM buffer")
+    failed = True
+xu = [b for b in bufs if b.startswith("core.xu")]
+if xu != ["core.xubuf"]:
+    print("Ctrl+Shift+K on \"xu\" did not go to the one-to-one DM only:", xu)
     failed = True
 if not attached_shown:
     print("Ctrl+V with an image did not mark the input line")
