@@ -87,3 +87,26 @@ func TestUnattendedArgsNeverInheritTheUsersPermissions(t *testing.T) {
 		}
 	}
 }
+
+// elly's token routes take no token: anything that can reach localhost:9876
+// can swap or clear the user's GitHub token. A round reaches nothing but
+// its allow list, so the deny list naming curl, wget and WebFetch is what
+// keeps it off them; dontAsk alone would let an allow rule added later
+// through.
+func TestUnattendedRoundCannotReachElly(t *testing.T) {
+	flags := PolicyFlags(widgetsPR, "upstream")
+	deny := flags[slices.Index(flags, "--disallowedTools")+1:]
+	for _, tool := range []string{"Bash(curl *)", "Bash(wget *)", "WebFetch"} {
+		if !slices.Contains(deny, tool) {
+			t.Errorf("the round's deny list lacks %s", tool)
+		}
+	}
+	allow := flags[slices.Index(flags, "--allowedTools")+1 : slices.Index(flags, "--disallowedTools")]
+	for _, rule := range allow {
+		for _, reach := range []string{"curl", "wget", "WebFetch", "http://", "localhost", "nc ", "Bash(*)", "Bash(claude-review *)"} {
+			if strings.Contains(rule, reach) {
+				t.Errorf("the allow rule %q could reach elly (%q)", rule, reach)
+			}
+		}
+	}
+}
