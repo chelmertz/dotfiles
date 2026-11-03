@@ -22,6 +22,27 @@ let
     for table in font["cmap"].tables:
         if table.isUnicode():
             table.cmap = {0x2610: blank, 0x2611: checked, 0x2612: checked}
+    # The icons fill the whole 2048-unit em, descender included, and the font
+    # declares x-height and cap height as 0, so ghostty drew them at a fraction
+    # of a letter. Shrink them to a box centred on Go Mono's cap height inside
+    # its 1229-unit advance, and copy Go Mono's metrics so ghostty sizes this
+    # face like the primary one. Go Mono's numbers, read with fontTools.
+    from fontTools.pens.ttGlyphPen import TTGlyphPen
+    from fontTools.pens.transformPen import TransformPen
+    advance, size, cap_height, x_height, ascent, descent = 1229, 1180, 1480, 1086, 1935, 432
+    scale = size / 2048
+    dx, dy = (advance - size) // 2, (cap_height - size) // 2 + round(410 * scale)
+    glyphs = font.getGlyphSet()
+    for name in {blank, checked}:
+        pen = TTGlyphPen(glyphs)
+        glyphs[name].draw(TransformPen(pen, (scale, 0, 0, scale, dx, dy)))
+        font["glyf"][name] = pen.glyph()
+        font["hmtx"][name] = (advance, dx)
+    os2, hhea = font["OS/2"], font["hhea"]
+    os2.sxHeight, os2.sCapHeight, os2.xAvgCharWidth = x_height, cap_height, advance
+    os2.sTypoAscender, os2.sTypoDescender = ascent, -descent
+    os2.usWinAscent, os2.usWinDescent = ascent, descent
+    hhea.ascent, hhea.descent, hhea.advanceWidthMax = ascent, -descent, advance
     for rec in font["name"].names:
         if rec.nameID in (1, 4, 16):
             rec.string = "Ballot Nerd"
