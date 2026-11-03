@@ -24,14 +24,17 @@ let
             table.cmap = {0x2610: blank, 0x2611: checked, 0x2612: checked}
     # The icons fill the whole 2048-unit em, descender included, and the font
     # declares x-height and cap height as 0, so ghostty drew them at a fraction
-    # of a letter. Shrink them to a box centred on Go Mono's cap height inside
-    # its 1229-unit advance, and copy Go Mono's metrics so ghostty sizes this
-    # face like the primary one. Go Mono's numbers, read with fontTools.
+    # of a letter. Redraw them as a box exactly Go Mono's cap height, and copy
+    # Go Mono's metrics so ghostty sizes this face like the primary one. The
+    # box is wider than the 1229-unit cell: ghostty lets a symbol spill into a
+    # following blank cell and shrinks it to one cell otherwise, and a square
+    # inside one cell is only 80% of a capital. Go Mono's numbers, read with
+    # fontTools.
     from fontTools.pens.ttGlyphPen import TTGlyphPen
     from fontTools.pens.transformPen import TransformPen
-    advance, size, cap_height, x_height, ascent, descent = 1229, 1180, 1480, 1086, 1935, 432
-    scale = size / 2048
-    dx, dy = (advance - size) // 2, (cap_height - size) // 2 + round(410 * scale)
+    advance, cap_height, x_height, ascent, descent = 1229, 1480, 1086, 1935, 432
+    scale = cap_height / 2048
+    dx, dy = 24, round(410 * scale)
     glyphs = font.getGlyphSet()
     for name in {blank, checked}:
         pen = TTGlyphPen(glyphs)
