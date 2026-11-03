@@ -43,6 +43,12 @@ func TestParseTarget_RejectsAnythingElse(t *testing.T) {
 		"https://github.com/./widgets/pull/1",
 		"acme/.../3",
 		"claude-review://acme/widgets/12/extra",
+		// GitHub forbids a leading dash, and argv would read it as a flag
+		"-u/widgets/1",
+		"acme/-x/1",
+		"claude-review://--wait/widgets/1",
+		"https://github.com/-u/widgets/pull/1",
+		"https://github.com/acme/-x/pull/1",
 	} {
 		if _, err := ParseTarget(in); err == nil {
 			t.Errorf("%q: expected an error", in)

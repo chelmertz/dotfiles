@@ -21,6 +21,9 @@ claude-review slack [--dry-run] <pr>...   # lines to paste when pinging a review
 claude-review tick [--dry-run | --reset | --self-check]   # the unattended runner
 ```
 
+An owner or repo that starts with `-` or is only dots is refused in every
+form, since GitHub allows neither and argv would read the first as a flag.
+
 ## Goal and non-goals
 
 Make the review flow that works today by hand, in a terminal opened in the

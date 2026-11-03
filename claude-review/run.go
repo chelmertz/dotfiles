@@ -488,7 +488,7 @@ func fail(d Deps, err error) int {
 // default) invokes without a menu; it copies the clone command. Dismissed or
 // expired, notify-send prints nothing and nothing is copied.
 func notifyCopy(d Deps, nf *notFoundError) {
-	out, _ := d.Capture("", []string{"notify-send", "--action=default=Copy clone command", "claude-review", nf.notification(d.Home, true)})
+	out, _ := d.Capture("", []string{"notify-send", "--action=default=Copy clone command", "--", "claude-review", nf.notification(d.Home, true)})
 	if strings.TrimSpace(out) != "default" {
 		return
 	}

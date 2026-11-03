@@ -1,0 +1,19 @@
+# 2026/11/03 17:22:50.673678 [TestPropEveryFormParsesToTheSamePR] [rapid] draw owner: "-"
+# 2026/11/03 17:22:50.673688 [TestPropEveryFormParsesToTheSamePR] [rapid] draw repo: "-"
+# 2026/11/03 17:22:50.673691 [TestPropEveryFormParsesToTheSamePR] [rapid] draw n: 1
+# 2026/11/03 17:22:50.673696 [TestPropEveryFormParsesToTheSamePR] "https://github.com/-/-/pull/1" parsed to {Owner: Repo: Number:0}, claude-review: expected a GitHub PR URL, claude-review://owner/repo/number or owner/repo/number, got "https://github.com/-/-/pull/1"; want {Owner:- Repo:- Number:1}
+# 
+v0.4.8#11732522637113412629
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0

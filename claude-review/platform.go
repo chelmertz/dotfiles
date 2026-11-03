@@ -130,5 +130,7 @@ func notifyArgv(goos, title, body string) []string {
 	}
 	// html-escaped: a daemon that renders markup must show a PR's or a
 	// session's text as text, not restyle the card with it
-	return []string{"notify-send", html.EscapeString(title), html.EscapeString(body)}
+	// "--" ends the options: a body that starts with a dash (an owner in a
+	// link) stays the body
+	return []string{"notify-send", "--", html.EscapeString(title), html.EscapeString(body)}
 }

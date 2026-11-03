@@ -9,7 +9,8 @@ import (
 	"pgregory.net/rapid"
 )
 
-var nameGen = rapid.StringMatching(`[A-Za-z0-9._-]{1,20}`).Filter(func(s string) bool { return !allDots(s) })
+// GitHub names: no name of dots only, and no leading dash.
+var nameGen = rapid.StringMatching(`[A-Za-z0-9._-]{1,20}`).Filter(func(s string) bool { return !allDots(s) && !strings.HasPrefix(s, "-") })
 
 func TestPropEveryFormParsesToTheSamePR(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
@@ -67,7 +68,7 @@ func TestPropNothingParsedEverClimbsOrSplits(t *testing.T) {
 		if err != nil {
 			return
 		}
-		if !safe.MatchString(pr.Owner) || !safe.MatchString(pr.Repo) || allDots(pr.Owner) || allDots(pr.Repo) || pr.Number < 1 {
+		if !safe.MatchString(pr.Owner) || !safe.MatchString(pr.Repo) || allDots(pr.Owner) || allDots(pr.Repo) || strings.HasPrefix(pr.Owner, "-") || strings.HasPrefix(pr.Repo, "-") || pr.Number < 1 {
 			t.Fatalf("%q parsed to unsafe %+v", s, pr)
 		}
 	})

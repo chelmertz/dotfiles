@@ -144,3 +144,12 @@ func TestThunderbirdHostPassesNoVerbs(t *testing.T) {
 		}
 	}
 }
+
+// A flag-shaped owner never names a PR, verb or not.
+func TestParseVerbRefusesALeadingDash(t *testing.T) {
+	for _, in := range []string{"claude-review://-u/x/1/ignore", "claude-review://o/-t1/1/approve"} {
+		if _, _, _, ok := ParseVerb(in); ok {
+			t.Errorf("%q parsed", in)
+		}
+	}
+}

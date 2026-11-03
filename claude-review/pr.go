@@ -30,8 +30,9 @@ func ParseTarget(s string) (PR, error) {
 		if m == nil {
 			continue
 		}
-		if allDots(m[1]) || allDots(m[2]) {
-			// GitHub allows no such name, and in a gh api path it climbs.
+		if allDots(m[1]) || allDots(m[2]) || strings.HasPrefix(m[1], "-") || strings.HasPrefix(m[2], "-") {
+			// GitHub allows no such name: in a gh api path dots climb, and
+			// in an argv a leading dash reads as a flag.
 			break
 		}
 		n, err := strconv.Atoi(m[3])
