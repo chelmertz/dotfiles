@@ -73,7 +73,7 @@ const unresolvedThreadsQuery = `query($owner: String!, $repo: String!, $n: Int!)
 
 // RoundFacts is GitHub's account of a PR after round r.
 func (g GitHub) RoundFacts(pr PR, r Round) (RoundFacts, error) {
-	f := RoundFacts{CommitsSinceApproval: -1}
+	var f RoundFacts
 	p, err := g.pull(pr)
 	if err != nil {
 		return f, err
@@ -92,14 +92,6 @@ func (g GitHub) RoundFacts(pr PR, r Round) (RoundFacts, error) {
 	}
 	if f.UnresolvedUserThreads, err = g.unresolvedUserThreads(pr); err != nil {
 		return f, err
-	}
-	if f.UserReview != nil && f.UserReview.State == reviewApproved && f.UserReview.CommitID != "" {
-		var c struct {
-			AheadBy int `json:"ahead_by"`
-		}
-		if err := g.getJSON(&c, g.api(pr, "compare/%s...%s", f.UserReview.CommitID, f.Head)); err == nil {
-			f.CommitsSinceApproval = c.AheadBy
-		}
 	}
 	return f, nil
 }

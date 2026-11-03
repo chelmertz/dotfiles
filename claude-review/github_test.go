@@ -67,7 +67,6 @@ func TestGitHubRoundFacts(t *testing.T) {
 			{"id":14,"user":{"login":"me"},"in_reply_to_id":12,"created_at":"` + after + `"}]`,
 		"repos/acme/widgets/issues/42/comments": `[{"id":20,"user":{"login":"me"},"created_at":"` + after + `"}]`,
 		"graphql":                               `{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[{"isResolved":false,"comments":{"nodes":[{"author":{"login":"me"}}]}},{"isResolved":true,"comments":{"nodes":[{"author":{"login":"me"}}]}},{"isResolved":false,"comments":{"nodes":[{"author":{"login":"bob"}}]}}]}}}}}`,
-		"repos/acme/widgets/compare/h1...h2":    `{"status":"ahead","ahead_by":3}`,
 	}}
 	f, err := GitHub{Gh: g.run, User: "me"}.RoundFacts(widgetsPR, Round{Head: "h2", StartedAt: start})
 	if err != nil {
@@ -95,9 +94,6 @@ func TestGitHubRoundFacts(t *testing.T) {
 	// recorded; it is still the round's summary, the sign it finished.
 	if moved, err := (GitHub{Gh: g.run, User: "me"}).RoundFacts(widgetsPR, Round{Head: "h1", StartedAt: start}); err != nil || moved.RoundReviewURL != "r3" {
 		t.Errorf("summary on a newer head: %q %v", moved.RoundReviewURL, err)
-	}
-	if f.CommitsSinceApproval != 3 {
-		t.Errorf("commits since approval %d", f.CommitsSinceApproval)
 	}
 }
 

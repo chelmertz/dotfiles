@@ -214,9 +214,6 @@ type RoundFacts struct {
 	// RoundReviewURL is a review by the user's account posted since the round
 	// started, at any head (a push mid-round moves it): the round's summary.
 	RoundReviewURL string
-	// CommitsSinceApproval counts commits since the user's last approval,
-	// -1 when unknown or when there is none.
-	CommitsSinceApproval int
 }
 
 // Decision is what tick does with one finished round.
@@ -263,11 +260,7 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 		if f.UserReview != nil && f.UserReview.State == reviewApproved {
 			return Decision{Annotation: &Annotation{State: stateHandled, Note: "clean round; your approval stands", Links: summary()}}
 		}
-		note := "clean round at " + r.Head[:9]
-		if f.CommitsSinceApproval >= 0 {
-			note += fmt.Sprintf("; %d commits since your last approval", f.CommitsSinceApproval)
-		}
-		return Decision{MintFor: r.Head, Annotation: &Annotation{State: stateNeedsYou, Note: note, Links: summary(attach, ignore)}}
+		return Decision{MintFor: r.Head, Annotation: &Annotation{State: stateNeedsYou, Note: "clean round at " + r.Head[:9], Links: summary(attach, ignore)}}
 	// The summary is posted last, so it is what says the round finished.
 	case f.RoundReviewURL != "":
 		return Decision{Annotation: &Annotation{State: stateHandled, Note: "round posted its review", Links: summary()}}

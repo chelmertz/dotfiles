@@ -313,7 +313,7 @@ func TestTickCleanRoundGetsAWorkingApproveLink(t *testing.T) {
 	if _, err := w.h.ledger.db.Exec(`update rounds set head = ?`, full); err != nil {
 		t.Fatal(err)
 	}
-	w.gh.facts = RoundFacts{State: "open", Head: full, CommitsSinceApproval: -1}
+	w.gh.facts = RoundFacts{State: "open", Head: full}
 	w.gh.head = full
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
@@ -591,7 +591,7 @@ func TestTickARoundOverItsPostLimitStopsThatPR(t *testing.T) {
 		}
 	}
 	w.msgs[pr.RoundSessionID()] = "Clean. `! claude-review approve " + pr.URL() + " --at " + full + "`"
-	w.gh.facts = RoundFacts{State: "open", Head: full, CommitsSinceApproval: -1}
+	w.gh.facts = RoundFacts{State: "open", Head: full}
 	w.gh.head = full
 	w.elly.prs = []EllyPR{ellyPR(func(p *EllyPR) { p.Url = pr.URL(); p.HeadRefOid = "h9" })}
 	if err := w.h.tick(); err != nil {

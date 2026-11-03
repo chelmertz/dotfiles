@@ -64,18 +64,6 @@ func TestPlanTickDailyCapWindow(t *testing.T) {
 	}
 }
 
-func TestDecideCleanRoundCountsCommitsSinceApproval(t *testing.T) {
-	const head = "0123456789abcdef0123456789abcdef01234567"
-	r := Round{ID: 1, PR: widgetsPR.URL(), Head: head, StartedAt: t0}
-	o := Outcome{Kind: OutcomeApprove, PrURL: widgetsPR.URL(), SHA: head}
-	for n, want := range map[int]string{-1: "clean round at 012345678", 0: "clean round at 012345678; 0 commits since your last approval"} {
-		d := decide(r, o, RoundFacts{State: "open", Head: head, CommitsSinceApproval: n}, widgetsPR)
-		if d.Annotation == nil || d.Annotation.Note != want {
-			t.Errorf("%d commits: %+v, want note %q", n, d.Annotation, want)
-		}
-	}
-}
-
 func TestEllyClientTimesOut(t *testing.T) {
 	if got := (Elly{}).client().Timeout; got != 10*time.Second {
 		t.Errorf("timeout %v: a hung elly would hang tick", got)
@@ -94,7 +82,7 @@ func TestGitHubRoundFactsWithoutApproval(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f.CommitsSinceApproval != -1 || f.UnresolvedUserThreads != 0 {
+	if f.UserReview != nil || f.UnresolvedUserThreads != 0 {
 		t.Errorf("no approval, no author: %+v", f)
 	}
 }
