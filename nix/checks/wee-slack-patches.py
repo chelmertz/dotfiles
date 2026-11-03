@@ -482,6 +482,17 @@ if (asked != ["files.info"] or loading != "(Loading file...)"
     print("file stubs: asked=%s loading=%r shown=%r" % (asked, loading, shown))
     failed = True
 
+# App cards (weechat/wee-slack-appcards.patch): app_unfurls false drops the
+# card GitHub adds to a PR link and keeps a website preview.
+wee_slack.config = mock.MagicMock(link_previews=True, app_unfurls=False, colorize_attachments="none")
+cards = wee_slack.unwrap_attachments(types.SimpleNamespace(message_json={"attachments": [
+    {"is_app_unfurl": True, "title": "fix(padelboard): unwrap finishAction", "from_url": "https://github.com/o/r/pull/1"},
+    {"original_url": "https://a.example", "title": "A website", "from_url": "https://a.example"},
+]}), "")
+if "unwrap finishAction" in cards or "A website" not in cards:
+    print("app cards: rendered %r" % cards)
+    failed = True
+
 if head != ["query", "on-screen"]:
     print("foreground requests not at the head of the waiting list:", head)
     failed = True

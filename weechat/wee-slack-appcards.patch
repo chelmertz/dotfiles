@@ -1,0 +1,25 @@
+--- a/wee_slack.py
++++ b/wee_slack.py
+@@ -5131,6 +5131,10 @@
+                 "original_url" in attachment or attachment.get("is_app_unfurl")
+             ):
+                 continue
++            # Cards apps add to a link (GitHub PRs, Jira issues) go on their
++            # own, so website previews can stay.
++            if not config.app_unfurls and attachment.get("is_app_unfurl"):
++                continue
+             t = []
+             prepend_title_text = ""
+             if "author_name" in attachment:
+@@ -7031,6 +7035,11 @@
+             desc="The number of messages to fetch for each channel when fetching"
+             " history, between 1 and 1000.",
+         ),
++        "app_unfurls": Setting(
++            default="true",
++            desc="Show the cards apps such as GitHub add to links. link_previews"
++            " false hides these as well.",
++        ),
+         "link_previews": Setting(
+             default="true", desc="Show previews of website content linked by teammates."
+         ),
