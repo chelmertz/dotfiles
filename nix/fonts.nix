@@ -1,9 +1,42 @@
 { lib, pkgs, ... }:
+let
+  # Claude Code's question tabs print U+2610/U+2612, which every installed
+  # font draws as a small or thin box. ghostty's font-codepoint-map picks a
+  # font per code point, not a glyph, so the Material checkboxes in Symbols
+  # Nerd Font (U+F0131 blank, U+F0132 checked) have to be copied onto the
+  # ballot-box code points in a font of their own.
+  ballot-nerd = pkgs.runCommand "ballot-nerd-font" {
+    nativeBuildInputs = [ (pkgs.python3.withPackages (ps: [ ps.fonttools ])) ];
+  } ''
+    mkdir -p $out/share/fonts/truetype
+    python3 - ${pkgs.nerd-fonts.symbols-only}/share/fonts/truetype/NerdFonts/Symbols/SymbolsNerdFontMono-Regular.ttf $out/share/fonts/truetype/BallotNerd.ttf <<'EOF'
+    import sys
+    from fontTools.ttLib import TTFont
+    from fontTools.subset import Subsetter
+    font = TTFont(sys.argv[1])
+    cmap = font.getBestCmap()
+    blank, checked = cmap[0xF0131], cmap[0xF0132]
+    sub = Subsetter()
+    sub.populate(unicodes=[0xF0131, 0xF0132])
+    sub.subset(font)
+    for table in font["cmap"].tables:
+        if table.isUnicode():
+            table.cmap = {0x2610: blank, 0x2611: checked, 0x2612: checked}
+    for rec in font["name"].names:
+        if rec.nameID in (1, 4, 16):
+            rec.string = "Ballot Nerd"
+        elif rec.nameID == 6:
+            rec.string = "BallotNerd-Regular"
+    font.save(sys.argv[2])
+    EOF
+  '';
+in
 {
   fonts.fontconfig.enable = true;
 
   home.packages = with pkgs; [
     font-manager
+    ballot-nerd
 
     # Chromium resolves the CSS generics (sans-serif, serif, monospace) through
     # preferences naming Arial, Times New Roman and Courier New, and then
