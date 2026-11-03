@@ -13,6 +13,14 @@ import (
 // the user again within this time.
 const annotationTTL = 30 * time.Minute
 
+// roundLifetime is how long after its launch elly shows a round as
+// running. Settling the round replaces the row long before this; it only
+// matters when nothing settles it, a tick that stopped running. The
+// longest recorded round (testdata/rounds/008) posted last 82 minutes after
+// its start. running scores nothing in elly, so a row that outlives a dead
+// round hides no PR.
+const roundLifetime = 2 * time.Hour
+
 // tickElly is what tick needs from elly.
 type tickElly interface {
 	PRs() ([]EllyPR, error)
@@ -320,7 +328,13 @@ func (h tickHost) apply(pr PR, r Round, d Decision, retry bool) (bool, error) {
 		started := false
 		err := h.do("retry "+pr.Slug(), func() error {
 			var err error
-			started, err = h.launch(pr, nil, func(time.Time) error { return h.ledger.MarkRetried(r.ID) })
+			started, err = h.launch(pr, nil, func(at time.Time) error {
+				if err := h.ledger.MarkRetried(r.ID); err != nil {
+					return err
+				}
+				h.markRunningOrSay(pr, "tick (retry)", at)
+				return nil
+			})
 			return err
 		})
 		return started || h.dry, err
@@ -435,12 +449,50 @@ func (h tickHost) startOne(p Planned, running int) (bool, error) {
 	err = h.do(fmt.Sprintf("start a round on %s at %.9s (%s)", p.PR.Slug(), p.Head, p.Trigger), func() error {
 		var err error
 		started, err = h.launch(p.PR, func() error { return h.settleUnread(p.PR) }, func(at time.Time) error {
-			_, err := h.ledger.StartRound(p.PR, p.Head, p.Trigger, at)
-			return err
+			if _, err := h.ledger.StartRound(p.PR, p.Head, p.Trigger, at); err != nil {
+				return err
+			}
+			h.markRunningOrSay(p.PR, "tick", at)
+			return nil
 		})
 		return err
 	})
 	return started || h.dry, err
+}
+
+// markRunning shows pr's just-recorded round in elly at once, with an
+// attach link, until settling it writes the outcome or roundLifetime after
+// at runs out. by names who started it. mark never notifies for it.
+func (h tickHost) markRunning(pr PR, by string, at time.Time) error {
+	a := Annotation{State: stateRunning, Note: "started by " + by,
+		Links: []Link{{Label: "Attach", URL: verbURL(pr, "attach")}}, Expires: at.Add(roundLifetime)}
+	if err := h.mark(pr, a); err != nil || h.elly == nil {
+		return err
+	}
+	return h.do("send "+pr.Slug()+" to elly", func() error { return h.elly.Put(pr.URL(), a, a.Expires) })
+}
+
+// markRunningOrSay is markRunning for a round already started: a failure
+// to show it is reported, never the round's failure.
+func (h tickHost) markRunningOrSay(pr PR, by string, at time.Time) {
+	if err := h.markRunning(pr, by, at); err != nil && h.out != nil {
+		fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.Slug(), err)
+	}
+}
+
+// dropRunning clears pr's running row after a launch failed: the round it
+// stood for is over, and no new one started.
+func (h tickHost) dropRunning(pr PR) error {
+	a, ok, err := h.ledger.Annotation(pr)
+	if err != nil || !ok || a.State != stateRunning {
+		return err
+	}
+	return h.do("clear "+pr.Slug(), func() error {
+		if err := h.ledger.ClearAnnotation(pr); err != nil || h.elly == nil {
+			return err
+		}
+		return h.elly.Delete(pr.URL())
+	})
 }
 
 func (h tickHost) markWindow(pr PR) error {
@@ -494,10 +546,18 @@ func (h tickHost) gateNote(p Planned) (*Annotation, error) {
 // tripped until the user resets it, so a loop that keeps starting rounds
 // stops at the cap even after the window moves on. settle reads the PR's
 // last round before its idle worker is stopped. The caller holds the lock.
-func (h tickHost) launch(pr PR, settle func() error, record func(at time.Time) error) (bool, error) {
+func (h tickHost) launch(pr PR, settle func() error, record func(at time.Time) error) (started bool, err error) {
 	if h.dry {
 		return false, errors.New("refusing to start a round in a dry run")
 	}
+	defer func() {
+		if err == nil {
+			return
+		}
+		if dropErr := h.dropRunning(pr); dropErr != nil && h.out != nil {
+			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.Slug(), dropErr)
+		}
+	}()
 	reason, err := h.ledger.Tripped()
 	if err != nil || reason != "" {
 		return false, errors.Join(err, breakerError(reason))
@@ -554,6 +614,21 @@ func (h tickHost) afterRelaunch(pr PR, res RelaunchResult, stopErr error, record
 	return false, nil // busy: a round still runs there
 }
 
+// refreshedExpiry is when a re-sent a expires: annotationTTL from now, or
+// its own expiry, never extended, so a round nothing settles stops showing
+// as running. Zero means that has passed; send is false while too little of
+// it is left for elly to accept, and elly's copy ends then anyway.
+func (h tickHost) refreshedExpiry(a Annotation) (expires time.Time, send bool) {
+	if a.Expires.IsZero() {
+		return h.now().Add(annotationTTL), true
+	}
+	left := a.Expires.Sub(h.now())
+	if left <= 0 {
+		return time.Time{}, false
+	}
+	return a.Expires, left >= time.Minute
+}
+
 // refresh re-sends every live annotation with a fresh expiry, and drops one
 // only on positive evidence: the PR is closed, or the user's own approval
 // stands at its head. A PR missing from elly is not evidence.
@@ -571,6 +646,14 @@ func (h tickHost) refresh() error {
 			h.clearOrSay(pr)
 			continue
 		}
+		expires, send := h.refreshedExpiry(a)
+		if expires.IsZero() {
+			h.clearOrSay(pr)
+			continue
+		}
+		if !send {
+			continue
+		}
 		state, head, user, err := h.gh.Standing(pr)
 		if err != nil {
 			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.Slug(), err)
@@ -580,7 +663,7 @@ func (h tickHost) refresh() error {
 			h.clearOrSay(pr)
 			continue
 		}
-		if err := h.do("send "+pr.Slug()+" to elly", func() error { return h.elly.Put(url, a, h.now().Add(annotationTTL)) }); err != nil {
+		if err := h.do("send "+pr.Slug()+" to elly", func() error { return h.elly.Put(url, a, expires) }); err != nil {
 			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.Slug(), err)
 		}
 	}

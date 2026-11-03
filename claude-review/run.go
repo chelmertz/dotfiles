@@ -249,19 +249,33 @@ func backgroundClick(d Deps, cfg Config, pr PR, dir, remote, head string) int {
 		}
 		return newTickHost(d, cfg, l, user).settleUnread(pr)
 	}
+	// No out: a click reports through its notification, and the running
+	// row's own failures through say.
+	h := tickHost{ledger: l, elly: Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile()}}
+	say := func(err error) {
+		if err != nil {
+			fmt.Fprintf(d.Stderr, "claude-review: %s: %v\n", pr.Slug(), err)
+		}
+	}
 	at := time.Now()
 	res, err := clickStarter(d, cfg).start(cfg, pr, dir, remote, false, settle)
 	if err != nil && res.Kind != relaunchDuplicate {
+		say(h.dropRunning(pr))
 		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.Slug(), err))
 	}
-	h := tickHost{ledger: l}
 	started, err := h.afterRelaunch(pr, res, err, func() error {
 		if head == "" {
-			return nil
+			return nil // nothing recorded, so nothing would settle a running row
 		}
-		_, err := l.StartRound(pr, head, clickTrigger(at), at)
-		return err
+		if _, err := l.StartRound(pr, head, clickTrigger(at), at); err != nil {
+			return err
+		}
+		say(h.markRunning(pr, "a click", at))
+		return nil
 	})
+	if err != nil {
+		say(h.dropRunning(pr))
+	}
 	return clickOutcome(d, pr, res, started, err)
 }
 

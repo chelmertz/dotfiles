@@ -11,10 +11,13 @@ import (
 )
 
 type fakeElly struct {
-	prs     []EllyPR
-	down    bool
-	putErr  error
+	prs    []EllyPR
+	down   bool
+	putErr error
+	// reject refuses one state, as an elly that predates it does.
+	reject  string
 	put     map[string]Annotation
+	expires map[string]time.Time
 	deleted []string
 }
 
@@ -24,11 +27,18 @@ func (e *fakeElly) PRs() ([]EllyPR, error) {
 	}
 	return e.prs, nil
 }
-func (e *fakeElly) Put(u string, a Annotation, _ time.Time) error {
+func (e *fakeElly) Put(u string, a Annotation, exp time.Time) error {
 	if e.putErr != nil {
 		return e.putErr
 	}
+	if e.reject != "" && a.State == e.reject {
+		return errors.New("elly: 400 Bad Request state must be handled or needs_you")
+	}
 	e.put[u] = a
+	if e.expires == nil {
+		e.expires = map[string]time.Time{}
+	}
+	e.expires[u] = exp
 	return nil
 }
 func (e *fakeElly) Delete(u string) error { e.deleted = append(e.deleted, u); return nil }

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite" // the ledger's driver, pure Go
@@ -27,7 +28,7 @@ create table if not exists rounds (
 	id integer primary key, pr text not null, head text not null, trigger text not null,
 	started_at integer not null, read_at integer, retries integer not null default 0);
 create table if not exists tokens (token text primary key, pr text not null, sha text not null, used integer not null default 0);
-create table if not exists annotations (pr text primary key, state text not null, note text not null, links text not null);
+create table if not exists annotations (pr text primary key, state text not null, note text not null, links text not null, expires integer not null default 0);
 create table if not exists posts (pr text not null, head text not null, slot text not null, n integer not null, primary key (pr, head, slot));
 create table if not exists post_refusals (pr text not null, at integer not null);
 create table if not exists meta (key text primary key, value text not null);
@@ -51,6 +52,12 @@ func OpenLedger(path string) (*Ledger, error) {
 		return nil, fmt.Errorf("open ledger: %w", err)
 	}
 	if _, err := db.Exec(ledgerSchema); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("ledger schema: %w", err)
+	}
+	// "create table if not exists" adds no column to a ledger from before
+	// it; on every later open the duplicate is the expected no-op.
+	if _, err := db.Exec(`alter table annotations add column expires integer not null default 0`); err != nil && !strings.Contains(err.Error(), "duplicate column") {
 		_ = db.Close()
 		return nil, fmt.Errorf("ledger schema: %w", err)
 	}
@@ -278,6 +285,9 @@ type Annotation struct {
 	State string
 	Note  string
 	Links []Link
+	// Expires is when elly stops showing it. Zero means refresh keeps it
+	// alive: every tick re-sends it for another annotationTTL.
+	Expires time.Time
 }
 
 type Link struct {
@@ -288,6 +298,7 @@ type Link struct {
 const (
 	stateHandled  = "handled"
 	stateNeedsYou = "needs_you"
+	stateRunning  = "running"
 )
 
 func (l *Ledger) SetAnnotation(pr PR, a Annotation) error {
@@ -295,7 +306,11 @@ func (l *Ledger) SetAnnotation(pr PR, a Annotation) error {
 	if err != nil {
 		return err
 	}
-	_, err = l.db.Exec(`replace into annotations (pr, state, note, links) values (?, ?, ?, ?)`, pr.URL(), a.State, a.Note, string(links))
+	var expires int64
+	if !a.Expires.IsZero() {
+		expires = a.Expires.Unix()
+	}
+	_, err = l.db.Exec(`replace into annotations (pr, state, note, links, expires) values (?, ?, ?, ?, ?)`, pr.URL(), a.State, a.Note, string(links), expires)
 	return err
 }
 
@@ -316,7 +331,7 @@ func (l *Ledger) ClearAnnotation(pr PR) error {
 
 // Annotations are the live annotations by PR URL, re-sent on every tick.
 func (l *Ledger) Annotations() (map[string]Annotation, error) {
-	rows, err := l.db.Query(`select pr, state, note, links from annotations`)
+	rows, err := l.db.Query(`select pr, state, note, links, expires from annotations`)
 	if err != nil {
 		return nil, err
 	}
@@ -324,9 +339,13 @@ func (l *Ledger) Annotations() (map[string]Annotation, error) {
 	out := map[string]Annotation{}
 	for rows.Next() {
 		var pr, links string
+		var expires int64
 		var a Annotation
-		if err := rows.Scan(&pr, &a.State, &a.Note, &links); err != nil {
+		if err := rows.Scan(&pr, &a.State, &a.Note, &links, &expires); err != nil {
 			return nil, err
+		}
+		if expires != 0 {
+			a.Expires = time.Unix(expires, 0).UTC()
 		}
 		if err := json.Unmarshal([]byte(links), &a.Links); err != nil {
 			return nil, err

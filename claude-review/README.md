@@ -530,7 +530,7 @@ the real adapter and `tick` over it with every writer faked.
 
 elly becomes the review inbox: claude-review runs rounds unattended and marks
 each PR in elly as handled or needing the user, with Approve and Open-session
-links.
+links, and as running while a round is live.
 
 ### Problem
 
@@ -700,6 +700,14 @@ claude-review alone. It holds:
      none appears in a minute, mark the PR `needs_you` and record nothing.
      A second worker for the id, or a fork of it, is stopped, the PR marked
      `needs_you`, and the breaker tripped;
+   - once the round is recorded, mark the PR `running`, "started by tick"
+     (or "tick (retry)", or "a click" for a click's round), with an Attach
+     link, and send it to elly at once. It expires `roundLifetime` (2 hours)
+     after the launch and is never extended: the longest recorded round
+     posted last 82 minutes in, and settling replaces the row long before
+     unless ticks stopped. A failed send is logged and the round runs on;
+     an elly from before `running` refuses it with a 400 the same way. A
+     launch that fails clears a `running` row left by the PR's last round;
    - a live session for the round session's id that is no worker's (a
      window someone opened on it with `claude --resume`) starts nothing and
      marks the PR `needs_you` "review window open; close it to let rounds
@@ -712,7 +720,8 @@ claude-review alone. It holds:
 8. For every other round the ledger started and has not marked read, decide the
    outcome from GitHub and the ledger, never from the session's text alone
    (next section). Mark it read.
-9. Re-send every live annotation with a fresh expiry. Delete one only on
+9. Re-send every live annotation with a fresh expiry, except `running`,
+   which keeps its own and is dropped once that has passed. Delete one only on
    positive evidence: the user's own approval stands at the current head, or
    GitHub reports the PR merged or closed. A PR missing from one elly read is
    not evidence; its annotation expires instead.
@@ -915,7 +924,7 @@ every fetch and a column there would be wiped every 5 minutes.
 create table if not exists annotations (
     pr_url     text not null,
     source     text not null,
-    state      text not null check (state in ('handled', 'needs_you')),
+    state      text not null check (state in ('handled', 'needs_you', 'running')),
     note       text not null default '',
     links      text not null default '[]',
     expires_at text not null,
@@ -946,6 +955,7 @@ The links claude-review writes:
 | --- | --- | --- |
 | Approve | the checks under "Reading a round's outcome" pass | `claude-review://<owner>/<repo>/<n>/approve?at=<sha>&token=<t>` |
 | Open session | question line, failed round | `claude-review://<owner>/<repo>/<n>/attach` |
+| Attach | every `running` row | `claude-review://<owner>/<repo>/<n>/attach` |
 | Ignore | every `needs_you` row | `claude-review://<owner>/<repo>/<n>/ignore` |
 | Round summary | every finished round | `https://github.com/<owner>/<repo>/pull/<n>#pullrequestreview-<id>` |
 
@@ -958,7 +968,7 @@ on render.
 | --- | --- |
 | `prUrl` | a PR elly currently lists, else 404 |
 | `source` | 1–40 characters of `[a-z0-9-]` |
-| `state` | `handled` or `needs_you` |
+| `state` | `handled`, `needs_you` or `running` |
 | `note` | at most 200 characters, plain text |
 | `links` | at most 4, each exactly `{label, url}` |
 | `label` | at most 40 characters, plain text |
@@ -986,6 +996,8 @@ or reviewer-less own PR keeps counting until it is closed or shipped.
   everything on the user; the row stays visible with its note.
 - `needs_you`: the PR counts and sorts as on the user even when elly scores it
   0, for example a clean round on a PR elly sees as waiting on the author.
+- `running`: shown, and scores nothing: the PR counts exactly as it would
+  without it, so a row that outlives a dead round hides nothing.
 - Two sources disagreeing: `needs_you` wins.
 - An expired annotation is ignored, so a dead runner fails toward showing more
   PRs, never fewer.
@@ -997,7 +1009,9 @@ for its clicks' results, a failed self-check, and every `needs_you` it sets
 ("<url> needs you: <note>"): a question, a clean round with its Approve link,
 a paused PR, a PR that changed under its first look, a window or worker in
 the way. One notification per change of state or note, so a gate tick sees
-again every five minutes notifies once.
+again every five minutes notifies once. `running` never notifies, and it
+counts as a change: a round that ends on the same `needs_you` note as the
+one before it notifies again.
 
 On each fetch elly compares every PR's point reasons with the previous fetch.
 A PR that gains one of the reasons below gets one desktop notification: the PR

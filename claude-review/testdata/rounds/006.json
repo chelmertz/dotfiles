@@ -14,8 +14,8 @@
   },
   "happened": "Unattended round started by mistake on an open PR: head unchanged, no replies, posted nothing. Its prompt predates the nothing line, so tick cannot tell it from a failed round and retries once.",
   "want": {
-    "annotation": "",
-    "note": "",
+    "annotation": "running",
+    "note": "started by tick (retry)",
     "retry": true,
     "dismiss": false
   }
