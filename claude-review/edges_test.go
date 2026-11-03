@@ -407,3 +407,22 @@ func TestMarkRunningOrSayReportsAFailedSend(t *testing.T) {
 		t.Errorf("out %q", w.out.String())
 	}
 }
+
+// An escape that does not advance loops forever while the word grows, and a
+// mutation run then hangs until memory runs out. edges_test.go sorts before
+// platform_test.go, so this watchdog ends the test binary first.
+func TestSplitWordsEscapeReturns(t *testing.T) {
+	done := make(chan []string, 1)
+	go func() {
+		words, _ := splitWords(`a\ b`)
+		done <- words
+	}()
+	select {
+	case words := <-done:
+		if !slices.Equal(words, []string{"a b"}) {
+			t.Errorf("got %q", words)
+		}
+	case <-time.After(2 * time.Second):
+		panic("splitWords did not return on an escaped space")
+	}
+}

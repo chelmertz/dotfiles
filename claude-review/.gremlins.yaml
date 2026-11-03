@@ -10,5 +10,5 @@
 # survivor takes efficacy under the threshold.
 unleash:
   threshold:
-    efficacy: 99.3
-    mutant-coverage: 90.9
+    efficacy: 99.4
+    mutant-coverage: 91.2
