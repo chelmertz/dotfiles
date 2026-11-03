@@ -27,7 +27,8 @@ type TickConfig struct {
 	ReviewRepos []string
 	// User is the GitHub login the rounds post as.
 	User string
-	// DailyCap is how many rounds one PR may start in 24 hours.
+	// DailyCap is how many rounds one PR may start in 24 hours; 0 is no
+	// cap (LoadConfig makes an unset one 6).
 	DailyCap int
 	// MaxRunning is how many rounds may run at once.
 	MaxRunning int

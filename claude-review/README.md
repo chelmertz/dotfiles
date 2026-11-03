@@ -1139,7 +1139,7 @@ rounds is `review_repos`.
 go test -cover ./...      # 90.6% of statements on 2026-10-31
 golangci-lint run ./...
 make props-long           # the rapid property tests, 10000 cases each
-make mutate               # gremlins, one worker
+make mutate               # gremlins, one worker; fails under .gremlins.yaml's thresholds
 ```
 
 The last two are slow, so `.github/workflows/claude-review-slow-tests.yml`

@@ -13,8 +13,8 @@ permissions: {}
 jobs:
   slow-tests:
     runs-on: ubuntu-latest
-    # A local run took 32 minutes with one worker.
-    timeout-minutes: 90
+    # Local runs with one worker took 33 to 76 minutes on 2026-11-03.
+    timeout-minutes: 120
     permissions:
       contents: read
     defaults:

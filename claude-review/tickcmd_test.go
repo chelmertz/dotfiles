@@ -145,6 +145,9 @@ func TestClickRequestsTheUsersOwnReview(t *testing.T) {
 			if got := len(requested) == 1 && requested[0] == want; got != c.want {
 				t.Errorf("requested %q, want a request: %v", requested, c.want)
 			}
+			if strings.Contains(h.stderr.String(), "could not add you") {
+				t.Errorf("a request that went through reported a failure: %q", h.stderr)
+			}
 		})
 	}
 }

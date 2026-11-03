@@ -1,0 +1,14 @@
+# Read by `make mutate`. The thresholds live here because gremlins v0.6.0
+# ignores --threshold-efficacy and --threshold-mcover: viper hands the bound
+# float flag back as a string, the typed lookup turns that into 0, and 0
+# disables the check. The run fails when a value is at or below its
+# threshold, so each sits just under the last measured run.
+#
+# Efficacy is below 100 because five surviving mutants are equivalent: a
+# boundary on a monotonic id or on time.Since, which never lands exactly on
+# the limit, and guards whose other branch reaches the same result. One new
+# survivor takes efficacy under the threshold.
+unleash:
+  threshold:
+    efficacy: 99.3
+    mutant-coverage: 90.9

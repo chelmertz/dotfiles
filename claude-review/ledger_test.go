@@ -215,8 +215,8 @@ func TestLedgerDiffBase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if base, _, _ := l.DiffBase(widgetsPR); base != "h1" {
-		t.Errorf("after a read round: %q", base)
+	if base, ok, _ := l.DiffBase(widgetsPR); base != "h1" || !ok {
+		t.Errorf("after a read round: %q %v", base, ok)
 	}
 	if err := l.MarkRead(id2); err != nil {
 		t.Fatal(err)
