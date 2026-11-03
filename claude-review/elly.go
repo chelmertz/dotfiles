@@ -47,6 +47,11 @@ func (e Elly) PRs() ([]EllyPR, error) {
 	return prs, nil
 }
 
+// annotationURL names the PR by its URL in standard, padded base64. elly
+// decodes that and the URL-safe alphabet both (decodePrId in its
+// internal/server/server.go). A ParseTarget URL is GitHub's name characters
+// only, whose standard encoding never holds "/" or "+", so it stays one
+// path segment.
 func (e Elly) annotationURL(prURL string) string {
 	return e.Base + "/api/v0/prs/" + base64.StdEncoding.EncodeToString([]byte(prURL)) + "/annotations/" + annotationSource
 }
