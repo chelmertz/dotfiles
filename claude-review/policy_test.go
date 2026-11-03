@@ -19,7 +19,7 @@ func TestUnattendedArgsArePinned(t *testing.T) {
 		"--allowedTools",
 		"Read(./**)", "Grep(./**)", "Glob(./**)",
 		"Read(~/.claude/projects/*/" + id + "/tool-results/**)",
-		"Bash(gh pr view 42)", "Bash(gh pr diff 42)",
+		"Bash(gh pr view 42 -R acme/widgets)", "Bash(gh pr diff 42 -R acme/widgets)",
 		"Bash(git fetch upstream pull/42/head)", "Bash(git rev-parse FETCH_HEAD)",
 		"Bash(claude-review threads https://github.com/acme/widgets/pull/42)",
 		"Bash(claude-review show https://github.com/acme/widgets/pull/42 *)",
@@ -69,7 +69,7 @@ func TestRoundSessionIDIsVersioned(t *testing.T) {
 	if got := widgetsPR.RoundSessionID(); got != uuidV5(urlNamespace, widgetsPR.URL()+" round-policy "+policyVersion) || got == widgetsPR.SessionID() {
 		t.Errorf("round session id %s", got)
 	}
-	if policyVersion != "3" {
+	if policyVersion != "4" {
 		t.Errorf("policyVersion %q: the literal here moves with it", policyVersion)
 	}
 }

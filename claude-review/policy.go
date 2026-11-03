@@ -28,10 +28,10 @@ const unattendedRules = "\n\nThis round runs unattended, and a command it is not
 // is part of the session id (PR.RoundSessionID). Bump it whenever
 // PolicyFlags changes; TestUnattendedArgsArePinned fails until
 // pinnedPolicyFingerprint matches the new flags.
-const policyVersion = "3"
+const policyVersion = "4"
 
 // pinnedPolicyFingerprint is policyFingerprint() for policyVersion.
-const pinnedPolicyFingerprint = "35d4aac1ebc62a87"
+const pinnedPolicyFingerprint = "21ff70331863aa72"
 
 // PolicyFlags is the round policy. It inherits nothing from the user's own
 // Claude Code setup: no settings file at all (the user's run in auto mode
@@ -63,7 +63,9 @@ func policyFlags(pr PR, remote, id string) []string {
 		// Scoped to this session: checked live 2026-11-01, another id's
 		// file is refused.
 		"Read(~/.claude/projects/*/" + id + "/tool-results/**)",
-		"Bash(gh pr view " + n + ")", "Bash(gh pr diff " + n + ")",
+		// -R names the PR's repository: a bare number is the clone's default
+		// repository's PR, another one in a fork-style clone.
+		"Bash(gh pr view " + n + " -R " + pr.Owner + "/" + pr.Repo + ")", "Bash(gh pr diff " + n + " -R " + pr.Owner + "/" + pr.Repo + ")",
 		"Bash(git fetch " + remote + " pull/" + n + "/head)", "Bash(git rev-parse FETCH_HEAD)",
 		threadsRule(pr),
 	}

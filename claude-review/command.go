@@ -5,13 +5,15 @@ import (
 	"strings"
 )
 
-// defaultPrompt is the first-round review prompt. {url}, {number} and
-// {remote} (the clone's remote that points at the PR's repository) are
-// filled in. The read-only rules are part of the prompt because the clone
+// defaultPrompt is the first-round review prompt. {url}, {number}, {repo}
+// (owner/repo) and {remote} (the clone's remote that points at the PR's
+// repository) are filled in. Every gh command names the repo with -R: gh
+// resolves a bare number against the clone's default repository, which in a
+// fork-style clone is another repository's PR. The read-only rules are part of the prompt because the clone
 // may be someone's live work.
 const defaultPrompt = `Perform an adversarial code review of {url}.
 
-Work read-only against this checkout: do not check out, switch branch, stash, reset or edit anything in the working tree. Get the PR itself from GitHub: ` + "`gh pr view {number}`, `gh pr diff {number}`, and `git fetch {remote} pull/{number}/head` followed by `claude-review show {url} <path>` or `claude-review grep {url} <text>`" + ` for file contents at the PR head. Use this repository for context.
+Work read-only against this checkout: do not check out, switch branch, stash, reset or edit anything in the working tree. Get the PR itself from GitHub: ` + "`gh pr view {number} -R {repo}`, `gh pr diff {number} -R {repo}`, and `git fetch {remote} pull/{number}/head` followed by `claude-review show {url} <path>` or `claude-review grep {url} <text>`" + ` for file contents at the PR head. Use this repository for context.
 
 ` + deferralRule + `
 
@@ -49,7 +51,7 @@ const (
 )
 
 func fill(pr PR, remote, s string) string {
-	return strings.NewReplacer("{url}", pr.URL(), "{number}", fmt.Sprint(pr.Number), "{remote}", remote).Replace(s)
+	return strings.NewReplacer("{url}", pr.URL(), "{number}", fmt.Sprint(pr.Number), "{repo}", pr.Owner+"/"+pr.Repo, "{remote}", remote).Replace(s)
 }
 
 // BuildPrompt assembles the prompt for one click. remote is the clone's

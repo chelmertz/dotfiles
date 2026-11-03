@@ -183,14 +183,14 @@ func runDiff(args []string, r prReader, stdout, stderr io.Writer) int {
 		return readFail("diff", err, stderr)
 	}
 	if !found || !fullSHA.MatchString(base) {
-		return readFail("diff", fmt.Errorf("no earlier round on this PR; use `gh pr diff %d`", pr.Number), stderr)
+		return readFail("diff", fmt.Errorf("no earlier round on this PR; use `gh pr diff %d -R %s/%s`", pr.Number, pr.Owner, pr.Repo), stderr)
 	}
 	head, err := r.checkout(pr)
 	if err != nil {
 		return readFail("diff", err, stderr)
 	}
 	if _, err := r.git("merge-base", "--is-ancestor", base, head); err != nil {
-		return readFail("diff", fmt.Errorf("the PR was rewritten since %s, the head of the last round; use `gh pr diff %d`", base, pr.Number), stderr)
+		return readFail("diff", fmt.Errorf("the PR was rewritten since %s, the head of the last round; use `gh pr diff %d -R %s/%s`", base, pr.Number, pr.Owner, pr.Repo), stderr)
 	}
 	log, err := r.git("log", "--no-color", "--no-show-signature", "--format=%H %s", base+".."+head)
 	if err != nil {

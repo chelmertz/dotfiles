@@ -91,7 +91,7 @@ func TestDiffOnlyAlongThePRsHistory(t *testing.T) {
 	}
 	for name, base := range map[string]string{"a side branch": r.side, "no earlier round": "", "a ref, not a sha": "HEAD~1"} {
 		code, out, errb := read(t, "diff", r.reader(base), prURL)
-		if code != 1 || out != "" || strings.Contains(errb, "hunter2") || !strings.Contains(errb, "gh pr diff 42") {
+		if code != 1 || out != "" || strings.Contains(errb, "hunter2") || !strings.Contains(errb, "gh pr diff 42 -R acme/widgets") {
 			t.Errorf("%s: code %d out %q stderr %q", name, code, out, errb)
 		}
 	}

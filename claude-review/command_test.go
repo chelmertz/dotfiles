@@ -22,7 +22,8 @@ func TestBuildPrompt_FirstRoundDefault(t *testing.T) {
 	got := BuildPrompt(Config{}, testPR, "origin", false)
 	for _, want := range []string{
 		"adversarial code review of https://github.com/acme/widgets/pull/42.",
-		"gh pr diff 42",
+		"gh pr diff 42 -R acme/widgets",
+		"gh pr view 42 -R acme/widgets",
 		"git fetch origin pull/42/head",
 		"do not check out, switch branch, stash, reset or edit",
 		"`--claude`",
@@ -255,5 +256,29 @@ func TestConfiguredPromptReadsThePersonasItself(t *testing.T) {
 func TestPostAutoStatesTheInlineLimit(t *testing.T) {
 	if !strings.Contains(postAuto, strconv.Itoa(newPostLimit)) || !strings.Contains(postAuto, "own budget") {
 		t.Errorf("postAuto does not state the inline limit and the summary's own budget: %q", postAuto)
+	}
+}
+
+// gh resolves a bare `gh pr view 9` against the clone's default repository,
+// which in a fork-style clone is not the PR's: the session would read
+// another repository's PR 9. Prompt and round policy both name the repo.
+func TestRoundsNameThePRsRepositoryToGh(t *testing.T) {
+	fork := PR{Owner: "me", Repo: "widgets", Number: 9}
+	for _, text := range []string{BuildPrompt(Config{}, fork, "origin", false), RoundPrompt(Config{}, fork, "origin", true)} {
+		if strings.Contains(text, "gh pr view 9`") || strings.Contains(text, "gh pr diff 9`") || !strings.Contains(text, "`gh pr view 9 -R me/widgets`") {
+			t.Errorf("a gh command without -R me/widgets:\n%s", text)
+		}
+	}
+	flags := PolicyFlags(fork, "origin")
+	for _, rule := range []string{"Bash(gh pr view 9 -R me/widgets)", "Bash(gh pr diff 9 -R me/widgets)"} {
+		if !slices.Contains(flags, rule) {
+			t.Errorf("the round policy lacks %s", rule)
+		}
+	}
+	if slices.Contains(flags, "Bash(gh pr view 9)") || slices.Contains(flags, "Bash(gh pr diff 9)") {
+		t.Error("the round policy still allows gh without -R")
+	}
+	if got := fill(fork, "origin", "{repo}"); got != "me/widgets" {
+		t.Errorf("{repo} is %q", got)
 	}
 }

@@ -132,7 +132,7 @@ Configuration is optional; the defaults ask before posting anything.
 | `post_without_asking` | `false` | Pre-approves `claude-review post` for this PR, nothing else. Below. |
 | `git_repo_roots` | `["~/code"]` | Where to look for a folder named after the repo. Not passed to the session: it reads only the clone. |
 | `clone_path` | `<first root>/{repo}` | Where the "not cloned" message suggests cloning to, with `{owner}` and `{repo}`, e.g. `~/code/github/{owner}/{repo}`. It must end in `{repo}`, at most 3 levels below a root, with no hidden folder, or the next click would not find the clone; anything else is a config error. The CLI itself never clones. |
-| `review_prompt` | built in | Later rounds reuse it behind a fixed "new round" preface. `{url}`, `{number}` and `{remote}` are filled in. It replaces the built-in prompt whole, including the rule that a deferred fix ("follow-up PR", "out of scope", "fix later") is a finding when it fits in the PR; copy that rule from `deferralRule` in `command.go` to keep it. |
+| `review_prompt` | built in | Later rounds reuse it behind a fixed "new round" preface. `{url}`, `{number}`, `{repo}` (owner/repo) and `{remote}` are filled in; pass `-R {repo}` to every `gh pr` command, since the round policy allows only that form. It replaces the built-in prompt whole, including the rule that a deferred fix ("follow-up PR", "out of scope", "fix later") is a finding when it fits in the PR; copy that rule from `deferralRule` in `command.go` to keep it. |
 
 Unknown keys are an error, so a typo cannot silently change the posting
 policy.
@@ -366,7 +366,8 @@ clone: sibling repositories are not added, so a malicious PR cannot reach
 them. Cross-repo context may come back once there is usage to judge it by.
 It reads CLAUDE.md, skills
 and history from the clone, and gets the PR itself from GitHub with
-`gh pr view`, `gh pr diff` and `git fetch <remote> pull/N/head` followed by
+`gh pr view N -R owner/repo`, `gh pr diff N -R owner/repo` and
+`git fetch <remote> pull/N/head` followed by
 `claude-review show` and `grep`, where `<remote>` is the clone's remote that
 points at the PR's repository (`upstream` in a fork-style clone). Two rules
 follow.
@@ -836,7 +837,9 @@ cover only `gh api`, the `gh pr`/`gh issue` write commands and
   the round (checked live 2026-11-02);
 - an allow list scoped to the PR: read and search the clone (`Read`, `Grep`
   and `Glob` all scoped to `./**`; a bare `Grep` or `Glob` reaches outside it), `gh pr view` and
-  `gh pr diff` for that PR, `claude-review threads`, `show`, `grep`, `diff`
+  `gh pr diff` for that PR, named with `-R owner/repo` (gh reads a bare
+  number against the clone's default repository, another one in a fork-style
+  clone), `claude-review threads`, `show`, `grep`, `diff`
   and `post` for that PR,
   and `Read` of the session's own spilled tool output
   (`~/.claude/projects/*/<session id>/tool-results/**`), where Claude Code
@@ -885,7 +888,8 @@ fails until the version's pinned fingerprint matches the new flags. **A
 policy change starts a fresh session for every PR; the review history up to
 then stays in the old session**, which no round resumes again (`claude
 --resume <old id>` still opens it by hand). Every session from before version 2 has saved, or would be given, older
-flags, and is left as it is; version 3 added the persona reads. The window path outside
+flags, and is left as it is; version 3 added the persona reads, and version 4 put `-R owner/repo` on
+the `gh pr` rules. The window path outside
 `review_repos` keeps the PR's own session id.
 
 The posting-policy section above states what a round can reach under the
