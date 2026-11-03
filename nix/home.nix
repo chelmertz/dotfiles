@@ -913,6 +913,10 @@ in
     settings = {
       theme = "dark:Moonfly,light:Catppuccin Latte";
       font-family = "Go Mono";
+      # Go Mono lacks the ballot boxes (Claude Code's question tabs), and the
+      # fallback, DejaVu Sans Mono, draws them at x-height.
+      # `ghostty +show-face --cp=0x2612` names the face a glyph comes from.
+      font-codepoint-map = "U+2610-U+2612=Iosevka";
       # Points, so this tracks Xft.dpi like the i3 and dunst sizes: 16pt drew
       # 17.3px at the old 78 dpi and 23.8 at the panel's true 107. Each ghostty
       # window is its own process (bin/p-launcher gives each one an
