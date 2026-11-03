@@ -69,11 +69,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1793720149,
-        "narHash": "sha256-/liqZJ5gaWbR4Y04zf+1gtQPM1eSX7uRJlRP3WB1wYk=",
+        "lastModified": 1793722759,
+        "narHash": "sha256-B3TYiwL8M3r6Oq+cowdo8cEHSMbEvoDBtVsCB7VOrSg=",
         "owner": "chelmertz",
         "repo": "elly",
-        "rev": "bb04fa74de0f3ce60cf42319f275b84ca203cfb5",
+        "rev": "ed6e5e8bb600f4ce96f9ae2e64dc135d2e779df4",
         "type": "github"
       },
       "original": {
