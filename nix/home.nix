@@ -1948,9 +1948,12 @@ in
       # owners (comma-separated) live in a machine-local file, not in this
       # public repo; without it every owner notifies on every change.
       ExecStart = "${pkgs.writeShellScript "elly" ''
-        export PATH=${lib.makeBinPath [ pkgs.libnotify pkgs.xdg-utils ]}:$PATH
-        owners=$(cat "''${XDG_CONFIG_HOME:-$HOME/.config}/elly/work-owners" 2>/dev/null || true)
-        exec ${pkgs.elly}/bin/elly "$@" -work-owners="$owners"
+        export PATH=${lib.makeBinPath [ pkgs.libnotify pkgs.xdg-utils pkgs.gnugrep pkgs.coreutils ]}:$PATH
+        config=''${XDG_CONFIG_HOME:-$HOME/.config}
+        owners=$(cat "$config/elly/work-owners" 2>/dev/null || true)
+        # claude-review's own list, so elly offers Start exactly where tick runs
+        repos=$(grep -v '^[[:space:]]*#' "$config/claude-review/review-repos" 2>/dev/null | tr -d ' \t' | grep . | paste -sd, - || true)
+        exec ${pkgs.elly}/bin/elly "$@" -work-owners="$owners" -review-repos="$repos"
       ''} -db %h/.local/share/elly/elly.db -notify -annotation-schemes=claude-review";
       Restart = "on-failure";
     };
