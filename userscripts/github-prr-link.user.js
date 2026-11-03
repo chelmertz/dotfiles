@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         GitHub → prr:// review link
 // @namespace    chelmertz/dotfiles
-// @version      1.0
+// @version      1.1
 // @description  Adds a "prr review" link to github PR pages that opens the prr:// scheme handler (bin/prr-open), launching `pr <owner>/<repo>/<number>` in ghostty.
 // @match        https://github.com/*/*/pull/*
 // @match        http://localhost:9876/*
 // @run-at       document-idle
 // @grant        none
+// elly forbids inline page scripts (CSP); a content script is not one
+// @inject-into  content
 // ==/UserScript==
 
 // Install in a userscript manager (Violentmonkey / Tampermonkey).
@@ -18,11 +20,9 @@
 	"use strict";
 
 	const prrLink = (ghPrUrl) => {
-		console.log("url", ghPrUrl);
 		const m = ghPrUrl.match(
 			/\/([^/]+)\/([^/]+)\/pull\/(\d+)/
 		);
-		console.log("m", m);
 		if (!m) return;
 
 		const [, owner, repo, number] = m;
@@ -68,15 +68,11 @@
 	const elly = () => {
 		if (document.body.classList.contains("prr-injected")) return;
 
-		document.querySelectorAll("a.pr-title").forEach(el => {
-			const link = prrLink(el.href);
-			link.classList.add("inline");
-			link.classList.add("rounded");
-			link.classList.add("action");
-			link.style.cssText = [
-				""
-			].join(";");
-			el.closest(".pr").querySelector(".action:last-of-type").after(link);
+		// each row carries its PR's URL; the link joins the row's details
+		document.querySelectorAll(".pr[data-url]").forEach(pr => {
+			const link = prrLink(pr.dataset.url);
+			const links = pr.querySelector(".links");
+			if (link && links) links.appendChild(link);
 		});
 
 		document.body.classList.add("prr-injected");
