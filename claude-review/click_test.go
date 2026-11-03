@@ -16,7 +16,7 @@ func clickHost(t *testing.T, exists bool) (*fakeHost, *fakeSessions) {
 	t.Helper()
 	h := newHost(t, reviewRepoCfg, true, exists)
 	h.d.Home = t.TempDir()
-	t.Setenv("XDG_STATE_HOME", "") // the ledger goes under Home, never the real state dir
+	h.d.StateDir = h.d.Home + "/.local/state" // the ledger stays in the test's dir
 	h.d.Gh = func(args ...string) (string, error) {
 		h.ghCalls = append(h.ghCalls, args)
 		if args[1] == paginate {
@@ -44,7 +44,7 @@ func clickHost(t *testing.T, exists bool) (*fakeHost, *fakeSessions) {
 
 func (h *fakeHost) ledger(t *testing.T) *Ledger {
 	t.Helper()
-	l, err := OpenLedger(LedgerPath(h.d.Home))
+	l, err := OpenLedger(LedgerPath(h.d.StateDir))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -30,13 +30,13 @@ func TestParseVerb(t *testing.T) {
 func verbHost(t *testing.T) *fakeHost {
 	h := newHost(t, `{"terminal": false, "review_repos":["acme/*"]}`, true, true)
 	h.d.Home = t.TempDir()
-	t.Setenv("XDG_STATE_HOME", "") // the ledger goes under Home, never the real state dir
+	h.d.StateDir = h.d.Home + "/.local/state" // the ledger stays in the test's dir
 	return h
 }
 
 func TestApproveVerbNeedsAMintedToken(t *testing.T) {
 	h := verbHost(t)
-	l, err := OpenLedger(LedgerPath(h.d.Home))
+	l, err := OpenLedger(LedgerPath(h.d.StateDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestIgnoreVerbStopsRounds(t *testing.T) {
 	if code := run([]string{"claude-review://acme/widgets/42/ignore"}, h.d); code != 0 {
 		t.Fatalf("exit %d: %s", code, h.stderr)
 	}
-	l, err := OpenLedger(LedgerPath(h.d.Home))
+	l, err := OpenLedger(LedgerPath(h.d.StateDir))
 	if err != nil {
 		t.Fatal(err)
 	}

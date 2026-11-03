@@ -39,10 +39,10 @@ type slackHost struct {
 	reply   string
 	outErr  error
 	outputs [][]string
-	// realClaude runs the claude on PATH through the host's own capture.
-	realClaude bool
-	stdout     bytes.Buffer
-	stderr     bytes.Buffer
+	// claudeBin, when set, is run for claude through the host's own capture.
+	claudeBin string
+	stdout    bytes.Buffer
+	stderr    bytes.Buffer
 }
 
 func (h *slackHost) run(args ...string) int {
@@ -57,8 +57,13 @@ func (h *slackHost) run(args ...string) int {
 			return h.reply, h.outErr
 		},
 	}
-	if h.realClaude {
-		d.Capture = execStdout
+	if h.claudeBin != "" {
+		d.Capture = func(dir string, argv []string) (string, error) {
+			if argv[0] != "claude" {
+				return "", errors.New("not a claude command: " + strings.Join(argv, " "))
+			}
+			return osHost{}.execStdout(dir, append([]string{h.claudeBin}, argv[1:]...))
+		}
 	}
 	return run(append([]string{"slack"}, args...), d)
 }
@@ -235,7 +240,6 @@ func TestClip(t *testing.T) {
 // reply nor become the line themselves when stdout is empty.
 func TestSlack_ClaudeStderrIsNotTheWords(t *testing.T) {
 	bin := t.TempDir()
-	t.Setenv("PATH", bin+":/bin:/usr/bin")
 	for name, c := range map[string]struct{ script, stdout, stderr string }{
 		"warning and reply": {"echo 'warning: update available' >&2; echo 'two late comments answered'", "- " + prURL + ": two late comments answered\n", ""},
 		"warning only":      {"echo 'warning: update available' >&2", "", "claude replied with nothing"},
@@ -243,7 +247,7 @@ func TestSlack_ClaudeStderrIsNotTheWords(t *testing.T) {
 		if err := writeFile(bin+"/claude", "#!/bin/sh\n"+c.script+"\n"); err != nil {
 			t.Fatal(err)
 		}
-		h := &slackHost{gh: ghFor(greenPR), realClaude: true}
+		h := &slackHost{gh: ghFor(greenPR), claudeBin: bin + "/claude"}
 		h.run(prURL)
 		if h.stdout.String() != c.stdout || !strings.Contains(h.stderr.String(), c.stderr) {
 			t.Errorf("%s: stdout %q stderr %q", name, h.stdout.String(), h.stderr.String())

@@ -51,28 +51,35 @@ func cleanEnv(environ []string) []string {
 	return out
 }
 
-func execAttached(dir string, argv []string) error {
+// osHost runs children with the environment realDeps read, and keeps its
+// files under the user cache directory realDeps resolved.
+type osHost struct {
+	environ   []string
+	cacheBase string
+}
+
+func (h osHost) execAttached(dir string, argv []string) error {
 	cmd := exec.Command(argv[0], argv[1:]...) //nolint:gosec // argv is built by this program
 	cmd.Dir = dir
-	cmd.Env = cleanEnv(os.Environ())
+	cmd.Env = cleanEnv(h.environ)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return cmd.Run()
 }
 
-func execOutput(dir string, argv []string) (string, error) {
+func (h osHost) execOutput(dir string, argv []string) (string, error) {
 	cmd := exec.Command(argv[0], argv[1:]...) //nolint:gosec // argv is built by this program
 	cmd.Dir = dir
-	cmd.Env = cleanEnv(os.Environ())
+	cmd.Env = cleanEnv(h.environ)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
 
 // execStdout is execOutput with stdout alone: a warning claude writes to
 // stderr must not pass for its reply, so stderr goes into the error only.
-func execStdout(dir string, argv []string) (string, error) {
+func (h osHost) execStdout(dir string, argv []string) (string, error) {
 	cmd := exec.Command(argv[0], argv[1:]...) //nolint:gosec // argv is built by this program
 	cmd.Dir = dir
-	cmd.Env = cleanEnv(os.Environ())
+	cmd.Env = cleanEnv(h.environ)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -82,10 +89,10 @@ func execStdout(dir string, argv []string) (string, error) {
 	return string(out), nil
 }
 
-func spawnDetached(dir string, argv []string) error {
+func (h osHost) spawnDetached(dir string, argv []string) error {
 	cmd := exec.Command(argv[0], argv[1:]...) //nolint:gosec // argv is built by this program
 	cmd.Dir = dir
-	cmd.Env = cleanEnv(os.Environ())
+	cmd.Env = cleanEnv(h.environ)
 	return cmd.Start()
 }
 
@@ -93,8 +100,8 @@ func spawnDetached(dir string, argv []string) error {
 // (not the shared temp dir, where another local user could pre-create the
 // predictable name), with a fixed name per session so repeated clicks
 // overwrite instead of littering.
-func writeLauncherScript(name, content string) (string, error) {
-	dir, err := cacheDir()
+func (h osHost) writeLauncherScript(name, content string) (string, error) {
+	dir, err := cacheDir(h.cacheBase)
 	if err != nil {
 		return "", err
 	}
@@ -105,12 +112,12 @@ func writeLauncherScript(name, content string) (string, error) {
 	return p, nil
 }
 
-// cacheDir is this tool's directory under the user's cache directory,
-// created private on first use.
-func cacheDir() (string, error) {
-	base, err := os.UserCacheDir()
-	if err != nil {
-		return "", err
+// cacheDir is this tool's directory under base, the user's cache
+// directory, created private on first use. An empty or relative base (no
+// cache directory could be determined) is refused, as os.UserCacheDir does.
+func cacheDir(base string) (string, error) {
+	if !filepath.IsAbs(base) {
+		return "", fmt.Errorf("no usable cache directory: %q", base)
 	}
 	dir := filepath.Join(base, "claude-review")
 	return dir, os.MkdirAll(dir, 0o700)
@@ -120,8 +127,8 @@ func cacheDir() (string, error) {
 var errLocked = errors.New("locked by another click")
 
 // lockUnderCache is lockSession in cacheDir.
-func lockUnderCache(id string) (func(), error) {
-	dir, err := cacheDir()
+func (h osHost) lockUnderCache(id string) (func(), error) {
+	dir, err := cacheDir(h.cacheBase)
 	if err != nil {
 		return nil, err
 	}

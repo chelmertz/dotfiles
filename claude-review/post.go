@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -77,15 +76,15 @@ const postSlotNew = "new"
 
 // runPost is `claude-review post`. Exit codes as run: 0, 1, 2 for usage.
 // spend runs after the duplicate check and before anything is sent.
-func runPost(args []string, gh Gh, spend spendFunc, stdout, stderr io.Writer) int {
+func runPost(args []string, gh Gh, spend spendFunc, environ []string, stdout, stderr io.Writer) int {
 	if len(args) >= 2 && args[1] == kindResolve {
 		return runResolve(args[0], args[2:], gh, spend, stdout, stderr)
 	}
-	return runPostText(args, gh, spend, stdout, stderr)
+	return runPostText(args, gh, spend, environ, stdout, stderr)
 }
 
 // runPostText posts a comment, inline comment, reply or review.
-func runPostText(args []string, gh Gh, spend spendFunc, stdout, stderr io.Writer) int {
+func runPostText(args []string, gh Gh, spend spendFunc, environ []string, stdout, stderr io.Writer) int {
 	if len(args) < 2 {
 		fmt.Fprintln(stderr, "claude-review post: need <pr> and a kind (comment, inline, reply, review or resolve)")
 		fmt.Fprint(stderr, postUsage)
@@ -113,7 +112,7 @@ func runPostText(args []string, gh Gh, spend spendFunc, stdout, stderr io.Writer
 		fs.Usage()
 		return 2
 	}
-	if name := secretIn(*body, os.Environ()); name != "" {
+	if name := secretIn(*body, environ); name != "" {
 		fmt.Fprintf(stderr, "claude-review post: the body holds the value of $%s; not posted\n", name)
 		return 1
 	}

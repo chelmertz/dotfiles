@@ -4,7 +4,7 @@ package main
 
 // Records fixtures for TestRecordedRounds from real PRs, read-only:
 //
-//	CR_RECORD="<pr-url> ..." go test -tags record -run TestRecord .
+//	go test -tags record -run TestRecord . -args -record "<pr-url> ..."
 //
 // Every gh call goes through readOnlyGh, and nothing here builds a tickHost,
 // so recording can neither post nor start a round. Each fixture is the PR as
@@ -18,6 +18,7 @@ import (
 	"crypto/sha1" //nolint:gosec // renames shas, not security
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -41,12 +42,16 @@ func readOnlyGh(args ...string) (string, error) {
 
 const settleDelay = 5 * time.Minute
 
+// recordURLs is a flag rather than a variable: only main's wiring reads the
+// environment.
+var recordURLs = flag.String("record", "", "space-separated PR URLs to record")
+
 func TestRecord(t *testing.T) {
-	urls := strings.Fields(os.Getenv("CR_RECORD"))
+	urls := strings.Fields(*recordURLs)
 	if len(urls) == 0 {
-		t.Skip("CR_RECORD is empty")
+		t.Skip("-record is empty")
 	}
-	home, _ := os.UserHomeDir()
+	home := realDeps().Home
 	login, err := readOnlyGh("api", "user", "--jq", ".login")
 	if err != nil {
 		t.Fatal(err)

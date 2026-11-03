@@ -36,8 +36,14 @@ func (g *fakeGh) run(args ...string) (string, error) {
 
 func post(t *testing.T, g *fakeGh, args ...string) (int, string, string) {
 	t.Helper()
+	return postIn(t, nil, g, args...)
+}
+
+// postIn is post with environ as the process environment.
+func postIn(t *testing.T, environ []string, g *fakeGh, args ...string) (int, string, string) {
+	t.Helper()
 	var out, errb bytes.Buffer
-	code := runPost(args, g.run, func(PR, string, int) error { return nil }, &out, &errb)
+	code := runPost(args, g.run, func(PR, string, int) error { return nil }, environ, &out, &errb)
 	return code, out.String(), errb.String()
 }
 
@@ -309,9 +315,8 @@ func TestThreadsRule(t *testing.T) {
 // permission rule sees it, so the value of a token in the session's
 // environment would reach the PR.
 func TestPostRefusesASecretFromTheEnvironment(t *testing.T) {
-	t.Setenv("SOME_API_TOKEN", "s3cr3t-value")
 	g := &fakeGh{}
-	code, _, errb := post(t, g, prURL, kindComment, "--body", "leak: s3cr3t-value")
+	code, _, errb := postIn(t, []string{"HOME=/home/u", "SOME_API_TOKEN=s3cr3t-value"}, g, prURL, kindComment, "--body", "leak: s3cr3t-value")
 	if code != 1 || !strings.Contains(errb, "$SOME_API_TOKEN") || strings.Contains(errb, "s3cr3t-value") || len(g.calls) != 0 {
 		t.Errorf("code %d stderr %q gh %q", code, errb, g.calls)
 	}
@@ -338,7 +343,7 @@ func TestPost_ResolveOwnThread(t *testing.T) {
 	code := runPost([]string{prURL, kindResolve, threadFlag, "8"}, g.run, func(_ PR, slot string, limit int) error {
 		spent = append(spent, fmt.Sprint(slot, " ", limit))
 		return nil
-	}, &out, &errb)
+	}, nil, &out, &errb)
 	if code != 0 || out.String() != "u7\n" {
 		t.Fatalf("code %d out %q stderr %q", code, out.String(), errb.String())
 	}
@@ -367,7 +372,7 @@ func TestPost_ResolveRefusals(t *testing.T) {
 	} {
 		g := &fakeGh{outs: []string{c.threads}}
 		var out, errb bytes.Buffer
-		code := runPost([]string{prURL, kindResolve, threadFlag, c.thread}, g.run, func(PR, string, int) error { return c.spendErr }, &out, &errb)
+		code := runPost([]string{prURL, kindResolve, threadFlag, c.thread}, g.run, func(PR, string, int) error { return c.spendErr }, nil, &out, &errb)
 		if code != c.code || !strings.Contains(errb.String(), c.says) {
 			t.Errorf("%s: code %d stderr %q", c.name, code, errb.String())
 		}
@@ -397,7 +402,7 @@ func TestPost_ReplyBudgetIsPerAuthorComment(t *testing.T) {
 			g := &fakeGh{outs: []string{c.thread, urlU}}
 			var slots []string
 			var out, errb bytes.Buffer
-			code := runPost([]string{prURL, kindReply, bodyFlag, "Answer.", toFlag, "77"}, g.run, func(_ PR, slot string, _ int) error { slots = append(slots, slot); return nil }, &out, &errb)
+			code := runPost([]string{prURL, kindReply, bodyFlag, "Answer.", toFlag, "77"}, g.run, func(_ PR, slot string, _ int) error { slots = append(slots, slot); return nil }, nil, &out, &errb)
 			if code != 0 || !slices.Equal(slots, []string{c.want}) {
 				t.Errorf("code %d slots %q, want %q (stderr %q)", code, slots, c.want, errb.String())
 			}

@@ -30,7 +30,19 @@ linters:
     # --- Other Good Linters ---
     - depguard
     - ineffassign
+
+    # --- This repo's own rules ---
+    - forbidigo
   settings:
+    forbidigo:
+      analyze-types: true
+      forbid:
+        # Read once in main.go's realDeps (excluded below), handed on in Deps.
+        - pattern: ^os\.(Getenv|LookupEnv|Environ|ExpandEnv|UserHomeDir|UserConfigDir|UserCacheDir)$
+          msg: "the environment is read only in main.go's realDeps: take the value from Deps or an argument"
+        # Tests pass values through Deps or an explicit env slice instead.
+        - pattern: ^(os\.(Setenv|Unsetenv|Clearenv)|testing\.(T|B|F|TB)\.Setenv)$
+          msg: "never change the process environment: pass the value through Deps or an explicit env slice"
     depguard:
       rules:
         prevent_unmaintained_packages:
@@ -107,6 +119,12 @@ linters:
       - legacy
       - std-error-handling
     rules:
+      # main.go's realDeps is the one place that reads the environment.
+      - linters:
+          - forbidigo
+        path: ^main\.go$
+        text: "the environment is read only in main.go's realDeps"
+
       # goconst: golangci-lint 2.15 started counting test literals, where a
       # spelled-out URL or flag reads better than a named constant.
       - linters:

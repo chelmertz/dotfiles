@@ -5,8 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -21,6 +19,12 @@ type Deps struct {
 	UserConfigDir string
 	Home          string
 	ClaudeDir     string
+	// StateDir is the XDG state home: $XDG_STATE_HOME, else ~/.local/state.
+	StateDir string
+	// RuntimeDir is $XDG_RUNTIME_DIR, where elly writes its token.
+	RuntimeDir string
+	// Environ is the process environment, read once by realDeps.
+	Environ       []string
 	IsTTY         bool
 	Stdout        io.Writer
 	Stderr        io.Writer
@@ -88,7 +92,7 @@ func runSessionCommand(args []string, d Deps) (int, bool) {
 		return 0, false
 	}
 	if args[0] == "post" {
-		return runPost(args[1:], d.Gh, ledgerSpend(d), d.Stdout, d.Stderr), true
+		return runPost(args[1:], d.Gh, ledgerSpend(d), d.Environ, d.Stdout, d.Stderr), true
 	}
 	if sub, ok := readCommands[args[0]]; ok {
 		return sub(args[1:], newPRReader(d), d.Stdout, d.Stderr), true
@@ -231,7 +235,7 @@ func planBackgroundClick(d Deps, cfg Config, pr PR, remote string) (click, error
 // settles it like its own. head is the PR head the click saw ("" when
 // GitHub did not say; then nothing is recorded).
 func backgroundClick(d Deps, cfg Config, pr PR, dir, remote, head string) int {
-	l, err := OpenLedger(LedgerPath(d.Home))
+	l, err := OpenLedger(LedgerPath(d.StateDir))
 	if err != nil {
 		return fail(d, err)
 	}
@@ -251,7 +255,7 @@ func backgroundClick(d Deps, cfg Config, pr PR, dir, remote, head string) int {
 	}
 	// No out: a click reports through its notification, and the running
 	// row's own failures through say.
-	h := tickHost{ledger: l, elly: Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile()}}
+	h := tickHost{ledger: l, elly: Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile(d.RuntimeDir)}}
 	say := func(err error) {
 		if err != nil {
 			fmt.Fprintf(d.Stderr, "claude-review: %s: %v\n", pr.Slug(), err)
@@ -487,37 +491,5 @@ func notifyCopy(d Deps, nf *notFoundError) {
 	copyCmd := []string{"sh", "-c", `printf %s "$1" | xclip -selection clipboard >/dev/null 2>&1`, "sh", nf.Command()}
 	if _, err := d.Capture("", copyCmd); err != nil {
 		_ = d.Spawn("", notifyArgv(d.GOOS, "claude-review", "could not copy (is xclip installed?); run:\n"+nf.Command()))
-	}
-}
-
-// realDeps wires Deps to the host.
-func realDeps() Deps {
-	home, _ := os.UserHomeDir()
-	cfgDir, _ := os.UserConfigDir()
-	claudeDir := os.Getenv("CLAUDE_CONFIG_DIR")
-	if claudeDir == "" {
-		claudeDir = filepath.Join(home, ".claude")
-	}
-	return Deps{
-		GOOS:           goos(),
-		UserConfigDir:  cfgDir,
-		Home:           home,
-		ClaudeDir:      claudeDir,
-		IsTTY:          stdinIsTerminal(),
-		Stdout:         os.Stdout,
-		Stderr:         os.Stderr,
-		FindRepo:       FindRepo,
-		SessionExists:  SessionExists,
-		SessionRunning: SessionRunning,
-		Lock:           lockUnderCache,
-		Sleep:          time.Sleep,
-		Exec:           execAttached,
-		Output:         execOutput,
-		Capture:        execStdout,
-		Spawn:          spawnDetached,
-		WriteScript:    writeLauncherScript,
-		Gh:             ghRun,
-		Sessions:       realSessions(claudeDir, goos(), execOutput),
-		Trust:          func(dir string) error { return ensureTrusted(claudeJSONPath(home), dir) },
 	}
 }

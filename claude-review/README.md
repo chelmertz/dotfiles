@@ -524,7 +524,7 @@ The timer runs since 2026-11-02, after one round watched by hand.
    the timer until the next login.
 
 `testdata/rounds/` holds real rounds as fixtures, recorded read-only and
-renamed: `CR_RECORD="<pr-url>..." go test -tags record -run TestRecord .`
+renamed: `go test -tags record -run TestRecord . -args -record "<pr-url>..."`
 records the session's last round as GitHub stood five minutes after its
 last post, through a `gh` that refuses everything but reads, and builds no
 runner, so it cannot post or start a round. Each fixture's expected outcome

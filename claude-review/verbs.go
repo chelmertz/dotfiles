@@ -35,7 +35,7 @@ func runVerb(d Deps, cfg Config, pr PR, verb string, q url.Values) int {
 	case "approve":
 		return approveWithToken(d, pr, q.Get("at"), q.Get("token"))
 	case "ignore":
-		l, err := OpenLedger(LedgerPath(d.Home))
+		l, err := OpenLedger(LedgerPath(d.StateDir))
 		if err != nil {
 			return fail(d, err)
 		}
@@ -46,7 +46,7 @@ func runVerb(d Deps, cfg Config, pr PR, verb string, q url.Values) int {
 		if err := l.ClearAnnotation(pr); err != nil {
 			return fail(d, err)
 		}
-		_ = Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile()}.Delete(pr.URL())
+		_ = Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile(d.RuntimeDir)}.Delete(pr.URL())
 		tell(d, fmt.Sprintf("%s ignored: no more unattended rounds until you click claude review on it again", pr.Slug()))
 		return 0
 	default: // attach
@@ -55,7 +55,7 @@ func runVerb(d Deps, cfg Config, pr PR, verb string, q url.Values) int {
 }
 
 func approveWithToken(d Deps, pr PR, at, token string) int {
-	l, err := OpenLedger(LedgerPath(d.Home))
+	l, err := OpenLedger(LedgerPath(d.StateDir))
 	if err != nil {
 		return fail(d, err)
 	}

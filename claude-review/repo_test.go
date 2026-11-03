@@ -145,7 +145,7 @@ func TestFindRepo_WorktreeCheckoutMatches(t *testing.T) {
 	mainDir := filepath.Join(root, "elsewhere", "primary")
 	gitRepo(t, mainDir, origin(originURL))
 	c := exec.Command("git", "-C", mainDir, "commit", "-q", "--allow-empty", "-m", "init")
-	c.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+	c.Env = append([]string{"GIT_CONFIG_GLOBAL=/dev/null"}, "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
 	if out, err := c.CombinedOutput(); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -51,7 +50,7 @@ func runTick(args []string, d Deps) int {
 	if err != nil {
 		return fail(d, fmt.Errorf("claude-review tick: %w", err))
 	}
-	l, err := OpenLedger(LedgerPath(d.Home))
+	l, err := OpenLedger(LedgerPath(d.StateDir))
 	if err != nil {
 		return fail(d, err)
 	}
@@ -85,7 +84,7 @@ func newTickHost(d Deps, cfg Config, l *Ledger, user string) tickHost {
 		cfg:         cfg,
 		tcfg:        TickConfig{ReviewRepos: cfg.ReviewRepos, User: user, DailyCap: cfg.DailyCap, MaxRunning: cfg.MaxRunning, TotalDailyCap: cfg.TotalDailyCap, Wrapper: cfg.RoundWrapper},
 		ledger:      l,
-		elly:        Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile()},
+		elly:        Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile(d.RuntimeDir)},
 		gh:          GitHub{Gh: d.Gh, User: user},
 		running:     func(id string) bool { return RoundRunning(d.ClaudeDir, id) },
 		blocked:     func(id string) bool { return JobState(d.ClaudeDir, id) == "blocked" },
@@ -119,7 +118,7 @@ func newTickHost(d Deps, cfg Config, l *Ledger, user string) tickHost {
 		},
 		selfCheck: func() error {
 			return selfChecker{sess: d.Sessions, run: d.Output, trust: d.Trust, newID: randomUUID,
-				dir: filepath.Join(filepath.Dir(LedgerPath(d.Home)), "self-check"), sleep: d.Sleep}.check()
+				dir: filepath.Join(filepath.Dir(LedgerPath(d.StateDir)), "self-check"), sleep: d.Sleep}.check()
 		},
 		notify: func(msg string) { _, _ = d.Output("", notifyArgv(d.GOOS, "claude-review", msg)) },
 	}
@@ -136,7 +135,7 @@ func btoi(b bool) int {
 // Code version, run by hand. It records the version on a pass and trips the
 // breaker on a failure, as tick would.
 func selfCheckNow(d Deps, cfg Config) int {
-	l, err := OpenLedger(LedgerPath(d.Home))
+	l, err := OpenLedger(LedgerPath(d.StateDir))
 	if err != nil {
 		return fail(d, err)
 	}
@@ -155,7 +154,7 @@ func selfCheckNow(d Deps, cfg Config) int {
 }
 
 func resetBreaker(d Deps) int {
-	l, err := OpenLedger(LedgerPath(d.Home))
+	l, err := OpenLedger(LedgerPath(d.StateDir))
 	if err != nil {
 		return fail(d, err)
 	}
@@ -166,9 +165,10 @@ func resetBreaker(d Deps) int {
 	return 0
 }
 
-// ellyTokenFile is where elly writes the annotation write token.
-func ellyTokenFile() string {
-	return filepath.Join(os.Getenv("XDG_RUNTIME_DIR"), "elly", "annotation-token")
+// ellyTokenFile is where elly writes the annotation write token, under
+// runtimeDir, $XDG_RUNTIME_DIR (Deps.RuntimeDir).
+func ellyTokenFile(runtimeDir string) string {
+	return filepath.Join(runtimeDir, "elly", "annotation-token")
 }
 
 // recordAcceptance is the user's click, written down: tick only ever runs a
@@ -186,7 +186,7 @@ func recordAcceptance(d Deps, cfg Config, pr PR) (head string, closed bool) {
 	}
 	if err == nil {
 		var l *Ledger
-		if l, err = OpenLedger(LedgerPath(d.Home)); err == nil {
+		if l, err = OpenLedger(LedgerPath(d.StateDir)); err == nil {
 			err = l.Accept(pr, p.Head.SHA, p.Base.Ref, time.Now())
 			_ = l.Close()
 		}

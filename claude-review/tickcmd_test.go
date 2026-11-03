@@ -11,7 +11,7 @@ import (
 func TestTickWithoutReviewReposRunsNothing(t *testing.T) {
 	h := newHost(t, `{}`, true, true)
 	h.d.Home = t.TempDir()
-	t.Setenv("XDG_STATE_HOME", "") // the ledger goes under Home, never the real state dir
+	h.d.StateDir = h.d.Home + "/.local/state" // the ledger stays in the test's dir
 	if code := run([]string{"tick"}, h.d); code != 0 {
 		t.Fatalf("exit %d: %s", code, h.stderr)
 	}
@@ -23,7 +23,7 @@ func TestTickWithoutReviewReposRunsNothing(t *testing.T) {
 func TestTickSkipsWhenAnotherTickRuns(t *testing.T) {
 	h := newHost(t, `{"review_repos":["acme/*"]}`, true, true)
 	h.d.Home = t.TempDir()
-	t.Setenv("XDG_STATE_HOME", "") // the ledger goes under Home, never the real state dir
+	h.d.StateDir = h.d.Home + "/.local/state" // the ledger stays in the test's dir
 	h.locked = true
 	if code := run([]string{"tick"}, h.d); code != 0 || len(h.ghCalls) != 0 {
 		t.Errorf("exit %d, gh %v", code, h.ghCalls)
@@ -37,7 +37,7 @@ func TestClickRecordsAcceptanceOnlyForReviewRepos(t *testing.T) {
 	}{{`{"terminal": false, "review_repos":["acme/*"]}`, true}, {`{"terminal": false, "review_repos":["globex/*"]}`, false}} {
 		h := newHost(t, c.cfg, true, true)
 		h.d.Home = t.TempDir()
-		t.Setenv("XDG_STATE_HOME", "") // the ledger goes under Home, never the real state dir
+		h.d.StateDir = h.d.Home + "/.local/state" // the ledger stays in the test's dir
 		h.d.Gh = func(args ...string) (string, error) {
 			h.ghCalls = append(h.ghCalls, args)
 			return `{"state":"open","head":{"sha":"h7"},"base":{"ref":"main"}}`, nil
@@ -45,7 +45,7 @@ func TestClickRecordsAcceptanceOnlyForReviewRepos(t *testing.T) {
 		if code := run([]string{target}, h.d); code != 0 {
 			t.Fatalf("click exit %d: %s", code, h.stderr)
 		}
-		l, err := OpenLedger(LedgerPath(h.d.Home))
+		l, err := OpenLedger(LedgerPath(h.d.StateDir))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -72,7 +72,7 @@ func TestRunTickAsksGitHubWhoTheUserIs(t *testing.T) {
 	} {
 		h := newHost(t, c.cfg, true, true)
 		h.d.Home = t.TempDir()
-		t.Setenv("XDG_STATE_HOME", "") // the ledger goes under Home, never the real state dir
+		h.d.StateDir = h.d.Home + "/.local/state" // the ledger stays in the test's dir
 		asked := false
 		h.d.Gh = func(args ...string) (string, error) {
 			if strings.Join(args, " ") == "api user --jq .login" {
@@ -124,7 +124,7 @@ func TestClickRequestsTheUsersOwnReview(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			h := newHost(t, `{"terminal": false, "review_repos":["acme/*"], "github_user":"me"}`, true, true)
 			h.d.Home = t.TempDir()
-			t.Setenv("XDG_STATE_HOME", "") // the ledger goes under Home, never the real state dir
+			h.d.StateDir = h.d.Home + "/.local/state" // the ledger stays in the test's dir
 			var requested []string
 			h.d.Gh = func(args ...string) (string, error) {
 				h.ghCalls = append(h.ghCalls, args)

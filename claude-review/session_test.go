@@ -208,18 +208,16 @@ func TestLockSession(t *testing.T) {
 }
 
 func TestLockUnderCache(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
-	t.Setenv("HOME", t.TempDir()) // macOS's UserCacheDir
-	unlock, err := lockUnderCache(sid)
+	h := osHost{cacheBase: t.TempDir()}
+	unlock, err := h.lockUnderCache(sid)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer unlock()
-	if _, err := lockUnderCache(sid); !errors.Is(err, errLocked) {
+	if _, err := h.lockUnderCache(sid); !errors.Is(err, errLocked) {
 		t.Fatalf("second lock while held: want errLocked, got %v", err)
 	}
-	t.Setenv("XDG_CACHE_HOME", "relative")
-	if _, err := lockUnderCache(sid); err == nil {
+	if _, err := (osHost{cacheBase: "relative"}).lockUnderCache(sid); err == nil {
 		t.Error("no usable cache dir: want an error")
 	}
 }

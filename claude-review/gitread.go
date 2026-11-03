@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -38,14 +37,14 @@ func newPRReader(d Deps) prReader {
 		head: func(pr PR) (string, error) {
 			return headSHA(d.Gh, fmt.Sprintf("repos/%s/%s", pr.Owner, pr.Repo), pr.Number)
 		},
-		git: gitRead,
+		git: func(args ...string) (string, error) { return gitRead(d.Environ, args...) },
 		remotes: func() ([]Remote, error) {
 			// No remotes exits 1 with no output, which checkout reports.
-			out, _ := gitRead("config", "--get-regexp", `^remote\..*\.url$`)
+			out, _ := gitRead(d.Environ, "config", "--get-regexp", `^remote\..*\.url$`)
 			return parseRemotes(out), nil
 		},
 		diffBase: func(pr PR) (string, bool, error) {
-			l, err := OpenLedger(LedgerPath(d.Home))
+			l, err := OpenLedger(LedgerPath(d.StateDir))
 			if err != nil {
 				return "", false, err
 			}
@@ -65,11 +64,11 @@ const (
 // gitRead runs git in the working directory with the user's global and
 // system config ignored, so settings such as log.showSignature or
 // grep.patternType=perl cannot change what runs on the PR's content.
-func gitRead(args ...string) (string, error) {
+func gitRead(environ []string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", append([]string{"--no-pager"}, args...)...) //nolint:gosec // argv built by the read commands, no shell
-	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1", "GIT_PAGER=cat", "GIT_TERMINAL_PROMPT=0")
+	cmd.Env = append(append([]string(nil), environ...), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1", "GIT_PAGER=cat", "GIT_TERMINAL_PROMPT=0")
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &capped{w: &out, left: gitOutputCap}, &errb
 	err := cmd.Run()

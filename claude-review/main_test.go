@@ -24,9 +24,8 @@ func TestMain_PassesExitCode(t *testing.T) {
 }
 
 func TestRealDeps_WiresTheHost(t *testing.T) {
-	t.Setenv("CLAUDE_CONFIG_DIR", "/elsewhere/.claude")
 	d := realDeps()
-	if d.GOOS == "" || d.Home == "" || d.UserConfigDir == "" || d.ClaudeDir != "/elsewhere/.claude" || d.Stdout == nil || d.Stderr == nil {
+	if d.GOOS == "" || d.Home == "" || d.UserConfigDir == "" || d.ClaudeDir == "" || d.StateDir == "" || len(d.Environ) == 0 || d.Stdout == nil || d.Stderr == nil {
 		t.Errorf("%+v", d)
 	}
 	// Every func field must be wired: a nil one is a panic on the first
@@ -37,38 +36,52 @@ func TestRealDeps_WiresTheHost(t *testing.T) {
 			t.Errorf("realDeps leaves %s nil", v.Type().Field(i).Name)
 		}
 	}
-	t.Setenv("CLAUDE_CONFIG_DIR", "")
-	if d := realDeps(); !strings.HasSuffix(d.ClaudeDir, "/.claude") {
-		t.Errorf("default claude dir: %q", d.ClaudeDir)
+}
+
+func TestResolveDirs(t *testing.T) {
+	env := func(kv map[string]string) func(string) string {
+		return func(k string) string { return kv[k] }
+	}
+	set := resolveDirs("/h", env(map[string]string{
+		"CLAUDE_CONFIG_DIR": "/elsewhere/.claude", "XDG_STATE_HOME": "/state", "XDG_RUNTIME_DIR": "/run/user/1",
+	}))
+	if set != (hostDirs{claude: "/elsewhere/.claude", claudeJSON: "/elsewhere/.claude/.claude.json", state: "/state", runtime: "/run/user/1"}) {
+		t.Errorf("set: %+v", set)
+	}
+	// An empty variable means the default, as an unset one does.
+	for _, kv := range []map[string]string{nil, {"CLAUDE_CONFIG_DIR": "", "XDG_STATE_HOME": "", "XDG_RUNTIME_DIR": ""}} {
+		if got := resolveDirs("/h", env(kv)); got != (hostDirs{claude: "/h/.claude", claudeJSON: "/h/.claude.json", state: "/h/.local/state"}) {
+			t.Errorf("defaults from %v: %+v", kv, got)
+		}
 	}
 }
 
 func TestOSHelpers(t *testing.T) {
+	var h osHost
 	dir := t.TempDir()
-	if err := execAttached(dir, []string{sh, "-c", "test \"$(pwd)\" = " + shellQuote(dir)}); err != nil {
+	if err := h.execAttached(dir, []string{sh, "-c", "test \"$(pwd)\" = " + shellQuote(dir)}); err != nil {
 		t.Errorf("execAttached did not run in dir: %v", err)
 	}
-	if err := execAttached(dir, []string{sh, "-c", "exit 3"}); err == nil {
+	if err := h.execAttached(dir, []string{sh, "-c", "exit 3"}); err == nil {
 		t.Error("execAttached must report the exit status")
 	}
-	if out, err := execOutput(dir, []string{sh, "-c", "echo hi; echo err >&2; exit 4"}); err == nil || out != "hi\nerr\n" {
+	if out, err := h.execOutput(dir, []string{sh, "-c", "echo hi; echo err >&2; exit 4"}); err == nil || out != "hi\nerr\n" {
 		t.Errorf("execOutput: %q %v", out, err)
 	}
-	if out, err := execStdout(dir, []string{sh, "-c", "pwd; echo warn >&2"}); err != nil || out != dir+"\n" {
+	if out, err := h.execStdout(dir, []string{sh, "-c", "pwd; echo warn >&2"}); err != nil || out != dir+"\n" {
 		t.Errorf("execStdout: %q %v", out, err)
 	}
-	if out, err := execStdout(dir, []string{sh, "-c", "echo hi; echo why >&2; exit 4"}); err == nil || out != "hi\n" || !strings.HasSuffix(err.Error(), ": why") {
+	if out, err := h.execStdout(dir, []string{sh, "-c", "echo hi; echo why >&2; exit 4"}); err == nil || out != "hi\n" || !strings.HasSuffix(err.Error(), ": why") {
 		t.Errorf("execStdout failure: %q %v", out, err)
 	}
-	if err := spawnDetached(dir, []string{sh, "-c", "true"}); err != nil {
+	if err := h.spawnDetached(dir, []string{sh, "-c", "true"}); err != nil {
 		t.Errorf("spawnDetached: %v", err)
 	}
-	if err := spawnDetached(dir, []string{"/definitely/not/here"}); err == nil {
+	if err := h.spawnDetached(dir, []string{"/definitely/not/here"}); err == nil {
 		t.Error("spawnDetached must fail on a missing binary")
 	}
 	cache := t.TempDir()
-	t.Setenv("XDG_CACHE_HOME", cache)
-	p, err := writeLauncherScript("claude-review-test.sh", "#!/bin/sh\nexit 0\n")
+	p, err := osHost{cacheBase: cache}.writeLauncherScript("claude-review-test.sh", "#!/bin/sh\nexit 0\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,22 +98,21 @@ func TestOSHelpers(t *testing.T) {
 	if err := os.WriteFile(blocker, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("XDG_CACHE_HOME", blocker) // a file where the dir must go
-	if _, err := writeLauncherScript("x.sh", ""); err == nil {
+	// a file where the dir must go
+	if _, err := (osHost{cacheBase: blocker}).writeLauncherScript("x.sh", ""); err == nil {
 		t.Error("writeLauncherScript must fail when the cache dir cannot be created")
 	}
 	occupied := t.TempDir()
-	t.Setenv("XDG_CACHE_HOME", occupied)
 	if err := os.MkdirAll(filepath.Join(occupied, "claude-review", "x.sh"), 0o700); err != nil { // a dir where the file must go
 		t.Fatal(err)
 	}
-	if _, err := writeLauncherScript("x.sh", ""); err == nil {
+	if _, err := (osHost{cacheBase: occupied}).writeLauncherScript("x.sh", ""); err == nil {
 		t.Error("writeLauncherScript must fail when the file cannot be written")
 	}
-	t.Setenv("XDG_CACHE_HOME", "")
-	t.Setenv("HOME", "")
-	if _, err := writeLauncherScript("x.sh", ""); err == nil {
-		t.Error("writeLauncherScript must fail when no cache dir can be determined")
+	for _, base := range []string{"", "relative"} {
+		if _, err := (osHost{cacheBase: base}).writeLauncherScript("x.sh", ""); err == nil {
+			t.Errorf("writeLauncherScript must fail when no cache dir can be determined (%q)", base)
+		}
 	}
 	_ = stdinIsTerminal() // whatever go test's stdin is; must not panic
 	if _, err := exec.LookPath("gh"); err != nil {
@@ -155,18 +167,17 @@ func TestCleanEnv(t *testing.T) {
 }
 
 func TestChildProcessesDoNotInheritSessionMarkers(t *testing.T) {
-	t.Setenv("CLAUDE_CODE_CHILD_SESSION", "1")
-	t.Setenv("CLAUDE_CONFIG_DIR", "/kept")
-	out, err := execOutput(t.TempDir(), []string{sh, "-c", "echo \"[$CLAUDE_CODE_CHILD_SESSION][$CLAUDE_CONFIG_DIR]\""})
+	h := osHost{environ: []string{"CLAUDE_CODE_CHILD_SESSION=1", "CLAUDE_CONFIG_DIR=/kept"}}
+	out, err := h.execOutput(t.TempDir(), []string{sh, "-c", "echo \"[$CLAUDE_CODE_CHILD_SESSION][$CLAUDE_CONFIG_DIR]\""})
 	if err != nil || strings.TrimSpace(out) != "[][/kept]" {
 		t.Errorf("out %q err %v", out, err)
 	}
 	dir := t.TempDir()
-	if err := execAttached(dir, []string{sh, "-c", "test -z \"$CLAUDE_CODE_CHILD_SESSION\""}); err != nil {
+	if err := h.execAttached(dir, []string{sh, "-c", "test -z \"$CLAUDE_CODE_CHILD_SESSION\""}); err != nil {
 		t.Errorf("execAttached leaked the marker: %v", err)
 	}
 	marker := dir + "/spawned"
-	if err := spawnDetached(dir, []string{sh, "-c", "test -z \"$CLAUDE_CODE_CHILD_SESSION\" && touch " + marker}); err != nil {
+	if err := h.spawnDetached(dir, []string{sh, "-c", "test -z \"$CLAUDE_CODE_CHILD_SESSION\" && : > " + marker}); err != nil {
 		t.Fatal(err)
 	}
 	for i := 0; i < 50; i++ {

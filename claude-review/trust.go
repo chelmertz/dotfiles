@@ -9,10 +9,11 @@ import (
 )
 
 // claudeJSONPath is Claude Code's global state file, which holds per-folder
-// trust: $CLAUDE_CONFIG_DIR/.claude.json when that is set, else ~/.claude.json.
-func claudeJSONPath(home string) string {
-	if d := os.Getenv("CLAUDE_CONFIG_DIR"); d != "" {
-		return filepath.Join(d, ".claude.json")
+// trust: configDir/.claude.json when $CLAUDE_CONFIG_DIR (configDir) is set,
+// else ~/.claude.json.
+func claudeJSONPath(home, configDir string) string {
+	if configDir != "" {
+		return filepath.Join(configDir, ".claude.json")
 	}
 	return filepath.Join(home, ".claude.json")
 }

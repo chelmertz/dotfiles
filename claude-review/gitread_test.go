@@ -17,10 +17,10 @@ func newPRClone(t *testing.T) prClone {
 	t.Helper()
 	dir := t.TempDir()
 	t.Chdir(dir)
-	t.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
 	git := func(args ...string) string {
 		t.Helper()
 		cmd := exec.Command("git", append([]string{"-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"}, args...)...)
+		cmd.Env = []string{"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1"}
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("git %v: %v\n%s", args, err, out)
@@ -52,8 +52,9 @@ func newPRClone(t *testing.T) prClone {
 	return r
 }
 
-func (r prClone) reader(base string) prReader {
-	d := newPRReader(Deps{})
+// reader reads the clone with environ as the process environment.
+func (r prClone) reader(base string, environ ...string) prReader {
+	d := newPRReader(Deps{Environ: environ})
 	d.head = func(PR) (string, error) { return r.head, nil }
 	d.diffBase = func(PR) (string, bool, error) { return base, base != "", nil }
 	return d
@@ -137,8 +138,7 @@ func TestGitReadIgnoresTheGlobalConfig(t *testing.T) {
 	if err := os.WriteFile(cfg, []byte("[diff]\n\tnoprefix = true\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("GIT_CONFIG_GLOBAL", cfg)
-	if _, out, _ := read(t, "diff", r.reader(r.base), prURL); !strings.Contains(out, "--- a/app.go") {
+	if _, out, _ := read(t, "diff", r.reader(r.base, "GIT_CONFIG_GLOBAL="+cfg), prURL); !strings.Contains(out, "--- a/app.go") {
 		t.Errorf("global config applied:\n%s", out)
 	}
 }

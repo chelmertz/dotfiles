@@ -35,12 +35,10 @@ create table if not exists meta (key text primary key, value text not null);
 create table if not exists breaker (id integer primary key check (id = 1), tripped text, reset_at integer not null default 0);
 `
 
-// LedgerPath is where the ledger lives: XDG state, beside nothing else.
-func LedgerPath(home string) string {
-	if d := os.Getenv("XDG_STATE_HOME"); d != "" {
-		return filepath.Join(d, "claude-review", "ledger.db")
-	}
-	return filepath.Join(home, ".local", "state", "claude-review", "ledger.db")
+// LedgerPath is where the ledger lives under stateDir, the XDG state home
+// (Deps.StateDir), beside nothing else.
+func LedgerPath(stateDir string) string {
+	return filepath.Join(stateDir, "claude-review", "ledger.db")
 }
 
 func OpenLedger(path string) (*Ledger, error) {

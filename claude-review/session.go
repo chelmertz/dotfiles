@@ -129,7 +129,9 @@ func readProcStart(procRoot string, pid int, ps func(pid int) (string, error)) s
 
 func psLstart(pid int) (string, error) {
 	cmd := exec.Command("ps", "-o", "lstart=", "-p", strconv.Itoa(pid)) //nolint:gosec // a pid
-	cmd.Env = append(os.Environ(), "LC_ALL=C", "TZ=UTC")
+	// Only the two variables that decide its output: the rest of the
+	// environment cannot change lstart's text in the C locale and UTC.
+	cmd.Env = []string{"LC_ALL=C", "TZ=UTC"}
 	out, err := cmd.Output()
 	return string(out), err
 }

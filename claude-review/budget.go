@@ -17,7 +17,7 @@ func ledgerSpend(d Deps) spendFunc {
 		if err != nil {
 			return err
 		}
-		l, err := OpenLedger(LedgerPath(d.Home))
+		l, err := OpenLedger(LedgerPath(d.StateDir))
 		if err != nil {
 			return err
 		}

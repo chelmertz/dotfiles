@@ -63,6 +63,7 @@ func newHost(t *testing.T, cfgJSON string, repoFound bool, exists bool) *fakeHos
 		UserConfigDir: cfgDir,
 		Home:          "/srv/t",
 		ClaudeDir:     "/claude",
+		StateDir:      "/srv/t/.local/state",
 		Stdout:        h.stdout,
 		Stderr:        h.stderr,
 		FindRepo: func(roots []string, clonePath string, pr PR) (string, string, error) {
@@ -182,7 +183,7 @@ func sameArgv(t *testing.T, what string, got, want []string) {
 func TestRun_PostSubcommandRoutesToRunPost(t *testing.T) {
 	h := newHost(t, "", true, false)
 	h.d.Home = t.TempDir()
-	t.Setenv("XDG_STATE_HOME", "") // the ledger goes under Home, never the real state dir
+	h.d.StateDir = h.d.Home + "/.local/state" // the ledger stays in the test's dir
 	code := run([]string{"post", target, kindComment, bodyFlag, "hi"}, h.d)
 	// The duplicate check, the head for the budget, the post.
 	if code != 0 || h.stdout.String() != "posted\n" || len(h.ghCalls) != 3 {
@@ -682,7 +683,7 @@ func TestRun_Window_AttachDoesNotWait(t *testing.T) {
 func TestRun_PostStopsAtTheLimit(t *testing.T) {
 	h := newHost(t, "", true, false)
 	h.d.Home = t.TempDir()
-	t.Setenv("XDG_STATE_HOME", "")
+	h.d.StateDir = h.d.Home + "/.local/state" // the ledger stays in the test's dir
 	for i := range newPostLimit {
 		if code := run([]string{"post", target, kindComment, bodyFlag, fmt.Sprint("finding ", i)}, h.d); code != 0 {
 			t.Fatalf("post %d: code %d stderr %q", i, code, h.stderr)
@@ -700,7 +701,7 @@ func TestRun_PostStopsAtTheLimit(t *testing.T) {
 func TestRun_PostFailsClosedWithoutTheLedger(t *testing.T) {
 	h := newHost(t, "", true, false)
 	h.d.Home = "/nonexistent/home"
-	t.Setenv("XDG_STATE_HOME", "")
+	h.d.StateDir = h.d.Home + "/.local/state" // the ledger stays in the test's dir
 	if code := run([]string{"post", target, kindComment, bodyFlag, "hi"}, h.d); code != 1 {
 		t.Errorf("posted with no ledger: code %d", code)
 	}
@@ -716,7 +717,7 @@ func TestRun_PostFailsClosedWithoutTheLedger(t *testing.T) {
 func TestRun_PostOneReplyPerThread(t *testing.T) {
 	h := newHost(t, "", true, false)
 	h.d.Home = t.TempDir()
-	t.Setenv("XDG_STATE_HOME", "")
+	h.d.StateDir = h.d.Home + "/.local/state" // the ledger stays in the test's dir
 	reply := func(to, body string) int {
 		return run([]string{"post", target, kindReply, "--to", to, bodyFlag, body}, h.d)
 	}
@@ -751,7 +752,7 @@ func TestRun_PostRefusesOnAClosedPR(t *testing.T) {
 		for kind, flags := range kinds {
 			h := newHost(t, "", true, false)
 			h.d.Home = t.TempDir()
-			t.Setenv("XDG_STATE_HOME", "")
+			h.d.StateDir = h.d.Home + "/.local/state" // the ledger stays in the test's dir
 			set(h)
 			args := append([]string{"post", target, kind}, flags...)
 			if kind != kindResolve {
