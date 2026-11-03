@@ -184,6 +184,12 @@ func TestNotifyArgv(t *testing.T) {
 	if strings.Join(got, "|") != "notify-send|claude-review|repo not found" {
 		t.Errorf("linux: %q", got)
 	}
+	// a daemon that renders markup (dunst, GNOME) must show a session's or
+	// a PR's text as text
+	got = notifyArgv("linux", "a <i>t</i>", `<b>bold</b> & <a href="x">y</a>`)
+	if strings.Join(got, "|") != "notify-send|a &lt;i&gt;t&lt;/i&gt;|&lt;b&gt;bold&lt;/b&gt; &amp; &lt;a href=&#34;x&#34;&gt;y&lt;/a&gt;" {
+		t.Errorf("linux markup: %q", got)
+	}
 	got = notifyArgv("darwin", `t"1`, `say "hi" \ there`)
 	want := []string{"osascript", "-e", `display notification "say \"hi\" \\ there" with title "t\"1"`}
 	if strings.Join(got, "|") != strings.Join(want, "|") {

@@ -2,9 +2,12 @@ package main
 
 import (
 	"errors"
+	"html"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 const reviewRepoCfg = `{"review_repos":["acme/*"],"github_user":"me","elly_url":"http://127.0.0.1:1"}`
@@ -84,7 +87,7 @@ func TestClickOnAReviewRepoRunsInTheBackground(t *testing.T) {
 		if got := strings.Join(fs.events, ","); got != "trust "+cloneOf+",launch" {
 			t.Errorf("exists=%v: events %s", exists, got)
 		}
-		if n := notified(h); n != "review of "+target+" started" {
+		if n := notified(h); n != "review of "+target+" started (first handover)" {
 			t.Errorf("exists=%v: notified %q", exists, n)
 		}
 		rounds, _ := h.ledger(t).UnreadRounds()
@@ -237,5 +240,46 @@ func TestClickResumesFlaglessUnderTheSavedPolicy(t *testing.T) {
 	}
 	if !strings.Contains(notified(h), "other options") {
 		t.Errorf("notified %q", notified(h))
+	}
+}
+
+// A click on a PR handed over before says so, with what came of it.
+func TestClickNotificationStatesTheHandoverHistory(t *testing.T) {
+	h, _ := clickHost(t, true)
+	l := h.ledger(t)
+	for i, at := range []time.Time{t0, t0.Add(26 * time.Hour)} {
+		id, err := l.StartRound(testPR, "h"+strconv.Itoa(i), "new_head", at)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := l.MarkRead(id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	note := "the round has a question for you: " + strings.Repeat("ö", 100)
+	if err := l.SetAnnotation(testPR, Annotation{State: stateNeedsYou, Note: note}); err != nil {
+		t.Fatal(err)
+	}
+	if code := run([]string{target}, h.d); code != 0 {
+		t.Fatalf("exit %d: %s", code, h.stderr)
+	}
+	want := html.EscapeString("review of " + target + " started: handed over Oct 31, 2 rounds, last: " + string([]rune(note)[:79]) + "…")
+	if n := notified(h); n != want {
+		t.Errorf("notified\n%q, want\n%q", n, want)
+	}
+}
+
+func TestHandoverWords(t *testing.T) {
+	for _, c := range []struct {
+		h    Handover
+		want string
+	}{
+		{Handover{}, " (first handover)"},
+		{Handover{First: t0, Rounds: 1}, ": handed over Oct 31, 1 round"},
+		{Handover{First: t0, Rounds: 3, LastNote: "round posted its review"}, ": handed over Oct 31, 3 rounds, last: round posted its review"},
+	} {
+		if got := c.h.words(); got != c.want {
+			t.Errorf("%+v: got %q, want %q", c.h, got, c.want)
+		}
 	}
 }

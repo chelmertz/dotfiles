@@ -578,8 +578,11 @@ func TestTickARoundOverItsPostLimitStopsThatPR(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := w.elly.put[pr.URL()]
-	if a.State != stateNeedsYou || !strings.Contains(a.Note, "refused over the limit") || slices.ContainsFunc(a.Links, func(l Link) bool { return l.Label == "Approve" }) {
+	if a.State != stateStuck || !strings.Contains(a.Note, "refused over the limit") || slices.ContainsFunc(a.Links, func(l Link) bool { return l.Label == "Approve" }) {
 		t.Errorf("elly got %+v", a)
+	}
+	if want := []string{pr.URL() + " needs you: " + a.Note}; !slices.Equal(w.notified, want) {
+		t.Errorf("notified %q, want %q", w.notified, want)
 	}
 	if len(w.started) != 1 {
 		t.Errorf("rounds after the limit: %q", w.started)
@@ -969,7 +972,7 @@ func TestTickNotifiesEachNewNeedsYouOnce(t *testing.T) {
 		}
 	}
 	want := []string{
-		asked.URL() + " needs you: the round has a question for you",
+		asked.URL() + " needs you: the round has a question for you: Which one?",
 		gated.URL() + " needs you: " + w.elly.put[gated.URL()].Note,
 	}
 	slices.Sort(want)

@@ -243,6 +243,11 @@ func backgroundClick(d Deps, cfg Config, pr PR, dir, remote, head string) int {
 	if reason, err := l.Tripped(); err != nil || reason != "" {
 		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.Slug(), errors.Join(err, breakerError(reason))))
 	}
+	// read before the round starts: it records a round and a running note
+	before, err := l.Handover(pr)
+	if err != nil {
+		return fail(d, err)
+	}
 	if err := d.Trust(dir); err != nil {
 		return fail(d, fmt.Errorf("claude-review: trusting %s for Claude Code: %w", dir, err))
 	}
@@ -280,16 +285,17 @@ func backgroundClick(d Deps, cfg Config, pr PR, dir, remote, head string) int {
 	if err != nil {
 		say(h.dropRunning(pr))
 	}
-	return clickOutcome(d, pr, res, started, err)
+	return clickOutcome(d, pr, res, started, err, before)
 }
 
-// clickOutcome tells the user what a background click did.
-func clickOutcome(d Deps, pr PR, res RelaunchResult, started bool, err error) int {
+// clickOutcome tells the user what a background click did, and on a start
+// what came of the PR's earlier handovers.
+func clickOutcome(d Deps, pr PR, res RelaunchResult, started bool, err error, before Handover) int {
 	switch {
 	case err != nil:
 		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.Slug(), err))
 	case started:
-		tell(d, "review of "+pr.URL()+" started")
+		tell(d, "review of "+pr.URL()+" started"+before.words())
 		return 0
 	case res.Kind == relaunchBusy:
 		tell(d, pr.URL()+" is mid-round; it continues in the background")
@@ -492,4 +498,19 @@ func notifyCopy(d Deps, nf *notFoundError) {
 	if _, err := d.Capture("", copyCmd); err != nil {
 		_ = d.Spawn("", notifyArgv(d.GOOS, "claude-review", "could not copy (is xclip installed?); run:\n"+nf.Command()))
 	}
+}
+
+// words is the handover history as the tail of one notification line.
+func (h Handover) words() string {
+	if h.Rounds == 0 {
+		return " (first handover)"
+	}
+	s := fmt.Sprintf(": handed over %s, %d round", h.First.Local().Format("Jan 2"), h.Rounds)
+	if h.Rounds != 1 {
+		s += "s"
+	}
+	if h.LastNote != "" {
+		s += ", last: " + capRunes(h.LastNote, 80)
+	}
+	return s
 }

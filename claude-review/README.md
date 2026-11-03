@@ -153,7 +153,10 @@ the PR's lock, records the acceptance, requests your own review on GitHub
 were only asked about in a DM is otherwise invisible to elly until its round
 posts), and then runs the round the way
 `tick` does (see "Each tick"): in the PR's one round session, under the
-same launch policy as tick's rounds. A notification says "review of <url> started", or "<url> is
+same launch policy as tick's rounds. A notification says "review of <url>
+started (first handover)", or for a PR that had rounds before "review of
+<url> started: handed over <date of its first round>, <N> rounds, last:
+<the note it last showed, cut at 80 characters>", or "<url> is
 mid-round; it continues in the background" when a round is still working
 there, in which case nothing starts. A window on the round session, a
 session saved under other options, a tripped breaker, or a worker that never
@@ -286,7 +289,7 @@ round cannot keep answering itself, and an author who replies twice at one
 commit gets two answers (a per-thread limit paused such a PR on
 2026-11-02). Past the budget the
 post is refused before anything is sent, and an unattended round that hit
-it ends as `needs_you` with the PR held back until the next click. The
+it ends as `stuck` with the PR held back until the next click. The
 budget lives in the runner's ledger, and a post that cannot read it is
 refused. A post whose body holds the value of a secret-shaped environment
 variable (a name with token, key, secret, pass, auth or cred) is refused
@@ -565,7 +568,7 @@ does everything Claude-shaped, including deciding when a round runs.
 | Poll GitHub, store PR facts | yes | no |
 | Score whose turn it is (points) | yes | no |
 | Show the inbox: page, i3blocks count | yes | no |
-| Send desktop notifications | yes | its own results only: clicks, a failed self-check, every new `needs_you` |
+| Send desktop notifications | yes | its own results only: clicks, a failed self-check, every new `needs_you` or `stuck` |
 | Store and render annotations, with expiry | yes, generic | no |
 | Review one PR in a session (prompts, clone, PR-derived session id) | no | yes, as today |
 | Refuse a round while the PR's session is open | no | yes, as today |
@@ -714,7 +717,9 @@ claude-review alone. It holds:
      after the launch and is never extended: the longest recorded round
      posted last 82 minutes in, and settling replaces the row long before
      unless ticks stopped. A failed send is logged and the round runs on;
-     an elly from before `running` refuses it with a 400 the same way. A
+     an elly from before `running` refuses it with a 400 the same way, as
+     one from before `stuck` refuses that state, so the nix pin moves elly
+     and claude-review together. A
      launch that fails clears a `running` row left by the PR's last round;
    - a live session for the round session's id that is no worker's (a
      window someone opened on it with `claude --resume`) starts nothing and
@@ -772,7 +777,13 @@ outstanding" without an approval as unclear.
   green") counts as approve: a red build is the author's to fix. `tick`
   also sends a desktop notification, "<url> needs you: clean round at
   <sha>"; approving stays the user's click on the link.
-- **Question line**: `needs_you` with an Open-session link.
+- **Question line**: `needs_you` with an Open-session link. The note
+  carries the question: "the round has a question for you: <text>", where
+  the text is the last paragraph before the question line, on one line,
+  control characters dropped, cut at 200 characters with "…". It is the
+  session's text and may echo the PR, so elly and the desktop notification
+  show it escaped. A message with nothing before the line keeps the bare
+  note.
 - **Nothing line**, and GitHub shows nothing posted: `handled`. Without the
   line such a round would read as a failed one and be retried; replays of
   past rounds found two of 33 ending this way.
@@ -795,7 +806,7 @@ outstanding" without an approval as unclear.
   what says the round finished. It links to the review.
 - **Anything else** (a crash, a shutdown mid-round, an expired `gh` token, a
   rate limit, a stalled prompt, neither line printed): retry once, then
-  `needs_you` with an Open-session link. Inline comments without a summary
+  `stuck` with an Open-session link. Inline comments without a summary
   mean the round was cut off while posting: the retry resumes the same
   session, which knows what it posted, and the post budget caps what it can
   add at that commit (one reply per author comment); a second cut-off reads "round stopped twice
@@ -932,7 +943,7 @@ every fetch and a column there would be wiped every 5 minutes.
 create table if not exists annotations (
     pr_url     text not null,
     source     text not null,
-    state      text not null check (state in ('handled', 'needs_you', 'running')),
+    state      text not null check (state in ('handled', 'needs_you', 'running', 'stuck')),
     note       text not null default '',
     links      text not null default '[]',
     expires_at text not null,
@@ -976,8 +987,8 @@ on render.
 | --- | --- |
 | `prUrl` | a PR elly currently lists, else 404 |
 | `source` | 1–40 characters of `[a-z0-9-]` |
-| `state` | `handled`, `needs_you` or `running` |
-| `note` | at most 200 characters, plain text |
+| `state` | `handled`, `needs_you`, `running` or `stuck` |
+| `note` | at most 300 characters, plain text, no control characters |
 | `links` | at most 4, each exactly `{label, url}` |
 | `label` | at most 40 characters, plain text |
 | `url` | at most 2048 characters; scheme `https` or one named in elly's `-annotation-schemes` flag, empty by default |
@@ -1004,17 +1015,22 @@ or reviewer-less own PR keeps counting until it is closed or shipped.
   everything on the user; the row stays visible with its note.
 - `needs_you`: the PR counts and sorts as on the user even when elly scores it
   0, for example a clean round on a PR elly sees as waiting on the author.
-- `running`: shown, and scores nothing: the PR counts exactly as it would
-  without it, so a row that outlives a dead round hides nothing.
-- Two sources disagreeing: `needs_you` wins.
+- `running`: like `handled`, the review-owed reasons stop counting: the user
+  handed the PR over, and the replies a round is answering do not put it
+  back on the user. A row that outlives a dead round hides those reasons
+  until it expires, at most `roundLifetime` (2 hours) after the launch.
+- `stuck`: counts like `needs_you`, for the outcomes nothing but the user
+  moves (a refused post, a round that failed twice); elly marks the row.
+- Two sources disagreeing: `needs_you` and `stuck` win.
 - An expired annotation is ignored, so a dead runner fails toward showing more
   PRs, never fewer.
 
 ### Notifications
 
 elly sends the notifications about PR state. claude-review sends its own
-for its clicks' results, a failed self-check, and every `needs_you` it sets
-("<url> needs you: <note>"): a question, a clean round with its Approve link,
+for its clicks' results, a failed self-check, and every `needs_you` or
+`stuck` it sets ("<url> needs you: <note>", html-escaped for daemons that
+render markup): a question, a clean round with its Approve link,
 a paused PR, a PR that changed under its first look, a window or worker in
 the way. One notification per change of state or note, so a gate tick sees
 again every five minutes notifies once. `running` never notifies, and it

@@ -297,7 +297,39 @@ const (
 	stateHandled  = "handled"
 	stateNeedsYou = "needs_you"
 	stateRunning  = "running"
+	// stateStuck is needs_you that nothing but the user will move. Only an
+	// elly that knows it accepts it.
+	stateStuck = "stuck"
 )
+
+// needsUser: the state asks the user to act, so the desktop hears of it.
+func needsUser(state string) bool { return state == stateNeedsYou || state == stateStuck }
+
+// Handover is a PR's history with the runner before a click: when its first
+// round started, how many ran, and the note it last showed. Zero Rounds is a
+// first handover.
+type Handover struct {
+	First    time.Time
+	Rounds   int
+	LastNote string
+}
+
+// Handover reads pr's history; call it before the click records its round.
+func (l *Ledger) Handover(pr PR) (Handover, error) {
+	var h Handover
+	var first sql.NullInt64
+	if err := l.db.QueryRow(`select count(*), min(started_at) from rounds where pr = ?`, pr.URL()).Scan(&h.Rounds, &first); err != nil {
+		return Handover{}, err
+	}
+	if first.Valid {
+		h.First = time.Unix(first.Int64, 0).UTC()
+	}
+	a, ok, err := l.Annotation(pr)
+	if ok {
+		h.LastNote = a.Note
+	}
+	return h, err
+}
 
 func (l *Ledger) SetAnnotation(pr PR, a Annotation) error {
 	links, err := json.Marshal(a.Links)

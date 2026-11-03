@@ -229,7 +229,9 @@ type Decision struct {
 	Ignore bool
 }
 
-// decide reads one finished round against GitHub. The session's own words
+// decide reads one finished round against GitHub. stuck, not needs_you,
+// marks the outcomes nothing but the user moves: a refused post holds the PR
+// back until the next click, and a round that failed twice is not retried. The session's own words
 // (o) never suffice: an Approve link also needs GitHub to show a quiet round
 // at the head tick recorded, and "handled" needs the round's review.
 func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
@@ -249,10 +251,10 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 	// over its post limit is suspect whatever it says, and never earns an
 	// Approve link or a retry.
 	case r.PostRefused:
-		return Decision{Ignore: true, Annotation: &Annotation{State: stateNeedsYou,
+		return Decision{Ignore: true, Annotation: &Annotation{State: stateStuck,
 			Note: "a post was refused over the limit; no more rounds on this PR until you click it again", Links: summary(attach)}}
 	case o.Kind == OutcomeQuestion:
-		return Decision{Annotation: &Annotation{State: stateNeedsYou, Note: "the round has a question for you", Links: summary(attach, ignore)}}
+		return Decision{Annotation: &Annotation{State: stateNeedsYou, Note: questionNote(o), Links: summary(attach, ignore)}}
 	case f.NewThreads > 0 && approvedEarlier:
 		return Decision{DismissReviewID: f.UserReview.ID, Annotation: &Annotation{State: stateNeedsYou,
 			Note: "new findings after your approval; your approval was dismissed", Links: summary(attach, ignore)}}
@@ -278,7 +280,15 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 	case r.Retries == 0:
 		return Decision{Retry: true}
 	}
-	return Decision{Annotation: &Annotation{State: stateNeedsYou, Note: failedTwice(f), Links: []Link{attach, ignore}}}
+	return Decision{Annotation: &Annotation{State: stateStuck, Note: failedTwice(f), Links: []Link{attach, ignore}}}
+}
+
+// questionNote carries the round's question when it found one.
+func questionNote(o Outcome) string {
+	if o.Question == "" {
+		return "the round has a question for you"
+	}
+	return "the round has a question for you: " + o.Question
 }
 
 // failedTwice names how a round that never finished failed.

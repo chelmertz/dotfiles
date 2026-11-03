@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"html"
 	"strings"
 )
 
@@ -127,5 +128,7 @@ func notifyArgv(goos, title, body string) []string {
 		esc := strings.NewReplacer(`\`, `\\`, `"`, `\"`)
 		return []string{"osascript", "-e", fmt.Sprintf(`display notification "%s" with title "%s"`, esc.Replace(body), esc.Replace(title))}
 	}
-	return []string{"notify-send", title, body}
+	// html-escaped: a daemon that renders markup must show a PR's or a
+	// session's text as text, not restyle the card with it
+	return []string{"notify-send", html.EscapeString(title), html.EscapeString(body)}
 }

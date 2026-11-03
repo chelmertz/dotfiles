@@ -200,14 +200,24 @@ func TestDecide(t *testing.T) {
 			func(d Decision) bool { return d.Retry && d.Annotation == nil }, "retry"},
 		{"replies without a summary: interrupted, resumed", round, Outcome{}, RoundFacts{State: "open", Head: head, NewReplies: 1},
 			func(d Decision) bool { return d.Retry && d.Annotation == nil }, "retry"},
-		{"cut off again: needs the user", Round{ID: 1, PR: round.PR, Head: head, Retries: 1}, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 2},
+		{"cut off again: stuck", Round{ID: 1, PR: round.PR, Head: head, Retries: 1}, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 2},
 			func(d Decision) bool {
-				return !d.Retry && d.Annotation.State == stateNeedsYou && strings.Contains(d.Annotation.Note, "summary")
-			}, "needs_you, names the missing summary"},
+				return !d.Retry && d.Annotation.State == stateStuck && strings.Contains(d.Annotation.Note, "summary")
+			}, "stuck, names the missing summary"},
+		{"a refused post: stuck, held back", Round{ID: 1, PR: round.PR, Head: head, PostRefused: true}, approveLine, open,
+			func(d Decision) bool {
+				return d.Ignore && d.MintFor == "" && d.Annotation.State == stateStuck && strings.Contains(d.Annotation.Note, "refused")
+			}, "stuck + ignore"},
 		{"findings with the approval at the current head do not dismiss", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 1, UserReview: approved(head), RoundReviewURL: roundReview},
 			func(d Decision) bool { return d.DismissReviewID == 0 }, "no dismissal"},
 		{"question", round, Outcome{Kind: OutcomeQuestion}, open,
-			func(d Decision) bool { return d.Annotation.State == stateNeedsYou && hasLink(d.Annotation, "attach") }, "needs_you + attach"},
+			func(d Decision) bool {
+				return d.Annotation.State == stateNeedsYou && hasLink(d.Annotation, "attach") && d.Annotation.Note == "the round has a question for you"
+			}, "needs_you + attach, today's note"},
+		{"question with its text", round, Outcome{Kind: OutcomeQuestion, Question: "Per booking or per venue?"}, open,
+			func(d Decision) bool {
+				return d.Annotation.State == stateNeedsYou && d.Annotation.Note == "the round has a question for you: Per booking or per venue?"
+			}, "needs_you with the question"},
 		{"findings posted: handled", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 3, RoundReviewURL: roundReview},
 			func(d Decision) bool {
 				return d.Annotation.State == stateHandled && hasLink(d.Annotation, "pullrequestreview-5")
@@ -218,8 +228,8 @@ func TestDecide(t *testing.T) {
 			func(d Decision) bool { return d.Retry && d.Annotation == nil }, "retry"},
 		{"nothing again: round failed", Round{ID: 1, PR: round.PR, Head: head, Retries: 1}, Outcome{}, open,
 			func(d Decision) bool {
-				return !d.Retry && d.Annotation.State == stateNeedsYou && strings.Contains(d.Annotation.Note, "failed")
-			}, "needs_you failed"},
+				return !d.Retry && d.Annotation.State == stateStuck && strings.Contains(d.Annotation.Note, "failed")
+			}, "stuck failed"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

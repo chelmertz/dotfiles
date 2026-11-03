@@ -17,8 +17,8 @@ const annotationTTL = 30 * time.Minute
 // running. Settling the round replaces the row long before this; it only
 // matters when nothing settles it, a tick that stopped running. The
 // longest recorded round (testdata/rounds/008) posted last 82 minutes after
-// its start. running scores nothing in elly, so a row that outlives a dead
-// round hides no PR.
+// its start. running drops the PR's review-owed reasons in elly, as handled
+// does, so a row that outlives a dead round hides them until it expires.
 const roundLifetime = 2 * time.Hour
 
 // tickElly is what tick needs from elly.
@@ -513,7 +513,7 @@ func (h tickHost) mark(pr PR, a Annotation) error {
 			return err
 		}
 		// A click builds its host without one: it tells the desktop itself.
-		if h.notify != nil && a.State == stateNeedsYou && (!had || was.State != a.State || was.Note != a.Note) {
+		if h.notify != nil && needsUser(a.State) && (!had || was.State != a.State || was.Note != a.Note) {
 			h.notify(pr.URL() + " needs you: " + a.Note)
 		}
 		return nil
