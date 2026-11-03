@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -246,5 +247,13 @@ func TestConfiguredPromptReadsThePersonasItself(t *testing.T) {
 	}
 	if !slices.Contains(PolicyFlags(widgetsPR, "upstream"), "Read(~/.claude/skills/persona-review/**)") {
 		t.Error("the policy does not let a round read the folder the prompt names")
+	}
+}
+
+// A round that does not know its inline budget spends it before its
+// summary; the prompt states the limit and where the rest goes.
+func TestPostAutoStatesTheInlineLimit(t *testing.T) {
+	if !strings.Contains(postAuto, strconv.Itoa(newPostLimit)) || !strings.Contains(postAuto, "own budget") {
+		t.Errorf("postAuto does not state the inline limit and the summary's own budget: %q", postAuto)
 	}
 }

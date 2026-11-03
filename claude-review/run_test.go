@@ -698,6 +698,27 @@ func TestRun_PostStopsAtTheLimit(t *testing.T) {
 	}
 }
 
+// The summary is posted last and carries the verdict, so a round with more
+// findings than the inline budget must still be able to post it: it has a
+// budget of its own, and the refusal points the round at it.
+func TestRun_SummaryPostsAfterTheInlineLimit(t *testing.T) {
+	h := newHost(t, "", true, false)
+	h.d.Home = t.TempDir()
+	h.d.StateDir = h.d.Home + "/.local/state" // the ledger stays in the test's dir
+	for i := range newPostLimit {
+		if code := run([]string{"post", target, kindComment, bodyFlag, fmt.Sprint("finding ", i)}, h.d); code != 0 {
+			t.Fatalf("post %d: code %d stderr %q", i, code, h.stderr)
+		}
+	}
+	if code := run([]string{"post", target, kindComment, bodyFlag, "one more"}, h.d); code != 1 || !strings.Contains(h.stderr.String(), "summary review") {
+		t.Errorf("the refusal does not point at the summary: code %d stderr %q", code, h.stderr)
+	}
+	h.stderr.Reset()
+	if code := run([]string{"post", target, kindReview, bodyFlag, "Reviewed at h7: 13 points to address.", atFlag, olderSha}, h.d); code != 0 {
+		t.Errorf("the summary was refused after the inline limit: code %d stderr %q", code, h.stderr)
+	}
+}
+
 func TestRun_PostFailsClosedWithoutTheLedger(t *testing.T) {
 	h := newHost(t, "", true, false)
 	h.d.Home = "/nonexistent/home"

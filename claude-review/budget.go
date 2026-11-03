@@ -27,7 +27,11 @@ func ledgerSpend(d Deps) spendFunc {
 			return fmt.Errorf("the post budget: %w", err)
 		}
 		if !ok {
-			return fmt.Errorf("the limit of %d posts (%s) at commit %.9s is reached; end the round with the question line", limit, slot, head)
+			next := "end the round with the question line"
+			if slot == postSlotNew {
+				next = "list the remaining findings in your summary review (`claude-review post <pr> review`), which has its own budget, then end the round"
+			}
+			return fmt.Errorf("the limit of %d posts (%s) at commit %.9s is reached; %s", limit, slot, head, next)
 		}
 		return nil
 	}

@@ -62,17 +62,24 @@ type Gh func(args ...string) (string, error)
 // Post limits per PR and head commit, from any session. A hijacked round
 // multiplies new comments; replies are bounded by the threads already
 // there. The largest real rounds (October 2026) made 8 new posts, and 18
-// replies, one per thread.
+// replies, one per thread. The summary review has a budget of its own: it
+// is posted last and carries the verdict, so a round with more findings
+// than newPostLimit lost it to the inline comments (November 2026). One per
+// round, at the default daily cap of rounds per PR.
 const (
-	newPostLimit    = 12
-	threadPostLimit = 1
+	newPostLimit     = 12
+	threadPostLimit  = 1
+	summaryPostLimit = 6
 )
 
 // spendFunc takes one post from the PR's budget in slot (postSlotNew, or a
 // thread's), and errs when the budget is spent or cannot be read.
 type spendFunc func(pr PR, slot string, limit int) error
 
-const postSlotNew = "new"
+const (
+	postSlotNew     = "new"
+	postSlotSummary = "summary"
+)
 
 // runPost is `claude-review post`. Exit codes as run: 0, 1, 2 for usage.
 // spend runs after the duplicate check and before anything is sent.
@@ -132,6 +139,9 @@ func runPostText(args []string, gh Gh, spend spendFunc, environ []string, stdout
 		return 0
 	}
 	slot, limit := postSlotNew, newPostLimit
+	if in.kind == kindReview {
+		slot, limit = postSlotSummary, summaryPostLimit
+	}
 	if in.kind == kindReply {
 		// One answer per comment from the other side, at a commit: a second
 		// author reply gets its answer, and our own replies, signed, never

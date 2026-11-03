@@ -272,8 +272,13 @@ head, a summary of the old commit made a push during the round look reviewed
 (seen 2026-11-02).
 
 Every post counts against a budget per PR and head commit, whichever
-session makes it: at most 12 new comments or reviews, and in an existing
-thread one reply per comment from the other side. A hijacked round
+session makes it: at most 12 new comments, at most 6 summary reviews (one
+per round at the default daily cap), and in an existing thread one reply
+per comment from the other side. The summary has its own budget because it
+is posted last and carries the verdict: sharing the 12 with the comments, a
+round with 12 findings lost it (seen 2026-11-03). The round's prompt states
+the limit, and a refused comment tells the round to list the rest in its
+summary. A hijacked round
 multiplies new comments, while replies are bounded by what others wrote;
 the largest real rounds by October 2026 made 8 new posts, and 18 replies,
 one per thread. Our own replies are signed and never open a slot, so a
