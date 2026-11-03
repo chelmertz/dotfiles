@@ -22,7 +22,9 @@ claude-review tick [--dry-run | --reset | --self-check]   # the unattended runne
 ```
 
 An owner or repo that starts with `-` or is only dots is refused in every
-form, since GitHub allows neither and argv would read the first as a flag.
+form, since GitHub allows neither and argv would read the first as a flag. A
+GitHub URL whose path after the PR number has a `.` or `..` segment is
+refused too: a browser would resolve it to another page than that PR.
 
 ## Goal and non-goals
 

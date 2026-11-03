@@ -101,3 +101,31 @@ func TestPR_SessionID_IsStableAndPerPR(t *testing.T) {
 		t.Errorf("derivation changed: %s", got)
 	}
 }
+
+// A browser resolves "." and ".." in the path, so a URL whose tail climbs out
+// of the PR shows another PR than its first segments name: the parsed PR
+// must be the one the browser would show, or nothing.
+func TestParseTarget_RefusesDotSegmentsAfterTheNumber(t *testing.T) {
+	for _, in := range []string{
+		httpsURL + "/pull/1234/../../../../evil/thing/pull/7",
+		httpsURL + "/pull/1234/..",
+		httpsURL + "/pull/1234/./files",
+		httpsURL + "/pull/1234/files/..",
+		httpsURL + "/pull/1234/%2e%2e/%2E%2E/x",
+		httpsURL + "/pull/1234/.%2e?x",
+		httpsURL + "/pull/1234/%zz",
+	} {
+		if pr, err := ParseTarget(in); err == nil {
+			t.Errorf("%q parsed to %s", in, pr.Slug())
+		}
+	}
+	for _, in := range []string{
+		httpsURL + "/pull/1234/files#diff-..",
+		httpsURL + "/pull/1234?a=../..",
+		httpsURL + "/pull/1234/files/..x",
+	} {
+		if _, err := ParseTarget(in); err != nil {
+			t.Errorf("%q: %v", in, err)
+		}
+	}
+}

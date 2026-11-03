@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -17,7 +18,7 @@ type PR struct {
 // Every entry point hands the tool one of three shapes. The character classes
 // are strict on purpose: the input is reachable from a clickable link.
 var (
-	ghURL  = regexp.MustCompile(`^https://github\.com/([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/pull/([1-9][0-9]*)(?:[/#?].*)?$`)
+	ghURL  = regexp.MustCompile(`^https://github\.com/([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/pull/([1-9][0-9]*)([/#?].*)?$`)
 	scheme = regexp.MustCompile(`^claude-review://([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/([1-9][0-9]*)/?$`)
 	bare   = regexp.MustCompile(`^([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/([1-9][0-9]*)$`)
 )
@@ -30,7 +31,7 @@ func ParseTarget(s string) (PR, error) {
 		if m == nil {
 			continue
 		}
-		if allDots(m[1]) || allDots(m[2]) || strings.HasPrefix(m[1], "-") || strings.HasPrefix(m[2], "-") {
+		if allDots(m[1]) || allDots(m[2]) || strings.HasPrefix(m[1], "-") || strings.HasPrefix(m[2], "-") || (len(m) > 4 && climbs(m[4])) {
 			// GitHub allows no such name: in a gh api path dots climb, and
 			// in an argv a leading dash reads as a flag.
 			break
@@ -45,6 +46,22 @@ func ParseTarget(s string) (PR, error) {
 		return PR{Owner: strings.ToLower(m[1]), Repo: strings.ToLower(m[2]), Number: n}, nil
 	}
 	return PR{}, fmt.Errorf("claude-review: expected a GitHub PR URL, claude-review://owner/repo/number or owner/repo/number, got %q", s)
+}
+
+// climbs reports whether a GitHub URL's tail after the PR number has a "."
+// or ".." path segment, percent-encoded or not (or one that does not decode).
+// A browser resolves those, and would show another page than the PR the
+// URL's first segments name.
+func climbs(tail string) bool {
+	path, _, _ := strings.Cut(tail, "#")
+	path, _, _ = strings.Cut(path, "?")
+	for _, seg := range strings.Split(path, "/") {
+		seg, err := url.PathUnescape(seg)
+		if err != nil || seg == "." || seg == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 // allDots is a name made of dots only, such as "." or "..".
