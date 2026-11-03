@@ -148,7 +148,10 @@ policy.
 ### What a click does
 
 On a PR in `review_repos` the table below does not apply. The click takes
-the PR's lock, records the acceptance, and then runs the round the way
+the PR's lock, records the acceptance, requests your own review on GitHub
+(unless you wrote the PR, are already asked, or have reviewed it: a PR you
+were only asked about in a DM is otherwise invisible to elly until its round
+posts), and then runs the round the way
 `tick` does (see "Each tick"): in the PR's one round session, under the
 same launch policy as tick's rounds. A notification says "review of <url> started", or "<url> is
 mid-round; it continues in the background" when a round is still working

@@ -106,3 +106,45 @@ func TestTickSelfCheckFlagRunsTheCheck(t *testing.T) {
 		t.Errorf("a self-check asked GitHub: %q", h.ghCalls)
 	}
 }
+
+// A click hands the PR over, and a PR the user was only asked about in a
+// DM is invisible to elly until the user is a reviewer: the click requests
+// the user's own review, unless the user wrote the PR, is already asked, or
+// has reviewed it.
+func TestClickRequestsTheUsersOwnReview(t *testing.T) {
+	for _, c := range []struct {
+		name, pull, reviews string
+		want                bool
+	}{
+		{"asked in a DM only", `{"state":"open","user":{"login":"bob"},"requested_reviewers":[],"head":{"sha":"h7"},"base":{"ref":"main"}}`, `[]`, true},
+		{"the user's own PR", `{"state":"open","user":{"login":"Me"},"requested_reviewers":[],"head":{"sha":"h7"},"base":{"ref":"main"}}`, `[]`, false},
+		{"already asked", `{"state":"open","user":{"login":"bob"},"requested_reviewers":[{"login":"me"}],"head":{"sha":"h7"},"base":{"ref":"main"}}`, `[]`, false},
+		{"already reviewed", `{"state":"open","user":{"login":"bob"},"requested_reviewers":[],"head":{"sha":"h7"},"base":{"ref":"main"}}`, `[{"user":{"login":"me"},"state":"APPROVED"}]`, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			h := newHost(t, `{"terminal": false, "review_repos":["acme/*"], "github_user":"me"}`, true, true)
+			h.d.Home = t.TempDir()
+			t.Setenv("XDG_STATE_HOME", "") // the ledger goes under Home, never the real state dir
+			var requested []string
+			h.d.Gh = func(args ...string) (string, error) {
+				h.ghCalls = append(h.ghCalls, args)
+				joined := strings.Join(args, " ")
+				switch {
+				case strings.Contains(joined, "requested_reviewers"):
+					requested = append(requested, joined)
+					return `{}`, nil
+				case strings.HasSuffix(joined, "pulls/42/reviews"):
+					return c.reviews, nil
+				}
+				return c.pull, nil
+			}
+			if code := run([]string{target}, h.d); code != 0 {
+				t.Fatalf("click exit %d: %s", code, h.stderr)
+			}
+			want := "api -X POST repos/acme/widgets/pulls/42/requested_reviewers -f reviewers[]=me"
+			if got := len(requested) == 1 && requested[0] == want; got != c.want {
+				t.Errorf("requested %q, want a request: %v", requested, c.want)
+			}
+		})
+	}
+}

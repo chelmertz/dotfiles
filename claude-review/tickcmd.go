@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -194,5 +195,32 @@ func recordAcceptance(d Deps, cfg Config, pr PR) (head string, closed bool) {
 		fmt.Fprintf(d.Stderr, "claude-review: %s not recorded for unattended rounds: %v\n", pr.Slug(), err)
 		return "", false
 	}
+	if err := requestOwnReview(d, cfg, pr, p); err != nil {
+		fmt.Fprintf(d.Stderr, "claude-review: could not add you as a reviewer of %s: %v\n", pr.Slug(), err)
+	}
 	return p.Head.SHA, false
+}
+
+// requestOwnReview makes the user a reviewer of a PR they handed over. A PR
+// asked about only in a DM involves the user in nothing elly searches for,
+// so its rounds' notes had no row to land on until the round posted. Not
+// on the user's own PR, nor when they are already asked or have reviewed:
+// re-requesting would show the author a review still owed.
+func requestOwnReview(d Deps, cfg Config, pr PR, p ghPull) error {
+	me, err := githubUser(d, cfg)
+	if err != nil {
+		return err
+	}
+	if strings.EqualFold(p.User.Login, me) || slices.ContainsFunc(p.RequestedReviewers, func(r ghLogin) bool { return strings.EqualFold(r.Login, me) }) {
+		return nil
+	}
+	reviews, err := ghList(d.Gh, GitHub{}.api(pr, "pulls/%d/reviews", pr.Number))
+	if err != nil {
+		return err
+	}
+	if slices.ContainsFunc(reviews, func(r ghItem) bool { return strings.EqualFold(r.User.Login, me) }) {
+		return nil
+	}
+	_, err = d.Gh("api", "-X", "POST", GitHub{}.api(pr, "pulls/%d/requested_reviewers", pr.Number), "-f", "reviewers[]="+me)
+	return err
 }

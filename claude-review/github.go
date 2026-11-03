@@ -13,14 +13,20 @@ type GitHub struct {
 }
 
 type ghPull struct {
-	State  string `json:"state"`
-	Merged bool   `json:"merged"`
-	Head   struct {
+	State              string    `json:"state"`
+	Merged             bool      `json:"merged"`
+	User               ghLogin   `json:"user"`
+	RequestedReviewers []ghLogin `json:"requested_reviewers"`
+	Head               struct {
 		SHA string `json:"sha"`
 	} `json:"head"`
 	Base struct {
 		Ref string `json:"ref"`
 	} `json:"base"`
+}
+
+type ghLogin struct {
+	Login string `json:"login"`
 }
 
 func (g GitHub) api(pr PR, format string, a ...any) string {
