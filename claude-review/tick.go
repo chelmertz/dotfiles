@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -24,6 +25,8 @@ const roundLifetime = 2 * time.Hour
 // tickElly is what tick needs from elly.
 type tickElly interface {
 	PRs() ([]EllyPR, error)
+	// Username is the GitHub login elly polls as, empty without a token.
+	Username() (string, error)
 	Put(prURL string, a Annotation, expires time.Time) error
 	Delete(prURL string) error
 }
@@ -94,6 +97,9 @@ func (h tickHost) tick() error {
 	if err != nil {
 		return err
 	}
+	if err := h.checkEllyLogin(); err != nil {
+		return err
+	}
 	if err := h.checkClaude(); err != nil {
 		return err
 	}
@@ -113,6 +119,23 @@ func (h tickHost) tick() error {
 	// A failed run is what the timer's journal shows.
 	if reason, err := h.ledger.Tripped(); err != nil || reason != "" {
 		return errors.Join(err, breakerError(reason))
+	}
+	return nil
+}
+
+// checkEllyLogin refuses a tick when elly polls as another GitHub login
+// than the one rounds post as: elly's turn reasons are that login's, so
+// rounds would start for PRs owed to someone else.
+func (h tickHost) checkEllyLogin() error {
+	login, err := h.elly.Username()
+	if err != nil {
+		return err
+	}
+	if login == "" {
+		return fmt.Errorf("elly has no GitHub token; set one for @%s on its page", h.tcfg.User)
+	}
+	if !strings.EqualFold(login, h.tcfg.User) {
+		return fmt.Errorf("elly polls as @%s and rounds post as @%s; set elly's token for @%s, or github_user", login, h.tcfg.User, h.tcfg.User)
 	}
 	return nil
 }

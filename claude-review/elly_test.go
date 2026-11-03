@@ -14,15 +14,19 @@ import (
 
 func TestElly(t *testing.T) {
 	var got struct {
-		method, path, auth string
-		body               map[string]any
+		method, path, auth, contentType string
+		body                            map[string]any
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
+		if r.Method == http.MethodGet && r.URL.Path == "/api/v0/prs" {
 			_, _ = io.WriteString(w, `[{"Url":"https://github.com/acme/widgets/pull/42","RepoOwner":"acme","HeadRefOid":"h1","ReviewRequestedFromUsers":["me"],"ThreadsActionable":2,"LastUpdated":"2026-10-31T12:00:00Z"}]`)
 			return
 		}
-		got.method, got.path, got.auth = r.Method, r.URL.Path, r.Header.Get("Authorization")
+		if r.URL.Path == "/api/v0/config/status" {
+			_, _ = io.WriteString(w, `{"configured":true,"username":"me"}`)
+			return
+		}
+		got.method, got.path, got.auth, got.contentType = r.Method, r.URL.Path, r.Header.Get("Authorization"), r.Header.Get("Content-Type")
 		got.body = nil
 		_ = json.NewDecoder(r.Body).Decode(&got.body)
 		w.WriteHeader(http.StatusNoContent)
@@ -47,12 +51,21 @@ func TestElly(t *testing.T) {
 	if got.method != "PUT" || got.path != wantPath || got.auth != "Bearer secret" {
 		t.Errorf("PUT went to %s %s with %q", got.method, got.path, got.auth)
 	}
+	// elly refuses a write with a body that is not JSON, unless it carries
+	// a bearer token; the header keeps it from resting on that exemption.
+	if got.contentType != "application/json" {
+		t.Errorf("PUT sent Content-Type %q", got.contentType)
+	}
 	if got.body["state"] != stateNeedsYou || got.body["expiresAt"] != "2026-10-31T12:00:00Z" || !strings.Contains(asJSON(got.body["links"]), `"label":"Open session"`) {
 		t.Errorf("PUT body %+v", got.body)
 	}
 
-	if err := e.Delete(widgetsPR.URL()); err != nil || got.method != "DELETE" {
-		t.Errorf("DELETE: %v %s", err, got.method)
+	if err := e.Delete(widgetsPR.URL()); err != nil || got.method != "DELETE" || got.contentType != "" {
+		t.Errorf("DELETE: %v %s, Content-Type %q", err, got.method, got.contentType)
+	}
+
+	if login, err := e.Username(); err != nil || login != "me" {
+		t.Errorf("Username: %q %v", login, err)
 	}
 
 	if err := (Elly{Base: srv.URL, TokenFile: filepath.Join(t.TempDir(), "missing")}).Delete(widgetsPR.URL()); err == nil {
@@ -63,4 +76,29 @@ func TestElly(t *testing.T) {
 func asJSON(v any) string {
 	b, _ := json.Marshal(v)
 	return string(b)
+}
+
+func TestEllyUsername(t *testing.T) {
+	for body, want := range map[string]string{
+		`{"configured":true,"username":"me"}`: "me",
+		`{"configured":false}`:                "",
+	} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/api/v0/config/status" {
+				http.NotFound(w, r)
+				return
+			}
+			_, _ = io.WriteString(w, body)
+		}))
+		got, err := Elly{Base: srv.URL}.Username()
+		srv.Close()
+		if err != nil || got != want {
+			t.Errorf("%s: %q %v, want %q", body, got, err, want)
+		}
+	}
+	srv := httptest.NewServer(http.NotFoundHandler())
+	defer srv.Close()
+	if _, err := (Elly{Base: srv.URL}).Username(); err == nil {
+		t.Error("a 404 from elly reported a login")
+	}
 }

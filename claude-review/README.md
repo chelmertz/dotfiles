@@ -654,7 +654,10 @@ claude-review alone. It holds:
    a desktop notification; no round starts until the user resets it, and
    the next tick checks again. A version that cannot be read starts nothing.
 1. Read `GET /api/v0/prs` from elly. If elly does not answer, write nothing
-   and exit; existing annotations expire on their own.
+   and exit; existing annotations expire on their own. Then read the login
+   elly polls as from `GET /api/v0/config/status`: when it has no token, or
+   the login is not the one rounds post as (`github_user`, else gh's), exit
+   with that reason, since elly's turn reasons are another login's.
 2. Stop rounds on closed PRs. For every PR in the ledger that has a live
    worker (under its round session, a round session of an older policy
    version, its window session, or a fork of one) or an unread round, ask

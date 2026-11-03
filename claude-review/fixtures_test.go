@@ -86,7 +86,7 @@ func TestRecordedRounds(t *testing.T) {
 			h := tickHost{
 				tcfg:        TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 6, MaxRunning: 2, TotalDailyCap: 24},
 				ledger:      l,
-				elly:        &fakeElly{put: map[string]Annotation{}},
+				elly:        &fakeElly{login: "me", put: map[string]Annotation{}},
 				gh:          gh,
 				running:     func(string) bool { return false },
 				blocked:     func(string) bool { return false },

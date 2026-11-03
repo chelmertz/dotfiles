@@ -11,6 +11,7 @@ import (
 )
 
 type fakeElly struct {
+	login  string // the GitHub login elly polls as
 	prs    []EllyPR
 	down   bool
 	putErr error
@@ -27,6 +28,7 @@ func (e *fakeElly) PRs() ([]EllyPR, error) {
 	}
 	return e.prs, nil
 }
+func (e *fakeElly) Username() (string, error) { return e.login, nil }
 func (e *fakeElly) Put(u string, a Annotation, exp time.Time) error {
 	if e.putErr != nil {
 		return e.putErr
@@ -84,7 +86,7 @@ type tickWorld struct {
 
 func newTickWorld(t *testing.T) *tickWorld {
 	w := &tickWorld{
-		elly:    &fakeElly{put: map[string]Annotation{}},
+		elly:    &fakeElly{login: "me", put: map[string]Annotation{}},
 		gh:      &fakeTickGitHub{fakeGate: fakeGate{descends: true, base: "main"}, state: "open", head: "h1"},
 		live:    map[string]bool{},
 		blocked: map[string]bool{},
@@ -173,6 +175,24 @@ func TestTickWithoutEllyDoesNothing(t *testing.T) {
 	}
 	if len(w.started) != 0 || len(w.elly.put) != 0 {
 		t.Errorf("tick without elly acted: started %v, put %v", w.started, w.elly.put)
+	}
+}
+
+// elly's turn reasons are computed for the login its token belongs to; a
+// tick for another login would start rounds owed to someone else.
+func TestTickRefusesAnEllyPollingAsAnotherLogin(t *testing.T) {
+	for login, runs := range map[string]bool{"me": true, "Me": true, "other": false, "": false} {
+		w := newTickWorld(t)
+		w.accept(t, 42)
+		w.elly.prs = []EllyPR{requestedPR(42)}
+		w.elly.login = login
+		err := w.h.tick()
+		if runs != (err == nil) || runs != (len(w.started) > 0) {
+			t.Errorf("elly as %q: err %v, started %d", login, err, len(w.started))
+		}
+		if !runs && (err == nil || !strings.Contains(err.Error(), "me")) {
+			t.Errorf("elly as %q: the error does not name the login tick runs as: %v", login, err)
+		}
 	}
 }
 

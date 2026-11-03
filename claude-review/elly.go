@@ -61,6 +61,11 @@ func (e Elly) send(method, url string, body []byte) error {
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(tok)))
+	if body != nil {
+		// elly takes a write with a body only as JSON, or with a bearer
+		// token; this one has both.
+		req.Header.Set("Content-Type", "application/json")
+	}
 	resp, err := e.client().Do(req)
 	if err != nil {
 		return fmt.Errorf("elly: %w", err)
@@ -88,4 +93,23 @@ func (e Elly) Put(prURL string, a Annotation, expires time.Time) error {
 
 func (e Elly) Delete(prURL string) error {
 	return e.send(http.MethodDelete, e.annotationURL(prURL), nil)
+}
+
+// Username is the GitHub login elly polls as, empty when it has no token.
+func (e Elly) Username() (string, error) {
+	resp, err := e.client().Get(e.Base + "/api/v0/config/status")
+	if err != nil {
+		return "", fmt.Errorf("elly: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("elly: GET /api/v0/config/status: %s", resp.Status)
+	}
+	var status struct {
+		Username string `json:"username"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+		return "", fmt.Errorf("elly: %w", err)
+	}
+	return status.Username, nil
 }
