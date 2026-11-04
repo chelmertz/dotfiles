@@ -691,7 +691,9 @@ claude-review alone. It holds:
    for a fresh look) when its head no longer descends from the accepted head
    or its base branch changed since acceptance.
 5. Skip a PR the ledger already started a round for at the same head and
-   trigger. Past the per-PR daily cap, mark it `needs_you` with "paused"
+   trigger, or at the same head after the PR last changed: a click answering
+   a review request covers it, though elly lists the request until its next
+   poll. Past the per-PR daily cap, mark it `needs_you` with "paused"
    instead of starting a round. While the breaker is tripped (below), mark
    every owed PR "paused" the same way.
 6. Start the round in the PR's round session, at most `max_running` (3) at once, under
@@ -941,6 +943,14 @@ org named like a verb cannot collide.
   notifies "no round running on <url>".
 - `claude-review://<owner>/<repo>/<n>/ignore` sets the sticky ignore. A
   forged one only stops automation on that PR.
+
+The bare link carries no token, and that is an accepted risk: anyone who gets
+the user to open one (a web page past the browser's "open this link?"
+prompt, a link in Slack or mail) starts a round on a review_repos PR, enrols
+it for unattended rounds, adds the user as a reviewer and lifts an ignore.
+The worst case is review comments under the user's name, up to the post
+caps, until the user ignores the PR. It cannot approve (the token above),
+merge, or send anything off the machine (the round's tool policy).
 
 The Thunderbird native host passes only `claude-review://[\w.-]+/[\w.-]+/\d+`
 (`re.fullmatch` in `nix/thunderbird.nix`), so mail cannot carry a verb. That

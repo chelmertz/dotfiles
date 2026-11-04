@@ -123,9 +123,10 @@ func (l *Ledger) StartRound(pr PR, head, trigger string, at time.Time) (int64, e
 }
 
 // RanAt reports whether a round already started for pr at head for trigger.
-func (l *Ledger) RanAt(pr PR, head, trigger string) (bool, error) {
+func (l *Ledger) RanAt(pr PR, head, trigger string, since time.Time) (bool, error) {
 	var n int
-	err := l.db.QueryRow(`select count(*) from rounds where pr = ? and head = ? and trigger = ?`, pr.URL(), head, trigger).Scan(&n)
+	err := l.db.QueryRow(`select count(*) from rounds where pr = ? and head = ? and (trigger = ? or started_at >= ?)`,
+		pr.URL(), head, trigger, since.Unix()).Scan(&n)
 	return n > 0, err
 }
 

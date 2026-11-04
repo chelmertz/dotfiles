@@ -139,7 +139,10 @@ func planOne(p EllyPR, cfg TickConfig, l *Ledger, g Gate, now time.Time) (Planne
 	if trigger == "" {
 		return Planned{}, false, nil
 	}
-	if ran, err := l.RanAt(pr, p.HeadRefOid, trigger); err != nil || ran {
+	// A round at this head that started after the PR last changed already
+	// saw everything elly reports: a click answering a review request is
+	// one, while elly lists the request until its next poll.
+	if ran, err := l.RanAt(pr, p.HeadRefOid, trigger, p.LastUpdated); err != nil || ran {
 		return Planned{}, false, err
 	}
 	gate, err := gateFor(pr, acc, p.HeadRefOid, cfg, l, g, now)

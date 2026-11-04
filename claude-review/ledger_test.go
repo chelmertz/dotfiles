@@ -54,10 +54,10 @@ func TestLedgerRounds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ran, _ := l.RanAt(pr, "head1", "review_requested"); !ran {
+	if ran, _ := l.RanAt(pr, "head1", "review_requested", t0.Add(time.Hour)); !ran {
 		t.Error("a started round is not recorded")
 	}
-	if ran, _ := l.RanAt(pr, "head1", "new_head"); ran {
+	if ran, _ := l.RanAt(pr, "head1", "new_head", t0.Add(time.Hour)); ran {
 		t.Error("another trigger at the same head counts as run")
 	}
 	if n, _ := l.RoundsSince(pr, t0.Add(-time.Hour)); n != 1 {

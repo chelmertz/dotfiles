@@ -272,7 +272,7 @@ func TestTickAGatedPRDoesNotStopTheNext(t *testing.T) {
 	w := newTickWorld(t)
 	w.h.tcfg.DailyCap = 1
 	gated := w.accept(t, 1)
-	id, err := w.h.ledger.StartRound(gated, "h1", "x", t0)
+	id, err := w.h.ledger.StartRound(gated, "h1", "x", t0.Add(-time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -412,5 +412,30 @@ func TestSplitWordsEscapeReturns(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		panic("splitWords did not return on an escaped space")
+	}
+}
+
+// A click starts a round seconds after the review request it answers. elly
+// still lists the request until its next poll, but the round started after
+// everything elly saw, so tick must not run the same head again. A round
+// that started before the PR last changed does not cover it.
+func TestPlanTickARoundAfterTheLastUpdateCoversIt(t *testing.T) {
+	cfg := TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 3}
+	asked := ellyPR(func(p *EllyPR) { p.ReviewRequestedFromUsers = []string{"me"} })
+	for _, c := range []struct {
+		started time.Time
+		want    int
+	}{{t0.Add(5 * time.Second), 0}, {t0, 0}, {t0.Add(-time.Minute), 1}} {
+		l := openTestLedger(t)
+		if err := l.Accept(widgetsPR, "h1", "main", t0); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := l.StartRound(widgetsPR, "h1", "click@x", c.started); err != nil {
+			t.Fatal(err)
+		}
+		got, err := planTick([]EllyPR{asked}, cfg, l, fakeGate{descends: true, base: "main"}, t0.Add(time.Hour))
+		if err != nil || len(got) != c.want {
+			t.Errorf("click round at %v, PR updated %v: planned %+v %v, want %d", c.started, t0, got, err, c.want)
+		}
 	}
 }
