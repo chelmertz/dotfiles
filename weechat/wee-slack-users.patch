@@ -1,0 +1,48 @@
+--- a/wee_slack.py
++++ b/wee_slack.py
+@@ -1737,6 +1737,7 @@
+             self.channels = channels
+         self.users = users
+         self.bots = bots
++        self.users_requested = set()
+         self.channel_buffer = None
+         self.got_history = True
+         self.history_needs_update = False
+@@ -4266,10 +4267,16 @@
+ 
+ 
+ def handle_usersinfo(user_json, eventrouter, team, channel, metadata):
++    if not user_json.get("ok"):
++        return
+     user_info = user_json["user"]
+     if not metadata.get("user"):
+         user = SlackUser(team.identifier, **user_info)
+         team.users[user_info["id"]] = user
++        if any(
++            m.user_identifier == user_info["id"] for m in channel.messages.values()
++        ):
++            channel.reprint_messages(force_render=True)
+ 
+     if channel.type == "shared":
+         channel.update_nicklist(user_info["id"])
+@@ -4508,6 +4515,20 @@
+         channel.store_message(message)
+         channel.unread_count_display += 1
+ 
++    # A sender users.list did not return (someone from another organisation
++    # in a shared channel) prints as a bare id until users.info answers;
++    # handle_usersinfo then prints the channel again.
++    user_id = message_json.get("user")
++    if (
++        user_id
++        and user_id not in team.users
++        and user_id not in team.bots
++        and user_id not in team.users_requested
++    ):
++        team.users_requested.add(user_id)
++        s = SlackRequest(team, "users.info", {"user": user_id}, channel=channel)
++        eventrouter.receive(s)
++
+     if message and not history_message:
+         channel.prnt_message(message, history_message)
+     if not history_message:

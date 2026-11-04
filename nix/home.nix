@@ -509,7 +509,9 @@ in
           # :eyes:). The files patch fetches files.info for the stubs Slack
           # Connect events carry, which upstream shows as "cannot be handled".
           # The appcards patch adds app_unfurls, which hides the cards apps
-          # like GitHub add to links while website previews stay.
+          # like GitHub add to links while website previews stay. The users
+          # patch looks up senders users.list lacks (Slack Connect people) and
+          # reprints the channel with their name instead of the bare id.
           (wee-slack.overrideAttrs (o: {
             patches = (o.patches or [ ]) ++ [
               ../weechat/wee-slack-unreads.patch
@@ -526,6 +528,7 @@ in
               ../weechat/wee-slack-reactions.patch
               ../weechat/wee-slack-files.patch
               ../weechat/wee-slack-appcards.patch
+              ../weechat/wee-slack-users.patch
             ];
           }))
           # Ctrl+K drew its "Go to:" prompt only on the next redraw, and Esc on

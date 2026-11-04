@@ -493,6 +493,23 @@ if "unwrap finishAction" in cards or "A website" not in cards:
     print("app cards: rendered %r" % cards)
     failed = True
 
+# Users (weechat/wee-slack-users.patch): a sender users.list lacks asks
+# users.info once, and its answer reprints the channel that shows the id.
+uteam = types.SimpleNamespace(users={}, bots={}, users_requested=set(), identifier="T1", token="xoxc-x")
+uchan = mock.MagicMock()
+urouter = mock.MagicMock()
+for ts in ("7.1", "7.2"):
+    wee_slack.process_message({"ts": ts, "user": "U9", "text": "hi"}, urouter, uteam, uchan,
+                              {}, history_message=True)
+asked = [c.args[0].request for c in urouter.receive.call_args_list]
+uchan.messages = {"7.1": types.SimpleNamespace(user_identifier="U9")}
+wee_slack.handle_usersinfo({"ok": True, "user": {"id": "U9", "name": "jacob", "team_id": "T2"}},
+                           urouter, uteam, uchan, {})
+if (asked != ["users.info"] or not uteam.users["U9"].is_external
+        or uchan.reprint_messages.call_args != mock.call(force_render=True)):
+    print("unknown sender: asked=%s reprint=%s" % (asked, uchan.reprint_messages.call_args))
+    failed = True
+
 if head != ["query", "on-screen"]:
     print("foreground requests not at the head of the waiting list:", head)
     failed = True
