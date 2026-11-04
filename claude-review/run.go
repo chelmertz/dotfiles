@@ -478,7 +478,7 @@ func fail(d Deps, err error) int {
 		// osascript notifications take no actions: the command is the body.
 		_ = d.Spawn("", notifyArgv(d.GOOS, "claude-review", nf.notification(d.Home, false)))
 	default:
-		_ = d.Spawn("", notifyArgv(d.GOOS, "claude-review", strings.TrimPrefix(err.Error(), "claude-review: ")))
+		_ = d.Spawn("", notifyArgv(d.GOOS, "claude-review", hostless(strings.TrimPrefix(err.Error(), "claude-review: "))))
 	}
 	return 1
 }

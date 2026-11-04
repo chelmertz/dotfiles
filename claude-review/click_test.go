@@ -87,7 +87,7 @@ func TestClickOnAReviewRepoRunsInTheBackground(t *testing.T) {
 		if got := strings.Join(fs.events, ","); got != "trust "+cloneOf+",launch" {
 			t.Errorf("exists=%v: events %s", exists, got)
 		}
-		if n := notified(h); n != "review of "+target+" started (first handover)" {
+		if n := notified(h); n != "review of acme/widgets/pull/42 started (first handover)" {
 			t.Errorf("exists=%v: notified %q", exists, n)
 		}
 		rounds, _ := h.ledger(t).UnreadRounds()
@@ -109,7 +109,7 @@ func TestClickOnAClosedPRStartsNothing(t *testing.T) {
 	if slices.Contains(fs.events, "launch") {
 		t.Errorf("launched on a merged PR: %q", fs.events)
 	}
-	if n := notified(h); n != target+" is merged/closed; no round" {
+	if n := notified(h); n != "acme/widgets/pull/42 is merged/closed; no round" {
 		t.Errorf("notified %q", n)
 	}
 	if _, ok, _ := h.ledger(t).Acceptance(testPR); ok {
@@ -127,7 +127,7 @@ func TestClickMidRoundStartsNothing(t *testing.T) {
 	if slices.Contains(fs.events, "launch") {
 		t.Errorf("launched beside a running round: %q", fs.events)
 	}
-	if n := notified(h); n != target+" is mid-round; it continues in the background" {
+	if n := notified(h); n != "acme/widgets/pull/42 is mid-round; it continues in the background" {
 		t.Errorf("notified %q", n)
 	}
 	if rounds, _ := h.ledger(t).UnreadRounds(); len(rounds) != 0 {
@@ -263,7 +263,7 @@ func TestClickNotificationStatesTheHandoverHistory(t *testing.T) {
 	if code := run([]string{target}, h.d); code != 0 {
 		t.Fatalf("exit %d: %s", code, h.stderr)
 	}
-	want := html.EscapeString("review of " + target + " started: handed over Oct 31, 2 rounds, last: " + string([]rune(note)[:79]) + "…")
+	want := html.EscapeString("review of acme/widgets/pull/42 started: handed over Oct 31, 2 rounds, last: " + string([]rune(note)[:79]) + "…")
 	if n := notified(h); n != want {
 		t.Errorf("notified\n%q, want\n%q", n, want)
 	}

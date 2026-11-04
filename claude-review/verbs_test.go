@@ -96,7 +96,7 @@ func TestAttachVerbNeverResumes(t *testing.T) {
 	if code := run([]string{"claude-review://acme/widgets/42/attach"}, h.d); code != 0 {
 		t.Fatalf("exit %d: %s", code, h.stderr)
 	}
-	if len(h.scripts) != 0 || notified(h) != "no round running on "+target {
+	if len(h.scripts) != 0 || notified(h) != "no round running on acme/widgets/pull/42" {
 		t.Errorf("no worker: scripts %q, notified %q", h.scripts, notified(h))
 	}
 	fs.workers = []Worker{workerFor(widgetsPR.RoundSessionID(), 500)}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strings"
 )
 
 // verbLink is a claude-review:// link with a verb, as tick writes them into
@@ -113,10 +114,16 @@ func attach(d Deps, cfg Config, pr PR) int {
 	return 0
 }
 
+// hostless drops "https://github.com/" from a click's notification: the
+// owner/repo/pull/n that is left names the PR, and the rest is noise.
+func hostless(msg string) string {
+	return strings.ReplaceAll(msg, "https://github.com/", "")
+}
+
 // tell reports a verb's result: a link click has no terminal to print to.
 func tell(d Deps, msg string) {
 	fmt.Fprintln(d.Stderr, "claude-review:", msg)
 	if !d.IsTTY {
-		_, _ = d.Output("", notifyArgv(d.GOOS, "claude-review", msg))
+		_, _ = d.Output("", notifyArgv(d.GOOS, "claude-review", hostless(msg)))
 	}
 }
