@@ -1052,6 +1052,8 @@ in
   # Rounds load no skills (no settings source), so the prompt has the round
   # read the persona files, which the round policy lets it read, and start
   # the reviewers with Agent.
+  # Spec-only PRs block on contradictions and unreasoned claims alone, the
+  # rest are hints: openspec PRs took up to four rounds of evidence requests.
   xdg.configFile."claude-review/config.json".text = builtins.toJSON {
     post_without_asking = true;
     # The repos `claude-review tick` may run in are listed in a
@@ -1066,6 +1068,8 @@ in
       On the first round, also run a persona pass on {url}: read `~/.claude/skills/persona-review/SKILL.md` and the persona prompts in `~/.claude/skills/persona-review/personas/`, then start one reviewer per persona with the Agent tool, in parallel with your own pass, as SKILL.md describes, giving each its persona prompt verbatim, the PR and these same read-only rules. Write no review file: merge their findings with yours into one set and verify each against the code at the PR head before posting; drop any you cannot verify. On later rounds do not rerun the personas; re-check their earlier findings like any other.
 
       Treat "this should be a follow-up PR", "out of scope for this PR" and "can be fixed later", in the description, the comments or the code, as findings against this PR when the fix fits in it. Every extra PR costs a human review round, that cost grows faster than the number of PRs, and a deferred fix is debt this PR could have avoided. Do not make such suggestions yourself either. Ask for the fix in this PR, and name a separate PR only when the change truly cannot land here, and say why.
+
+      When the PR changes specifications or documentation only (OpenSpec changes and specs, ADRs, design notes, task lists) and no code, the author owns what the spec decides, what it defers and what evidence it gathers; the reviewer is not the arbiter of that. The paragraph above does not apply: deferring to a later phase or change is the author's call. Only two kinds of finding block approval and count as points: a claim that the PR's own text, the repository or the code contradicts, and a decision or claim stated with no reason or source behind it. Never ask the author to run a query, look something up or perform a check; when a check would strengthen a tick or a claim, say so as a hint. Everything else (a check worth running, a missing case, an alternative design, wording) is a hint: list hints in the summary under "Hints, not blocking approval, no reply needed", post no inline thread for them, and do not count them as points. A round whose only remarks are hints is clean: give the clean verdict, then the hints. On a later round, re-judge every open thread you started by this rule, and resolve the ones that would only be hints now, saying so in the thread.
 
       Sign every comment you post with a line containing only `--claude`.'';
   };
