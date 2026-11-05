@@ -94,8 +94,8 @@ with), `>` someone is typing there.
 
 - Threads you follow with unread replies, including replies from while wee was
   closed, open as their own buffers at start and are on Alt+A's way; leaving
-  one marks it read in Slack. A reply arriving while wee runs is announced in
-  the workspace buffer (Alt+A stops there). If wee cannot list unread threads,
+  one marks it read in Slack. A reply arriving while wee runs opens its thread
+  buffer the same way. If wee cannot list unread threads,
   that is a startup error: check the Slack app's Threads view.
 
 - A message with replies ends in `[ Thread: 855 Replies: 8 ]`; that thread is
@@ -108,6 +108,19 @@ with), `>` someone is typing there.
 - `/thread` (newest thread), `/thread 3` (third-newest thread), `/thread $855`.
 - `/reply text`, `/reply 3 text`, `/reply $855 text`; `-alsochannel` also
   posts to the channel. In a thread buffer, just type.
+
+## Feed and search
+
+- **chanmon**, starred in the right-hand list, is one feed of every channel,
+  thread and DM message as it arrives, labelled with where it came from. It
+  comes back after a restart (the last 1000 lines), so something read in
+  passing is still there to find. Your own messages and loaded history are
+  left out, and so are reactions and anything that arrived while wee was
+  closed.
+- **`/grep word`** searches the current buffer's log (everything wee has seen
+  there since it was first started, not just what is loaded); `/grep -a word`
+  every open buffer; `-C 3` adds context lines. Typing new arguments in the
+  grep buffer repeats the search with them. A regex: `/grep alice\t.*deploy`.
 
 ## Links
 

@@ -291,6 +291,19 @@
                 touch $out
               '';
 
+          # The chanmon feed: what lands in it and that it survives a restart;
+          # see checks/wee-feed.py.
+          wee-feed =
+            let
+              weechat = nixpkgs.lib.findFirst (
+                p: nixpkgs.lib.hasPrefix "weechat-bin-env" p.name
+              ) (throw "no weechat in home.packages") self.homeConfigurations."ch@tau".config.home.packages;
+            in
+            pkgs.runCommand "wee-feed" { nativeBuildInputs = [ pkgs.python3 weechat ]; } ''
+              python3 -I ${./checks/wee-feed.py} ${../bin/wee}
+              touch $out
+            '';
+
           # Our wee-slack patches, unit-level: the queue fast lane and recency
           # tracking; see checks/wee-slack-patches.py.
           wee-slack-patches =
