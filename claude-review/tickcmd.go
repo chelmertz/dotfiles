@@ -192,11 +192,11 @@ func recordAcceptance(d Deps, cfg Config, pr PR) (head string, closed bool) {
 		}
 	}
 	if err != nil {
-		fmt.Fprintf(d.Stderr, "claude-review: %s not recorded for unattended rounds: %v\n", pr.Slug(), err)
+		fmt.Fprintf(d.Stderr, "claude-review: %s not recorded for unattended rounds: %v\n", pr.URL(), err)
 		return "", false
 	}
 	if err := requestOwnReview(d, cfg, pr, p); err != nil {
-		fmt.Fprintf(d.Stderr, "claude-review: could not add you as a reviewer of %s: %v\n", pr.Slug(), err)
+		fmt.Fprintf(d.Stderr, "claude-review: could not add you as a reviewer of %s: %v\n", pr.URL(), err)
 	}
 	return p.Head.SHA, false
 }

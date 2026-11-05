@@ -176,10 +176,10 @@ func launch(d Deps, cfg Config, pr PR, dir, remote string, dryRun bool) int {
 	// session and both start one. Tick and the attach verb take it too.
 	unlock, err := d.Lock(pr.SessionID())
 	if errors.Is(err, errLocked) {
-		return fail(d, fmt.Errorf("claude-review: another click is already opening %s", pr.Slug()))
+		return fail(d, fmt.Errorf("claude-review: another click is already opening %s", pr.URL()))
 	}
 	if err != nil {
-		return fail(d, fmt.Errorf("claude-review: locking %s: %w", pr.Slug(), err))
+		return fail(d, fmt.Errorf("claude-review: locking %s: %w", pr.URL(), err))
 	}
 	defer unlock()
 	head, closed := recordAcceptance(d, cfg, pr)
@@ -222,7 +222,7 @@ func planBackgroundClick(d Deps, cfg Config, pr PR, remote string) (click, error
 	existed := d.SessionExists(d.ClaudeDir, id)
 	argv, err := d.Sessions.LaunchArgv(id, PolicyFlags(pr, remote), RoundArgs(cfg, pr, remote, existed), ResumeArgs(cfg, pr, remote, existed))
 	if err != nil {
-		return click{}, fmt.Errorf("claude-review: %s: nothing starts: %w", pr.Slug(), err)
+		return click{}, fmt.Errorf("claude-review: %s: nothing starts: %w", pr.URL(), err)
 	}
 	return click{pr: pr, bootstrap: !existed, round: true, detached: true, argv: append(append([]string{}, cfg.RoundWrapper...), argv...)}, nil
 }
@@ -241,7 +241,7 @@ func backgroundClick(d Deps, cfg Config, pr PR, dir, remote, head string) int {
 	}
 	defer func() { _ = l.Close() }()
 	if reason, err := l.Tripped(); err != nil || reason != "" {
-		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.Slug(), errors.Join(err, breakerError(reason))))
+		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), errors.Join(err, breakerError(reason))))
 	}
 	// read before the round starts: it records a round and a running note
 	before, err := l.Handover(pr)
@@ -263,14 +263,14 @@ func backgroundClick(d Deps, cfg Config, pr PR, dir, remote, head string) int {
 	h := tickHost{ledger: l, elly: Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile(d.RuntimeDir)}}
 	say := func(err error) {
 		if err != nil {
-			fmt.Fprintf(d.Stderr, "claude-review: %s: %v\n", pr.Slug(), err)
+			fmt.Fprintf(d.Stderr, "claude-review: %s: %v\n", pr.URL(), err)
 		}
 	}
 	at := time.Now()
 	res, err := clickStarter(d, cfg).start(cfg, pr, dir, remote, false, settle)
 	if err != nil && res.Kind != relaunchDuplicate {
 		say(h.dropRunning(pr))
-		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.Slug(), err))
+		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), err))
 	}
 	started, err := h.afterRelaunch(pr, res, err, func() error {
 		if head == "" {
@@ -293,7 +293,7 @@ func backgroundClick(d Deps, cfg Config, pr PR, dir, remote, head string) int {
 func clickOutcome(d Deps, pr PR, res RelaunchResult, started bool, err error, before Handover) int {
 	switch {
 	case err != nil:
-		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.Slug(), err))
+		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), err))
 	case started:
 		tell(d, "review of "+pr.URL()+" started"+before.words())
 		return 0
@@ -327,10 +327,10 @@ func planClick(d Deps, cfg Config, pr PR, remote string) (click, error) {
 	case live.PID > 0 && !live.Background:
 		// A terminal window, or another click's bootstrap mid-turn. Neither
 		// takes an attach; the window is where the next round is asked for.
-		return click{}, fmt.Errorf("claude-review: %s is already open (pid %d); ask for a new round in that window", pr.Slug(), live.PID)
+		return click{}, fmt.Errorf("claude-review: %s is already open (pid %d); ask for a new round in that window", pr.URL(), live.PID)
 	case live.PID > 0 && detached:
 		// `--bg --resume` on a running session would start a copy.
-		return click{}, fmt.Errorf("claude-review: %s is still running as %s; `claude attach %s` opens it", pr.Slug(), id, id)
+		return click{}, fmt.Errorf("claude-review: %s is still running as %s; `claude attach %s` opens it", pr.URL(), id, id)
 	case live.PID > 0:
 		return click{pr: pr, attach: true, argv: AttachArgs(pr)}, nil
 	}
@@ -360,7 +360,7 @@ func (c click) execute(d Deps, cfg Config, dir string) error {
 		// takes the prompt (later) or is forked by it (2.1.314, when idle);
 		// attaching is right on all of them and never forks. The user types
 		// the re-review request in the attached view.
-		fmt.Fprintf(d.Stderr, "claude-review: %s is still running; attaching instead of resuming\n", pr.Slug())
+		fmt.Fprintf(d.Stderr, "claude-review: %s is still running; attaching instead of resuming\n", pr.URL())
 	case c.bootstrap && (c.detached || d.IsTTY):
 		// First click: create the session headlessly under our id, then
 		// resume it like every later click. A new window does this itself
@@ -370,7 +370,7 @@ func (c click) execute(d Deps, cfg Config, dir string) error {
 			// Claude's own last line (e.g. "Workspace not trusted. Run
 			// `claude` in <dir> once…") is the useful part; the exit status
 			// alone would send the user to a terminal to find it.
-			return fmt.Errorf("claude-review: creating session for %s: %s", pr.Slug(), lastLineOr(out, err.Error()))
+			return fmt.Errorf("claude-review: creating session for %s: %s", pr.URL(), lastLineOr(out, err.Error()))
 		}
 	}
 
@@ -381,7 +381,7 @@ func (c click) execute(d Deps, cfg Config, dir string) error {
 			return fmt.Errorf("claude-review: starting background session: %s", lastLineOr(out, err.Error()))
 		}
 		fmt.Fprint(d.Stderr, out)
-		fmt.Fprintf(d.Stderr, "claude-review: %s running in the background as %s; `claude attach %s` opens it\n", pr.Slug(), id, id)
+		fmt.Fprintf(d.Stderr, "claude-review: %s running in the background as %s; `claude attach %s` opens it\n", pr.URL(), id, id)
 		return nil
 	case d.IsTTY:
 		if err := d.Exec(dir, c.argv); err != nil {

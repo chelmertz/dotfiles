@@ -48,7 +48,7 @@ func runVerb(d Deps, cfg Config, pr PR, verb string, q url.Values) int {
 			return fail(d, err)
 		}
 		_ = Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile(d.RuntimeDir)}.Delete(pr.URL())
-		tell(d, fmt.Sprintf("%s ignored: no more unattended rounds until you click claude review on it again", pr.Slug()))
+		tell(d, fmt.Sprintf("%s ignored: no more unattended rounds until you click claude review on it again", pr.URL()))
 		return 0
 	default: // attach
 		return attach(d, cfg, pr)
@@ -66,12 +66,12 @@ func approveWithToken(d Deps, pr PR, at, token string) int {
 		return fail(d, err)
 	}
 	if !ok {
-		return fail(d, fmt.Errorf("claude-review: that Approve link for %s is not one this machine issued, or it was used already", pr.Slug()))
+		return fail(d, fmt.Errorf("claude-review: that Approve link for %s is not one this machine issued, or it was used already", pr.URL()))
 	}
 	if code := runApprove([]string{pr.URL(), "--at", at}, d.Gh, d.Stdout, d.Stderr); code != 0 {
-		return fail(d, fmt.Errorf("claude-review: approving %s failed; see the session", pr.Slug()))
+		return fail(d, fmt.Errorf("claude-review: approving %s failed; see the session", pr.URL()))
 	}
-	tell(d, fmt.Sprintf("%s approved at %.9s", pr.Slug(), at))
+	tell(d, fmt.Sprintf("%s approved at %.9s", pr.URL(), at))
 	return 0
 }
 
@@ -83,15 +83,15 @@ func attach(d Deps, cfg Config, pr PR) int {
 	id := pr.RoundSessionID()
 	unlock, err := d.Lock(pr.SessionID())
 	if errors.Is(err, errLocked) {
-		return fail(d, fmt.Errorf("claude-review: %s is being started; try again in a moment", pr.Slug()))
+		return fail(d, fmt.Errorf("claude-review: %s is being started; try again in a moment", pr.URL()))
 	}
 	if err != nil {
-		return fail(d, fmt.Errorf("claude-review: locking %s: %w", pr.Slug(), err))
+		return fail(d, fmt.Errorf("claude-review: locking %s: %w", pr.URL(), err))
 	}
 	defer unlock()
 	all, err := d.Sessions.Roster()
 	if err != nil {
-		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.Slug(), err))
+		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), err))
 	}
 	live := false
 	for _, w := range d.Sessions.workersFor(id, all) {
@@ -107,7 +107,7 @@ func attach(d Deps, cfg Config, pr PR) int {
 			return fail(d, err)
 		}
 	case d.Sessions.WindowOpen(id):
-		return fail(d, fmt.Errorf("claude-review: %s is already open in a window", pr.Slug()))
+		return fail(d, fmt.Errorf("claude-review: %s is already open in a window", pr.URL()))
 	default:
 		tell(d, "no round running on "+pr.URL())
 	}

@@ -218,7 +218,7 @@ func (h tickHost) sweep() error {
 			err = h.closeOut(pr, unread[u])
 		}
 		if err != nil {
-			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.Slug(), err)
+			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 		}
 	}
 	return nil
@@ -255,7 +255,7 @@ func (h tickHost) closeOut(pr PR, rounds []Round) error {
 		return err
 	}
 	for _, w := range h.workersOf(pr, all) {
-		if err := h.do(fmt.Sprintf("stop worker %s on %s: the PR is merged or closed", w.Short, pr.Slug()), func() error { return h.sess.stopAndWait(w) }); err != nil {
+		if err := h.do(fmt.Sprintf("stop worker %s on %s: the PR is merged or closed", w.Short, pr.URL()), func() error { return h.sess.stopAndWait(w) }); err != nil {
 			return err
 		}
 	}
@@ -284,7 +284,7 @@ func (h tickHost) settle() (int, error) {
 		unlock, err := h.lock(pr.SessionID())
 		if err != nil {
 			if !errors.Is(err, errLocked) {
-				fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.Slug(), err)
+				fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 			}
 			running++
 			continue
@@ -292,7 +292,7 @@ func (h tickHost) settle() (int, error) {
 		busy, err := h.settleRound(pr, r, true)
 		unlock()
 		if err != nil {
-			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.Slug(), err)
+			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 		}
 		if busy {
 			running++
@@ -349,7 +349,7 @@ func (h tickHost) settleUnread(pr PR) error {
 func (h tickHost) apply(pr PR, r Round, d Decision, retry bool) (bool, error) {
 	if d.Retry && retry {
 		started := false
-		err := h.do("retry "+pr.Slug(), func() error {
+		err := h.do("retry "+pr.URL(), func() error {
 			var err error
 			started, err = h.launch(pr, nil, func(at time.Time) error {
 				if err := h.ledger.MarkRetried(r.ID); err != nil {
@@ -377,7 +377,7 @@ func (h tickHost) apply(pr PR, r Round, d Decision, retry bool) (bool, error) {
 			return false, err
 		}
 	}
-	return false, h.do("mark round "+pr.Slug()+" read", func() error { return h.ledger.MarkRead(r.ID) })
+	return false, h.do("mark round "+pr.URL()+" read", func() error { return h.ledger.MarkRead(r.ID) })
 }
 
 // sideEffects are the decision's writes besides the annotation: dismiss
@@ -385,25 +385,25 @@ func (h tickHost) apply(pr PR, r Round, d Decision, retry bool) (bool, error) {
 func (h tickHost) sideEffects(pr PR, d Decision) error {
 	if d.DismissReviewID != 0 {
 		msg := "A later review round found new problems at the current head, so this approval no longer covers it."
-		if err := h.do(fmt.Sprintf("dismiss review %d on %s", d.DismissReviewID, pr.Slug()), func() error { return h.gh.Dismiss(pr, d.DismissReviewID, msg) }); err != nil {
+		if err := h.do(fmt.Sprintf("dismiss review %d on %s", d.DismissReviewID, pr.URL()), func() error { return h.gh.Dismiss(pr, d.DismissReviewID, msg) }); err != nil {
 			return err
 		}
 	}
 	if d.Clear {
-		if err := h.do("clear "+pr.Slug(), func() error { return h.clear(pr) }); err != nil {
+		if err := h.do("clear "+pr.URL(), func() error { return h.clear(pr) }); err != nil {
 			return err
 		}
 	}
 	if d.Ignore {
-		return h.do("ignore "+pr.Slug(), func() error { return h.ledger.Ignore(pr) })
+		return h.do("ignore "+pr.URL(), func() error { return h.ledger.Ignore(pr) })
 	}
 	return nil
 }
 
 // clearOrSay clears pr's annotation, reporting a failure without stopping.
 func (h tickHost) clearOrSay(pr PR) {
-	if err := h.do("clear "+pr.Slug(), func() error { return h.clear(pr) }); err != nil {
-		fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.Slug(), err)
+	if err := h.do("clear "+pr.URL(), func() error { return h.clear(pr) }); err != nil {
+		fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 	}
 }
 
@@ -433,7 +433,7 @@ func (h tickHost) startOwed(prs []EllyPR, running int) error {
 		}
 		started, err := h.startOne(p, running)
 		if err != nil {
-			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", p.PR.Slug(), err)
+			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", p.PR.URL(), err)
 		}
 		if started {
 			running++
@@ -448,7 +448,7 @@ func (h tickHost) startOne(p Planned, running int) (bool, error) {
 	unlock, err := h.lock(p.PR.SessionID())
 	if errors.Is(err, errLocked) {
 		if h.dry {
-			fmt.Fprintf(h.out, "would leave %s: a click holds it\n", p.PR.Slug())
+			fmt.Fprintf(h.out, "would leave %s: a click holds it\n", p.PR.URL())
 		}
 		return false, nil
 	}
@@ -461,7 +461,7 @@ func (h tickHost) startOne(p Planned, running int) (bool, error) {
 	}
 	if h.running(p.PR.RoundSessionID()) {
 		if h.dry {
-			fmt.Fprintf(h.out, "would leave %s: its session is open\n", p.PR.Slug())
+			fmt.Fprintf(h.out, "would leave %s: its session is open\n", p.PR.URL())
 		}
 		return false, nil
 	}
@@ -469,7 +469,7 @@ func (h tickHost) startOne(p Planned, running int) (bool, error) {
 		return false, nil
 	}
 	started := false
-	err = h.do(fmt.Sprintf("start a round on %s at %.9s (%s)", p.PR.Slug(), p.Head, p.Trigger), func() error {
+	err = h.do(fmt.Sprintf("start a round on %s at %.9s (%s)", p.PR.URL(), p.Head, p.Trigger), func() error {
 		var err error
 		started, err = h.launch(p.PR, func() error { return h.settleUnread(p.PR) }, func(at time.Time) error {
 			if _, err := h.ledger.StartRound(p.PR, p.Head, p.Trigger, at); err != nil {
@@ -492,14 +492,14 @@ func (h tickHost) markRunning(pr PR, by string, at time.Time) error {
 	if err := h.mark(pr, a); err != nil || h.elly == nil {
 		return err
 	}
-	return h.do("send "+pr.Slug()+" to elly", func() error { return h.elly.Put(pr.URL(), a, a.Expires) })
+	return h.do("send "+pr.URL()+" to elly", func() error { return h.elly.Put(pr.URL(), a, a.Expires) })
 }
 
 // markRunningOrSay is markRunning for a round already started: a failure
 // to show it is reported, never the round's failure.
 func (h tickHost) markRunningOrSay(pr PR, by string, at time.Time) {
 	if err := h.markRunning(pr, by, at); err != nil && h.out != nil {
-		fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.Slug(), err)
+		fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 	}
 }
 
@@ -510,7 +510,7 @@ func (h tickHost) dropRunning(pr PR) error {
 	if err != nil || !ok || a.State != stateRunning {
 		return err
 	}
-	return h.do("clear "+pr.Slug(), func() error {
+	return h.do("clear "+pr.URL(), func() error {
 		if err := h.ledger.ClearAnnotation(pr); err != nil || h.elly == nil {
 			return err
 		}
@@ -527,7 +527,7 @@ func (h tickHost) markWindow(pr PR) error {
 // An unchanged state and note stay quiet, so a gate seen every tick
 // notifies once; an Approve link's fresh token does not count as a change.
 func (h tickHost) mark(pr PR, a Annotation) error {
-	return h.do(fmt.Sprintf("mark %s %s: %s", pr.Slug(), a.State, a.Note), func() error {
+	return h.do(fmt.Sprintf("mark %s %s: %s", pr.URL(), a.State, a.Note), func() error {
 		was, had, err := h.ledger.Annotation(pr)
 		if err != nil {
 			return err
@@ -578,7 +578,7 @@ func (h tickHost) launch(pr PR, settle func() error, record func(at time.Time) e
 			return
 		}
 		if dropErr := h.dropRunning(pr); dropErr != nil && h.out != nil {
-			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.Slug(), dropErr)
+			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), dropErr)
 		}
 	}()
 	reason, err := h.ledger.Tripped()
@@ -627,7 +627,7 @@ func (h tickHost) afterRelaunch(pr PR, res RelaunchResult, stopErr error, record
 	case relaunchUnknown:
 		return false, fmt.Errorf("nothing started: %s", res.Detail)
 	case relaunchDuplicate:
-		reason := pr.Slug() + ": " + res.Detail
+		reason := pr.URL() + ": " + res.Detail
 		return false, errors.Join(stopErr, needsYou(res.Detail+"; rounds are paused for every PR"), h.ledger.Trip(reason), breakerError(reason))
 	case relaunchNotListed:
 		return false, needsYou("the round was launched but " + res.Detail + "; nothing was recorded")
@@ -679,15 +679,15 @@ func (h tickHost) refresh() error {
 		}
 		state, head, user, err := h.gh.Standing(pr)
 		if err != nil {
-			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.Slug(), err)
+			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 			continue
 		}
 		if state != prOpen || (user != nil && user.State == reviewApproved && user.CommitID == head) {
 			h.clearOrSay(pr)
 			continue
 		}
-		if err := h.do("send "+pr.Slug()+" to elly", func() error { return h.elly.Put(url, a, expires) }); err != nil {
-			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.Slug(), err)
+		if err := h.do("send "+pr.URL()+" to elly", func() error { return h.elly.Put(url, a, expires) }); err != nil {
+			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 		}
 	}
 	return nil

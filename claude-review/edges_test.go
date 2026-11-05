@@ -391,7 +391,7 @@ func TestMarkRunningOrSayReportsAFailedSend(t *testing.T) {
 	w := newTickWorld(t)
 	w.elly.putErr = errors.New("elly: 503")
 	w.h.markRunningOrSay(widgetsPR, "tick", t0)
-	if !strings.Contains(w.out.String(), "claude-review tick: "+widgetsPR.Slug()+": elly: 503") {
+	if !strings.Contains(w.out.String(), "claude-review tick: "+widgetsPR.URL()+": elly: 503") {
 		t.Errorf("out %q", w.out.String())
 	}
 }

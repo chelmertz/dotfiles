@@ -232,7 +232,7 @@ func TestTickDryRunWritesNothing(t *testing.T) {
 	if rounds, _ := w.h.ledger.UnreadRounds(); len(rounds) != 0 {
 		t.Errorf("a dry run recorded rounds %v", rounds)
 	}
-	if !strings.Contains(w.out.String(), "would start a round on acme/widgets#42") {
+	if !strings.Contains(w.out.String(), "would start a round on https://github.com/acme/widgets/pull/42") {
 		t.Errorf("dry run said %q", w.out.String())
 	}
 }
@@ -248,7 +248,7 @@ func TestTickDryRunNamesAnOpenSession(t *testing.T) {
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(w.out.String(), "would leave acme/widgets#42: its session is open") {
+	if !strings.Contains(w.out.String(), "would leave https://github.com/acme/widgets/pull/42: its session is open") {
 		t.Errorf("dry run said %q", w.out.String())
 	}
 }
@@ -272,7 +272,7 @@ func TestTickDryRunRetriesNothing(t *testing.T) {
 	if rounds, _ := w.h.ledger.UnreadRounds(); len(rounds) != 1 || rounds[0].Retries != 0 {
 		t.Errorf("a dry run changed the round: %+v", rounds)
 	}
-	if !strings.Contains(w.out.String(), "would retry acme/widgets#1") {
+	if !strings.Contains(w.out.String(), "would retry https://github.com/acme/widgets/pull/1") {
 		t.Errorf("dry run said %q", w.out.String())
 	}
 }
@@ -967,7 +967,7 @@ func TestTickSweepLeavesWhatItCannotRead(t *testing.T) {
 		if unread, _ := w.h.ledger.UnreadRounds(); len(unread) != 1 {
 			t.Errorf("%s: the round was settled: %+v", name, unread)
 		}
-		if name == "dry run" && !strings.Contains(w.out.String(), "would stop worker "+pr.RoundSessionID()[:8]+" on acme/widgets#42") {
+		if name == "dry run" && !strings.Contains(w.out.String(), "would stop worker "+pr.RoundSessionID()[:8]+" on https://github.com/acme/widgets/pull/42") {
 			t.Errorf("dry run said %q", w.out.String())
 		}
 	}
@@ -1010,7 +1010,7 @@ func TestTickLogsWhatItDoes(t *testing.T) {
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(w.out.String(), "start a round on acme/widgets#42") {
+	if !strings.Contains(w.out.String(), "start a round on https://github.com/acme/widgets/pull/42") {
 		t.Errorf("journal %q names no started round", w.out)
 	}
 }

@@ -324,7 +324,7 @@ func TestRun_Detached_FirstClick_BootstrapFailureIsReported(t *testing.T) {
 	if len(h.outputs) != 1 {
 		t.Errorf("the background session must not start after a failed bootstrap: %q", h.outputs)
 	}
-	if !strings.Contains(h.stderr.String(), "creating session for acme/widgets#42: Workspace not trusted. Run `claude` in /x once") {
+	if !strings.Contains(h.stderr.String(), "creating session for https://github.com/acme/widgets/pull/42: Workspace not trusted. Run `claude` in /x once") {
 		t.Errorf("stderr: %q", h.stderr.String())
 	}
 	if len(h.spawns) != 1 || !strings.Contains(h.spawns[0][3], "Workspace not trusted") || len(h.scripts) != 0 {
@@ -571,7 +571,7 @@ func TestRun_OpenInATerminal_StartsNothing(t *testing.T) {
 			if len(h.scripts)+len(h.execs)+len(h.outputs) != 0 {
 				t.Errorf("%s exists=%v: started something: scripts %q execs %q outputs %q", mode.name, exists, h.scripts, h.execs, h.outputs)
 			}
-			if !strings.Contains(h.stderr.String(), "acme/widgets#42 is already open (pid 4242)") {
+			if !strings.Contains(h.stderr.String(), "https://github.com/acme/widgets/pull/42 is already open (pid 4242)") {
 				t.Errorf("%s exists=%v: stderr %q", mode.name, exists, h.stderr.String())
 			}
 			if notified := len(h.spawns) == 1 && h.spawns[0][0] == "notify-send"; notified == mode.tty {
@@ -599,7 +599,7 @@ func TestRun_AnotherClickHoldsTheLock_StartsNothing(t *testing.T) {
 		if len(h.scripts)+len(h.execs)+len(h.outputs) != 0 {
 			t.Errorf("%q: started something: %q %q %q", cfg, h.scripts, h.execs, h.outputs)
 		}
-		if !strings.Contains(h.stderr.String(), "another click is already opening acme/widgets#42") {
+		if !strings.Contains(h.stderr.String(), "another click is already opening https://github.com/acme/widgets/pull/42") {
 			t.Errorf("%q: stderr %q", cfg, h.stderr.String())
 		}
 		if len(h.events) == 0 || h.events[0] != "lock" {
@@ -611,7 +611,7 @@ func TestRun_AnotherClickHoldsTheLock_StartsNothing(t *testing.T) {
 func TestRun_LockErrorIsReported(t *testing.T) {
 	h := newHost(t, "", true, true)
 	h.d.Lock = func(string) (func(), error) { return nil, errors.New("read-only file system") }
-	if code := run([]string{target}, h.d); code != 1 || len(h.scripts) != 0 || !strings.Contains(h.stderr.String(), "locking acme/widgets#42: read-only file system") {
+	if code := run([]string{target}, h.d); code != 1 || len(h.scripts) != 0 || !strings.Contains(h.stderr.String(), "locking https://github.com/acme/widgets/pull/42: read-only file system") {
 		t.Errorf("code %d scripts %q stderr %q", code, h.scripts, h.stderr.String())
 	}
 }
