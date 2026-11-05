@@ -20,7 +20,7 @@ os.makedirs(weedir)
 
 setup = open(wee).read().split("setup='", 1)[1].split("'\n", 1)[0].splitlines()
 setup = [l for l in setup if "chanmon" in l or "logger.look" in l]
-assert len(setup) >= 5, setup
+assert len(setup) >= 6, setup
 
 fake = os.path.join(tmp, "fake.py")
 open(fake, "w").write('''
@@ -49,7 +49,7 @@ w.register("dump", "t", "1", "MIT", "", "", "")
 out = []
 for name in ("perl.chanmon", "python.slack.matchi.adam"):
     b = w.buffer_search("==", name)
-    out.append("BUFFER %s starred=%s" % (name, w.buffer_get_string(b, "localvar_starred")))
+    out.append("BUFFER %s starred=%s short_name=%s" % (name, w.buffer_get_string(b, "localvar_starred"), w.buffer_get_string(b, "short_name")))
     l = w.hdata_pointer(w.hdata_get("lines"), w.hdata_pointer(w.hdata_get("buffer"), b, "lines"), "first_line")
     while l:
         d = w.hdata_pointer(w.hdata_get("line"), l, "data")
@@ -89,8 +89,8 @@ second = run(reopen, dump)
 want = ["\U0001f512secret | <bob> msg-private", "#dev.b89 | <carl> msg-thread", "adam | <adam> msg-dm"]
 for label, dumped in (("live", first), ("after restart", second)):
     got = feed(dumped)
-    if got[0] != "starred=1":
-        print(label, "feed not starred, so the buffer list hides it:", got[0])
+    if got[0] != "starred=1 short_name=history":
+        print(label, "feed not starred as history, so the buffer list hides or misnames it:", got[0])
         failed = True
     lines = [l for l in got[1:] if "msg-" in l]
     if lines != want:

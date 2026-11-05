@@ -370,7 +370,7 @@ sub chanmon_buffer_open
 	{
 		weechat::buffer_set($chanmon_buffer, "notify", "0");
 		weechat::buffer_set($chanmon_buffer, "highlight_words", "-");
-		weechat::buffer_set($chanmon_buffer, "title", "Channel Monitor");
+		weechat::buffer_set($chanmon_buffer, "title", "History");
 		# Set no_log
 		if (weechat::config_get_plugin("logging") eq "off")
 		{

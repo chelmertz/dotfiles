@@ -111,12 +111,12 @@ with), `>` someone is typing there.
 
 ## Feed and search
 
-- **chanmon**, starred in the right-hand list, is one feed of every channel,
+- **history**, starred in the right-hand list, is one feed of every channel,
   thread and DM message as it arrives, labelled with where it came from. It
   comes back after a restart (the last 1000 lines), so something read in
-  passing is still there to find. Your own messages and loaded history are
-  left out, and so are reactions and anything that arrived while wee was
-  closed.
+  passing is still there to find. Your own messages, the older messages a
+  buffer loads from Slack when it opens, reactions, and anything that arrived
+  while wee was closed are left out.
 - **`/grep word`** searches the current buffer's log (everything wee has seen
   there since it was first started, not just what is loaded); `/grep -a word`
   every open buffer; `-C 3` adds context lines. Typing new arguments in the

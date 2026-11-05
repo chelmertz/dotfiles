@@ -28,7 +28,8 @@ export EDITOR="$HOME/.nix-profile/bin/nvim" VISUAL="$HOME/.nix-profile/bin/nvim"
 # limit stays as headroom until a cold start under the cap has been watched.
 ulimit -Sn "$(( $(ulimit -Hn) < 65536 ? $(ulimit -Hn) : 65536 ))" 2>/dev/null || true
 
-# The chanmon lines make a feed buffer of every channel message and DM that
+# The chanmon lines make a feed buffer, shown as "history", of every channel
+# message and DM that
 # survives a restart: it is logged and its log replayed when it opens. Its tags
 # filter skips history and your own messages, which wee-slack tags notify_none.
 # Only the feed replays a backlog; wee-slack clears its own buffers when it
@@ -46,6 +47,7 @@ setup='/set plugins.var.python.slack.background_load_all_history false
 /set logger.look.backlog 1000
 /set logger.look.backlog_conditions "${raw:${buffer.full_name} == perl.chanmon}"
 /set weechat.buffer.perl.chanmon.localvar_set_starred 1
+/set weechat.buffer.perl.chanmon.short_name history
 /set plugins.var.python.go.fuzzy_search on
 /set plugins.var.python.go.short_name on
 /set weechat.completion.partial_completion_other on

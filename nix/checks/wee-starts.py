@@ -671,7 +671,8 @@ if not error_chip_drawn:
 if not loading_drawn:
     print("LOADING chip never drawn")
     failed = True
-if review_prs != ["claude-review://o/r/75", "claude-review://o/w/9"]:
+# One opener per PR runs concurrently, so the order they log in varies.
+if sorted(review_prs) != ["claude-review://o/r/75", "claude-review://o/w/9"]:
     print("claude review: want one per distinct PR; got", review_prs)
     failed = True
 if not any(l.endswith("\tSENT=$slack_ts_0.1+:eyes:") for l in log):
