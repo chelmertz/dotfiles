@@ -361,6 +361,8 @@ sub chanmon_buffer_open
 	if ($chanmon_buffer eq "")
 	{
 		$chanmon_buffer = weechat::buffer_new("chanmon", "chanmon_buffer_input", "", "chanmon_buffer_close", "");
+		# logger replays a log only when the buffer's owner asks, as irc does
+		weechat::hook_signal_send("logger_backlog", weechat::WEECHAT_HOOK_SIGNAL_POINTER, $chanmon_buffer) if ($chanmon_buffer ne "");
 	}
 
 	# Turn off notify, highlights
@@ -778,7 +780,8 @@ sub chanmon_new_message
 	{
 		# Check buffer name is an IRC channel or private message when enabled
 		$bufname = weechat::buffer_get_string($cb_bufferp, 'name');
-		if ($bufname =~ /(.*)\.([#&\+!])(.*)/ || (weechat::config_get_plugin("merge_private") eq "on" && $cb_tags =~ /notify_private/))
+		# wee-slack marks 🔒 private, Slack Connect and thread buffers as channels
+		if ($bufname =~ /(.*)\.([#&\+!])(.*)/ || weechat::buffer_get_string($cb_bufferp, "localvar_type") eq "channel" || (weechat::config_get_plugin("merge_private") eq "on" && $cb_tags =~ /notify_private/))
 		{
 			# Are we running on this channel
 			if (weechat::config_get_plugin($bufname) ne "off" && $cb_disp eq "1")
@@ -1136,6 +1139,13 @@ sub format_buffer_name
 {
 	$cb_bufferp = $_[0];
 	$bufname = weechat::buffer_get_string($cb_bufferp, 'name');
+
+	# wee-slack keeps the conversation's display name in localvar channel
+	my $slack_channel = weechat::buffer_get_string($cb_bufferp, "localvar_channel");
+	if (weechat::buffer_get_string($cb_bufferp, "localvar_slack_type") ne "" && $slack_channel ne "")
+	{
+		return weechat::info_get("nick_color", $slack_channel).$slack_channel.weechat::color("reset");
+	}
 
 	# Set colour from buffer name
 	if (weechat::config_get_plugin("color_buf") eq "on")

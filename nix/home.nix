@@ -562,6 +562,20 @@ in
                 'PATH = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "weechat-edit.txt")'
             '';
           }))
+          # /grep searches every buffer and wee's logs on disk.
+          weechat-grep
+          # chanmon mirrors every channel message and DM into one buffer, which
+          # bin/wee logs and replays at start: a feed that survives a restart.
+          # Vendored from weechat/scripts c2e9f21 and adapted for wee-slack;
+          # git log -p weechat/chanmon.pl shows the changes.
+          (stdenv.mkDerivation {
+            pname = "chanmon";
+            version = "2.7";
+            src = ../weechat/chanmon.pl;
+            dontUnpack = true;
+            passthru.scripts = [ "chanmon.pl" ];
+            installPhase = "install -D $src $out/share/chanmon.pl";
+          })
         ];
       };
     })
