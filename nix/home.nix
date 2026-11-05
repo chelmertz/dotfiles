@@ -531,14 +531,14 @@ in
               ../weechat/wee-slack-users.patch
             ];
           }))
-          # Ctrl+K drew its "Go to:" prompt only on the next redraw, and Esc on
+          # /go drew its "Go to:" prompt only on the next redraw, and Esc on
           # an empty prompt left it drawn: on an empty input line, opening and
           # closing /go change nothing weechat would redraw for, so the screen
           # waited for a message, a timer or the next key. Signal the change
           # the way go.py already does when Tab cycles. go-people.patch adds
           # everyone in the Slack workspaces after the buffers (wee-slack's
           # slack_people info); Enter on a person opens the DM with /query.
-          # "/go -people" (Ctrl+Shift+K) lists only one-to-one DMs and people.
+          # "/go -people" (Ctrl+K) lists only one-to-one DMs and people.
           (weechat-go.overrideAttrs (o: {
             installPhase = o.installPhase + ''
               substituteInPlace $out/share/go.py --replace-fail \

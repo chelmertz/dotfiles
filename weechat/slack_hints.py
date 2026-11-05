@@ -11,7 +11,7 @@
 # picks an action, q or Esc closes the menu, and any other key closes it and
 # then does what it always does.
 #
-# /escape (Esc in the wee window) closes the menu or ends Ctrl+K's /go. A
+# /escape (Esc in the wee window) closes the menu or ends a picker's /go. A
 # terminal sends a bare Esc as the first byte of every Alt+key, so weechat
 # waits for the key after it and merges the two; ghostty sends Esc there as
 # CSI 27 u instead (i3's F9 line), a complete key bin/wee binds to /escape.
@@ -53,8 +53,8 @@ import weechat as w
 # divided. The bar sizes itself to the number of rows.
 HINTS = [
     [
-        ("Ctrl+K", "channels, people"),
-        ("Ctrl+Shift+K", "people only"),
+        ("Ctrl+K", "people"),
+        ("Ctrl+Shift+K", "channels, people"),
         ("Alt+A", "next unread"),
         ("+:emoji:", "react"),
         ("Ctrl+X", "nvim"),

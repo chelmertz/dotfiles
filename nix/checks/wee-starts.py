@@ -107,7 +107,7 @@ def people(data, name, args):
     home = w.buffer_search("core", "homeprobe")
     return "%s\\tzed.person\\n%s\\tyan.person" % (home, home)
 w.hook_info("probe_people", "", "", "people", "")
-# Ctrl+K on a person runs /query in that person's team buffer: record it.
+# Picking a person runs /query in that person's team buffer: record it.
 def query(data, buffer, command):
     w.prnt("", "QUERY=%s %s" % (w.buffer_get_string(buffer, "full_name"), command))
     return w.WEECHAT_RC_OK_EAT
@@ -184,8 +184,8 @@ script = ";".join([
     "/set plugins.var.python.go.people_info probe_people",
     "/buffer add yanbuf",
     "/mute /command -buffer core.yanbuf core /buffer set short_name +yan.person",
-    # Ctrl+Shift+K skips the channel and the group DM that also match "xu",
-    # though both sort before the DM in plain Ctrl+K.
+    # Ctrl+K skips the channel and the group DM that also match "xu", though
+    # both sort before the DM in Ctrl+Shift+K's full list.
     "/buffer add xuchan",
     "/mute /command -buffer core.xuchan core /buffer set short_name #xu-chan",
     "/buffer add xugroup",
@@ -254,7 +254,7 @@ for keys in (b"ko2", b"koa", b"kko", b"o"):
         pump(0.5)
 no_link_drawn = b"no link in this message" in screen
 # Esc as ghostty sends it in the wee window (CSI 27 u, see .i3/config): it must
-# close the menu and end Ctrl+K's /go, or the /print lines below never run.
+# close the menu and end /go, or the /print lines below never run.
 ESC = b"\x1b[27u"
 os.write(fd, b"\x1b ")
 pump(1)
@@ -262,15 +262,17 @@ os.write(fd, ESC)
 pump(1)
 os.write(fd, b"/print MENU-CLOSED\r")
 pump(1)
-# Esc straight after Ctrl+K: go.py restores an input that never changed, and
-# nothing redraws the prompt away unless the close signals a change.
-os.write(fd, b"\x0b")
+# Ctrl+Shift+K arrives as ghostty sends it in the wee window (Alt+K).
+GO_ALL, GO_PEOPLE = b"\x1bK", b"\x0b"
+# Esc straight after Ctrl+Shift+K: go.py restores an input that never changed,
+# and nothing redraws the prompt away unless the close signals a change.
+os.write(fd, GO_ALL)
 pump(1)
 before = len(screen)
 os.write(fd, ESC)
 pump(1)
 go_redrawn_on_close = len(screen) > before
-os.write(fd, b"\x0b")  # Ctrl+K: /go
+os.write(fd, GO_ALL)
 pump(1)
 os.write(fd, b"ho")  # filtering, as Esc usually comes after typing
 pump(1)
@@ -278,13 +280,13 @@ os.write(fd, ESC)
 pump(1)
 os.write(fd, b"/print GO-CLOSED\r")
 pump(1)
-os.write(fd, b"\x0b")  # Ctrl+K reaches people without a buffer too
+os.write(fd, GO_ALL)  # reaches people without a buffer too
 pump(1)
 os.write(fd, b"zed")
 pump(1)
 os.write(fd, b"\r")
 pump(1)
-os.write(fd, b"\x0b")  # a person with a DM buffer is listed once: Tab wraps
+os.write(fd, GO_ALL)  # a person with a DM buffer is listed once: Tab wraps
 pump(1)
 os.write(fd, b"yan")
 pump(1)
@@ -292,7 +294,7 @@ os.write(fd, b"\t")
 pump(1)
 os.write(fd, b"\r")
 pump(1)
-os.write(fd, b"\x1bK")  # Ctrl+Shift+K, as ghostty sends it in the wee window
+os.write(fd, GO_PEOPLE)
 pump(1)
 os.write(fd, b"xu")
 pump(1)
@@ -538,7 +540,7 @@ if not any(i > notice for i in hot):
     print("a thread notice in the team buffer did not reach the hotlist")
     failed = True
 if not go_redrawn_on_close:
-    print("Esc closed Ctrl+K on an empty prompt but nothing was redrawn")
+    print("Esc closed Ctrl+Shift+K on an empty prompt but nothing was redrawn")
     failed = True
 if not recent_listed or stale_listed:
     print("buflist: recent buffer listed=%s (want True), stale listed=%s"
@@ -565,15 +567,15 @@ if not any(l.endswith("\tDMNOTIFY=3") for l in log):
           [l.rsplit("\t", 1)[-1] for l in log if "DMNOTIFY=" in l])
     failed = True
 if not any(l.endswith("\tQUERY=core.homeprobe /query zed.person") for l in log):
-    print("Ctrl+K on a person did not open the DM:",
+    print("Ctrl+Shift+K on a person did not open the DM:",
           [l.rsplit("\t", 1)[-1] for l in log if "QUERY=" in l])
     failed = True
 if any("/query yan.person" in l for l in log):
-    print("Ctrl+K listed a person a second time beside their DM buffer")
+    print("Ctrl+Shift+K listed a person a second time beside their DM buffer")
     failed = True
 xu = [b for b in bufs if b.startswith("core.xu")]
 if xu != ["core.xubuf"]:
-    print("Ctrl+Shift+K on \"xu\" did not go to the one-to-one DM only:", xu)
+    print("Ctrl+K on \"xu\" did not go to the one-to-one DM only:", xu)
     failed = True
 if not attached_shown:
     print("Ctrl+V with an image did not mark the input line")

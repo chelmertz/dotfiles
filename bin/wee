@@ -63,8 +63,8 @@ setup='/set plugins.var.python.slack.background_load_all_history false
 /set buflist.look.display_conditions "${raw:${buffer.hidden}==0 && (${current_buffer} || ${hotlist_priority_number}>=1 || ${buffer.local_variables.starred}==1 || ${buffer.local_variables.slack_latest}>${calc:${date:%s}-259200} || ${plugins.var.wee.buflist_all}==1)}"
 /alias addreplace all /toggle plugins.var.wee.buflist_all 1 0\;/buflist refresh
 /unset weechat.bar.input.items
-/key bind ctrl-k /go
-/key bind meta-K /go -people
+/key bind ctrl-k /go -people
+/key bind meta-K /go
 /set weechat.bar.hints.size 0
 /trigger addreplace url_color modifier weechat_print "" "${raw:|https?://[^ ]+|${color:underline}${color:lightblue}${re:0}${color:-underline}${color:reset}|}"
 /alias addreplace u /url_hint_replace /exec -bg -nosh xdg-open {url$1}

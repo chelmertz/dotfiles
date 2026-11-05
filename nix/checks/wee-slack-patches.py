@@ -107,7 +107,7 @@ if probes(set(), True, open_probe, starred={"C9"}) != 0 or not probes.opened:
     print("a starred group DM with nothing unread got no buffer")
     failed = True
 
-# People for Ctrl+K (weechat/wee-slack-mentions.patch): everyone but you and
+# People for the pickers (weechat/wee-slack-mentions.patch): everyone but you and
 # deleted accounts, each with the team buffer /query has to run in.
 people_team = types.SimpleNamespace(channel_buffer="0xTEAM", myidentifier="U0", users={
     "U0": types.SimpleNamespace(identifier="U0", name="me", deleted=False),

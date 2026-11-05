@@ -28,7 +28,7 @@
  
  
 +def slack_people_info_cb(data, info_name, arguments):
-+    # Ctrl+K (go.py) offers these after buffers; picking one runs /query name
++    # Ctrl+Shift+K (go.py) offers these after buffers; picking one runs /query name
 +    # in the team buffer, so it opens a DM nobody has a buffer for yet.
 +    return "\n".join(
 +        "{}\t{}".format(team.channel_buffer, user.name)

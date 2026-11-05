@@ -17,8 +17,8 @@ Electron Slack app for daily use; the app stays installed for huddles.
 
 | Key / command | Does |
 |---|---|
-| Ctrl+K | buffer picker, then everyone in the workspaces (type to filter, Enter picks: a person opens the DM; Esc cancels) |
-| Ctrl+Shift+K | the same, people only: one-to-one DMs and everyone in the workspaces, no channels or group DMs |
+| Ctrl+K | people picker: one-to-one DMs, then everyone in the workspaces (type to filter, Enter picks: a person opens the DM; Esc cancels) |
+| Ctrl+Shift+K | the same with every buffer first: channels and group DMs too |
 | Alt+A | next buffer with unread activity; after the last, back to where you started; "nothing unread" in the bar when there is nowhere to go |
 | Alt+/ | back to the previous buffer (again: forward) |
 | Alt+← / Alt+→ (or Alt+< / Alt+>) | back / forward through visited buffers |
@@ -32,9 +32,9 @@ Slack-starred conversations, and anything with activity in the last 72 hours
 (read or not, from any client), newest first. Muted channels count as quiet.
 `/all` lists everything.
 
-Name prefixes, in the list and in Ctrl+K: `#` channel, 🔒 private channel,
+Name prefixes, in the list and in Ctrl+Shift+K: `#` channel, 🔒 private channel,
 `%` Slack Connect channel (shared with another company), `@` group DM, `+`
-DM with someone online, plain name a DM (or, in Ctrl+K, a person to start one
+DM with someone online, plain name a DM (or, in the pickers, a person to start one
 with), `>` someone is typing there.
 
 ## Writing
@@ -86,7 +86,7 @@ with), `>` someone is typing there.
   loaded opens the channel with a notice instead. With wee closed it only
   says so: start wee, wait for it to connect, then click again.
 - **q** or **Esc** closes the menu; any other key closes it and does what it
-  normally does. Esc also cancels Ctrl+K. (The wee window's ghostty sends Esc
+  normally does. Esc also cancels both pickers. (The wee window's ghostty sends Esc
   as a code weechat can tell apart from Alt+key; elsewhere in weechat a bare
   Esc merges with the next key.)
 
