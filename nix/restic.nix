@@ -91,6 +91,8 @@ let
     "${home}/.config/secrets/work.env"
     "${home}/.kube"
     "${home}/.docker"
+    # elly's database holds GitHub tokens for the work orgs and private PR titles.
+    "${home}/.local/share/elly"
     # ~/p's own repository tracks m/ as well.
     "${home}/p/.git"
 
