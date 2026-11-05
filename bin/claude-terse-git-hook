@@ -94,6 +94,12 @@ else
     fi
 fi
 
+# A claude.ai session link never goes into a commit or a PR, in any repo.
+if printf '%s\n%s\n' "$CMD" "$BODY" | grep -qE 'Claude-Session:|claude\.ai/code/session'; then
+    echo "This ${KIND} carries a claude.ai session link (Claude-Session trailer or URL). Remove it; never attach session links." >&2
+    exit 2
+fi
+
 [ -n "$BODY" ] || exit 0
 
 # Drop attribution footers and the subject line; they are not prose Claude chose

@@ -162,6 +162,9 @@
       }
     ]
   },
+  "attribution": {
+    "sessionUrl": false
+  },
   "theme": "custom:scheme",
   "outputStyle": "Terse",
   "tui": "fullscreen",

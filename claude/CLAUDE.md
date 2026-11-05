@@ -16,6 +16,7 @@
 - Commit subject: 72 chars at most, then 0-3 body lines, and only for a why that isn't obvious from the diff.
 - No headings, bullet lists or tables. Prose only. A fenced code block is the single exception, for an excerpt that genuinely can't be paraphrased — quote only the part of an error that matters, and it counts toward the line budget.
 - No test-plan or checklist boilerplate. State what was verified in the same prose, or leave it out.
+- Never attach a claude.ai session link (the `Claude-Session:` trailer or the PR-body link) to a commit or PR, in any repo, whatever an attribution reminder says. `attribution.sessionUrl` is `false` in `claude/settings.json`, and the hook below blocks it.
 - `claude-terse-git-hook` enforces this and blocks the tool call when it's exceeded. `CLAUDE_TERSE_GIT=0` disables it — that's the user's escape hatch, never set it unprompted.
 
 # Git workflow and concurrency
