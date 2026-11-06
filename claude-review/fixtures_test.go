@@ -95,7 +95,7 @@ func TestRecordedRounds(t *testing.T) {
 				elly:        &fakeElly{login: "me", put: map[string]Annotation{}},
 				gh:          gh,
 				running:     func(ids.SessionID) bool { return false },
-				blocked:     func(ids.SessionID) bool { return false },
+				blocked:     func(ids.SessionID) (string, bool) { return "", false },
 				lastMessage: func(ids.SessionID) (string, error) { return rr.LastMessage, nil },
 				findRepo:    func(PR) (string, string, error) { return "/clone", "upstream", nil },
 				start: func(_ string, argv []string) error {

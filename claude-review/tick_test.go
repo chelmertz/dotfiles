@@ -84,7 +84,7 @@ type tickWorld struct {
 	gh       *fakeTickGitHub
 	started  [][]string
 	live     map[ids.SessionID]bool
-	blocked  map[ids.SessionID]bool
+	blocked  map[ids.SessionID]string
 	msgs     map[ids.SessionID]string
 	out      *bytes.Buffer
 	fs       *fakeSessions
@@ -100,7 +100,7 @@ func newTickWorld(t *testing.T) *tickWorld {
 		elly:    &fakeElly{login: "me", put: map[string]Annotation{}},
 		gh:      &fakeTickGitHub{fakeGate: fakeGate{descends: true, base: "main"}, state: "open", head: "h1"},
 		live:    map[ids.SessionID]bool{},
-		blocked: map[ids.SessionID]bool{},
+		blocked: map[ids.SessionID]string{},
 		msgs:    map[ids.SessionID]string{},
 		out:     &bytes.Buffer{},
 		fs:      newFakeSessions(),
@@ -114,7 +114,10 @@ func newTickWorld(t *testing.T) *tickWorld {
 		elly:    w.elly,
 		gh:      w.gh,
 		running: func(id ids.SessionID) bool { return w.live[id] },
-		blocked: func(id ids.SessionID) bool { return w.blocked[id] },
+		blocked: func(id ids.SessionID) (string, bool) {
+			why, ok := w.blocked[id]
+			return why, ok
+		},
 		lastMessage: func(id ids.SessionID) (string, error) {
 			w.fs.events = append(w.fs.events, "read "+id.Key().String())
 			return w.msgs[id], nil
@@ -481,26 +484,32 @@ func TestLaunchRefusesInADryRun(t *testing.T) {
 	}
 }
 
-// A round stalled on a permission it lacks waits for the user; a retry would
-// resume on top of the live, blocked worker.
+// A blocked round waits for the user, on a permission it lacks or on a
+// question it asks; the note carries the round's own words for which. A
+// retry would resume on top of the live, blocked worker.
 func TestTickABlockedRoundNeedsTheUser(t *testing.T) {
-	w := newTickWorld(t)
-	pr := w.accept(t, 1)
-	if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0); err != nil {
-		t.Fatal(err)
-	}
-	w.gh.facts = RoundFacts{State: "open", Head: "h1"}
-	w.blocked[pr.RoundSessionID()] = true
-	if err := w.h.tick(); err != nil {
-		t.Fatal(err)
-	}
-	if len(w.started) != 0 {
-		t.Errorf("a blocked round was retried: %q", w.started)
-	}
-	all, _ := w.h.ledger.Annotations()
-	a := all[pr.URL()]
-	if a.State != stateNeedsYou || !strings.Contains(a.Note, "permission") || !hasLink(&a, "attach") {
-		t.Errorf("annotation %+v", a)
+	for why, want := range map[string]string{
+		"Does the ignore step print \"proceeding with build\"?": "the round is waiting for you: Does the ignore step print \"proceeding with build\"?",
+		"": "the round is waiting for you",
+	} {
+		w := newTickWorld(t)
+		pr := w.accept(t, 1)
+		if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0); err != nil {
+			t.Fatal(err)
+		}
+		w.gh.facts = RoundFacts{State: "open", Head: "h1"}
+		w.blocked[pr.RoundSessionID()] = why
+		if err := w.h.tick(); err != nil {
+			t.Fatal(err)
+		}
+		if len(w.started) != 0 {
+			t.Errorf("a blocked round was retried: %q", w.started)
+		}
+		all, _ := w.h.ledger.Annotations()
+		a := all[pr.URL()]
+		if a.State != stateNeedsYou || a.Note != want || !hasLink(&a, "attach") {
+			t.Errorf("blocked on %q: annotation %+v", why, a)
+		}
 	}
 }
 

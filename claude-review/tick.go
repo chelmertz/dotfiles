@@ -51,7 +51,7 @@ type tickHost struct {
 	elly        tickElly
 	gh          tickGitHub
 	running     func(sessionID ids.SessionID) bool
-	blocked     func(sessionID ids.SessionID) bool
+	blocked     func(sessionID ids.SessionID) (why string, ok bool)
 	lastMessage func(sessionID ids.SessionID) (string, error)
 	findRepo    func(pr PR) (dir, remote string, err error)
 	start       func(dir string, argv []string) error
@@ -314,10 +314,14 @@ func (h tickHost) settleRound(pr PR, r Round, retry bool) (busy bool, err error)
 	if h.running(pr.RoundSessionID()) {
 		return true, nil
 	}
-	if h.blocked(pr.RoundSessionID()) {
+	if why, ok := h.blocked(pr.RoundSessionID()); ok {
 		// No retry: it would resume on top of the live, waiting worker.
+		note := "the round is waiting for you"
+		if why != "" {
+			note += ": " + capRunes(why, maxQuestionNote)
+		}
 		d := Decision{Annotation: &Annotation{State: stateNeedsYou,
-			Note: "the round is waiting for a permission it was not given", Links: []Link{attachLink(pr), ignoreLink(pr)}}}
+			Note: note, Links: []Link{attachLink(pr), ignoreLink(pr)}}}
 		_, err := h.apply(pr, r, d, retry)
 		return false, err
 	}

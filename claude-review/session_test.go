@@ -285,3 +285,29 @@ func TestRoundRunning(t *testing.T) {
 		t.Error("a job left at working with no live worker is not running")
 	}
 }
+
+// A blocked job says why in its own words: needs when it asks the user
+// something, detail otherwise (a permission it lacks). Observed on 2.1.314.
+func TestBlockedOn(t *testing.T) {
+	dir := t.TempDir()
+	d := filepath.Join(dir, "jobs", sid.Key().String())
+	if err := os.MkdirAll(d, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for body, want := range map[string]string{
+		`{"state":"blocked","detail":"review held","needs":"Does the log say X?"}`: "Does the log say X?",
+		`{"state":"blocked","detail":"stalled: needs Bash permission"}`:            "stalled: needs Bash permission",
+		`{"state":"blocked"}`: "",
+	} {
+		if err := os.WriteFile(filepath.Join(d, "state.json"), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if why, ok := BlockedOn(dir, sid); !ok || why != want {
+			t.Errorf("%s: got %q %v, want %q", body, why, ok, want)
+		}
+	}
+	writeJob(t, dir, "working")
+	if why, ok := BlockedOn(dir, sid); ok {
+		t.Errorf("a working job read as blocked on %q", why)
+	}
+}

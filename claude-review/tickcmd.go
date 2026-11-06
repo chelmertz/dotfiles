@@ -89,7 +89,7 @@ func newTickHost(d Deps, cfg Config, l *Ledger, user string) tickHost {
 		elly:        Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile(d.RuntimeDir)},
 		gh:          GitHub{Gh: d.Gh, User: user},
 		running:     func(id ids.SessionID) bool { return RoundRunning(d.ClaudeDir, id) },
-		blocked:     func(id ids.SessionID) bool { return JobState(d.ClaudeDir, id) == "blocked" },
+		blocked:     func(id ids.SessionID) (string, bool) { return BlockedOn(d.ClaudeDir, id) },
 		lastMessage: func(id ids.SessionID) (string, error) { return LastMessage(d.ClaudeDir, id) },
 		findRepo: func(pr PR) (string, string, error) {
 			return d.FindRepo(cfg.GitRepoRoots, cfg.ClonePath, pr)

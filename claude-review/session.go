@@ -148,20 +148,40 @@ var processAlive = func(pid int) bool {
 // jobs/<short id>/state.json: "working", "blocked", "done", "stopped", or ""
 // when there is no readable job. Observed on 2.1.314.
 func JobState(claudeDir string, id ids.SessionID) string {
+	return readJob(claudeDir, id).State
+}
+
+// BlockedOn reports whether id's job is blocked, and why in the job's own
+// words: needs when it asks the user something, else detail (a permission
+// it lacks reads "needs Bash permission" there). Observed on 2.1.314.
+func BlockedOn(claudeDir string, id ids.SessionID) (string, bool) {
+	j := readJob(claudeDir, id)
+	if j.State != "blocked" {
+		return "", false
+	}
+	if j.Needs != "" {
+		return j.Needs, true
+	}
+	return j.Detail, true
+}
+
+type job struct {
+	State  string `json:"state"`
+	Detail string `json:"detail"`
+	Needs  string `json:"needs"`
+}
+
+// readJob is the zero job when there is none or it cannot be read.
+func readJob(claudeDir string, id ids.SessionID) job {
+	var j job
 	if id.IsZero() {
-		return ""
+		return j
 	}
 	b, err := os.ReadFile(filepath.Join(claudeDir, "jobs", id.Key().String(), "state.json")) //nolint:gosec // path under the user's own config dir
-	if err != nil {
-		return ""
+	if err != nil || json.Unmarshal(b, &j) != nil {
+		return job{}
 	}
-	var j struct {
-		State string `json:"state"`
-	}
-	if json.Unmarshal(b, &j) != nil {
-		return ""
-	}
-	return j.State
+	return j
 }
 
 // RoundRunning reports whether a round may still be in progress in id. A
