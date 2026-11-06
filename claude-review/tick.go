@@ -28,6 +28,7 @@ type tickElly interface {
 	// Username is the GitHub login elly polls as, empty without a token.
 	Username() (string, error)
 	Put(prURL string, a Annotation, expires time.Time) error
+	PutSource(source, prURL string, a Annotation, expires time.Time) error
 	Delete(prURL string) error
 }
 
@@ -70,6 +71,8 @@ type tickHost struct {
 	version   func() (string, error)
 	selfCheck func() error
 	notify    func(msg string)
+	// sessionIndex maps each PR to the session that last acted on it.
+	sessionIndex func() (map[string]SessionHit, error)
 }
 
 // windowNote is the needs_you note for a PR whose session is open in a
@@ -116,6 +119,7 @@ func (h tickHost) tick() error {
 	if err := h.refresh(); err != nil {
 		return err
 	}
+	h.linkSessions(prs)
 	// A failed run is what the timer's journal shows.
 	if reason, err := h.ledger.Tripped(); err != nil || reason != "" {
 		return errors.Join(err, breakerError(reason))

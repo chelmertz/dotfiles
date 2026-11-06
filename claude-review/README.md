@@ -999,6 +999,19 @@ The links claude-review writes:
 | Attach | every `running` row | `claude-review://<owner>/<repo>/<n>/attach` |
 | Ignore | every `needs_you` row | `claude-review://<owner>/<repo>/<n>/ignore` |
 | Round summary | every finished round | `https://github.com/<owner>/<repo>/pull/<n>#pullrequestreview-<id>` |
+| Session | any listed PR a session acted on (source `claude-session`, state `info`) | `claude-resume://<session id>` |
+
+Every tick also reads the transcripts under `~/.claude/projects` (not the
+subagent ones) and links each PR in elly's list to the session that last
+acted on it: one that opened it (Claude Code's own `pr-link` record) or ran a
+`gh` write on it (`gh pr review|comment|edit|merge|close|ready`, or `gh api`
+writing to its path). Reads and command output never count, so text other
+people wrote cannot choose the session, and claude-review's own round
+sessions never count: they keep Attach. The link expires after an hour, so a
+transcript Claude Code deletes (`cleanupPeriodDays`, 90 in
+`claude/settings.json`) drops off the row. The `claude-resume://` handler
+(`nix/home.nix`) opens the session in its directory, or says it is already
+open.
 
 ### Validation and rendering
 

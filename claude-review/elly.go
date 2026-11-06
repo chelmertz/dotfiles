@@ -52,8 +52,8 @@ func (e Elly) PRs() ([]EllyPR, error) {
 // internal/server/server.go). A ParseTarget URL is GitHub's name characters
 // only, whose standard encoding never holds "/" or "+", so it stays one
 // path segment.
-func (e Elly) annotationURL(prURL string) string {
-	return e.Base + "/api/v0/prs/" + base64.StdEncoding.EncodeToString([]byte(prURL)) + "/annotations/" + annotationSource
+func (e Elly) annotationURL(prURL, source string) string {
+	return e.Base + "/api/v0/prs/" + base64.StdEncoding.EncodeToString([]byte(prURL)) + "/annotations/" + source
 }
 
 func (e Elly) send(method, url string, body []byte) error {
@@ -85,6 +85,11 @@ func (e Elly) send(method, url string, body []byte) error {
 
 // Put writes pr's annotation, expiring at expires.
 func (e Elly) Put(prURL string, a Annotation, expires time.Time) error {
+	return e.PutSource(annotationSource, prURL, a, expires)
+}
+
+// PutSource writes pr's annotation under another source than this tool's.
+func (e Elly) PutSource(source, prURL string, a Annotation, expires time.Time) error {
 	links := a.Links
 	if links == nil {
 		links = []Link{}
@@ -93,11 +98,11 @@ func (e Elly) Put(prURL string, a Annotation, expires time.Time) error {
 	if err != nil {
 		return err
 	}
-	return e.send(http.MethodPut, e.annotationURL(prURL), body)
+	return e.send(http.MethodPut, e.annotationURL(prURL, source), body)
 }
 
 func (e Elly) Delete(prURL string) error {
-	return e.send(http.MethodDelete, e.annotationURL(prURL), nil)
+	return e.send(http.MethodDelete, e.annotationURL(prURL, annotationSource), nil)
 }
 
 // Username is the GitHub login elly polls as, empty when it has no token.

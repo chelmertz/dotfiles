@@ -1122,6 +1122,18 @@ in
           exit 1
         fi
 
+        # A second `claude --resume` of a running session gives one transcript
+        # two writers. Claude Code lists each running session in
+        # ~/.claude/sessions/<pid>.json (claude-review's session.go reads the
+        # same files); a stale file's pid is dead.
+        for f in "$HOME"/.claude/sessions/*.json; do
+          pid=$(jq -r --arg id "$uuid" 'select(.sessionId == $id) | .pid' "$f" 2>/dev/null || true)
+          if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            notify-send "claude-resume" "session $uuid is already open (pid $pid)"
+            exit 0
+          fi
+        done
+
         exec ${config.programs.ghostty.package}/bin/ghostty +new-window \
           --working-directory="$cwd" \
           --command="${pkgs.claude-code}/bin/claude --resume $uuid"
@@ -1977,7 +1989,7 @@ in
         # claude-review's own list, so elly offers Start exactly where tick runs
         repos=$(grep -v '^[[:space:]]*#' "$config/claude-review/review-repos" 2>/dev/null | tr -d ' \t' | grep . | paste -sd, - || true)
         exec ${pkgs.elly}/bin/elly "$@" -work-owners="$owners" -review-repos="$repos"
-      ''} -db %h/.local/share/elly/elly.db -notify -page-url=http://elly.localhost:9876 -annotation-schemes=claude-review";
+      ''} -db %h/.local/share/elly/elly.db -notify -page-url=http://elly.localhost:9876 -annotation-schemes=claude-review,claude-resume";
       Restart = "on-failure";
     };
     Install = {

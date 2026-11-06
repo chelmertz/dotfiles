@@ -106,7 +106,7 @@ func TestEllyUsername(t *testing.T) {
 // The PR id is a contract with elly (decodePrId in its server.go): standard
 // padded base64 of the canonical URL, pinned here as a literal.
 func TestAnnotationURLIsStandardBase64OfThePrURL(t *testing.T) {
-	got := Elly{Base: "http://e"}.annotationURL(widgetsPR.URL())
+	got := Elly{Base: "http://e"}.annotationURL(widgetsPR.URL(), annotationSource)
 	if got != "http://e/api/v0/prs/aHR0cHM6Ly9naXRodWIuY29tL2FjbWUvd2lkZ2V0cy9wdWxsLzQy/annotations/claude-review" {
 		t.Errorf("annotation URL %q", got)
 	}

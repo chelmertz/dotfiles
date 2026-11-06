@@ -20,6 +20,8 @@ type fakeElly struct {
 	put     map[string]Annotation
 	expires map[string]time.Time
 	deleted []string
+	// sourced holds annotations put under another source, by source and URL.
+	sourced map[string]Annotation
 }
 
 func (e *fakeElly) PRs() ([]EllyPR, error) {
@@ -41,6 +43,13 @@ func (e *fakeElly) Put(u string, a Annotation, exp time.Time) error {
 		e.expires = map[string]time.Time{}
 	}
 	e.expires[u] = exp
+	return nil
+}
+func (e *fakeElly) PutSource(source, u string, a Annotation, _ time.Time) error {
+	if e.sourced == nil {
+		e.sourced = map[string]Annotation{}
+	}
+	e.sourced[source+" "+u] = a
 	return nil
 }
 func (e *fakeElly) Delete(u string) error { e.deleted = append(e.deleted, u); return nil }

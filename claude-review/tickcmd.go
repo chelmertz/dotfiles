@@ -104,7 +104,10 @@ func newTickHost(d Deps, cfg Config, l *Ledger, user string) tickHost {
 		lock:   d.Lock,
 		sess:   d.Sessions,
 		exists: func(id string) bool { return d.SessionExists(d.ClaudeDir, id) },
-		trust:  d.Trust,
+		sessionIndex: func() (map[string]SessionHit, error) {
+			return IndexSessions(d.ClaudeDir, isRoundSession)
+		},
+		trust: d.Trust,
 		version: func() (string, error) {
 			out, err := d.Capture("", viaInteractiveShell(claudeCmd+" --version"))
 			if err != nil {
