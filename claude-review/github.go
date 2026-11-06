@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // GitHub is what tick asks GitHub, through gh, as the user.
@@ -82,7 +84,7 @@ func (g GitHub) RoundFacts(pr PR, r Round) (RoundFacts, error) {
 	if f.State != prOpen {
 		return f, nil
 	}
-	reviewList, err := ghList(g.Gh, g.api(pr, reviews, pr.Number))
+	reviewList, err := ghList[ids.ReviewID](g.Gh, g.api(pr, reviews, pr.Number))
 	if err != nil {
 		return f, err
 	}
@@ -110,20 +112,20 @@ func (g GitHub) RoundFacts(pr PR, r Round) (RoundFacts, error) {
 // a thread) and the replies in threads. Neither the PR-level summary every
 // round posts nor a reply confirming a fix is a finding, or no round could
 // ever come out clean.
-func (g GitHub) roundActivity(pr PR, r Round, reviewList []ghItem) (review string, threads, replies int, err error) {
+func (g GitHub) roundActivity(pr PR, r Round, reviewList []ghItem[ids.ReviewID]) (review string, threads, replies int, err error) {
 	for _, rv := range reviewList {
 		if strings.EqualFold(rv.User.Login, g.User) && rv.SubmittedAt.After(r.StartedAt) {
 			review = rv.HTMLURL
 		}
 	}
-	inline, err := ghList(g.Gh, g.api(pr, reviewComments, pr.Number))
+	inline, err := ghList[ids.CommentID](g.Gh, g.api(pr, reviewComments, pr.Number))
 	if err != nil {
 		return "", 0, 0, err
 	}
 	for _, c := range inline {
 		switch {
 		case !strings.EqualFold(c.User.Login, g.User) || !c.CreatedAt.After(r.StartedAt):
-		case c.InReplyTo == 0:
+		case c.InReplyTo.IsZero():
 			threads++
 		default:
 			replies++
@@ -142,7 +144,7 @@ func pullState(p ghPull) string {
 
 // userReview is the user's standing review: the last approval, change
 // request or dismissal. A COMMENTED review does not replace one.
-func (g GitHub) userReview(reviewList []ghItem) *Review {
+func (g GitHub) userReview(reviewList []ghItem[ids.ReviewID]) *Review {
 	var user *Review
 	for _, rv := range reviewList {
 		if strings.EqualFold(rv.User.Login, g.User) && (rv.State == reviewApproved || rv.State == "CHANGES_REQUESTED" || rv.State == "DISMISSED") {
@@ -189,11 +191,11 @@ func (g GitHub) unresolvedUserThreads(pr PR) (int, error) {
 }
 
 // Dismiss dismisses the user's own review id with message, signed.
-func (g GitHub) Dismiss(pr PR, id int64, message string) error {
-	out, err := g.Gh("api", "-X", "PUT", g.api(pr, "pulls/%d/reviews/%d/dismissals", pr.Number, id),
+func (g GitHub) Dismiss(pr PR, id ids.ReviewID, message string) error {
+	out, err := g.Gh("api", "-X", "PUT", g.api(pr, "pulls/%d/reviews/%s/dismissals", pr.Number, id),
 		"-f", "message="+message+"\n\n--claude", "-f", "event=DISMISS")
 	if err != nil {
-		return fmt.Errorf("dismiss review %d: %w\n%s", id, err, strings.TrimSpace(out))
+		return fmt.Errorf("dismiss review %s: %w\n%s", id, err, strings.TrimSpace(out))
 	}
 	return nil
 }
@@ -205,7 +207,7 @@ func (g GitHub) Standing(pr PR) (string, string, *Review, error) {
 	if err != nil {
 		return "", "", nil, err
 	}
-	reviewList, err := ghList(g.Gh, g.api(pr, reviews, pr.Number))
+	reviewList, err := ghList[ids.ReviewID](g.Gh, g.api(pr, reviews, pr.Number))
 	if err != nil {
 		return "", "", nil, err
 	}

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 const reviewRepoCfg = `{"review_repos":["acme/*"],"github_user":"me","elly_url":"http://127.0.0.1:1"}`
@@ -28,7 +30,7 @@ func clickHost(t *testing.T, exists bool) (*fakeHost, *fakeSessions) {
 		return `{"state":"open","head":{"sha":"h7"},"base":{"ref":"main"}}`, nil
 	}
 	fs := newFakeSessions()
-	fs.saved = map[string][]string{}
+	fs.saved = map[ids.SessionID][]string{}
 	h.d.Sessions = fs.sessions()
 	h.d.Trust = func(dir string) error { fs.events = append(fs.events, "trust "+dir); return nil }
 	h.d.Output = func(dir string, argv []string) (string, error) {
@@ -151,7 +153,7 @@ func TestClickSettlesTheLastRoundBeforeStoppingItsWorker(t *testing.T) {
 	if len(rounds) != 1 || rounds[0].Head != "h7" {
 		t.Errorf("the old round was not settled before the new one: %+v", rounds)
 	}
-	if got := strings.Join(fs.events, ","); !strings.HasSuffix(got, "stop "+testPR.RoundSessionID()[:8]+",launch") {
+	if got := strings.Join(fs.events, ","); !strings.HasSuffix(got, "stop "+testPR.RoundSessionID().Key().String()+",launch") {
 		t.Errorf("events %s", got)
 	}
 

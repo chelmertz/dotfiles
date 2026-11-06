@@ -7,6 +7,8 @@ import (
 	"io"
 	"strings"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // version is set with -ldflags "-X main.version=..." by a release build.
@@ -29,12 +31,12 @@ type Deps struct {
 	Stdout        io.Writer
 	Stderr        io.Writer
 	FindRepo      func(roots []string, clonePath string, pr PR) (dir, remote string, err error)
-	SessionExists func(claudeDir, id string) bool
+	SessionExists func(claudeDir string, id ids.SessionID) bool
 	// SessionRunning reports the live process holding the session, if any.
-	SessionRunning func(claudeDir, id string) Live
+	SessionRunning func(claudeDir string, id ids.SessionID) Live
 	// Lock takes the per-PR lock a click holds from planning to its end;
 	// errLocked means another click holds it.
-	Lock func(id string) (unlock func(), err error)
+	Lock func(name string) (unlock func(), err error)
 	// Sleep waits between polls.
 	Sleep func(time.Duration)
 	// Exec runs argv in dir with the terminal attached and waits.
@@ -174,7 +176,7 @@ func launch(d Deps, cfg Config, pr PR, dir, remote string, dryRun bool) int {
 	// One click at a time per PR, from reading the session's state to the
 	// end of the click: two clicks planned together would both see no
 	// session and both start one. Tick and the attach verb take it too.
-	unlock, err := d.Lock(pr.SessionID())
+	unlock, err := d.Lock(pr.SessionID().String())
 	if errors.Is(err, errLocked) {
 		return fail(d, fmt.Errorf("claude-review: another click is already opening %s", pr.URL()))
 	}
@@ -205,7 +207,7 @@ func launch(d Deps, cfg Config, pr PR, dir, remote string, dryRun bool) int {
 // interactive shell (a URL handler's PATH rarely has claude).
 func clickStarter(d Deps, cfg Config) roundStarter {
 	return roundStarter{sess: d.Sessions, wrapper: cfg.RoundWrapper,
-		exists: func(id string) bool { return d.SessionExists(d.ClaudeDir, id) },
+		exists: func(id ids.SessionID) bool { return d.SessionExists(d.ClaudeDir, id) },
 		run: func(dir string, argv []string) error {
 			if out, err := d.Output(dir, viaInteractiveShell(shellLine(dir, argv))); err != nil {
 				return fmt.Errorf("%s: %s", argv[0], lastLineOr(out, err.Error()))
@@ -329,10 +331,7 @@ func planClick(d Deps, cfg Config, pr PR, remote string) (click, error) {
 		// takes an attach; the window is where the next round is asked for.
 		return click{}, fmt.Errorf("claude-review: %s is already open (pid %d); ask for a new round in that window", pr.URL(), live.PID)
 	case live.PID > 0:
-		key, err := keyOf(id)
-		if err != nil {
-			return click{}, fmt.Errorf("claude-review: %s: %w", pr.URL(), err)
-		}
+		key := id.Key()
 		if detached {
 			// `--bg --resume` on a running session would start a copy.
 			return click{}, fmt.Errorf("claude-review: %s is still running as %s; `claude attach %s` opens it", pr.URL(), id, key)
@@ -386,7 +385,7 @@ func (c click) execute(d Deps, cfg Config, dir string) error {
 			return fmt.Errorf("claude-review: starting background session: %s", lastLineOr(out, err.Error()))
 		}
 		fmt.Fprint(d.Stderr, out)
-		fmt.Fprintf(d.Stderr, "claude-review: %s running in the background as %s; `claude attach %s` opens it\n", pr.URL(), id, id)
+		fmt.Fprintf(d.Stderr, "claude-review: %s running in the background as %s; `claude attach %s` opens it\n", pr.URL(), id, id.Key())
 		return nil
 	case d.IsTTY:
 		if err := d.Exec(dir, c.argv); err != nil {
@@ -423,7 +422,7 @@ const (
 // turn of several seconds and exits, so the window's session is the next pid
 // after the first one seen. Timing out is silent: the window is open, and
 // the next click sees whatever it became.
-func awaitWindow(d Deps, id string, bootstrap bool) {
+func awaitWindow(d Deps, id ids.SessionID, bootstrap bool) {
 	first := 0
 	for range awaitPolls {
 		if pid := d.SessionRunning(d.ClaudeDir, id).PID; pid > 0 {
@@ -441,7 +440,7 @@ var bootstrapNotice = []string{"echo", "claude-review: creating the review sessi
 
 // openTerminal writes the launcher script and starts a terminal running it.
 func openTerminal(d Deps, cfg Config, dir string, steps [][]string, pr PR) error {
-	script, err := d.WriteScript("claude-review-"+pr.SessionID()+".sh", launcherScript(dir, steps...))
+	script, err := d.WriteScript("claude-review-"+pr.SessionID().String()+".sh", launcherScript(dir, steps...))
 	if err != nil {
 		return fmt.Errorf("claude-review: writing launcher: %w", err)
 	}

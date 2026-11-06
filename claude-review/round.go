@@ -1,13 +1,17 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
+)
 
 // roundStarter is how a click and tick start a round in a PR's round
 // session: create it if it has no transcript, pick the launch from what the
 // session saved (LaunchArgv), and relaunch its one worker (Relaunch).
 type roundStarter struct {
 	sess    Sessions
-	exists  func(id string) bool
+	exists  func(id ids.SessionID) bool
 	run     func(dir string, argv []string) error
 	wrapper []string
 }

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // runThreads is `claude-review threads <pr>`: everything already said on
@@ -20,33 +22,54 @@ func runThreads(args []string, gh Gh, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
-	api := fmt.Sprintf("repos/%s/%s", pr.Owner, pr.Repo)
-	for _, src := range []struct{ kind, endpoint string }{
-		{kindComment, issueComments},
-		{kindReview, reviews},
-		{kindInline, reviewComments},
+	api := fmt.Sprintf("repos/%s/%s/", pr.Owner, pr.Repo)
+	for _, list := range []func() error{
+		func() error {
+			return printItems[ids.IssueCommentID](gh, stdout, kindComment, api+fmt.Sprintf(issueComments, pr.Number))
+		},
+		func() error {
+			return printItems[ids.ReviewID](gh, stdout, kindReview, api+fmt.Sprintf(reviews, pr.Number))
+		},
+		func() error {
+			return printItems[ids.CommentID](gh, stdout, kindInline, api+fmt.Sprintf(reviewComments, pr.Number))
+		},
 	} {
-		items, err := ghList(gh, api+"/"+fmt.Sprintf(src.endpoint, pr.Number))
-		if err != nil {
+		if err := list(); err != nil {
 			fmt.Fprintln(stderr, "claude-review threads:", err)
 			return 1
-		}
-		for _, c := range items {
-			if c.Body == "" {
-				continue // a bare approval, or a review that only carries inline comments
-			}
-			// Bodies are indented so a markdown "---" in one cannot pass for
-			// the next item's header.
-			body := "    " + strings.ReplaceAll(strings.TrimSpace(c.Body), "\n", "\n    ")
-			fmt.Fprintf(stdout, "--- %s\n%s\n\n", header(src.kind, c), body)
 		}
 	}
 	return 0
 }
 
+// ghID is what threads needs of an item's id: how to print it, and whether
+// it is absent.
+type ghID interface {
+	String() string
+	IsZero() bool
+}
+
+// printItems prints the items at endpoint, each under its header.
+func printItems[I ghID](gh Gh, stdout io.Writer, kind, endpoint string) error {
+	items, err := ghList[I](gh, endpoint)
+	if err != nil {
+		return err
+	}
+	for _, c := range items {
+		if c.Body == "" {
+			continue // a bare approval, or a review that only carries inline comments
+		}
+		// Bodies are indented so a markdown "---" in one cannot pass for
+		// the next item's header.
+		body := "    " + strings.ReplaceAll(strings.TrimSpace(c.Body), "\n", "\n    ")
+		fmt.Fprintf(stdout, "--- %s\n%s\n\n", header(kind, c), body)
+	}
+	return nil
+}
+
 // header is one item's first line: kind, id, author and where it sits.
-func header(kind string, c ghItem) string {
-	h := fmt.Sprintf("%s %d by %s", kind, c.ID, c.User.Login)
+func header[I ghID](kind string, c ghItem[I]) string {
+	h := fmt.Sprintf("%s %s by %s", kind, c.ID, c.User.Login)
 	switch {
 	case kind == kindReview:
 		h += " " + c.State
@@ -56,8 +79,8 @@ func header(kind string, c ghItem) string {
 	default:
 		h += fmt.Sprintf(" on %s:%d", c.Path, c.Line)
 	}
-	if c.InReplyTo != 0 {
-		h += fmt.Sprintf(", reply to %d", c.InReplyTo)
+	if !c.InReplyTo.IsZero() {
+		h += fmt.Sprintf(", reply to %s", c.InReplyTo)
 	}
 	return h
 }

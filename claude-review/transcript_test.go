@@ -20,7 +20,7 @@ func TestLastMessage(t *testing.T) {
 {"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash"}]}}
 not json
 `
-	if err := os.WriteFile(filepath.Join(project, id+".jsonl"), []byte(lines), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(project, id.String()+".jsonl"), []byte(lines), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	got, err := LastMessage(dir, id)
@@ -30,7 +30,7 @@ not json
 	if o := ReadOutcome(got); o.Kind != OutcomeApprove || o.SHA != sha {
 		t.Errorf("last message %q read as %+v", got, o)
 	}
-	if got, err := LastMessage(dir, "no-such-session"); got != "" || err != nil {
+	if got, err := LastMessage(dir, forkID); got != "" || err != nil {
 		t.Errorf("missing transcript: %q %v", got, err)
 	}
 }

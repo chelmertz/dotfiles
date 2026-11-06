@@ -7,9 +7,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
-const checkID = "5e1fc4ec-0000-4000-8000-000000000001"
+var checkID = mustSession("5e1fc4ec-0000-4000-8000-000000000001")
 
 // checkWorld is a scratch repo in a fake Claude Code: a background launch
 // lists a worker, whose job reaches done a few polls later.
@@ -27,11 +29,11 @@ type checkWorld struct {
 
 func (w *checkWorld) checker(t *testing.T) selfChecker {
 	if w.fs.saved == nil {
-		w.fs.saved = map[string][]string{}
+		w.fs.saved = map[ids.SessionID][]string{}
 	}
 	sess := w.fs.sessions()
 	state := sess.JobState
-	sess.JobState = func(id string) string {
+	sess.JobState = func(id ids.SessionID) string {
 		w.polls++
 		if !w.never && w.polls%3 == 0 && len(w.fs.workers) > 0 {
 			w.fs.states[id] = "done"
@@ -41,7 +43,7 @@ func (w *checkWorld) checker(t *testing.T) selfChecker {
 	return selfChecker{
 		sess:  sess,
 		trust: func(dir string) error { w.trusts = append(w.trusts, dir); return nil },
-		newID: func() string { return checkID },
+		newID: func() ids.SessionID { return checkID },
 		dir:   t.TempDir(),
 		sleep: func(time.Duration) {},
 		run: func(_ string, argv []string) (string, error) {
@@ -60,7 +62,7 @@ func (w *checkWorld) checker(t *testing.T) selfChecker {
 				w.pid++
 				w.fs.states[checkID] = "working"
 				if w.fork && w.pid > 1 {
-					w.fs.workers = append(w.fs.workers, Worker{Short: "f0f0f0f0", SessionID: "f0f0f0f0-1", PID: 900 + w.pid, Fork: true, LaunchID: checkID})
+					w.fs.workers = append(w.fs.workers, Worker{Short: forkID.Key(), SessionID: forkID, PID: 900 + w.pid, Fork: true, LaunchID: checkID})
 				} else {
 					w.fs.workers = append(w.fs.workers, workerFor(checkID, 900+w.pid))
 				}
@@ -88,12 +90,12 @@ func TestSelfCheckPassesWhenClaudeCodeBehavesAsObserved(t *testing.T) {
 	if got := strings.Join(w.runs, ","); got != "git init,bootstrap,bg,bg" {
 		t.Errorf("runs %s", got)
 	}
-	short := checkID[:8]
+	short := checkID.Key().String()
 	if got := strings.Join(w.fs.events, ","); got != "launch,stop "+short+",launch,stop "+short {
 		t.Errorf("events %s", got)
 	}
 	// The second launch resumes without flags, as every later round does.
-	if len(w.lines) != 2 || !strings.Contains(w.lines[0], "'--allowedTools' 'Agent'") || !strings.HasSuffix(w.lines[1], "'claude' '--bg' '--resume' '"+checkID+"' '"+selfCheckPrompt+"''") {
+	if len(w.lines) != 2 || !strings.Contains(w.lines[0], "'--allowedTools' 'Agent'") || !strings.HasSuffix(w.lines[1], "'claude' '--bg' '--resume' '"+checkID.String()+"' '"+selfCheckPrompt+"''") {
 		t.Errorf("launches %d:\n%s", len(w.lines), strings.Join(w.lines, "\n"))
 	}
 	if !slices.Equal(w.trusts, []string{c.dir}) {

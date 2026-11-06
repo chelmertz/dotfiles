@@ -297,7 +297,7 @@ func TestPost_Reply(t *testing.T) {
 	sameArgv(t, "reply in the draft", g.calls[5], []string{api, "graphql", "-f", "query=" + addPendingReplyMutation, "-f", "review=R1", "-f", "thread=T1", "-f", "body=Conceded.\n\n--claude"})
 	for _, to := range []string{"0", "-1"} {
 		g := &fakeGh{}
-		if code, _, errb := post(t, g, prURL, kindReply, bodyFlag, "x", toFlag, to); code != 2 || len(g.calls) != 0 || !strings.Contains(errb, "reply needs --to") {
+		if code, _, errb := post(t, g, prURL, kindReply, bodyFlag, "x", toFlag, to); code != 2 || len(g.calls) != 0 || !strings.Contains(errb, "not a comment id") {
 			t.Errorf("--to %s: code %d calls %q stderr %q", to, code, g.calls, errb)
 		}
 	}
@@ -442,7 +442,7 @@ func TestPost_ResolveRefusals(t *testing.T) {
 		{"no such comment", "99", threadsJSON(false), nil, 1, "in no review thread"},
 		{"already resolved", "7", threadsJSON(true), nil, 0, "already resolved"},
 		{"budget spent", "7", threadsJSON(false), errors.New("the limit"), 1, "the limit"},
-		{"no thread", "0", "", nil, 2, "--thread with the id"},
+		{"no thread", "0", "", nil, 2, "not a comment id"},
 	} {
 		g := &fakeGh{outs: []string{c.threads}}
 		var out, errb bytes.Buffer

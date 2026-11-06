@@ -7,18 +7,19 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // Worker is one background worker in Claude Code's roster
 // (~/.claude/daemon/roster.json), as of 2.1.314.
 type Worker struct {
 	// Short is the roster key; `claude stop` and `claude attach` take it.
-	Short     WorkerKey
-	SessionID string
+	Short     ids.WorkerKey
+	SessionID ids.SessionID
 	PID       int
 	// ReplPID is the worker's own session process, which also has a
 	// sessions/ entry; it is not a window.
@@ -27,19 +28,19 @@ type Worker struct {
 	// continuing it. Seen when `claude --bg --resume <id>` passed flags to a
 	// session that had run in the background before (2.1.314).
 	Fork     bool
-	LaunchID string
+	LaunchID ids.SessionID
 }
 
 // rosterFile is the part of roster.json this tool reads.
 type rosterFile struct {
-	Workers map[string]struct {
-		SessionID string `json:"sessionId"`
-		PID       int    `json:"pid"`
-		ReplPID   int    `json:"replPid"`
+	Workers map[ids.WorkerKey]struct {
+		SessionID ids.SessionID `json:"sessionId"`
+		PID       int           `json:"pid"`
+		ReplPID   int           `json:"replPid"`
 		Dispatch  struct {
 			Launch struct {
-				SessionID string `json:"sessionId"`
-				Fork      bool   `json:"fork"`
+				SessionID ids.SessionID `json:"sessionId"`
+				Fork      bool          `json:"fork"`
 			} `json:"launch"`
 		} `json:"dispatch"`
 	} `json:"workers"`
@@ -61,11 +62,7 @@ func readRoster(claudeDir string) ([]Worker, error) {
 		return nil, fmt.Errorf("reading Claude Code's roster: %w", err)
 	}
 	out := make([]Worker, 0, len(r.Workers))
-	for short, w := range r.Workers {
-		key, err := parseWorkerKey(short)
-		if err != nil {
-			return nil, fmt.Errorf("reading Claude Code's roster: %w", err)
-		}
+	for key, w := range r.Workers {
 		out = append(out, Worker{Short: key, SessionID: w.SessionID, PID: w.PID, ReplPID: w.ReplPID,
 			Fork: w.Dispatch.Launch.Fork, LaunchID: w.Dispatch.Launch.SessionID})
 	}
@@ -77,17 +74,17 @@ func readRoster(claudeDir string) ([]Worker, error) {
 // drive a fake roster.
 type Sessions struct {
 	Roster   func() ([]Worker, error)
-	JobState func(id string) string
+	JobState func(id ids.SessionID) string
 	// Window is a live process sessions/ lists for id, or 0: a legacy
 	// interactive window, a `claude -p`, or a worker's own repl.
-	Window func(id string) int
+	Window func(id ids.SessionID) int
 	Alive  func(pid int) bool
 	// Stop runs `claude stop <key>`; it returns before the pid ends.
-	Stop  func(key WorkerKey) error
+	Stop  func(key ids.WorkerKey) error
 	Sleep func(time.Duration)
 	// Saved is the options id's background session was first launched
 	// with; ran is false when it never ran in the background.
-	Saved func(id string) (flags []string, ran bool, err error)
+	Saved func(id ids.SessionID) (flags []string, ran bool, err error)
 }
 
 // readSaved reads the options Claude Code saved for id's background
@@ -95,11 +92,11 @@ type Sessions struct {
 // without --bg, --resume and the prompt; 2.1.314). No job file means the
 // session never ran in the background. A job without readable options is
 // an error: its saved options are unknown.
-func readSaved(claudeDir, id string) ([]string, bool, error) {
-	if len(id) < 8 {
-		return nil, false, fmt.Errorf("not a session id: %q", id)
+func readSaved(claudeDir string, id ids.SessionID) ([]string, bool, error) {
+	if id.IsZero() {
+		return nil, false, errors.New("no session id")
 	}
-	b, err := os.ReadFile(filepath.Join(claudeDir, "jobs", id[:8], "state.json")) //nolint:gosec // path under the user's own config dir
+	b, err := os.ReadFile(filepath.Join(claudeDir, "jobs", id.Key().String(), "state.json")) //nolint:gosec // path under the user's own config dir
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, false, nil
 	}
@@ -124,7 +121,7 @@ func readSaved(claudeDir, id string) ([]string, bool, error) {
 // keeps a background session's first options and forks the session when a
 // later launch passes flags (2.1.314), so any other saved options, or ones
 // that cannot be read, mean no launch.
-func (s Sessions) LaunchArgv(id string, policy, first, later []string) ([]string, error) {
+func (s Sessions) LaunchArgv(id ids.SessionID, policy, first, later []string) ([]string, error) {
 	saved, ran, err := s.Saved(id)
 	switch {
 	case err != nil:
@@ -181,7 +178,7 @@ const (
 
 // workersFor are the live workers that belong to id: its own, and any fork
 // of it.
-func (s Sessions) workersFor(id string, all []Worker) []Worker {
+func (s Sessions) workersFor(id ids.SessionID, all []Worker) []Worker {
 	var out []Worker
 	for _, w := range all {
 		if (w.SessionID == id || (w.Fork && w.LaunchID == id)) && w.PID > 0 && s.Alive(w.PID) {
@@ -202,7 +199,7 @@ func (s Sessions) workersFor(id string, all []Worker) []Worker {
 // flags on a session that ran in the background before forks it (2.1.314;
 // LaunchArgv keeps launches flagless), and a fork is a round tick cannot
 // track.
-func (s Sessions) Relaunch(id string, settle, launch func() error) (RelaunchResult, error) {
+func (s Sessions) Relaunch(id ids.SessionID, settle, launch func() error) (RelaunchResult, error) {
 	res, err := s.clear(id, settle)
 	if err != nil || res.Kind != 0 {
 		return res, err
@@ -215,7 +212,7 @@ func (s Sessions) Relaunch(id string, settle, launch func() error) (RelaunchResu
 
 // clear makes way for a launch in id: nothing there, or an idle worker
 // settled and stopped. A non-zero Kind is why no launch may follow.
-func (s Sessions) clear(id string, settle func() error) (RelaunchResult, error) {
+func (s Sessions) clear(id ids.SessionID, settle func() error) (RelaunchResult, error) {
 	all, err := s.Roster()
 	if err != nil {
 		// Unknown is an outcome, not a failure: the caller skips the PR.
@@ -244,7 +241,7 @@ func (s Sessions) clear(id string, settle func() error) (RelaunchResult, error) 
 
 // awaitListed holds until the roster lists a worker for id, then checks it
 // is the only one.
-func (s Sessions) awaitListed(id string) (RelaunchResult, error) {
+func (s Sessions) awaitListed(id ids.SessionID) (RelaunchResult, error) {
 	for range listedWaitPolls {
 		if all, err := s.Roster(); err == nil {
 			mine := s.workersFor(id, all)
@@ -261,7 +258,7 @@ func (s Sessions) awaitListed(id string) (RelaunchResult, error) {
 }
 
 // forked: more than one worker for id, or one that is a fork of it.
-func forked(id string, mine []Worker) bool {
+func forked(id ids.SessionID, mine []Worker) bool {
 	return len(mine) > 1 || (len(mine) == 1 && mine[0].SessionID != id)
 }
 
@@ -279,7 +276,7 @@ func (s Sessions) stopAll(ws []Worker, why string) (RelaunchResult, error) {
 	var errs []error
 	shorts := make([]string, 0, len(ws))
 	for _, w := range ws {
-		shorts = append(shorts, string(w.Short))
+		shorts = append(shorts, w.Short.String())
 		errs = append(errs, s.stopAndWait(w))
 	}
 	return RelaunchResult{Kind: relaunchDuplicate, Detail: why + " (" + strings.Join(shorts, ", ") + "); stopped"}, errors.Join(errs...)
@@ -303,7 +300,7 @@ func (s Sessions) stopAndWait(w Worker) error {
 // WindowOpen reports a live session for id that is no worker's: a legacy
 // interactive window (or a `claude -p` mid-turn). An unreadable roster
 // cannot rule a window out, so it counts as one.
-func (s Sessions) WindowOpen(id string) bool {
+func (s Sessions) WindowOpen(id ids.SessionID) bool {
 	pid := s.Window(id)
 	if pid <= 0 {
 		return false
@@ -312,41 +309,16 @@ func (s Sessions) WindowOpen(id string) bool {
 	return err != nil || !ownedBy(pid, s.workersFor(id, all))
 }
 
-// WorkerKey is a worker's roster key, the first 8 characters of its session
-// id. `claude attach` and `claude stop` take only this and fail on the full
-// session id ("No job matching", 2.1.314), so it is its own type: a session
-// id passed where a key belongs does not compile.
-type WorkerKey string
-
-// workerKeyPattern is a roster key as Claude Code writes it; anything else
-// is not passed to a shell.
-var workerKeyPattern = regexp.MustCompile(`^[0-9a-f]{8}$`)
-
-func parseWorkerKey(s string) (WorkerKey, error) {
-	if !workerKeyPattern.MatchString(s) {
-		return "", fmt.Errorf("not a worker id: %q", s)
-	}
-	return WorkerKey(s), nil
-}
-
-// keyOf is the roster key a worker for session id would have, for a caller
-// that knows the session runs but holds no roster entry.
-func keyOf(id string) (WorkerKey, error) {
-	return parseWorkerKey(id[:min(8, len(id))])
-}
-
 // stopArgv is `claude stop <key>` under a pty: it refuses to run without
-// a terminal (2.1.314), and neither tick nor a click has one. The key is
-// checked again here, at the shell, whatever produced it.
-func stopArgv(goos string, key WorkerKey) ([]string, error) {
-	short, err := parseWorkerKey(string(key))
-	if err != nil {
-		return nil, err
+// a terminal (2.1.314), and neither tick nor a click has one.
+func stopArgv(goos string, key ids.WorkerKey) ([]string, error) {
+	if key.IsZero() {
+		return nil, errors.New("no worker id")
 	}
 	if goos == darwin {
-		return []string{"script", "-q", "/dev/null", claudeCmd, "stop", string(short)}, nil
+		return []string{"script", "-q", "/dev/null", claudeCmd, "stop", key.String()}, nil
 	}
-	return []string{"script", "-qec", claudeCmd + " stop " + string(short), "/dev/null"}, nil
+	return []string{"script", "-qec", claudeCmd + " stop " + key.String(), "/dev/null"}, nil
 }
 
 // realSessions wires Sessions to Claude Code's files under claudeDir; run
@@ -355,10 +327,10 @@ func stopArgv(goos string, key WorkerKey) ([]string, error) {
 func realSessions(claudeDir, goos string, run func(dir string, argv []string) (string, error)) Sessions {
 	return Sessions{
 		Roster:   func() ([]Worker, error) { return readRoster(claudeDir) },
-		JobState: func(id string) string { return JobState(claudeDir, id) },
-		Window:   func(id string) int { return sessionPID(claudeDir, id) },
+		JobState: func(id ids.SessionID) string { return JobState(claudeDir, id) },
+		Window:   func(id ids.SessionID) int { return sessionPID(claudeDir, id) },
 		Alive:    func(pid int) bool { return processAlive(pid) },
-		Stop: func(key WorkerKey) error {
+		Stop: func(key ids.WorkerKey) error {
 			argv, err := stopArgv(goos, key)
 			if err != nil {
 				return err
@@ -369,6 +341,6 @@ func realSessions(claudeDir, goos string, run func(dir string, argv []string) (s
 			return nil
 		},
 		Sleep: time.Sleep,
-		Saved: func(id string) ([]string, bool, error) { return readSaved(claudeDir, id) },
+		Saved: func(id ids.SessionID) ([]string, bool, error) { return readSaved(claudeDir, id) },
 	}
 }

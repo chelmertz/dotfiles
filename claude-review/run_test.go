@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 type fakeHost struct {
@@ -72,8 +74,8 @@ func newHost(t *testing.T, cfgJSON string, repoFound bool, exists bool) *fakeHos
 			}
 			return "/srv/t/code/" + pr.Repo, upstream, nil
 		},
-		SessionExists: func(string, string) bool { return exists },
-		SessionRunning: func(string, string) Live {
+		SessionExists: func(string, ids.SessionID) bool { return exists },
+		SessionRunning: func(string, ids.SessionID) Live {
 			h.events = append(h.events, "running")
 			if h.running {
 				return Live{PID: 9, Background: true}
@@ -168,7 +170,7 @@ func (h *fakeHost) cfg(t *testing.T) Config {
 
 func (h *fakeHost) script(t *testing.T) string {
 	t.Helper()
-	s, ok := h.scripts["claude-review-"+testPR.SessionID()+".sh"]
+	s, ok := h.scripts["claude-review-"+testPR.SessionID().String()+".sh"]
 	if !ok {
 		t.Fatalf("no launcher script written: %q", h.scripts)
 	}
@@ -275,7 +277,7 @@ func TestRun_DryRun_FirstClickShowsBootstrapAndReview(t *testing.T) {
 	if lines[0] != shellLine(cloneOf, BootstrapArgs(testPR)) {
 		t.Errorf("first line: %q", lines[0])
 	}
-	if !strings.HasPrefix(lines[1], "cd '"+cloneOf+"' && 'claude' '--resume' '"+testPR.SessionID()+"'") {
+	if !strings.HasPrefix(lines[1], "cd '"+cloneOf+"' && 'claude' '--resume' '"+testPR.SessionID().String()+"'") {
 		t.Errorf("second line: %q", lines[1])
 	}
 	if len(h.execs)+len(h.outputs)+len(h.spawns)+len(h.scripts) != 0 {
@@ -292,7 +294,7 @@ func TestRun_DryRun_LaterClickAndRunning(t *testing.T) {
 	h = newHost(t, "", true, true)
 	h.running = true
 	run([]string{dryRunFlag, target}, h.d)
-	if out := h.stdout.String(); out != shellLine(cloneOf, AttachArgs("7675322f"))+"\n" {
+	if out := h.stdout.String(); out != shellLine(cloneOf, AttachArgs(testPR.SessionID().Key()))+"\n" {
 		t.Errorf("running: %q", out)
 	}
 }
@@ -312,7 +314,7 @@ func TestRun_FirstClick_OpensTerminalThatBootstrapsThenReviews(t *testing.T) {
 	if !strings.Contains(h.script(t), "'\\''-p'\\'' '\\''--session-id'\\''") {
 		t.Errorf("script lacks the bootstrap:\n%s", h.script(t))
 	}
-	sameArgv(t, "terminal", h.spawns[0], []string{ghostty, "--working-directory=" + cloneOf, "-e", "/scratch/claude-review-" + testPR.SessionID() + ".sh"})
+	sameArgv(t, "terminal", h.spawns[0], []string{ghostty, "--working-directory=" + cloneOf, "-e", "/scratch/claude-review-" + testPR.SessionID().String() + ".sh"})
 	if len(h.execs) != 0 {
 		t.Error("nothing should run attached")
 	}
@@ -355,7 +357,7 @@ func TestRun_LaterClick_RunningSession_Attaches(t *testing.T) {
 	if code := run([]string{target}, h.d); code != 0 {
 		t.Fatalf("code %d stderr %q", code, h.stderr.String())
 	}
-	if want := launcherScript(cloneOf, AttachArgs("7675322f")); h.script(t) != want {
+	if want := launcherScript(cloneOf, AttachArgs(testPR.SessionID().Key())); h.script(t) != want {
 		t.Errorf("script:\n%s", h.script(t))
 	}
 	if !strings.Contains(h.stderr.String(), "still running; attaching instead of resuming") {
@@ -369,7 +371,7 @@ func TestRun_Terminal_Darwin_CustomTemplate(t *testing.T) {
 	if code := run([]string{target}, h.d); code != 0 {
 		t.Fatalf("code %d stderr %q", code, h.stderr.String())
 	}
-	sameArgv(t, "spawn", h.spawns[0], []string{"open", "-a", "iTerm", "/scratch/claude-review-" + testPR.SessionID() + ".sh"})
+	sameArgv(t, "spawn", h.spawns[0], []string{"open", "-a", "iTerm", "/scratch/claude-review-" + testPR.SessionID().String() + ".sh"})
 }
 
 func TestRun_Terminal_DarwinDefault(t *testing.T) {
@@ -447,7 +449,7 @@ func TestRun_Detached_FirstClick(t *testing.T) {
 		t.Errorf("bg line: %s", h.outputs[1][2])
 	}
 	id := testPR.SessionID()
-	if !strings.Contains(h.stderr.String(), "running in the background as "+id+"; `claude attach "+id+"`") || !strings.Contains(h.stderr.String(), "Started background session") {
+	if !strings.Contains(h.stderr.String(), "running in the background as "+id.String()+"; `claude attach 7675322f`") || !strings.Contains(h.stderr.String(), "Started background session") {
 		t.Errorf("stderr: %q", h.stderr.String())
 	}
 	if len(h.spawns)+len(h.scripts)+len(h.execs) != 0 {
@@ -474,7 +476,7 @@ func TestRun_Detached_StillRunning_DoesNotForkACopy(t *testing.T) {
 		t.Errorf("must not start anything: %q %q", h.outputs, h.execs)
 	}
 	id := testPR.SessionID()
-	if !strings.Contains(h.stderr.String(), "still running as "+id+"; `claude attach "+id[:8]+"`") {
+	if !strings.Contains(h.stderr.String(), "still running as "+id.String()+"; `claude attach 7675322f`") {
 		t.Errorf("stderr: %q", h.stderr.String())
 	}
 	if len(h.spawns) != 1 || !strings.Contains(h.spawns[0][4], "still running") {

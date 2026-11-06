@@ -1,10 +1,8 @@
 package main
 
 import (
-	"crypto/rand"
 	"crypto/subtle"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +12,8 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite" // the ledger's driver, pure Go
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // Ledger is the runner's own state, apart from Claude Code's session store
@@ -103,7 +103,7 @@ func (l *Ledger) Ignored(pr PR) (bool, error) {
 // Round is one review round, recorded once its worker is running: tick's,
 // or a click's (trigger clickTrigger).
 type Round struct {
-	ID        int64
+	ID        ids.RoundID
 	PR        string
 	Head      string
 	Trigger   string
@@ -114,12 +114,13 @@ type Round struct {
 	PostRefused bool
 }
 
-func (l *Ledger) StartRound(pr PR, head, trigger string, at time.Time) (int64, error) {
-	res, err := l.db.Exec(`insert into rounds (pr, head, trigger, started_at) values (?, ?, ?, ?)`, pr.URL(), head, trigger, at.Unix())
-	if err != nil {
-		return 0, fmt.Errorf("start round: %w", err)
+func (l *Ledger) StartRound(pr PR, head, trigger string, at time.Time) (ids.RoundID, error) {
+	var id ids.RoundID
+	if err := l.db.QueryRow(`insert into rounds (pr, head, trigger, started_at) values (?, ?, ?, ?) returning id`,
+		pr.URL(), head, trigger, at.Unix()).Scan(&id); err != nil {
+		return id, fmt.Errorf("start round: %w", err)
 	}
-	return res.LastInsertId()
+	return id, nil
 }
 
 // RanAt reports whether a round already started for pr at head for trigger.
@@ -240,35 +241,34 @@ func (l *Ledger) UnreadRounds() ([]Round, error) {
 	return out, rows.Err()
 }
 
-func (l *Ledger) MarkRead(id int64) error {
+func (l *Ledger) MarkRead(id ids.RoundID) error {
 	_, err := l.db.Exec(`update rounds set read_at = ? where id = ?`, time.Now().Unix(), id)
 	return err
 }
 
-func (l *Ledger) MarkRetried(id int64) error {
+func (l *Ledger) MarkRetried(id ids.RoundID) error {
 	_, err := l.db.Exec(`update rounds set retries = retries + 1 where id = ?`, id)
 	return err
 }
 
 // MintToken makes the one-time token an Approve link carries for pr at sha.
-func (l *Ledger) MintToken(pr PR, sha string) (string, error) {
-	b := make([]byte, 24)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
+func (l *Ledger) MintToken(pr PR, sha string) (ids.Token, error) {
+	tok, err := ids.NewToken()
+	if err != nil {
+		return tok, err
 	}
-	tok := hex.EncodeToString(b)
-	_, err := l.db.Exec(`insert into tokens (token, pr, sha) values (?, ?, ?)`, tok, pr.URL(), sha)
+	_, err = l.db.Exec(`insert into tokens (token, pr, sha) values (?, ?, ?)`, tok, pr.URL(), sha)
 	return tok, err
 }
 
 // UseToken spends tok if it was minted for pr at sha and never used.
-func (l *Ledger) UseToken(pr PR, sha, tok string) (bool, error) {
-	var stored string
+func (l *Ledger) UseToken(pr PR, sha string, tok ids.Token) (bool, error) {
+	var stored ids.Token
 	err := l.db.QueryRow(`select token from tokens where pr = ? and sha = ? and used = 0 and token = ?`, pr.URL(), sha, tok).Scan(&stored)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
-	if err != nil || subtle.ConstantTimeCompare([]byte(stored), []byte(tok)) != 1 {
+	if err != nil || subtle.ConstantTimeCompare([]byte(stored.String()), []byte(tok.String())) != 1 {
 		return false, err
 	}
 	res, err := l.db.Exec(`update tokens set used = 1 where token = ? and used = 0`, tok)

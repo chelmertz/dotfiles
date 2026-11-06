@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // runTick is `claude-review tick [--dry-run | --reset | --self-check]`, run
@@ -86,9 +88,9 @@ func newTickHost(d Deps, cfg Config, l *Ledger, user string) tickHost {
 		ledger:      l,
 		elly:        Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile(d.RuntimeDir)},
 		gh:          GitHub{Gh: d.Gh, User: user},
-		running:     func(id string) bool { return RoundRunning(d.ClaudeDir, id) },
-		blocked:     func(id string) bool { return JobState(d.ClaudeDir, id) == "blocked" },
-		lastMessage: func(id string) (string, error) { return LastMessage(d.ClaudeDir, id) },
+		running:     func(id ids.SessionID) bool { return RoundRunning(d.ClaudeDir, id) },
+		blocked:     func(id ids.SessionID) bool { return JobState(d.ClaudeDir, id) == "blocked" },
+		lastMessage: func(id ids.SessionID) (string, error) { return LastMessage(d.ClaudeDir, id) },
 		findRepo: func(pr PR) (string, string, error) {
 			return d.FindRepo(cfg.GitRepoRoots, cfg.ClonePath, pr)
 		},
@@ -103,7 +105,7 @@ func newTickHost(d Deps, cfg Config, l *Ledger, user string) tickHost {
 		out:    d.Stderr,
 		lock:   d.Lock,
 		sess:   d.Sessions,
-		exists: func(id string) bool { return d.SessionExists(d.ClaudeDir, id) },
+		exists: func(id ids.SessionID) bool { return d.SessionExists(d.ClaudeDir, id) },
 		sessionIndex: func() (map[string]SessionHit, error) {
 			return IndexSessions(d.ClaudeDir, isRoundSession)
 		},
@@ -120,7 +122,7 @@ func newTickHost(d Deps, cfg Config, l *Ledger, user string) tickHost {
 			return "", errors.New("no output")
 		},
 		selfCheck: func() error {
-			return selfChecker{sess: d.Sessions, run: d.Output, trust: d.Trust, newID: randomUUID,
+			return selfChecker{sess: d.Sessions, run: d.Output, trust: d.Trust, newID: ids.NewSession,
 				dir: filepath.Join(filepath.Dir(LedgerPath(d.StateDir)), "self-check"), sleep: d.Sleep}.check()
 		},
 		notify: func(msg string) { _, _ = d.Output("", notifyArgv(d.GOOS, "claude-review", msg)) },
@@ -217,11 +219,11 @@ func requestOwnReview(d Deps, cfg Config, pr PR, p ghPull) error {
 	if strings.EqualFold(p.User.Login, me) || slices.ContainsFunc(p.RequestedReviewers, func(r ghLogin) bool { return strings.EqualFold(r.Login, me) }) {
 		return nil
 	}
-	reviews, err := ghList(d.Gh, GitHub{}.api(pr, "pulls/%d/reviews", pr.Number))
+	reviews, err := ghList[ids.ReviewID](d.Gh, GitHub{}.api(pr, "pulls/%d/reviews", pr.Number))
 	if err != nil {
 		return err
 	}
-	if slices.ContainsFunc(reviews, func(r ghItem) bool { return strings.EqualFold(r.User.Login, me) }) {
+	if slices.ContainsFunc(reviews, func(r ghItem[ids.ReviewID]) bool { return strings.EqualFold(r.User.Login, me) }) {
 		return nil
 	}
 	_, err = d.Gh("api", "-X", "POST", GitHub{}.api(pr, "pulls/%d/requested_reviewers", pr.Number), "-f", "reviewers[]="+me)

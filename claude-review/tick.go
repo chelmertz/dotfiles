@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // annotationTTL is how long elly shows an annotation tick wrote. Every tick
@@ -37,7 +39,7 @@ type tickGitHub interface {
 	Gate
 	RoundFacts(pr PR, r Round) (RoundFacts, error)
 	Standing(pr PR) (state, head string, user *Review, err error)
-	Dismiss(pr PR, id int64, message string) error
+	Dismiss(pr PR, id ids.ReviewID, message string) error
 }
 
 // tickHost is one tick's world. Every write goes through do, which only
@@ -48,9 +50,9 @@ type tickHost struct {
 	ledger      *Ledger
 	elly        tickElly
 	gh          tickGitHub
-	running     func(sessionID string) bool
-	blocked     func(sessionID string) bool
-	lastMessage func(sessionID string) (string, error)
+	running     func(sessionID ids.SessionID) bool
+	blocked     func(sessionID ids.SessionID) bool
+	lastMessage func(sessionID ids.SessionID) (string, error)
 	findRepo    func(pr PR) (dir, remote string, err error)
 	start       func(dir string, argv []string) error
 	now         func() time.Time
@@ -59,11 +61,11 @@ type tickHost struct {
 	// lock takes the PR's lock, the one a click holds, keyed by the PR's
 	// SessionID whichever session it guards; errLocked means a click (or
 	// the attach verb) has the PR, and tick leaves it this time.
-	lock func(id string) (unlock func(), err error)
+	lock func(name string) (unlock func(), err error)
 	// sess keeps one background worker per PR; every round starts there.
 	sess Sessions
 	// exists reports a transcript for a session id.
-	exists func(id string) bool
+	exists func(id ids.SessionID) bool
 	// trust marks a clone trusted for Claude Code before a launch in it.
 	trust func(dir string) error
 	// version is `claude --version`; selfCheck checks a new one, and notify
@@ -246,7 +248,7 @@ func (h tickHost) workersOf(pr PR, all []Worker) []Worker {
 // settle does a closed PR's, under the PR's lock and from a roster read
 // under it. A stop that fails leaves the rounds unread for the next tick.
 func (h tickHost) closeOut(pr PR, rounds []Round) error {
-	unlock, err := h.lock(pr.SessionID())
+	unlock, err := h.lock(pr.SessionID().String())
 	if errors.Is(err, errLocked) {
 		return nil
 	}
@@ -285,7 +287,7 @@ func (h tickHost) settle() (int, error) {
 		if err != nil {
 			continue
 		}
-		unlock, err := h.lock(pr.SessionID())
+		unlock, err := h.lock(pr.SessionID().String())
 		if err != nil {
 			if !errors.Is(err, errLocked) {
 				fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
@@ -387,9 +389,9 @@ func (h tickHost) apply(pr PR, r Round, d Decision, retry bool) (bool, error) {
 // sideEffects are the decision's writes besides the annotation: dismiss
 // the user's approval, clear the PR, hold it back from rounds.
 func (h tickHost) sideEffects(pr PR, d Decision) error {
-	if d.DismissReviewID != 0 {
+	if !d.DismissReviewID.IsZero() {
 		msg := "A later review round found new problems at the current head, so this approval no longer covers it."
-		if err := h.do(fmt.Sprintf("dismiss review %d on %s", d.DismissReviewID, pr.URL()), func() error { return h.gh.Dismiss(pr, d.DismissReviewID, msg) }); err != nil {
+		if err := h.do(fmt.Sprintf("dismiss review %s on %s", d.DismissReviewID, pr.URL()), func() error { return h.gh.Dismiss(pr, d.DismissReviewID, msg) }); err != nil {
 			return err
 		}
 	}
@@ -449,7 +451,7 @@ func (h tickHost) startOwed(prs []EllyPR, running int) error {
 // startOne starts p's round under the PR's lock, unless a click holds it,
 // a legacy window holds the session, a round runs, or no slot is free.
 func (h tickHost) startOne(p Planned, running int) (bool, error) {
-	unlock, err := h.lock(p.PR.SessionID())
+	unlock, err := h.lock(p.PR.SessionID().String())
 	if errors.Is(err, errLocked) {
 		if h.dry {
 			fmt.Fprintf(h.out, "would leave %s: a click holds it\n", p.PR.URL())

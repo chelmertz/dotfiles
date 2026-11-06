@@ -1,10 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // routeGh answers gh calls by the first route its arguments contain.
@@ -84,7 +88,7 @@ func TestGitHubRoundFacts(t *testing.T) {
 	if f.UnresolvedUserThreads != 1 {
 		t.Errorf("unresolved user threads %d, want 1", f.UnresolvedUserThreads)
 	}
-	if f.UserReview == nil || f.UserReview.ID != 1 || f.UserReview.State != "APPROVED" || !f.UserReview.SubmittedAt.Equal(start.Add(-time.Hour)) {
+	if f.UserReview == nil || f.UserReview.ID != reviewID(1) || f.UserReview.State != "APPROVED" || !f.UserReview.SubmittedAt.Equal(start.Add(-time.Hour)) {
 		t.Errorf("the user's standing review: %+v (a COMMENTED review must not replace an approval)", f.UserReview)
 	}
 	if f.RoundReviewURL != "r3" {
@@ -109,11 +113,20 @@ func TestGitHubMergedIsNotOpen(t *testing.T) {
 
 func TestGitHubDismiss(t *testing.T) {
 	g := &routeGh{routes: map[string]string{"dismissals": `{}`}}
-	if err := (GitHub{Gh: g.run, User: "me"}).Dismiss(widgetsPR, 9, "why"); err != nil {
+	if err := (GitHub{Gh: g.run, User: "me"}).Dismiss(widgetsPR, reviewID(9), "why"); err != nil {
 		t.Fatal(err)
 	}
 	joined := strings.Join(g.calls[0], " ")
 	if !strings.Contains(joined, "-X PUT repos/acme/widgets/pulls/42/reviews/9/dismissals") || !strings.Contains(joined, "message=why\n\n--claude") {
 		t.Errorf("dismiss call: %q", joined)
 	}
+}
+
+// reviewID is a review id as GitHub's JSON carries it.
+func reviewID(n int64) ids.ReviewID {
+	var id ids.ReviewID
+	if err := json.Unmarshal([]byte(strconv.FormatInt(n, 10)), &id); err != nil {
+		panic(err)
+	}
+	return id
 }

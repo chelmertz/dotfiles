@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // verbLink is a claude-review:// link with a verb, as tick writes them into
@@ -56,17 +58,21 @@ func runVerb(d Deps, cfg Config, pr PR, verb string, q url.Values) int {
 }
 
 func approveWithToken(d Deps, pr PR, at, token string) int {
+	tok, err := ids.ParseToken(token)
+	if err != nil {
+		return fail(d, notIssued(pr))
+	}
 	l, err := OpenLedger(LedgerPath(d.StateDir))
 	if err != nil {
 		return fail(d, err)
 	}
-	ok, err := l.UseToken(pr, at, token)
+	ok, err := l.UseToken(pr, at, tok)
 	_ = l.Close()
 	if err != nil {
 		return fail(d, err)
 	}
 	if !ok {
-		return fail(d, fmt.Errorf("claude-review: that Approve link for %s is not one this machine issued, or it was used already", pr.URL()))
+		return fail(d, notIssued(pr))
 	}
 	if code := runApprove([]string{pr.URL(), "--at", at}, d.Gh, d.Stdout, d.Stderr); code != 0 {
 		return fail(d, fmt.Errorf("claude-review: approving %s failed; see the session", pr.URL()))
@@ -75,13 +81,18 @@ func approveWithToken(d Deps, pr PR, at, token string) int {
 	return 0
 }
 
+// notIssued refuses an Approve link: forged, malformed or spent alike.
+func notIssued(pr PR) error {
+	return fmt.Errorf("claude-review: that Approve link for %s is not one this machine issued, or it was used already", pr.URL())
+}
+
 // attach opens the PR's live background worker in a terminal, under the
 // PR's lock. It never resumes a session interactively: that window would
 // run under the user's own settings and hold every round back. With no
 // worker there is nothing to watch, and it says so.
 func attach(d Deps, cfg Config, pr PR) int {
 	id := pr.RoundSessionID()
-	unlock, err := d.Lock(pr.SessionID())
+	unlock, err := d.Lock(pr.SessionID().String())
 	if errors.Is(err, errLocked) {
 		return fail(d, fmt.Errorf("claude-review: %s is being started; try again in a moment", pr.URL()))
 	}
@@ -93,14 +104,14 @@ func attach(d Deps, cfg Config, pr PR) int {
 	if err != nil {
 		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), err))
 	}
-	var key WorkerKey
+	var key ids.WorkerKey
 	for _, w := range d.Sessions.workersFor(id, all) {
 		if w.SessionID == id {
 			key = w.Short
 		}
 	}
 	switch {
-	case key != "":
+	case !key.IsZero():
 		dir, _, err := d.FindRepo(cfg.GitRepoRoots, cfg.ClonePath, pr)
 		if err != nil {
 			return fail(d, err)

@@ -83,7 +83,7 @@ func TestBuildPrompt_CustomPromptKeepsPlaceholdersAndPolicy(t *testing.T) {
 
 func TestBootstrapArgs(t *testing.T) {
 	got := BootstrapArgs(testPR)
-	want := []string{claudeBin, "-p", "--session-id", testPR.SessionID(), "-n", "PR: acme/widgets#42", "--max-turns", "1",
+	want := []string{claudeBin, "-p", "--session-id", testPR.SessionID().String(), "-n", "PR: acme/widgets#42", "--max-turns", "1",
 		"This session is for reviewing https://github.com/acme/widgets/pull/42. The review instructions follow in the next message. Reply with one word."}
 	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
 		t.Errorf("got  %q\nwant %q", got, want)
@@ -102,7 +102,7 @@ func TestReviewArgs_NoAddDir(t *testing.T) {
 func TestReviewArgs_FirstRoundWithTerminal(t *testing.T) {
 	cfg := Config{GitRepoRoots: []string{codeRoot, "/srv"}}
 	got := ReviewArgs(cfg, testPR, "origin", false, false)
-	want := []string{claudeBin, resume, testPR.SessionID(), BuildPrompt(cfg, testPR, "origin", false),
+	want := []string{claudeBin, resume, testPR.SessionID().String(), BuildPrompt(cfg, testPR, "origin", false),
 		"--allowedTools", threadsAllow,
 		"Bash(claude-review show https://github.com/acme/widgets/pull/42 *)",
 		"Bash(claude-review grep https://github.com/acme/widgets/pull/42 *)",
@@ -118,7 +118,7 @@ func TestReviewArgs_FirstRoundWithTerminal(t *testing.T) {
 func TestReviewArgs_RereviewDetachedAuto(t *testing.T) {
 	cfg := Config{GitRepoRoots: []string{codeRoot}, PostWithoutAsking: true}
 	got := ReviewArgs(cfg, testPR, "origin", true, true)
-	want := []string{claudeBin, "--bg", resume, testPR.SessionID(), BuildPrompt(cfg, testPR, "origin", true),
+	want := []string{claudeBin, "--bg", resume, testPR.SessionID().String(), BuildPrompt(cfg, testPR, "origin", true),
 		"--allowedTools", threadsAllow,
 		"Bash(claude-review show https://github.com/acme/widgets/pull/42 *)",
 		"Bash(claude-review grep https://github.com/acme/widgets/pull/42 *)",
@@ -139,7 +139,7 @@ func TestReviewArgs_PromptDirectlyFollowsSessionID(t *testing.T) {
 	for _, resume := range []bool{false, true} {
 		for _, detached := range []bool{false, true} {
 			got := ReviewArgs(cfg, testPR, "origin", resume, detached)
-			i := indexOf(got, testPR.SessionID())
+			i := indexOf(got, testPR.SessionID().String())
 			if i < 0 || got[i+1] != BuildPrompt(cfg, testPR, "origin", resume) {
 				t.Errorf("resume=%v detached=%v: prompt not after the id: %q", resume, detached, got)
 			}
@@ -159,19 +159,6 @@ func indexOf(xs []string, x string) int {
 		}
 	}
 	return -1
-}
-
-// `claude attach` matches only the roster key, the id's first 8
-// characters; the full id fails with "No job matching" (2.1.314).
-func TestKeyOf(t *testing.T) {
-	if key, err := keyOf("7e9b0cb1-bf5d-5d6b-8227-689aa3d4f93c"); err != nil || key != "7e9b0cb1" {
-		t.Errorf("got %q %v", key, err)
-	}
-	for _, bad := range []string{"", "7e9b", "x; rm -rf ~"} {
-		if key, err := keyOf(bad); err == nil {
-			t.Errorf("%q gave key %q", bad, key)
-		}
-	}
 }
 
 // A deferral costs a human review round per extra PR; the built-in prompt

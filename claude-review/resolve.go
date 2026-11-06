@@ -6,6 +6,8 @@ import (
 	"io"
 	"strconv"
 	"strings"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // reviewThreadsQuery is the PR's review threads, each with its comments'
@@ -23,8 +25,8 @@ type reviewThread struct {
 	IsResolved bool   `json:"isResolved"`
 	Comments   struct {
 		Nodes []struct {
-			DatabaseID int64  `json:"databaseId"`
-			URL        string `json:"url"`
+			DatabaseID ids.CommentID `json:"databaseId"`
+			URL        string        `json:"url"`
 			Author     struct {
 				Login string `json:"login"`
 			} `json:"author"`
@@ -37,16 +39,17 @@ func runResolve(target string, args []string, gh Gh, spend spendFunc, stdout, st
 	fs := flag.NewFlagSet("claude-review post resolve", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() { fmt.Fprint(stderr, postUsage) }
-	thread := fs.Int64("thread", 0, "id of any comment in the thread, from `claude-review threads`")
+	var thread ids.CommentID
+	fs.Var(&thread, "thread", "id of any comment in the thread, from `claude-review threads`")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	pr, err := ParseTarget(target)
-	if err != nil || fs.NArg() != 0 || *thread <= 0 {
+	if err != nil || fs.NArg() != 0 || thread.IsZero() {
 		fmt.Fprintln(stderr, "claude-review post: resolve needs a PR and --thread with the id of a comment in the thread")
 		return 2
 	}
-	return resolveThread(pr, *thread, gh, spend, stdout, stderr)
+	return resolveThread(pr, thread, gh, spend, stdout, stderr)
 }
 
 // resolveThread is `claude-review post <pr> resolve --thread <id>`: it
@@ -55,7 +58,7 @@ func runResolve(target string, args []string, gh Gh, spend spendFunc, stdout, st
 // else's would close their question. Resolving is a post like any other,
 // so it spends the budget (one per thread at a head) and refuses a PR that
 // is not open. A thread already resolved is left as it is.
-func resolveThread(pr PR, id int64, gh Gh, spend spendFunc, stdout, stderr io.Writer) int {
+func resolveThread(pr PR, id ids.CommentID, gh Gh, spend spendFunc, stdout, stderr io.Writer) int {
 	th, viewer, err := findThread(gh, pr, id)
 	if err != nil {
 		fmt.Fprintln(stderr, "claude-review post:", err)
@@ -64,7 +67,7 @@ func resolveThread(pr PR, id int64, gh Gh, spend spendFunc, stdout, stderr io.Wr
 	first := th.Comments.Nodes[0]
 	switch {
 	case !strings.EqualFold(first.Author.Login, viewer):
-		fmt.Fprintf(stderr, "claude-review post: the thread of comment %d is not one this account started; not resolved\n", id)
+		fmt.Fprintf(stderr, "claude-review post: the thread of comment %s is not one this account started; not resolved\n", id)
 		return 1
 	case th.IsResolved:
 		fmt.Fprintln(stderr, "claude-review post: already resolved")
@@ -85,7 +88,7 @@ func resolveThread(pr PR, id int64, gh Gh, spend spendFunc, stdout, stderr io.Wr
 
 // findThread is the review thread on pr holding comment id, and the login
 // gh posts as.
-func findThread(gh Gh, pr PR, id int64) (reviewThread, string, error) {
+func findThread(gh Gh, pr PR, id ids.CommentID) (reviewThread, string, error) {
 	var q struct {
 		Data struct {
 			Viewer struct {
@@ -111,5 +114,5 @@ func findThread(gh Gh, pr PR, id int64) (reviewThread, string, error) {
 			}
 		}
 	}
-	return reviewThread{}, "", fmt.Errorf("comment %d is in no review thread on %s", id, pr.URL())
+	return reviewThread{}, "", fmt.Errorf("comment %s is in no review thread on %s", id, pr.URL())
 }

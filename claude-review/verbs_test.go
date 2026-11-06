@@ -65,10 +65,10 @@ func TestApproveVerbNeedsAMintedToken(t *testing.T) {
 	if code := run([]string{"claude-review://acme/widgets/42/approve?at=" + sha + "&token=forged"}, h.d); code == 0 || approvals() != 0 {
 		t.Fatalf("forged token: exit %d, approvals %d", code, approvals())
 	}
-	if code := run([]string{"claude-review://acme/widgets/42/approve?at=" + sha + "&token=" + tok}, h.d); code != 0 || approvals() != 1 {
+	if code := run([]string{"claude-review://acme/widgets/42/approve?at=" + sha + "&token=" + tok.String()}, h.d); code != 0 || approvals() != 1 {
 		t.Fatalf("minted token: exit %d, approvals %d: %s", code, approvals(), h.stderr)
 	}
-	if code := run([]string{"claude-review://acme/widgets/42/approve?at=" + sha + "&token=" + tok}, h.d); code == 0 || approvals() != 1 {
+	if code := run([]string{"claude-review://acme/widgets/42/approve?at=" + sha + "&token=" + tok.String()}, h.d); code == 0 || approvals() != 1 {
 		t.Errorf("reused token: exit %d, approvals %d", code, approvals())
 	}
 }
@@ -104,7 +104,7 @@ func TestAttachVerbNeverResumes(t *testing.T) {
 		t.Fatalf("exit %d: %s", code, h.stderr)
 	}
 	script := strings.Join(mapValues(h.scripts), "\n")
-	if !strings.Contains(script, "attach'\\'' '\\''"+widgetsPR.RoundSessionID()[:8]+"'\\''") || strings.Contains(script, "--resume") {
+	if !strings.Contains(script, "attach'\\'' '\\''"+widgetsPR.RoundSessionID().Key().String()+"'\\''") || strings.Contains(script, "--resume") {
 		t.Errorf("a live worker was not attached: %q", script)
 	}
 	h.locked = true

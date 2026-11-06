@@ -2,8 +2,11 @@ package main
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 func openTestLedger(t *testing.T) *Ledger {
@@ -85,7 +88,7 @@ func TestLedgerRounds(t *testing.T) {
 func TestLedgerApproveTokensAreOneTime(t *testing.T) {
 	l := openTestLedger(t)
 	tok, err := l.MintToken(widgetsPR, "sha1")
-	if err != nil || len(tok) < 32 {
+	if err != nil || len(tok.String()) != 48 {
 		t.Fatalf("token %q, %v", tok, err)
 	}
 	if ok, _ := l.UseToken(widgetsPR, "sha2", tok); ok {
@@ -94,7 +97,11 @@ func TestLedgerApproveTokensAreOneTime(t *testing.T) {
 	if ok, _ := l.UseToken(PR{Owner: owner, Repo: repoName, Number: 43}, "sha1", tok); ok {
 		t.Error("token accepted for another PR")
 	}
-	if ok, _ := l.UseToken(widgetsPR, "sha1", "forged"); ok {
+	forged, err := ids.ParseToken(strings.Repeat("0", 48))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := l.UseToken(widgetsPR, "sha1", forged); ok {
 		t.Error("forged token accepted")
 	}
 	if ok, _ := l.UseToken(widgetsPR, "sha1", tok); !ok {

@@ -97,7 +97,7 @@ func TestPR_SessionID_IsStableAndPerPR(t *testing.T) {
 	}
 	// Pinned so a change in the derivation (namespace, canonical URL) is a
 	// visible, deliberate break: every existing review session would be lost.
-	if got := a.SessionID(); got != "cfee23f0-9e8b-5191-927a-7b236f6d63f7" {
+	if got := a.SessionID().String(); got != "cfee23f0-9e8b-5191-927a-7b236f6d63f7" {
 		t.Errorf("derivation changed: %s", got)
 	}
 }

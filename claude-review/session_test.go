@@ -7,9 +7,23 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
-const sid = "d2cc10f2-04e0-52a1-950a-85c38f166e8c"
+const sidText = "d2cc10f2-04e0-52a1-950a-85c38f166e8c"
+
+var sid = mustSession(sidText)
+
+// mustSession is a session id as Claude Code writes one, read the way this
+// tool reads ids from Claude Code's files.
+func mustSession(s string) ids.SessionID {
+	id, err := ids.ParseSession(s)
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
 
 func TestSessionExists(t *testing.T) {
 	dir := t.TempDir()
@@ -20,13 +34,13 @@ func TestSessionExists(t *testing.T) {
 	if err := os.MkdirAll(proj, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(proj, sid+".jsonl"), nil, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(proj, sid.String()+".jsonl"), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if !SessionExists(dir, sid) {
 		t.Fatal("should find the transcript in any project folder")
 	}
-	if SessionExists(dir, "other") {
+	if SessionExists(dir, forkID) {
 		t.Fatal("other id must not match")
 	}
 }
@@ -62,7 +76,7 @@ func TestSessionRunning(t *testing.T) {
 	if SessionRunning(dir, sid).PID != 0 {
 		t.Fatal("dead pid: not running")
 	}
-	writeRoster(t, dir, fmt.Sprintf(`{"workers":{%q: {"sessionId": %q, "pid": 100}}}`, sid[:8], sid))
+	writeRoster(t, dir, fmt.Sprintf(`{"workers":{%q: {"sessionId": %q, "pid": 100}}}`, sid.Key().String(), sid))
 	if got := SessionRunning(dir, sid); got != (Live{PID: 100, Background: true}) {
 		t.Fatalf("live worker for this id: running in the background, got %+v", got)
 	}
@@ -136,7 +150,7 @@ func TestSessionRunning_WorkerWinsOverItsTerminalEntry(t *testing.T) {
 	defer func() { processAlive = old }()
 	processAlive = func(int) bool { return true }
 	dir := t.TempDir()
-	writeRoster(t, dir, fmt.Sprintf(`{"workers":{%q: {"sessionId": %q, "pid": 100}}}`, sid[:8], sid))
+	writeRoster(t, dir, fmt.Sprintf(`{"workers":{%q: {"sessionId": %q, "pid": 100}}}`, sid.Key().String(), sid))
 	writeLive(t, dir, 100, fmt.Sprintf(`{"pid":100,"sessionId":%q}`, sid))
 	if got := SessionRunning(dir, sid); got != (Live{PID: 100, Background: true}) {
 		t.Fatalf("a worker is attached to, got %+v", got)
@@ -184,11 +198,11 @@ func TestProcStart_RealPid(t *testing.T) {
 
 func TestLockSession(t *testing.T) {
 	dir := t.TempDir()
-	unlock, err := lockSession(dir, sid)
+	unlock, err := lockSession(dir, sid.String())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := lockSession(dir, sid); !errors.Is(err, errLocked) {
+	if _, err := lockSession(dir, sid.String()); !errors.Is(err, errLocked) {
 		t.Fatalf("second lock while held: want errLocked, got %v", err)
 	}
 	other, err := lockSession(dir, "other")
@@ -197,34 +211,34 @@ func TestLockSession(t *testing.T) {
 	}
 	other()
 	unlock()
-	again, err := lockSession(dir, sid)
+	again, err := lockSession(dir, sid.String())
 	if err != nil {
 		t.Fatalf("after unlock: %v", err)
 	}
 	again()
-	if _, err := lockSession(filepath.Join(dir, "missing"), sid); err == nil || errors.Is(err, errLocked) {
+	if _, err := lockSession(filepath.Join(dir, "missing"), sid.String()); err == nil || errors.Is(err, errLocked) {
 		t.Errorf("unopenable lock file: want a plain error, got %v", err)
 	}
 }
 
 func TestLockUnderCache(t *testing.T) {
 	h := osHost{cacheBase: t.TempDir()}
-	unlock, err := h.lockUnderCache(sid)
+	unlock, err := h.lockUnderCache(sid.String())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer unlock()
-	if _, err := h.lockUnderCache(sid); !errors.Is(err, errLocked) {
+	if _, err := h.lockUnderCache(sid.String()); !errors.Is(err, errLocked) {
 		t.Fatalf("second lock while held: want errLocked, got %v", err)
 	}
-	if _, err := (osHost{cacheBase: "relative"}).lockUnderCache(sid); err == nil {
+	if _, err := (osHost{cacheBase: "relative"}).lockUnderCache(sid.String()); err == nil {
 		t.Error("no usable cache dir: want an error")
 	}
 }
 
 func writeJob(t *testing.T, dir, state string) {
 	t.Helper()
-	d := filepath.Join(dir, "jobs", sid[:8])
+	d := filepath.Join(dir, "jobs", sid.Key().String())
 	if err := os.MkdirAll(d, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +254,7 @@ func TestRoundRunning(t *testing.T) {
 	old := processAlive
 	defer func() { processAlive = old }()
 	processAlive = func(pid int) bool { return pid == 100 }
-	writeRoster(t, dir, fmt.Sprintf(`{"workers":{%q: {"sessionId": %q, "pid": 100}}}`, sid[:8], sid))
+	writeRoster(t, dir, fmt.Sprintf(`{"workers":{%q: {"sessionId": %q, "pid": 100}}}`, sid.Key().String(), sid))
 
 	if !RoundRunning(dir, sid) {
 		t.Error("a live worker with no job state must count as running")

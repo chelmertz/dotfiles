@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 const slackUsage = "usage: claude-review slack [--dry-run] <pr>..."
@@ -101,8 +103,8 @@ type prState struct {
 	} `json:"commits"`
 	// Reviews come from REST, whose user.type tells an app from a person;
 	// gh pr view's GraphQL logins drop the [bot] suffix and say neither.
-	Reviews []ghItem `json:"-"`
-	Threads []thread `json:"-"`
+	Reviews []ghItem[ids.ReviewID] `json:"-"`
+	Threads []thread               `json:"-"`
 }
 
 type login struct {
@@ -151,7 +153,7 @@ func loadPRState(gh Gh, pr PR) (prState, error) {
 	if err := json.Unmarshal([]byte(out), &s); err != nil {
 		return s, fmt.Errorf("gh pr view: %w", err)
 	}
-	if s.Reviews, err = ghList(gh, fmt.Sprintf("repos/%s/%s/"+reviews, pr.Owner, pr.Repo, pr.Number)); err != nil {
+	if s.Reviews, err = ghList[ids.ReviewID](gh, fmt.Sprintf("repos/%s/%s/"+reviews, pr.Owner, pr.Repo, pr.Number)); err != nil {
 		return s, err
 	}
 	out, err = gh("api", "graphql", paginate, "-F", "owner="+pr.Owner, "-F", "name="+pr.Repo,
@@ -341,7 +343,7 @@ func slackPrompt(pr PR, s prState) string {
 func SlackArgs(pr PR, prompt string, resume bool) []string {
 	args := []string{claudeCmd, "-p"}
 	if resume {
-		args = append(args, "--resume", pr.SessionID())
+		args = append(args, "--resume", pr.SessionID().String())
 	}
 	return append(args, "--no-session-persistence", "--strict-mcp-config", "--max-turns", "1", prompt, "--tools", "")
 }

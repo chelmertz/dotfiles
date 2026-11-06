@@ -1,4 +1,4 @@
-package main
+package ids
 
 import "testing"
 
@@ -26,7 +26,7 @@ func TestUUIDv5_SetsVersionAndVariantBits(t *testing.T) {
 }
 
 func TestUUIDv5_BadNamespacePanics(t *testing.T) {
-	for _, ns := range []string{badTarget, "6ba7b811-9dad-11d1-80b4-00c04fd430"} {
+	for _, ns := range []string{"nope", "6ba7b811-9dad-11d1-80b4-00c04fd430"} {
 		func() {
 			defer func() {
 				if recover() == nil {

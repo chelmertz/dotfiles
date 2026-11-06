@@ -45,9 +45,11 @@ const pinnedPolicyFingerprint = "21ff70331863aa72"
 // first background launch, in this order (jobs/<short>/state.json
 // respawnFlags), and every later round is checked against them.
 func PolicyFlags(pr PR, remote string) []string {
-	return policyFlags(pr, remote, pr.RoundSessionID())
+	return policyFlags(pr, remote, pr.RoundSessionID().String())
 }
 
+// policyFlags is PolicyFlags for the session id as text: the id itself,
+// or the placeholder policyFingerprint hashes.
 func policyFlags(pr PR, remote, id string) []string {
 	n := itoaPR(pr)
 	args := []string{
@@ -116,20 +118,20 @@ func RoundPrompt(cfg Config, pr PR, remote string, resume bool) string {
 func RoundArgs(cfg Config, pr PR, remote string, resume bool) []string {
 	flags := PolicyFlags(pr, remote)
 	args := append([]string{claudeCmd, flagBg}, flags[:policyHead]...)
-	args = append(args, "--resume", pr.RoundSessionID(), RoundPrompt(cfg, pr, remote, resume))
+	args = append(args, "--resume", pr.RoundSessionID().String(), RoundPrompt(cfg, pr, remote, resume))
 	return append(args, flags[policyHead:]...)
 }
 
 // ResumeArgs is every later round: no flags, so Claude Code continues the
 // session under its saved options instead of forking it.
 func ResumeArgs(cfg Config, pr PR, remote string, resume bool) []string {
-	return []string{claudeCmd, flagBg, "--resume", pr.RoundSessionID(), RoundPrompt(cfg, pr, remote, resume)}
+	return []string{claudeCmd, flagBg, "--resume", pr.RoundSessionID().String(), RoundPrompt(cfg, pr, remote, resume)}
 }
 
 // RoundBootstrapArgs creates the round session under its fixed id, under
 // the policy's permission flags: `claude --bg` cannot be given an id.
 func RoundBootstrapArgs(pr PR) []string {
-	return append([]string{claudeCmd, "-p", flagSessionID, pr.RoundSessionID(), "-n", "PR: " + pr.Slug(), flagMaxTurns, "1"},
+	return append([]string{claudeCmd, "-p", flagSessionID, pr.RoundSessionID().String(), "-n", "PR: " + pr.Slug(), flagMaxTurns, "1"},
 		append(PolicyFlags(pr, "")[:policyHead], fill(pr, "", bootstrapPrompt))...)
 }
 

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // fakeSessions is a roster, job states and pids a test drives: launch adds
@@ -17,14 +19,14 @@ import (
 type fakeSessions struct {
 	workers    []Worker
 	unreadable bool
-	states     map[string]string
+	states     map[ids.SessionID]string
 	dead       map[int]bool
 	window     int
 	stopErr    error
 	pidLinger  int // polls a stopped worker's pid stays alive
 	lingering  map[int]int
 	onLaunch   func(f *fakeSessions)
-	saved      map[string][]string // a session's saved background options
+	saved      map[ids.SessionID][]string // a session's saved background options
 	savedErr   error
 	launchErr  error
 	settleErr  error
@@ -33,7 +35,7 @@ type fakeSessions struct {
 }
 
 func newFakeSessions() *fakeSessions {
-	return &fakeSessions{states: map[string]string{}, dead: map[int]bool{}, lingering: map[int]int{}}
+	return &fakeSessions{states: map[ids.SessionID]string{}, dead: map[int]bool{}, lingering: map[int]int{}}
 }
 
 func (f *fakeSessions) sessions() Sessions {
@@ -44,8 +46,8 @@ func (f *fakeSessions) sessions() Sessions {
 			}
 			return slices.Clone(f.workers), nil
 		},
-		JobState: func(id string) string { return f.states[id] },
-		Window:   func(string) int { return f.window },
+		JobState: func(id ids.SessionID) string { return f.states[id] },
+		Window:   func(ids.SessionID) int { return f.window },
 		Alive: func(pid int) bool {
 			if n, ok := f.lingering[pid]; ok {
 				if n <= 0 {
@@ -56,8 +58,8 @@ func (f *fakeSessions) sessions() Sessions {
 			}
 			return !f.dead[pid]
 		},
-		Stop: func(short WorkerKey) error {
-			f.events = append(f.events, "stop "+string(short))
+		Stop: func(short ids.WorkerKey) error {
+			f.events = append(f.events, "stop "+short.String())
 			if f.stopErr != nil {
 				return f.stopErr
 			}
@@ -72,7 +74,7 @@ func (f *fakeSessions) sessions() Sessions {
 			return nil
 		},
 		Sleep: func(time.Duration) { f.sleeps++ },
-		Saved: func(id string) ([]string, bool, error) {
+		Saved: func(id ids.SessionID) ([]string, bool, error) {
 			flags, ok := f.saved[id]
 			return flags, ok, f.savedErr
 		},
@@ -97,8 +99,11 @@ func (f *fakeSessions) launch() error {
 	return nil
 }
 
-func workerFor(id string, pid int) Worker {
-	return Worker{Short: WorkerKey(id[:8]), SessionID: id, PID: pid, LaunchID: id}
+// forkID is a session Claude Code forked off sid.
+var forkID = mustSession("188e19ec-1111-4111-8111-111111111111")
+
+func workerFor(id ids.SessionID, pid int) Worker {
+	return Worker{Short: id.Key(), SessionID: id, PID: pid, LaunchID: id}
 }
 
 func TestRosterIsThreeValued(t *testing.T) {
@@ -115,16 +120,16 @@ func TestRosterIsThreeValued(t *testing.T) {
 		t.Error("a roster key that is no worker id was read")
 	}
 	writeRoster(t, dir, fmt.Sprintf(`{"workers":{
-	  "188e19ec": {"pid": 5, "replPid": 6, "sessionId": "188e19ec-0000", "dispatch": {"launch": {"sessionId": %q, "fork": true}}},
-	  "d2cc10f2": {"pid": 7, "sessionId": %q, "dispatch": {"launch": {"sessionId": %q, "fork": false}}}}}`, sid, sid, sid))
+	  "188e19ec": {"pid": 5, "replPid": 6, "sessionId": %q, "dispatch": {"launch": {"sessionId": %q, "fork": true}}},
+	  "d2cc10f2": {"pid": 7, "sessionId": %q, "dispatch": {"launch": {"sessionId": %q, "fork": false}}}}}`, forkID, sid, sid, sid))
 	ws, err := readRoster(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	slices.SortFunc(ws, func(a, b Worker) int { return strings.Compare(string(a.Short), string(b.Short)) })
+	slices.SortFunc(ws, func(a, b Worker) int { return strings.Compare(a.Short.String(), b.Short.String()) })
 	want := []Worker{
-		{Short: "188e19ec", SessionID: "188e19ec-0000", PID: 5, ReplPID: 6, Fork: true, LaunchID: sid},
-		{Short: "d2cc10f2", SessionID: sid, PID: 7, LaunchID: sid},
+		{Short: forkID.Key(), SessionID: forkID, PID: 5, ReplPID: 6, Fork: true, LaunchID: sid},
+		{Short: sid.Key(), SessionID: sid, PID: 7, LaunchID: sid},
 	}
 	if !slices.Equal(ws, want) {
 		t.Errorf("roster:\n got %+v\nwant %+v", ws, want)
@@ -240,8 +245,8 @@ func TestRelaunchFailedLaunchIsAnError(t *testing.T) {
 // caller hears about it.
 func TestRelaunchStopsAForkOrASecondWorker(t *testing.T) {
 	for name, extra := range map[string]Worker{
-		"fork":   {Short: "188e19ec", SessionID: "188e19ec-1111", PID: 800, Fork: true, LaunchID: sid},
-		"second": {Short: "d2cc10f2", SessionID: sid, PID: 801, LaunchID: sid},
+		"fork":   {Short: forkID.Key(), SessionID: forkID, PID: 800, Fork: true, LaunchID: sid},
+		"second": {Short: sid.Key(), SessionID: sid, PID: 801, LaunchID: sid},
 	} {
 		f := newFakeSessions()
 		f.onLaunch = func(f *fakeSessions) { f.workers = append(f.workers, extra, workerFor(sid, 700)) }
@@ -249,13 +254,13 @@ func TestRelaunchStopsAForkOrASecondWorker(t *testing.T) {
 		if err != nil || res.Kind != relaunchDuplicate {
 			t.Errorf("%s: got %+v %v", name, res, err)
 		}
-		if !slices.Contains(f.events, "stop "+string(extra.Short)) {
+		if !slices.Contains(f.events, "stop "+extra.Short.String()) {
 			t.Errorf("%s: the extra worker was not stopped: %q", name, f.events)
 		}
 	}
 	// A fork already there before the launch: nothing is launched on top.
 	f := newFakeSessions()
-	f.workers = []Worker{{Short: "188e19ec", SessionID: "188e19ec-1111", PID: 800, Fork: true, LaunchID: sid}}
+	f.workers = []Worker{{Short: forkID.Key(), SessionID: forkID, PID: 800, Fork: true, LaunchID: sid}}
 	res, err := f.sessions().Relaunch(sid, f.settle, f.launch)
 	if err != nil || res.Kind != relaunchDuplicate || slices.Contains(f.events, "launch") {
 		t.Errorf("pre-existing fork: got %+v %v, events %q", res, err, f.events)
@@ -271,7 +276,7 @@ func TestRelaunchLeavesALegacyWindowAlone(t *testing.T) {
 	}
 	// A worker's own sessions/ entry is not a window.
 	f = newFakeSessions()
-	f.workers = []Worker{{Short: WorkerKey(sid[:8]), SessionID: sid, PID: 100, ReplPID: 4242, LaunchID: sid}}
+	f.workers = []Worker{{Short: sid.Key(), SessionID: sid, PID: 100, ReplPID: 4242, LaunchID: sid}}
 	f.states[sid] = "working"
 	f.window = 4242
 	if res, _ := f.sessions().Relaunch(sid, f.settle, f.launch); res.Kind != relaunchBusy {
@@ -291,16 +296,16 @@ func TestRelaunchIgnoresDeadWorkers(t *testing.T) {
 }
 
 func TestStopRunsUnderAPty(t *testing.T) {
-	argv, err := stopArgv("linux", "d2cc10f2")
+	argv, err := stopArgv("linux", sid.Key())
 	if err != nil || strings.Join(argv, "|") != "script|-qec|claude stop d2cc10f2|/dev/null" {
 		t.Errorf("linux: %q %v", argv, err)
 	}
-	argv, err = stopArgv(darwin, "d2cc10f2")
+	argv, err = stopArgv(darwin, sid.Key())
 	if err != nil || strings.Join(argv, "|") != "script|-q|/dev/null|claude|stop|d2cc10f2" {
 		t.Errorf("darwin: %q %v", argv, err)
 	}
-	if _, err := stopArgv("linux", "x; rm -rf ~"); err == nil {
-		t.Error("a roster key that is no worker id reached the shell")
+	if _, err := stopArgv("linux", ids.WorkerKey{}); err == nil {
+		t.Error("an empty worker id reached the shell")
 	}
 }
 
@@ -332,7 +337,7 @@ func TestLaunchArgvIsFlaglessOnlyUnderTheSamePolicy(t *testing.T) {
 	if argv, err := s.LaunchArgv(sid, policy, first, later); err != nil || !slices.Equal(argv, first) {
 		t.Errorf("never launched: %q %v", argv, err)
 	}
-	f.saved = map[string][]string{sid: slices.Clone(policy)}
+	f.saved = map[ids.SessionID][]string{sid: slices.Clone(policy)}
 	if argv, err := s.LaunchArgv(sid, policy, first, later); err != nil || !slices.Equal(argv, later) {
 		t.Errorf("same policy: %q %v", argv, err)
 	}
@@ -348,7 +353,7 @@ func TestLaunchArgvIsFlaglessOnlyUnderTheSamePolicy(t *testing.T) {
 
 func writeJobBody(t *testing.T, dir, body string) {
 	t.Helper()
-	d := filepath.Join(dir, "jobs", sid[:8])
+	d := filepath.Join(dir, "jobs", sid.Key().String())
 	if err := os.MkdirAll(d, 0o700); err != nil {
 		t.Fatal(err)
 	}

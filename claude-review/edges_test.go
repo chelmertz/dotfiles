@@ -95,11 +95,11 @@ func TestGraphqlVarsMismatchTrailingFlag(t *testing.T) {
 
 func TestEightCharacterSessionIDs(t *testing.T) {
 	dir := t.TempDir()
-	const id = "d2cc10f2"
-	if err := os.MkdirAll(filepath.Join(dir, "jobs", id), 0o755); err != nil {
+	id := sid
+	if err := os.MkdirAll(filepath.Join(dir, "jobs", "d2cc10f2"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "jobs", id, "state.json"), []byte(`{"state":"done","respawnFlags":["--x"]}`), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "jobs", "d2cc10f2", "state.json"), []byte(`{"state":"done","respawnFlags":["--x"]}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if flags, ran, err := readSaved(dir, id); err != nil || !ran || !slices.Equal(flags, []string{"--x"}) {
@@ -235,7 +235,7 @@ func TestTickALockedPRTakesASlot(t *testing.T) {
 	if _, err := w.h.ledger.StartRound(busy, "h1", "new_head", t0); err != nil {
 		t.Fatal(err)
 	}
-	w.locked[busy.SessionID()] = true
+	w.locked[busy.SessionID().String()] = true
 	for n := 2; n <= 3; n++ {
 		w.accept(t, n)
 		w.elly.prs = append(w.elly.prs, requestedPR(n))
@@ -287,7 +287,7 @@ func TestTickAGatedPRDoesNotStopTheNext(t *testing.T) {
 	if a := w.elly.put[gated.URL()]; !strings.HasPrefix(a.Note, "paused") {
 		t.Errorf("the gated PR: %+v", a)
 	}
-	if len(w.started) != 1 || !slices.Contains(w.started[0], next.RoundSessionID()) {
+	if len(w.started) != 1 || !slices.Contains(w.started[0], next.RoundSessionID().String()) {
 		t.Errorf("started %q, want the second PR's round", w.started)
 	}
 	if strings.Contains(w.out.String(), "claude-review tick:") {

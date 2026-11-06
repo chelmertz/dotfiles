@@ -1,4 +1,4 @@
-package main
+package ids
 
 import (
 	"crypto/sha1" //nolint:gosec // RFC 4122 mandates SHA-1 for version 5 UUIDs; not used for security.

@@ -127,20 +127,20 @@ func cacheDir(base string) (string, error) {
 var errLocked = errors.New("locked by another click")
 
 // lockUnderCache is lockSession in cacheDir.
-func (h osHost) lockUnderCache(id string) (func(), error) {
+func (h osHost) lockUnderCache(name string) (func(), error) {
 	dir, err := cacheDir(h.cacheBase)
 	if err != nil {
 		return nil, err
 	}
-	return lockSession(dir, id)
+	return lockSession(dir, name)
 }
 
-// lockSession takes an exclusive flock on dir/<id>.lock without waiting. The
+// lockSession takes an exclusive flock on dir/<name>.lock without waiting. The
 // kernel drops it when the process exits, however it exits, so a crashed
 // click never leaves a PR locked. Go opens files close-on-exec, so the
 // terminal and claude started under the lock do not inherit it.
-func lockSession(dir, id string) (func(), error) {
-	f, err := os.OpenFile(filepath.Join(dir, id+".lock"), os.O_CREATE|os.O_RDWR, 0o600) //nolint:gosec // id is a uuid this program derived
+func lockSession(dir, name string) (func(), error) {
+	f, err := os.OpenFile(filepath.Join(dir, name+".lock"), os.O_CREATE|os.O_RDWR, 0o600) //nolint:gosec // name is a session id or a fixed word, never input
 	if err != nil {
 		return nil, err
 	}

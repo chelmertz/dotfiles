@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 type fakeElly struct {
@@ -60,7 +62,7 @@ type fakeTickGitHub struct {
 	state      string
 	head       string
 	user       *Review
-	dismissed  []int64
+	dismissed  []ids.ReviewID
 	dismissErr error
 }
 
@@ -68,7 +70,7 @@ func (g *fakeTickGitHub) RoundFacts(PR, Round) (RoundFacts, error) { return g.fa
 func (g *fakeTickGitHub) Standing(PR) (string, string, *Review, error) {
 	return g.state, g.head, g.user, nil
 }
-func (g *fakeTickGitHub) Dismiss(_ PR, id int64, _ string) error {
+func (g *fakeTickGitHub) Dismiss(_ PR, id ids.ReviewID, _ string) error {
 	if g.dismissErr != nil {
 		return g.dismissErr
 	}
@@ -81,12 +83,12 @@ type tickWorld struct {
 	elly     *fakeElly
 	gh       *fakeTickGitHub
 	started  [][]string
-	live     map[string]bool
-	blocked  map[string]bool
-	msgs     map[string]string
+	live     map[ids.SessionID]bool
+	blocked  map[ids.SessionID]bool
+	msgs     map[ids.SessionID]string
 	out      *bytes.Buffer
 	fs       *fakeSessions
-	fresh    map[string]bool // round sessions with no transcript yet
+	fresh    map[ids.SessionID]bool // round sessions with no transcript yet
 	locked   map[string]bool
 	trusted  []string
 	pid      int
@@ -97,12 +99,12 @@ func newTickWorld(t *testing.T) *tickWorld {
 	w := &tickWorld{
 		elly:    &fakeElly{login: "me", put: map[string]Annotation{}},
 		gh:      &fakeTickGitHub{fakeGate: fakeGate{descends: true, base: "main"}, state: "open", head: "h1"},
-		live:    map[string]bool{},
-		blocked: map[string]bool{},
-		msgs:    map[string]string{},
+		live:    map[ids.SessionID]bool{},
+		blocked: map[ids.SessionID]bool{},
+		msgs:    map[ids.SessionID]string{},
 		out:     &bytes.Buffer{},
 		fs:      newFakeSessions(),
-		fresh:   map[string]bool{},
+		fresh:   map[ids.SessionID]bool{},
 		locked:  map[string]bool{},
 		pid:     1000,
 	}
@@ -111,10 +113,10 @@ func newTickWorld(t *testing.T) *tickWorld {
 		ledger:  openTestLedger(t),
 		elly:    w.elly,
 		gh:      w.gh,
-		running: func(id string) bool { return w.live[id] },
-		blocked: func(id string) bool { return w.blocked[id] },
-		lastMessage: func(id string) (string, error) {
-			w.fs.events = append(w.fs.events, "read "+id[:8])
+		running: func(id ids.SessionID) bool { return w.live[id] },
+		blocked: func(id ids.SessionID) bool { return w.blocked[id] },
+		lastMessage: func(id ids.SessionID) (string, error) {
+			w.fs.events = append(w.fs.events, "read "+id.Key().String())
 			return w.msgs[id], nil
 		},
 		findRepo: func(PR) (string, string, error) { return "/clone", "upstream", nil },
@@ -125,7 +127,7 @@ func newTickWorld(t *testing.T) *tickWorld {
 			if !slices.Contains(argv, "--bg") {
 				return nil // the bootstrap
 			}
-			id := argv[slices.Index(argv, "--resume")+1]
+			id := mustSession(argv[slices.Index(argv, "--resume")+1])
 			w.pid++
 			w.fs.workers = append(w.fs.workers, workerFor(id, w.pid))
 			if _, ok := w.fs.saved[id]; !ok && len(argv) > 6 {
@@ -133,7 +135,7 @@ func newTickWorld(t *testing.T) *tickWorld {
 			}
 			return nil
 		},
-		exists: func(id string) bool { return !w.fresh[id] },
+		exists: func(id ids.SessionID) bool { return !w.fresh[id] },
 		now:    func() time.Time { return t0 },
 		out:    w.out,
 		lock: func(id string) (func(), error) {
@@ -148,7 +150,7 @@ func newTickWorld(t *testing.T) *tickWorld {
 		selfCheck: func() error { return nil },
 		notify:    func(msg string) { w.notified = append(w.notified, msg) },
 	}
-	w.fs.saved = map[string][]string{}
+	w.fs.saved = map[ids.SessionID][]string{}
 	return w
 }
 
@@ -335,7 +337,11 @@ func TestTickCleanRoundGetsAWorkingApproveLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ok, _ := w.h.ledger.UseToken(pr, u.Query().Get("at"), u.Query().Get("token")); !ok {
+	tok, err := ids.ParseToken(u.Query().Get("token"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := w.h.ledger.UseToken(pr, u.Query().Get("at"), tok); !ok {
 		t.Errorf("the Approve link's token is not one the ledger minted: %s", a.Links[0].URL)
 	}
 	if want := []string{pr.URL() + " needs you: clean round at aaaaaaaaa"}; !slices.Equal(w.notified, want) {
@@ -349,11 +355,11 @@ func TestTickFindingsAfterApprovalDismiss(t *testing.T) {
 	if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0); err != nil {
 		t.Fatal(err)
 	}
-	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewThreads: 2, UserReview: &Review{ID: 7, State: "APPROVED", CommitID: "h0"}}
+	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewThreads: 2, UserReview: &Review{ID: reviewID(7), State: "APPROVED", CommitID: "h0"}}
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(w.gh.dismissed, []int64{7}) {
+	if !slices.Equal(w.gh.dismissed, []ids.ReviewID{reviewID(7)}) {
 		t.Errorf("dismissed %v", w.gh.dismissed)
 	}
 	if a := w.elly.put[pr.URL()]; a.State != stateNeedsYou {
@@ -423,7 +429,7 @@ func TestTickARetryCountsAsRunning(t *testing.T) {
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if len(w.started) != 1 || !slices.Contains(w.started[0], failed.RoundSessionID()) {
+	if len(w.started) != 1 || !slices.Contains(w.started[0], failed.RoundSessionID().String()) {
 		t.Errorf("with one slot, the retry must take it: started %q", w.started)
 	}
 }
@@ -434,7 +440,7 @@ func TestTickAFailedDismissalLeavesTheRoundForTheNextTick(t *testing.T) {
 	if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0); err != nil {
 		t.Fatal(err)
 	}
-	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewThreads: 1, UserReview: &Review{ID: 7, State: "APPROVED", CommitID: "h0"}}
+	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewThreads: 1, UserReview: &Review{ID: reviewID(7), State: "APPROVED", CommitID: "h0"}}
 	w.gh.dismissErr = errors.New("403")
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
@@ -664,7 +670,7 @@ func TestTickAForkedWorkerTripsTheBreaker(t *testing.T) {
 	w.elly.prs = []EllyPR{requestedPR(42)}
 	start := w.h.start
 	w.h.start = func(dir string, argv []string) error {
-		w.fs.workers = append(w.fs.workers, Worker{Short: "188e19ec", SessionID: "188e19ec-1111", PID: 900, Fork: true, LaunchID: pr.RoundSessionID()})
+		w.fs.workers = append(w.fs.workers, Worker{Short: forkID.Key(), SessionID: forkID, PID: 900, Fork: true, LaunchID: pr.RoundSessionID()})
 		return start(dir, argv)
 	}
 	if err := w.h.tick(); err == nil {
@@ -695,8 +701,8 @@ func TestTickLeavesALockedPRAlone(t *testing.T) {
 	}
 	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewThreads: 1}
 	w.elly.prs = []EllyPR{requestedPR(42)}
-	w.locked[pr.SessionID()] = true
-	w.locked[other.SessionID()] = true
+	w.locked[pr.SessionID().String()] = true
+	w.locked[other.SessionID().String()] = true
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
@@ -722,11 +728,11 @@ func TestTickSettlesTheLastRoundBeforeStoppingItsWorker(t *testing.T) {
 	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewThreads: 1}
 	w.elly.prs = []EllyPR{requestedPR(42)}
 	calls := 0
-	w.h.running = func(string) bool { calls++; return calls == 1 } // still running when the settle pass looks
+	w.h.running = func(ids.SessionID) bool { calls++; return calls == 1 } // still running when the settle pass looks
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Join(w.fs.events, ","); got != "read "+pr.RoundSessionID()[:8]+",stop "+pr.RoundSessionID()[:8] {
+	if got := strings.Join(w.fs.events, ","); got != "read "+pr.RoundSessionID().Key().String()+",stop "+pr.RoundSessionID().Key().String() {
 		t.Errorf("events %s", got)
 	}
 	rounds, _ := w.h.ledger.UnreadRounds()
@@ -744,7 +750,7 @@ func TestTickNamesALegacyWindowAndClearsIt(t *testing.T) {
 	pr := w.accept(t, 42)
 	w.elly.prs = []EllyPR{requestedPR(42)}
 	w.fs.window = 4242
-	w.h.running = func(string) bool { return w.fs.window > 0 }
+	w.h.running = func(ids.SessionID) bool { return w.fs.window > 0 }
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
@@ -921,7 +927,7 @@ func TestTickStopsWorkersOnClosedPRs(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	want := []string{"stop " + merged.RoundSessionID()[:8], "stop " + legacy.SessionID()[:8]}
+	want := []string{"stop " + merged.RoundSessionID().Key().String(), "stop " + legacy.SessionID().Key().String()}
 	if got := slices.DeleteFunc(slices.Clone(w.fs.events), func(e string) bool { return !strings.HasPrefix(e, "stop ") }); !slices.Equal(got, want) {
 		t.Errorf("stopped %q, want %q", got, want)
 	}
@@ -949,7 +955,7 @@ func TestTickClosedPRFreesItsSlot(t *testing.T) {
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if len(w.started) != 1 || !slices.Contains(w.started[0], owed.RoundSessionID()) {
+	if len(w.started) != 1 || !slices.Contains(w.started[0], owed.RoundSessionID().String()) {
 		t.Errorf("started %q, want the owed round on #43", w.started)
 	}
 }
@@ -961,7 +967,7 @@ func TestTickSweepLeavesWhatItCannotRead(t *testing.T) {
 	for name, set := range map[string]func(w *tickWorld, pr PR){
 		"roster":  func(w *tickWorld, _ PR) { w.fs.unreadable = true },
 		"github":  func(w *tickWorld, _ PR) { w.gh.baseErr = map[int]error{42: errors.New("502")} },
-		"locked":  func(w *tickWorld, pr PR) { w.locked[pr.SessionID()] = true },
+		"locked":  func(w *tickWorld, pr PR) { w.locked[pr.SessionID().String()] = true },
 		"dry run": func(w *tickWorld, _ PR) { w.h.dry = true },
 	} {
 		w := newTickWorld(t)
@@ -976,7 +982,7 @@ func TestTickSweepLeavesWhatItCannotRead(t *testing.T) {
 		if unread, _ := w.h.ledger.UnreadRounds(); len(unread) != 1 {
 			t.Errorf("%s: the round was settled: %+v", name, unread)
 		}
-		if name == "dry run" && !strings.Contains(w.out.String(), "would stop worker "+pr.RoundSessionID()[:8]+" on https://github.com/acme/widgets/pull/42") {
+		if name == "dry run" && !strings.Contains(w.out.String(), "would stop worker "+pr.RoundSessionID().Key().String()+" on https://github.com/acme/widgets/pull/42") {
 			t.Errorf("dry run said %q", w.out.String())
 		}
 	}

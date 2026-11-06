@@ -4,6 +4,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // TestUnattendedArgsArePinned fails on any change to what a round may do.
@@ -18,7 +20,7 @@ func TestUnattendedArgsArePinned(t *testing.T) {
 		"--strict-mcp-config",
 		"--allowedTools",
 		"Read(./**)", "Grep(./**)", "Glob(./**)",
-		"Read(~/.claude/projects/*/" + id + "/tool-results/**)",
+		"Read(~/.claude/projects/*/" + id.String() + "/tool-results/**)",
 		"Bash(gh pr view 42 -R acme/widgets)", "Bash(gh pr diff 42 -R acme/widgets)",
 		"Bash(git fetch upstream pull/42/head)", "Bash(git rev-parse FETCH_HEAD)",
 		"Bash(claude-review threads https://github.com/acme/widgets/pull/42)",
@@ -47,12 +49,12 @@ func TestUnattendedArgsArePinned(t *testing.T) {
 		prompt := BuildPrompt(Config{PostWithoutAsking: true}, widgetsPR, "upstream", resume) +
 			"\n\nThis round runs unattended, and a command it is not allowed is refused, not asked about. Run one command per Bash call: no `;`, `&&`, `|` or redirection, and no `git -C` (the session already runs in the clone). Get the PR head with `git fetch upstream pull/42/head` and `git rev-parse FETCH_HEAD`, never `git ls-remote`. Read the PR's code with `claude-review show https://github.com/acme/widgets/pull/42 <path>`, `claude-review grep https://github.com/acme/widgets/pull/42 <text>` and `claude-review diff https://github.com/acme/widgets/pull/42`; raw `git show`, `git diff`, `git log` and `git grep` are refused. A refused command stays refused: work without it, or end with the question line."
 		// The prompt sits before the tool lists, which would swallow it.
-		first := append(append([]string{"claude", "--bg"}, flags[:5]...), "--resume", id, prompt)
+		first := append(append([]string{"claude", "--bg"}, flags[:5]...), "--resume", id.String(), prompt)
 		first = append(first, flags[5:]...)
 		if got := RoundArgs(Config{}, widgetsPR, "upstream", resume); !slices.Equal(got, first) {
 			t.Errorf("resume=%v: first launch changed:\ngot  %q\nwant %q", resume, got, first)
 		}
-		later := []string{"claude", "--bg", "--resume", id, prompt}
+		later := []string{"claude", "--bg", "--resume", id.String(), prompt}
 		if got := ResumeArgs(Config{}, widgetsPR, "upstream", resume); !slices.Equal(got, later) {
 			t.Errorf("resume=%v: later launches must carry no flags:\ngot  %q\nwant %q", resume, got, later)
 		}
@@ -66,7 +68,7 @@ func TestUnattendedArgsArePinned(t *testing.T) {
 // A policy version names a new session: one saved under older flags is
 // never resumed, and the old history stays in the old session.
 func TestRoundSessionIDIsVersioned(t *testing.T) {
-	if got := widgetsPR.RoundSessionID(); got != uuidV5(urlNamespace, widgetsPR.URL()+" round-policy "+policyVersion) || got == widgetsPR.SessionID() {
+	if got := widgetsPR.RoundSessionID(); got != ids.SessionFor(widgetsPR.URL()+" round-policy "+policyVersion) || got == widgetsPR.SessionID() {
 		t.Errorf("round session id %s", got)
 	}
 	if policyVersion != "4" {

@@ -6,13 +6,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // LastMessage is the text of the session's last assistant message, from its
 // transcript under claudeDir: where a round says how it ended. Subagent
 // (sidechain) turns and tool calls are skipped. "" when there is none.
-func LastMessage(claudeDir, id string) (string, error) {
-	matches, err := filepath.Glob(filepath.Join(claudeDir, "projects", "*", id+".jsonl"))
+func LastMessage(claudeDir string, id ids.SessionID) (string, error) {
+	matches, err := filepath.Glob(filepath.Join(claudeDir, "projects", "*", id.String()+".jsonl"))
 	if err != nil || len(matches) == 0 {
 		return "", err
 	}

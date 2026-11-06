@@ -41,7 +41,7 @@ func TestPropSessionIdsAreVersion5AndDistinct(t *testing.T) {
 		a := PR{Owner: nameGen.Draw(t, "o"), Repo: nameGen.Draw(t, "r"), Number: rapid.IntRange(1, 1000).Draw(t, "n")}
 		b := a
 		b.Number++
-		if !uuidV5Shape.MatchString(a.SessionID()) {
+		if !uuidV5Shape.MatchString(a.SessionID().String()) {
 			t.Fatalf("not a v5 uuid: %s", a.SessionID())
 		}
 		if a.SessionID() == b.SessionID() {

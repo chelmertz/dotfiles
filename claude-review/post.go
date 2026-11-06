@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // retryWindow is how recent an identical comment or review must be to count
@@ -110,7 +112,8 @@ func runPostText(args []string, gh Gh, spend spendFunc, environ []string, stdout
 	path := fs.String("path", "", "inline: file path in the PR")
 	line := fs.Int("line", 0, "inline: line number in the file (new file for RIGHT, old file for LEFT)")
 	side := fs.String("side", "RIGHT", "inline: RIGHT (new code) or LEFT (old code)")
-	to := fs.Int64("to", 0, "reply: id of the review comment to answer, from `claude-review threads`")
+	var to ids.CommentID
+	fs.Var(&to, "to", "reply: id of the review comment to answer, from `claude-review threads`")
 	at := fs.String("at", "", "inline, review: full sha of the reviewed commit (git rev-parse FETCH_HEAD)")
 	if err := fs.Parse(args[2:]); err != nil {
 		return 2
@@ -123,7 +126,7 @@ func runPostText(args []string, gh Gh, spend spendFunc, environ []string, stdout
 		fmt.Fprintf(stderr, "claude-review post: the body holds the value of $%s; not posted\n", name)
 		return 1
 	}
-	in := postInput{pr: pr, kind: kind, body: sign(*body), path: *path, line: *line, side: *side, to: *to, at: *at}
+	in := postInput{pr: pr, kind: kind, body: sign(*body), path: *path, line: *line, side: *side, to: to, at: *at}
 	if err := in.validate(); err != nil {
 		fmt.Fprintln(stderr, "claude-review post:", err)
 		fs.Usage()
@@ -164,7 +167,7 @@ func runPostText(args []string, gh Gh, spend spendFunc, environ []string, stdout
 }
 
 // slot is the budget slot this post spends and its limit.
-func (in postInput) slot(root, last int64) (string, int) {
+func (in postInput) slot(root, last ids.CommentID) (string, int) {
 	switch in.kind {
 	case kindReview:
 		return postSlotSummary, summaryPostLimit
@@ -172,7 +175,7 @@ func (in postInput) slot(root, last int64) (string, int) {
 		// One answer per comment from the other side, at a commit: a second
 		// author reply gets its answer, and our own replies, signed, never
 		// open a slot, so a round cannot keep answering itself.
-		return fmt.Sprintf("thread %d after %d", root, last), threadPostLimit
+		return fmt.Sprintf("thread %s after %s", root, last), threadPostLimit
 	}
 	return postSlotNew, newPostLimit
 }
@@ -220,7 +223,7 @@ type postInput struct {
 	kind, body, path, side string
 	at                     string
 	line                   int
-	to                     int64
+	to                     ids.CommentID
 }
 
 // validate checks the per-kind arguments before anything touches GitHub.
@@ -239,7 +242,7 @@ func (in postInput) validate() error {
 		}
 		return nil
 	case kindReply:
-		if in.to <= 0 {
+		if in.to.IsZero() {
 			return errors.New("reply needs --to with the id of a review comment")
 		}
 		return nil
@@ -254,28 +257,30 @@ func (in postInput) validate() error {
 // A PR-level comment or review has no place, so only one from the last
 // retryWindow counts: a later round may repeat a short summary. For a
 // reply it also returns the thread's root and its latest unsigned comment.
-func (in postInput) existing(gh Gh) (url string, root, last int64, err error) {
-	api := fmt.Sprintf("repos/%s/%s", in.pr.Owner, in.pr.Repo)
-	endpoint := map[string]string{
-		kindComment: issueComments,
-		kindReview:  reviews,
-		kindInline:  reviewComments,
-		kindReply:   reviewComments,
-	}[in.kind]
-	items, err := ghList(gh, api+"/"+fmt.Sprintf(endpoint, in.pr.Number))
+func (in postInput) existing(gh Gh) (url string, root, last ids.CommentID, err error) {
+	api := fmt.Sprintf("repos/%s/%s/", in.pr.Owner, in.pr.Repo)
+	switch in.kind {
+	case kindComment:
+		url, err = recentCopy[ids.IssueCommentID](gh, api+fmt.Sprintf(issueComments, in.pr.Number), in.body)
+		return url, root, last, err
+	case kindReview:
+		url, err = recentCopy[ids.ReviewID](gh, api+fmt.Sprintf(reviews, in.pr.Number), in.body)
+		return url, root, last, err
+	}
+	items, err := ghList[ids.CommentID](gh, api+fmt.Sprintf(reviewComments, in.pr.Number))
 	if err != nil {
-		return "", 0, 0, err
+		return "", root, last, err
 	}
 	// GitHub files a reply to a reply under the thread's root comment, so
 	// --to with any comment in the thread must look for the root.
 	root = in.to
 	for _, c := range items {
-		if c.ID == in.to && c.InReplyTo != 0 {
+		if c.ID == in.to && !c.InReplyTo.IsZero() {
 			root = c.InReplyTo
 		}
 	}
 	for _, c := range items {
-		if (c.ID == root || c.InReplyTo == root) && !signed(c.Body) && c.ID > last {
+		if (c.ID == root || c.InReplyTo == root) && !signed(c.Body) && last.Before(c.ID) {
 			last = c.ID
 		}
 	}
@@ -287,22 +292,34 @@ func (in postInput) existing(gh Gh) (url string, root, last int64, err error) {
 	return "", root, last, nil
 }
 
-// sameAs reports whether c is this post already made: the same signed body
-// in the same place. root is the thread a reply goes to.
-func (in postInput) sameAs(c ghItem, root int64) bool {
+// recentCopy is the URL of an item at endpoint with body from the last
+// retryWindow, or "".
+func recentCopy[I any](gh Gh, endpoint, body string) (string, error) {
+	items, err := ghList[I](gh, endpoint)
+	if err != nil {
+		return "", err
+	}
+	for _, c := range items {
+		if c.Body == body && c.recent() {
+			return c.HTMLURL, nil
+		}
+	}
+	return "", nil
+}
+
+// sameAs reports whether review comment c is this inline comment or reply
+// already made: the same signed body in the same place. root is the thread
+// a reply goes to.
+func (in postInput) sameAs(c ghItem[ids.CommentID], root ids.CommentID) bool {
 	if c.Body != in.body {
 		return false
 	}
-	switch in.kind {
-	case kindInline:
-		// Line is GitHub's mapping onto the current head and moves with
-		// pushes; a retry matches where the comment was made.
-		return c.Path == in.path && c.OriginalCommitID == in.at && c.OriginalLine == in.line && c.Side == in.side && c.InReplyTo == 0
-	case kindReply:
+	if in.kind == kindReply {
 		return c.InReplyTo == root
-	default: // comment or review
-		return c.recent()
 	}
+	// Line is GitHub's mapping onto the current head and moves with
+	// pushes; a retry matches where the comment was made.
+	return c.Path == in.path && c.OriginalCommitID == in.at && c.OriginalLine == in.line && c.Side == in.side && c.InReplyTo.IsZero()
 }
 
 // send performs the gh calls for one post and returns gh's last output.
@@ -324,7 +341,7 @@ func (in postInput) send(gh Gh) (string, error) {
 			"-f", "body="+in.body, "-f", "commit_id="+in.at, "-f", "path="+in.path,
 			"-F", "line="+strconv.Itoa(in.line), "-f", "side="+in.side)
 	default: // reply; validate admits nothing else
-		return gh("api", "-X", "POST", fmt.Sprintf("%s/pulls/%d/comments/%d/replies", api, in.pr.Number, in.to), "-f", "body="+in.body)
+		return gh("api", "-X", "POST", fmt.Sprintf("%s/pulls/%d/comments/%s/replies", api, in.pr.Number, in.to), "-f", "body="+in.body)
 	}
 }
 
@@ -388,16 +405,17 @@ func htmlURL(out string) string {
 }
 
 // ghItem is the subset of a GitHub comment or review that threads and the
-// duplicate check read.
-type ghItem struct {
-	ID   int64  `json:"id"`
+// duplicate check read. I is its kind of id: GitHub numbers reviews,
+// review comments and PR-level comments apart.
+type ghItem[I any] struct {
+	ID   I      `json:"id"`
 	Body string `json:"body"`
 	Path string `json:"path"`
 	Line int    `json:"line"`
 	// OriginalLine is where an outdated comment sat; Line is then null.
 	OriginalLine     int    `json:"original_line"`
 	OriginalCommitID string `json:"original_commit_id"`
-	InReplyTo        int64  `json:"in_reply_to_id"`
+	InReplyTo        I      `json:"in_reply_to_id"`
 	Side             string `json:"side"`
 	// CreatedAt dates a comment, SubmittedAt a review. Only a recent copy
 	// is a retry; an older one is an earlier round saying the same thing.
@@ -414,7 +432,7 @@ type ghItem struct {
 }
 
 // recent is an item dated within retryWindow; each kind sets one date.
-func (c ghItem) recent() bool {
+func (c ghItem[I]) recent() bool {
 	return time.Since(c.CreatedAt) <= retryWindow || time.Since(c.SubmittedAt) <= retryWindow
 }
 
@@ -422,15 +440,15 @@ const paginate = "--paginate"
 
 // ghList reads every page of a GitHub list endpoint. `gh api --paginate`
 // prints one JSON array per page, back to back.
-func ghList(gh Gh, endpoint string) ([]ghItem, error) {
+func ghList[I any](gh Gh, endpoint string) ([]ghItem[I], error) {
 	out, err := gh("api", paginate, endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w\n%s", endpoint, err, strings.TrimSpace(out))
 	}
-	var all []ghItem
+	var all []ghItem[I]
 	dec := json.NewDecoder(strings.NewReader(out))
 	for dec.More() {
-		var page []ghItem
+		var page []ghItem[I]
 		if err := dec.Decode(&page); err != nil {
 			return nil, fmt.Errorf("%s: %w", endpoint, err)
 		}

@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // defaultPrompt is the first-round review prompt. {url}, {number}, {repo}
@@ -75,7 +77,7 @@ func BuildPrompt(cfg Config, pr PR, remote string, resume bool) string {
 
 // BootstrapArgs is the headless command that creates the session.
 func BootstrapArgs(pr PR) []string {
-	return []string{claudeCmd, "-p", flagSessionID, pr.SessionID(), "-n", "PR: " + pr.Slug(), flagMaxTurns, "1", fill(pr, "", bootstrapPrompt)}
+	return []string{claudeCmd, "-p", flagSessionID, pr.SessionID().String(), "-n", "PR: " + pr.Slug(), flagMaxTurns, "1", fill(pr, "", bootstrapPrompt)}
 }
 
 // ReviewArgs is the command for one click, run after the session exists:
@@ -91,7 +93,7 @@ func ReviewArgs(cfg Config, pr PR, remote string, resume, detached bool) []strin
 	if detached {
 		args = append(args, flagBg)
 	}
-	args = append(args, "--resume", pr.SessionID(), BuildPrompt(cfg, pr, remote, resume))
+	args = append(args, "--resume", pr.SessionID().String(), BuildPrompt(cfg, pr, remote, resume))
 	args = append(append(args, "--allowedTools", threadsRule(pr)), readRules(pr)...)
 	if cfg.PostWithoutAsking {
 		// One rule, pinned to the PR, for a tool with no file-reading flag.
@@ -103,6 +105,6 @@ func ReviewArgs(cfg Config, pr PR, remote string, resume, detached bool) []strin
 }
 
 // AttachArgs opens a worker that is already running in the background.
-func AttachArgs(key WorkerKey) []string {
-	return []string{claudeCmd, "attach", string(key)}
+func AttachArgs(key ids.WorkerKey) []string {
+	return []string{claudeCmd, "attach", key.String()}
 }

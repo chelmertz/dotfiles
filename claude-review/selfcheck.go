@@ -1,12 +1,13 @@
 package main
 
 import (
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // selfChecker checks, in a scratch repo, the Claude Code behaviour every
@@ -20,7 +21,7 @@ type selfChecker struct {
 	sess  Sessions
 	run   func(dir string, argv []string) (string, error)
 	trust func(dir string) error
-	newID func() string
+	newID func() ids.SessionID
 	dir   string
 	sleep func(time.Duration)
 }
@@ -50,15 +51,15 @@ func (c selfChecker) check() (err error) {
 	}
 	id := c.newID()
 	defer func() { err = errors.Join(err, c.cleanup(id)) }()
-	boot := append([]string{claudeCmd, "-p", flagSessionID, id, flagMaxTurns, "1"}, selfCheckFlags[:policyHead]...)
+	boot := append([]string{claudeCmd, "-p", flagSessionID, id.String(), flagMaxTurns, "1"}, selfCheckFlags[:policyHead]...)
 	if err := c.cmd(append(boot, selfCheckPrompt)...); err != nil {
 		return fmt.Errorf("creating the session: %w", err)
 	}
 	// The same launch a round makes: the flags on the first background
 	// launch, none after it, and only when the saved options match.
-	first := append(append([]string{claudeCmd, flagBg}, selfCheckFlags[:policyHead]...), "--resume", id, selfCheckPrompt)
+	first := append(append([]string{claudeCmd, flagBg}, selfCheckFlags[:policyHead]...), "--resume", id.String(), selfCheckPrompt)
 	first = append(first, selfCheckFlags[policyHead:]...)
-	later := []string{claudeCmd, flagBg, "--resume", id, selfCheckPrompt}
+	later := []string{claudeCmd, flagBg, "--resume", id.String(), selfCheckPrompt}
 	for _, what := range []string{"a first background round", "a resume after stop"} {
 		argv, err := c.sess.LaunchArgv(id, selfCheckFlags, first, later)
 		if err != nil {
@@ -87,7 +88,7 @@ func relaunchWords(res RelaunchResult) string {
 	return what + " (" + res.Detail + ")"
 }
 
-func (c selfChecker) waitDone(id string) error {
+func (c selfChecker) waitDone(id ids.SessionID) error {
 	for range donePolls {
 		if c.sess.JobState(id) == jobDone {
 			return nil
@@ -98,7 +99,7 @@ func (c selfChecker) waitDone(id string) error {
 }
 
 // cleanup stops every worker the check left for id, a fork included.
-func (c selfChecker) cleanup(id string) error {
+func (c selfChecker) cleanup(id ids.SessionID) error {
 	all, err := c.sess.Roster()
 	if err != nil {
 		return err
@@ -115,13 +116,4 @@ func (c selfChecker) cmd(argv ...string) error {
 		return fmt.Errorf("%s: %s", argv[0], lastLineOr(out, err.Error()))
 	}
 	return nil
-}
-
-// randomUUID is a version 4 UUID for the self-check's throwaway session.
-func randomUUID() string {
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	b[6] = (b[6] & 0x0f) | 0x40
-	b[8] = (b[8] & 0x3f) | 0x80
-	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }

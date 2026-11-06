@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // PR identifies one GitHub pull request.
@@ -81,31 +83,28 @@ func (p PR) Slug() string {
 	return fmt.Sprintf("%s/%s#%d", p.Owner, p.Repo, p.Number)
 }
 
-// urlNamespace is the RFC 4122 namespace for URLs.
-const urlNamespace = "6ba7b811-9dad-11d1-80b4-00c04fd430c8"
-
 // SessionID is the Claude Code session id for this PR: UUIDv5 of the
 // canonical URL. Deterministic, so a second click resumes the first click's
 // session without any state kept by this tool.
-func (p PR) SessionID() string {
-	return uuidV5(urlNamespace, p.URL())
+func (p PR) SessionID() ids.SessionID {
+	return ids.SessionFor(p.URL())
 }
 
 // RoundSessionID is the PR's background round session, under the round
 // policy policyVersion: a new version names a new session, so one saved
 // under older flags is never resumed. The window path keeps SessionID.
-func (p PR) RoundSessionID() string {
-	return uuidV5(urlNamespace, p.URL()+" round-policy "+policyVersion)
+func (p PR) RoundSessionID() ids.SessionID {
+	return ids.SessionFor(p.URL() + " round-policy " + policyVersion)
 }
 
 // workerIDs are every session id a background worker of the PR may run
 // under: its round session under each policy version up to the current
 // one, and its window session, where rounds ran before round sessions.
-func (p PR) workerIDs() []string {
-	ids := []string{p.SessionID()}
+func (p PR) workerIDs() []ids.SessionID {
+	out := []ids.SessionID{p.SessionID()}
 	n, _ := strconv.Atoi(policyVersion)
 	for v := 1; v <= n; v++ {
-		ids = append(ids, uuidV5(urlNamespace, p.URL()+" round-policy "+strconv.Itoa(v)))
+		out = append(out, ids.SessionFor(p.URL()+" round-policy "+strconv.Itoa(v)))
 	}
-	return ids
+	return out
 }

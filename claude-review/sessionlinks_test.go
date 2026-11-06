@@ -88,14 +88,14 @@ func TestIndexSessions(t *testing.T) {
 		strings.TrimSuffix(transcriptLine(t, bashCall(reader, "2026-11-04T10:00:00Z", "gh pr review "+pr+" -c -b y")), "\n"))
 	writeTranscript(t, filepath.Join(dir, "projects", "-c", reader, "subagents", "agent-x.jsonl"),
 		transcriptLine(t, bashCall(reader, "2026-11-05T10:00:00Z", "gh pr review "+pr+" -c -b z")))
-	writeTranscript(t, filepath.Join(dir, "projects", "-d", round+".jsonl"),
-		transcriptLine(t, bashCall(round, "2026-11-06T10:00:00Z", "gh pr review "+pr+" -c -b r")))
+	writeTranscript(t, filepath.Join(dir, "projects", "-d", round.String()+".jsonl"),
+		transcriptLine(t, bashCall(round.String(), "2026-11-06T10:00:00Z", "gh pr review "+pr+" -c -b r")))
 
 	hits, err := IndexSessions(dir, isRoundSession)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if h := hits[pr]; h.ID != review || !h.At.Equal(time.Date(2026, 11, 2, 10, 0, 0, 0, time.UTC)) {
+	if h := hits[pr]; h.ID != mustSession(review) || !h.At.Equal(time.Date(2026, 11, 2, 10, 0, 0, 0, time.UTC)) {
 		t.Errorf("%s: got %+v, want the review session", pr, h)
 	}
 	if h, ok := hits[other]; ok {
@@ -106,7 +106,7 @@ func TestIndexSessions(t *testing.T) {
 // Every listed PR with a session gets an info link to it, under its own
 // source; a PR without one gets nothing.
 func TestLinkSessions(t *testing.T) {
-	const id = "11111111-1111-1111-1111-111111111111"
+	id := mustSession("11111111-1111-1111-1111-111111111111")
 	e := &fakeElly{}
 	h := tickHost{elly: e, now: time.Now, out: &strings.Builder{},
 		sessionIndex: func() (map[string]SessionHit, error) {
@@ -114,7 +114,7 @@ func TestLinkSessions(t *testing.T) {
 		}}
 	h.linkSessions([]EllyPR{{Url: widgetsPR.URL()}, {Url: "https://github.com/acme/widgets/pull/43"}})
 	got, ok := e.sourced["claude-session "+widgetsPR.URL()]
-	if !ok || got.State != "info" || len(got.Links) != 1 || got.Links[0].URL != "claude-resume://"+id {
+	if !ok || got.State != "info" || len(got.Links) != 1 || got.Links[0].URL != "claude-resume://"+id.String() {
 		t.Errorf("got %+v", e.sourced)
 	}
 	if len(e.sourced) != 1 {

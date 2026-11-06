@@ -8,14 +8,16 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // SessionExists reports whether Claude Code has a transcript for id under
 // any project in claudeDir (normally ~/.claude). Transcripts live at
 // projects/<encoded cwd>/<id>.jsonl; the glob across projects mirrors how
 // `claude --resume <id>` searches, so a clone that moved still resumes.
-func SessionExists(claudeDir, id string) bool {
-	matches, _ := filepath.Glob(filepath.Join(claudeDir, "projects", "*", id+".jsonl"))
+func SessionExists(claudeDir string, id ids.SessionID) bool {
+	matches, _ := filepath.Glob(filepath.Join(claudeDir, "projects", "*", id.String()+".jsonl"))
 	return len(matches) > 0
 }
 
@@ -26,8 +28,8 @@ func SessionExists(claudeDir, id string) bool {
 // instead, where an unreadable roster means no launch.
 type roster struct {
 	Workers map[string]struct {
-		SessionID string `json:"sessionId"`
-		PID       int    `json:"pid"`
+		SessionID ids.SessionID `json:"sessionId"`
+		PID       int           `json:"pid"`
 	} `json:"workers"`
 }
 
@@ -44,7 +46,7 @@ type Live struct {
 // other live session, a terminal window or a `claude -p`, is only in
 // sessions/. A worker wins: it may have its own sessions/ entry too, and it
 // is the one kind that can be attached to.
-func SessionRunning(claudeDir, id string) Live {
+func SessionRunning(claudeDir string, id ids.SessionID) Live {
 	if pid := workerPID(claudeDir, id); pid > 0 {
 		return Live{PID: pid, Background: true}
 	}
@@ -52,7 +54,7 @@ func SessionRunning(claudeDir, id string) Live {
 }
 
 // workerPID is the live background worker for id from the roster, or 0.
-func workerPID(claudeDir, id string) int {
+func workerPID(claudeDir string, id ids.SessionID) int {
 	b, err := os.ReadFile(filepath.Join(claudeDir, "daemon", "roster.json")) //nolint:gosec // path under the user's own config dir
 	if err != nil {
 		return 0
@@ -75,14 +77,14 @@ func workerPID(claudeDir, id string) int {
 // may since belong to something else, hence procStart. Observed on 2.1.310:
 // a window started with `claude --resume <id>` records <id>, not a fresh id.
 type liveSession struct {
-	PID       int    `json:"pid"`
-	SessionID string `json:"sessionId"`
-	ProcStart string `json:"procStart"`
+	PID       int           `json:"pid"`
+	SessionID ids.SessionID `json:"sessionId"`
+	ProcStart string        `json:"procStart"`
 }
 
 // sessionPID is the live process sessions/ lists for id, or 0. Like the
 // roster, anything unreadable counts as not running.
-func sessionPID(claudeDir, id string) int {
+func sessionPID(claudeDir string, id ids.SessionID) int {
 	files, _ := filepath.Glob(filepath.Join(claudeDir, "sessions", "*.json"))
 	for _, f := range files {
 		b, err := os.ReadFile(f) //nolint:gosec // path under the user's own config dir
@@ -145,11 +147,11 @@ var processAlive = func(pid int) bool {
 // JobState is Claude Code's state for a background session's job, from
 // jobs/<short id>/state.json: "working", "blocked", "done", "stopped", or ""
 // when there is no readable job. Observed on 2.1.314.
-func JobState(claudeDir, id string) string {
-	if len(id) < 8 {
+func JobState(claudeDir string, id ids.SessionID) string {
+	if id.IsZero() {
 		return ""
 	}
-	b, err := os.ReadFile(filepath.Join(claudeDir, "jobs", id[:8], "state.json")) //nolint:gosec // path under the user's own config dir
+	b, err := os.ReadFile(filepath.Join(claudeDir, "jobs", id.Key().String(), "state.json")) //nolint:gosec // path under the user's own config dir
 	if err != nil {
 		return ""
 	}
@@ -168,7 +170,7 @@ func JobState(claudeDir, id string) string {
 // are not running; no readable state, or one never seen, counts as running.
 // An unreadable roster counts as running too. Any other live session, a
 // window or a `claude -p`, is running.
-func RoundRunning(claudeDir, id string) bool {
+func RoundRunning(claudeDir string, id ids.SessionID) bool {
 	if _, err := readRoster(claudeDir); err != nil {
 		return true
 	}

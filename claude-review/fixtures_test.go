@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // recordedRound is one fixture under testdata/rounds: a real round, recorded
@@ -39,10 +41,10 @@ type recordedWant struct {
 // is replaced, and an unrecorded call is an error.
 type fixtureGitHub struct {
 	GitHub
-	dismissed []int64
+	dismissed []ids.ReviewID
 }
 
-func (g *fixtureGitHub) Dismiss(_ PR, id int64, _ string) error {
+func (g *fixtureGitHub) Dismiss(_ PR, id ids.ReviewID, _ string) error {
 	g.dismissed = append(g.dismissed, id)
 	return nil
 }
@@ -92,9 +94,9 @@ func TestRecordedRounds(t *testing.T) {
 				ledger:      l,
 				elly:        &fakeElly{login: "me", put: map[string]Annotation{}},
 				gh:          gh,
-				running:     func(string) bool { return false },
-				blocked:     func(string) bool { return false },
-				lastMessage: func(string) (string, error) { return rr.LastMessage, nil },
+				running:     func(ids.SessionID) bool { return false },
+				blocked:     func(ids.SessionID) bool { return false },
+				lastMessage: func(ids.SessionID) (string, error) { return rr.LastMessage, nil },
 				findRepo:    func(PR) (string, string, error) { return "/clone", "upstream", nil },
 				start: func(_ string, argv []string) error {
 					started = append(started, argv)
@@ -105,7 +107,7 @@ func TestRecordedRounds(t *testing.T) {
 				out:       out,
 				lock:      func(string) (func(), error) { return func() {}, nil },
 				sess:      fs.sessions(),
-				exists:    func(string) bool { return true },
+				exists:    func(ids.SessionID) bool { return true },
 				trust:     func(string) error { return nil },
 				version:   func() (string, error) { return "2.1.314", nil },
 				selfCheck: func() error { return nil },

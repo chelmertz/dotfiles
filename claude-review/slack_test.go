@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // greenPR is a PR the gate lets through: open, mergeable, one passing check
@@ -51,7 +53,7 @@ func (h *slackHost) run(args ...string) int {
 		Stderr:        &h.stderr,
 		ClaudeDir:     "/claude",
 		Gh:            h.gh.run,
-		SessionExists: func(string, string) bool { return h.exists },
+		SessionExists: func(string, ids.SessionID) bool { return h.exists },
 		Capture: func(dir string, argv []string) (string, error) {
 			h.outputs = append(h.outputs, argv)
 			return h.reply, h.outErr
@@ -88,7 +90,7 @@ func TestSlack_GreenPRGetsALine(t *testing.T) {
 	sameArgv(t, "reviews", h.gh.calls[1], []string{api, paginate, reviewsURL})
 	sameArgv(t, "threads", h.gh.calls[2], []string{api, "graphql", paginate, "-F", "owner=acme", "-F", "name=widgets", "-F", "number=42", "-f", "query=" + threadsQuery})
 	argv := h.outputs[0]
-	sameArgv(t, "claude", append(argv[:8:8], argv[9:]...), []string{claudeBin, "-p", resume, widgetsPR.SessionID(), "--no-session-persistence", "--strict-mcp-config", "--max-turns", "1", "--tools", ""})
+	sameArgv(t, "claude", append(argv[:8:8], argv[9:]...), []string{claudeBin, "-p", resume, widgetsPR.SessionID().String(), "--no-session-persistence", "--strict-mcp-config", "--max-turns", "1", "--tools", ""})
 	prompt := argv[8]
 	for _, want := range []string{
 		"pings the reviewer about " + prURL + ":",
@@ -167,7 +169,7 @@ func TestSlack_DryRunPrintsTheCommand(t *testing.T) {
 	if code := h.run(dryRunFlag, prURL); code != 0 || len(h.outputs) != 0 {
 		t.Fatalf("code %d claude runs %d", code, len(h.outputs))
 	}
-	if out := h.stdout.String(); !strings.HasPrefix(out, "'claude' '-p' '--resume' '"+widgetsPR.SessionID()+"' ") || !strings.HasSuffix(out, " '--tools' ''\n") {
+	if out := h.stdout.String(); !strings.HasPrefix(out, "'claude' '-p' '--resume' '"+widgetsPR.SessionID().String()+"' ") || !strings.HasSuffix(out, " '--tools' ''\n") {
 		t.Errorf("stdout %q", out)
 	}
 }

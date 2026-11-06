@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // sessionSource is the elly annotation that links a PR to the Claude session
@@ -22,7 +24,7 @@ const sessionLinkTTL = time.Hour
 
 // SessionHit is the session that last acted on a PR, and when.
 type SessionHit struct {
-	ID string
+	ID ids.SessionID
 	At time.Time
 }
 
@@ -74,7 +76,7 @@ func actedOn(command string) []string {
 // not read; their reads are most of what they do. skip names session ids
 // that never count, such as claude-review's own rounds. Errors name the file
 // only: transcripts hold whatever the sessions saw.
-func IndexSessions(claudeDir string, skip func(prURL, id string) bool) (map[string]SessionHit, error) {
+func IndexSessions(claudeDir string, skip func(prURL string, id ids.SessionID) bool) (map[string]SessionHit, error) {
 	files, err := filepath.Glob(filepath.Join(claudeDir, "projects", "*", "*.jsonl"))
 	if err != nil {
 		return nil, err
@@ -92,7 +94,7 @@ func IndexSessions(claudeDir string, skip func(prURL, id string) bool) (map[stri
 	return hits, nil
 }
 
-func indexFile(path string, skip func(prURL, id string) bool, hits map[string]SessionHit) error {
+func indexFile(path string, skip func(prURL string, id ids.SessionID) bool, hits map[string]SessionHit) error {
 	f, err := os.Open(path) //nolint:gosec // a transcript under the user's own Claude dir
 	if err != nil {
 		return err
@@ -121,18 +123,18 @@ func worthDecoding(line []byte) bool {
 		(bytes.Contains(line, []byte("gh pr ")) || bytes.Contains(line, []byte("gh api ")))
 }
 
-func indexLine(line []byte, skip func(prURL, id string) bool, hits map[string]SessionHit) {
+func indexLine(line []byte, skip func(prURL string, id ids.SessionID) bool, hits map[string]SessionHit) {
 	var rec struct {
-		Type        string    `json:"type"`
-		SessionID   string    `json:"sessionId"`
-		Timestamp   time.Time `json:"timestamp"`
-		IsSidechain bool      `json:"isSidechain"`
-		PrURL       string    `json:"prUrl"`
+		Type        string        `json:"type"`
+		SessionID   ids.SessionID `json:"sessionId"`
+		Timestamp   time.Time     `json:"timestamp"`
+		IsSidechain bool          `json:"isSidechain"`
+		PrURL       string        `json:"prUrl"`
 		Message     struct {
 			Content json.RawMessage `json:"content"`
 		} `json:"message"`
 	}
-	if json.Unmarshal(line, &rec) != nil || rec.IsSidechain || rec.SessionID == "" || rec.Timestamp.IsZero() {
+	if json.Unmarshal(line, &rec) != nil || rec.IsSidechain || rec.SessionID.IsZero() || rec.Timestamp.IsZero() {
 		return
 	}
 	var prs []string
@@ -177,7 +179,7 @@ func bashWrites(content json.RawMessage) []string {
 
 // isRoundSession reports one of claude-review's own sessions for prURL: those
 // ran under the round policy and keep their own Attach link.
-func isRoundSession(prURL, id string) bool {
+func isRoundSession(prURL string, id ids.SessionID) bool {
 	pr, err := ParseTarget(prURL)
 	if err != nil {
 		return false
@@ -206,8 +208,8 @@ func (h tickHost) linkSessions(prs []EllyPR) {
 		if !ok {
 			continue
 		}
-		a := Annotation{State: "info", Links: []Link{{Label: "Session", URL: "claude-resume://" + hit.ID}}}
-		if err := h.do("link "+p.Url+" to session "+hit.ID, func() error { return h.elly.PutSource(sessionSource, p.Url, a, expires) }); err != nil {
+		a := Annotation{State: "info", Links: []Link{{Label: "Session", URL: "claude-resume://" + hit.ID.String()}}}
+		if err := h.do("link "+p.Url+" to session "+hit.ID.String(), func() error { return h.elly.PutSource(sessionSource, p.Url, a, expires) }); err != nil {
 			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", p.Url, err)
 		}
 	}

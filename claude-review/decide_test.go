@@ -152,11 +152,11 @@ func TestPlanTick(t *testing.T) {
 
 func TestDecide(t *testing.T) {
 	const head = "0123456789abcdef0123456789abcdef01234567"
-	round := Round{ID: 1, PR: widgetsPR.URL(), Head: head, StartedAt: t0}
+	round := Round{PR: widgetsPR.URL(), Head: head, StartedAt: t0}
 	approveLine := Outcome{Kind: OutcomeApprove, PrURL: widgetsPR.URL(), SHA: head}
 	open := RoundFacts{State: "open", Head: head}
 	approved := func(commit string) *Review {
-		return &Review{ID: 9, State: "APPROVED", CommitID: commit}
+		return &Review{ID: reviewID(9), State: "APPROVED", CommitID: commit}
 	}
 	roundReview := "https://github.com/acme/widgets/pull/42#pullrequestreview-5"
 
@@ -188,12 +188,12 @@ func TestDecide(t *testing.T) {
 		{"approve line but the head moved", round, approveLine, RoundFacts{State: "open", Head: "moved"},
 			func(d Decision) bool { return d.MintFor == "" }, "no Approve link"},
 		{"findings after the user's approval dismiss it", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 1, UserReview: approved("old"), RoundReviewURL: roundReview},
-			func(d Decision) bool { return d.DismissReviewID == 9 && d.Annotation.State == stateNeedsYou }, "dismiss + needs_you"},
+			func(d Decision) bool { return d.DismissReviewID == reviewID(9) && d.Annotation.State == stateNeedsYou }, "dismiss + needs_you"},
 		{"replies after the user's approval do not dismiss it", round, Outcome{}, RoundFacts{State: "open", Head: head, NewReplies: 2, UserReview: approved("old"), RoundReviewURL: roundReview},
-			func(d Decision) bool { return d.DismissReviewID == 0 && d.Annotation.State == stateHandled }, "no dismissal, handled"},
+			func(d Decision) bool { return d.DismissReviewID.IsZero() && d.Annotation.State == stateHandled }, "no dismissal, handled"},
 		// The user read the findings and approved anyway, before tick settled the round.
-		{"an approval given after the round started is not dismissed", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 1, UserReview: &Review{ID: 9, State: "APPROVED", CommitID: "old", SubmittedAt: t0.Add(time.Minute)}, RoundReviewURL: roundReview},
-			func(d Decision) bool { return d.DismissReviewID == 0 && d.Annotation.State == stateHandled }, "no dismissal, handled"},
+		{"an approval given after the round started is not dismissed", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 1, UserReview: &Review{ID: reviewID(9), State: "APPROVED", CommitID: "old", SubmittedAt: t0.Add(time.Minute)}, RoundReviewURL: roundReview},
+			func(d Decision) bool { return d.DismissReviewID.IsZero() && d.Annotation.State == stateHandled }, "no dismissal, handled"},
 		// The summary is posted last: without it the round was cut off
 		// (a shutdown, a crash) partway through posting, and resumes.
 		{"findings without a summary: interrupted, resumed", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 2},
@@ -203,7 +203,7 @@ func TestDecide(t *testing.T) {
 		// Inline comments and replies wait in a draft that the summary sends.
 		{"drafts without a summary: interrupted, resumed", round, Outcome{}, RoundFacts{State: "open", Head: head, UnsentDrafts: 2},
 			func(d Decision) bool { return d.Retry && d.Annotation == nil }, "retry"},
-		{"drafts cut off again: the user decides on them", Round{ID: 1, PR: round.PR, Head: head, Retries: 1}, Outcome{}, RoundFacts{State: "open", Head: head, UnsentDrafts: 2},
+		{"drafts cut off again: the user decides on them", Round{PR: round.PR, Head: head, Retries: 1}, Outcome{}, RoundFacts{State: "open", Head: head, UnsentDrafts: 2},
 			func(d Decision) bool {
 				return !d.Retry && d.Annotation.State == stateNeedsYou && strings.Contains(d.Annotation.Note, "2 unsent comments")
 			}, "needs_you naming the draft"},
@@ -211,16 +211,16 @@ func TestDecide(t *testing.T) {
 			func(d Decision) bool { return d.Retry }, "retry"},
 		{"approve line with comments in the draft: no Approve link", round, approveLine, RoundFacts{State: "open", Head: head, UnsentDrafts: 1},
 			func(d Decision) bool { return d.MintFor == "" }, "no Approve link"},
-		{"cut off again: stuck", Round{ID: 1, PR: round.PR, Head: head, Retries: 1}, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 2},
+		{"cut off again: stuck", Round{PR: round.PR, Head: head, Retries: 1}, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 2},
 			func(d Decision) bool {
 				return !d.Retry && d.Annotation.State == stateStuck && strings.Contains(d.Annotation.Note, "summary")
 			}, "stuck, names the missing summary"},
-		{"a refused post: stuck, held back", Round{ID: 1, PR: round.PR, Head: head, PostRefused: true}, approveLine, open,
+		{"a refused post: stuck, held back", Round{PR: round.PR, Head: head, PostRefused: true}, approveLine, open,
 			func(d Decision) bool {
 				return d.Ignore && d.MintFor == "" && d.Annotation.State == stateStuck && strings.Contains(d.Annotation.Note, "refused")
 			}, "stuck + ignore"},
 		{"findings with the approval at the current head do not dismiss", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 1, UserReview: approved(head), RoundReviewURL: roundReview},
-			func(d Decision) bool { return d.DismissReviewID == 0 }, "no dismissal"},
+			func(d Decision) bool { return d.DismissReviewID.IsZero() }, "no dismissal"},
 		{"question", round, Outcome{Kind: OutcomeQuestion}, open,
 			func(d Decision) bool {
 				return d.Annotation.State == stateNeedsYou && hasLink(d.Annotation, "attach") && d.Annotation.Note == "the round has a question for you"
@@ -237,7 +237,7 @@ func TestDecide(t *testing.T) {
 			func(d Decision) bool { return !d.Retry && d.Annotation != nil && d.Annotation.State == stateHandled }, "handled"},
 		{"nothing to show for it: retry once", round, Outcome{}, open,
 			func(d Decision) bool { return d.Retry && d.Annotation == nil }, "retry"},
-		{"nothing again: round failed", Round{ID: 1, PR: round.PR, Head: head, Retries: 1}, Outcome{}, open,
+		{"nothing again: round failed", Round{PR: round.PR, Head: head, Retries: 1}, Outcome{}, open,
 			func(d Decision) bool {
 				return !d.Retry && d.Annotation.State == stateStuck && strings.Contains(d.Annotation.Note, "failed")
 			}, "stuck failed"},

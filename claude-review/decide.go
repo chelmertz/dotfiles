@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // EllyPR is the part of a row of elly's GET /api/v0/prs that tick reads.
@@ -197,7 +199,7 @@ func needsFreshLook(pr PR, acc Acceptance, base, head string, g Gate) (bool, err
 
 // Review is the user's latest review on a PR.
 type Review struct {
-	ID          int64
+	ID          ids.ReviewID
 	State       string
 	CommitID    string
 	SubmittedAt time.Time
@@ -228,7 +230,7 @@ type Decision struct {
 	Clear           bool
 	Annotation      *Annotation
 	MintFor         string
-	DismissReviewID int64
+	DismissReviewID ids.ReviewID
 	Retry           bool
 	// Ignore holds the PR back from rounds until the user's next click.
 	Ignore bool
@@ -336,6 +338,6 @@ func verbURL(pr PR, verb string) string {
 }
 
 // approveURL carries the sha and the one-time token tick minted for it.
-func approveURL(pr PR, sha, token string) string {
-	return verbURL(pr, "approve") + "?at=" + sha + "&token=" + token
+func approveURL(pr PR, sha string, token ids.Token) string {
+	return verbURL(pr, "approve") + "?at=" + sha + "&token=" + token.String()
 }
