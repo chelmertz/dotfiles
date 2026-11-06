@@ -474,7 +474,7 @@ func TestRun_Detached_StillRunning_DoesNotForkACopy(t *testing.T) {
 		t.Errorf("must not start anything: %q %q", h.outputs, h.execs)
 	}
 	id := testPR.SessionID()
-	if !strings.Contains(h.stderr.String(), "still running as "+id+"; `claude attach "+id+"`") {
+	if !strings.Contains(h.stderr.String(), "still running as "+id+"; `claude attach "+id[:8]+"`") {
 		t.Errorf("stderr: %q", h.stderr.String())
 	}
 	if len(h.spawns) != 1 || !strings.Contains(h.spawns[0][4], "still running") {
