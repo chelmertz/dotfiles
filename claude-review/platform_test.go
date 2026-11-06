@@ -181,17 +181,17 @@ func TestSplitWords_TrailingBackslashInsideQuotesIsUnbalanced(t *testing.T) {
 
 func TestNotifyArgv(t *testing.T) {
 	got := notifyArgv("linux", "claude-review", "repo not found")
-	if strings.Join(got, "|") != "notify-send|--|claude-review|repo not found" {
+	if strings.Join(got, "|") != "notify-send|--app-name=Claude|--|claude-review|repo not found" {
 		t.Errorf("linux: %q", got)
 	}
 	// a daemon that renders markup (dunst, GNOME) must show a session's or
 	// a PR's text as text
 	got = notifyArgv("linux", "a <i>t</i>", `<b>bold</b> & <a href="x">y</a>`)
-	if strings.Join(got, "|") != "notify-send|--|a &lt;i&gt;t&lt;/i&gt;|&lt;b&gt;bold&lt;/b&gt; &amp; &lt;a href=&#34;x&#34;&gt;y&lt;/a&gt;" {
+	if strings.Join(got, "|") != "notify-send|--app-name=Claude|--|a &lt;i&gt;t&lt;/i&gt;|&lt;b&gt;bold&lt;/b&gt; &amp; &lt;a href=&#34;x&#34;&gt;y&lt;/a&gt;" {
 		t.Errorf("linux markup: %q", got)
 	}
 	// "--" ends the options, so a body that starts with a dash stays the body
-	if got = notifyArgv("linux", "-t1", "-u/x#1 ignored"); strings.Join(got, "|") != "notify-send|--|-t1|-u/x#1 ignored" {
+	if got = notifyArgv("linux", "-t1", "-u/x#1 ignored"); strings.Join(got, "|") != "notify-send|--app-name=Claude|--|-t1|-u/x#1 ignored" {
 		t.Errorf("linux, dash-led: %q", got)
 	}
 	got = notifyArgv("darwin", `t"1`, `say "hi" \ there`)

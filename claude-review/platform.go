@@ -132,5 +132,5 @@ func notifyArgv(goos, title, body string) []string {
 	// session's text as text, not restyle the card with it
 	// "--" ends the options: a body that starts with a dash (an owner in a
 	// link) stays the body
-	return []string{"notify-send", "--", html.EscapeString(title), html.EscapeString(body)}
+	return []string{"notify-send", "--app-name=Claude", "--", html.EscapeString(title), html.EscapeString(body)}
 }

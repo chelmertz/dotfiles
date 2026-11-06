@@ -253,7 +253,7 @@ func TestRun_RepoNotFound_NotifiesWhenNoTTY(t *testing.T) {
 	if !strings.Contains(h.stderr.String(), "repo not found") {
 		t.Errorf("stderr: %q", h.stderr.String())
 	}
-	if len(h.spawns) != 1 || strings.Join(h.spawns[0], "|") != "notify-send|--|claude-review|repo not found: nope\n  git clone x" {
+	if len(h.spawns) != 1 || strings.Join(h.spawns[0], "|") != "notify-send|--app-name=Claude|--|claude-review|repo not found: nope\n  git clone x" {
 		t.Errorf("notification: %q", h.spawns)
 	}
 }
@@ -331,7 +331,7 @@ func TestRun_Detached_FirstClick_BootstrapFailureIsReported(t *testing.T) {
 	if !strings.Contains(h.stderr.String(), "creating session for https://github.com/acme/widgets/pull/42: Workspace not trusted. Run `claude` in /x once") {
 		t.Errorf("stderr: %q", h.stderr.String())
 	}
-	if len(h.spawns) != 1 || !strings.Contains(h.spawns[0][3], "Workspace not trusted") || len(h.scripts) != 0 {
+	if len(h.spawns) != 1 || !strings.Contains(h.spawns[0][4], "Workspace not trusted") || len(h.scripts) != 0 {
 		t.Errorf("should only notify: spawns %q scripts %q", h.spawns, h.scripts)
 	}
 }
@@ -477,7 +477,7 @@ func TestRun_Detached_StillRunning_DoesNotForkACopy(t *testing.T) {
 	if !strings.Contains(h.stderr.String(), "still running as "+id+"; `claude attach "+id+"`") {
 		t.Errorf("stderr: %q", h.stderr.String())
 	}
-	if len(h.spawns) != 1 || !strings.Contains(h.spawns[0][3], "still running") {
+	if len(h.spawns) != 1 || !strings.Contains(h.spawns[0][4], "still running") {
 		t.Errorf("notification: %q", h.spawns)
 	}
 }
@@ -489,7 +489,7 @@ func TestRun_Detached_Failure(t *testing.T) {
 	if code := run([]string{target}, h.d); code != 1 || !strings.Contains(h.stderr.String(), "starting background session: Workspace not trusted. Run `claude` in /x once") {
 		t.Errorf("code %d stderr %q", code, h.stderr.String())
 	}
-	if len(h.spawns) != 1 || h.spawns[0][0] != "notify-send" || !strings.Contains(h.spawns[0][3], "Workspace not trusted") {
+	if len(h.spawns) != 1 || h.spawns[0][0] != "notify-send" || !strings.Contains(h.spawns[0][4], "Workspace not trusted") {
 		t.Errorf("should notify without a tty, with claude's last line: %q", h.spawns)
 	}
 }
@@ -507,7 +507,7 @@ func TestRun_Detached_FailureWithoutOutputShowsTheError(t *testing.T) {
 func TestFail_NotificationCarriesEveryLine(t *testing.T) {
 	h := newHost(t, "", true, false)
 	fail(h.d, errors.New("claude-review: line one\nline two"))
-	if strings.Join(h.spawns[0], "|") != "notify-send|--|claude-review|line one\nline two" {
+	if strings.Join(h.spawns[0], "|") != "notify-send|--app-name=Claude|--|claude-review|line one\nline two" {
 		t.Errorf("%q", h.spawns)
 	}
 	if h.stderr.String() != "claude-review: line one\nline two\n" {
@@ -533,7 +533,7 @@ func TestFail_NotFound_MiddleClickCopiesTheCommand(t *testing.T) {
 	if len(h.captures) != 2 {
 		t.Fatalf("captures: %q", h.captures)
 	}
-	if n := strings.Join(h.captures[0], "|"); !strings.HasPrefix(n, "notify-send|--action=default=Copy clone command|--|claude-review|") {
+	if n := strings.Join(h.captures[0], "|"); !strings.HasPrefix(n, "notify-send|--app-name=Claude|--action=default=Copy clone command|--|claude-review|") {
 		t.Errorf("notification: %q", n)
 	}
 	if c := h.captures[1]; c[0] != "sh" || !strings.Contains(c[2], "xclip -selection clipboard") || c[len(c)-1] != widgetsNotFound.Command() {
