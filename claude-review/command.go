@@ -103,6 +103,8 @@ func ReviewArgs(cfg Config, pr PR, remote string, resume, detached bool) []strin
 }
 
 // AttachArgs opens a session that is already running in the background.
-func AttachArgs(pr PR) []string {
-	return []string{claudeCmd, "attach", pr.SessionID()}
+// `claude attach` takes the roster key, the session id's first 8
+// characters; the full id matches no job.
+func AttachArgs(id string) []string {
+	return []string{claudeCmd, "attach", id[:8]}
 }

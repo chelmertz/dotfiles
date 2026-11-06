@@ -292,7 +292,7 @@ func TestRun_DryRun_LaterClickAndRunning(t *testing.T) {
 	h = newHost(t, "", true, true)
 	h.running = true
 	run([]string{dryRunFlag, target}, h.d)
-	if out := h.stdout.String(); out != shellLine(cloneOf, AttachArgs(testPR))+"\n" {
+	if out := h.stdout.String(); out != shellLine(cloneOf, AttachArgs(testPR.SessionID()))+"\n" {
 		t.Errorf("running: %q", out)
 	}
 }
@@ -355,7 +355,7 @@ func TestRun_LaterClick_RunningSession_Attaches(t *testing.T) {
 	if code := run([]string{target}, h.d); code != 0 {
 		t.Fatalf("code %d stderr %q", code, h.stderr.String())
 	}
-	if want := launcherScript(cloneOf, AttachArgs(testPR)); h.script(t) != want {
+	if want := launcherScript(cloneOf, AttachArgs(testPR.SessionID())); h.script(t) != want {
 		t.Errorf("script:\n%s", h.script(t))
 	}
 	if !strings.Contains(h.stderr.String(), "still running; attaching instead of resuming") {

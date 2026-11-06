@@ -104,7 +104,7 @@ func TestAttachVerbNeverResumes(t *testing.T) {
 		t.Fatalf("exit %d: %s", code, h.stderr)
 	}
 	script := strings.Join(mapValues(h.scripts), "\n")
-	if !strings.Contains(script, "attach'\\'' '\\''"+widgetsPR.RoundSessionID()) || strings.Contains(script, "--resume") {
+	if !strings.Contains(script, "attach'\\'' '\\''"+widgetsPR.RoundSessionID()[:8]+"'\\''") || strings.Contains(script, "--resume") {
 		t.Errorf("a live worker was not attached: %q", script)
 	}
 	h.locked = true

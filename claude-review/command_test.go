@@ -161,8 +161,10 @@ func indexOf(xs []string, x string) int {
 	return -1
 }
 
+// `claude attach` matches only the roster key, the id's first 8
+// characters; the full id fails with "No job matching" (2.1.314).
 func TestAttachArgs(t *testing.T) {
-	if got := strings.Join(AttachArgs(testPR), " "); got != "claude attach "+testPR.SessionID() {
+	if got := strings.Join(AttachArgs("7e9b0cb1-bf5d-5d6b-8227-689aa3d4f93c"), " "); got != "claude attach 7e9b0cb1" {
 		t.Errorf("got %q", got)
 	}
 }

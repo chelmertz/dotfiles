@@ -103,7 +103,7 @@ func attach(d Deps, cfg Config, pr PR) int {
 		if err != nil {
 			return fail(d, err)
 		}
-		if err := openTerminal(d, cfg, dir, [][]string{{claudeCmd, "attach", id}}, pr); err != nil {
+		if err := openTerminal(d, cfg, dir, [][]string{AttachArgs(id)}, pr); err != nil {
 			return fail(d, err)
 		}
 	case d.Sessions.WindowOpen(id):
