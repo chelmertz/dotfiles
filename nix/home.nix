@@ -1092,23 +1092,27 @@ in
         on_exit() {
           rc=$?
           if [ "$rc" -ne 0 ]; then
-            notify-send "claude-resume" "wrapper failed (exit=$rc)"
+            notify-send --app-name=Claude "Could not open the session" "exit $rc"
           fi
         }
         trap on_exit EXIT
+
+        # The folder as the permission notification names it: work
+        # projects and clones without their common prefix.
+        short() { sed -e "s|^$HOME/p/m/||" -e "s|^$HOME/code/matchi/||" -e "s|^$HOME|~|" <<<"$1"; }
 
         uri="''${1:-}"
         uuid="''${uri#claude-resume://}"
 
         case "$uuid" in
           [0-9a-f]*-*-*-*-*) ;;
-          *) notify-send "claude-resume" "invalid uri: $uri"; exit 1 ;;
+          *) notify-send --app-name=Claude "Not a session link" "$uri"; exit 1 ;;
         esac
 
         shopt -s nullglob
         matches=( "$HOME"/.claude/projects/*/"$uuid".jsonl )
         if [ ''${#matches[@]} -eq 0 ]; then
-          notify-send "claude-resume" "session $uuid not found"
+          notify-send --app-name=Claude "Session not found" "$uuid"
           exit 1
         fi
         match="''${matches[0]}"
@@ -1119,7 +1123,7 @@ in
         cwd=$(set +o pipefail; jq -r 'select(.cwd) | .cwd' "$match" 2>/dev/null | head -n 1)
 
         if [ -z "$cwd" ] || [ ! -d "$cwd" ]; then
-          notify-send "claude-resume" "session $uuid has unusable cwd: $cwd"
+          notify-send --app-name=Claude "Session folder is gone" "$cwd"
           exit 1
         fi
 
@@ -1130,7 +1134,7 @@ in
         for f in "$HOME"/.claude/sessions/*.json; do
           pid=$(jq -r --arg id "$uuid" 'select(.sessionId == $id) | .pid' "$f" 2>/dev/null || true)
           if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-            notify-send "claude-resume" "session $uuid is already open (pid $pid)"
+            notify-send --app-name=Claude "Session already open" "$(short "$cwd")"
             exit 0
           fi
         done
