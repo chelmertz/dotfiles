@@ -179,3 +179,5 @@ li[data-task="-"] {
   contain: none !important;
   overflow: visible !important;
 }
+/* Obsidian's .tooltip centres text; the date and link lines read better flush left. */
+.tasks-list-text .tooltip { text-align: left; }
