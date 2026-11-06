@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         GitHub → prr:// review link
 // @namespace    chelmertz/dotfiles
-// @version      1.1
+// @version      1.2
 // @description  Adds a "prr review" link to github PR pages that opens the prr:// scheme handler (bin/prr-open), launching `pr <owner>/<repo>/<number>` in ghostty.
 // @match        https://github.com/*/*/pull/*
 // @match        http://localhost:9876/*
+// @match        http://elly.localhost:9876/*
 // @run-at       document-idle
 // @grant        none
 // elly forbids inline page scripts (CSP); a content script is not one
@@ -83,6 +84,7 @@
 			github();
 			break;
 		case "localhost:9876":
+		case "elly.localhost:9876":
 			elly();
 			break;
 	}

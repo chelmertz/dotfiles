@@ -1742,7 +1742,7 @@ in
             labels:
               severity: warning
             annotations:
-              summary: "{{ $labels.service }} cannot authenticate. gh: gh auth login | elly: open http://localhost:9876 and paste a PAT"
+              summary: "{{ $labels.service }} cannot authenticate. gh: gh auth login | elly: open http://elly.localhost:9876 and paste a PAT"
 
           - alert: SystemdUserUnitFailed
             expr: systemd_user_unit_failed == 1
@@ -1977,7 +1977,7 @@ in
         # claude-review's own list, so elly offers Start exactly where tick runs
         repos=$(grep -v '^[[:space:]]*#' "$config/claude-review/review-repos" 2>/dev/null | tr -d ' \t' | grep . | paste -sd, - || true)
         exec ${pkgs.elly}/bin/elly "$@" -work-owners="$owners" -review-repos="$repos"
-      ''} -db %h/.local/share/elly/elly.db -notify -annotation-schemes=claude-review";
+      ''} -db %h/.local/share/elly/elly.db -notify -page-url=http://elly.localhost:9876 -annotation-schemes=claude-review";
       Restart = "on-failure";
     };
     Install = {

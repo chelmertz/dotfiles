@@ -165,6 +165,7 @@
   "attribution": {
     "sessionUrl": false
   },
+  "cleanupPeriodDays": 90,
   "theme": "custom:scheme",
   "outputStyle": "Terse",
   "tui": "fullscreen",
