@@ -62,7 +62,7 @@ func TestSessionRunning(t *testing.T) {
 	if SessionRunning(dir, sid).PID != 0 {
 		t.Fatal("dead pid: not running")
 	}
-	writeRoster(t, dir, fmt.Sprintf(`{"workers":{"aa": {"sessionId": %q, "pid": 100}}}`, sid))
+	writeRoster(t, dir, fmt.Sprintf(`{"workers":{%q: {"sessionId": %q, "pid": 100}}}`, sid[:8], sid))
 	if got := SessionRunning(dir, sid); got != (Live{PID: 100, Background: true}) {
 		t.Fatalf("live worker for this id: running in the background, got %+v", got)
 	}
@@ -136,7 +136,7 @@ func TestSessionRunning_WorkerWinsOverItsTerminalEntry(t *testing.T) {
 	defer func() { processAlive = old }()
 	processAlive = func(int) bool { return true }
 	dir := t.TempDir()
-	writeRoster(t, dir, fmt.Sprintf(`{"workers":{"aa": {"sessionId": %q, "pid": 100}}}`, sid))
+	writeRoster(t, dir, fmt.Sprintf(`{"workers":{%q: {"sessionId": %q, "pid": 100}}}`, sid[:8], sid))
 	writeLive(t, dir, 100, fmt.Sprintf(`{"pid":100,"sessionId":%q}`, sid))
 	if got := SessionRunning(dir, sid); got != (Live{PID: 100, Background: true}) {
 		t.Fatalf("a worker is attached to, got %+v", got)
@@ -240,7 +240,7 @@ func TestRoundRunning(t *testing.T) {
 	old := processAlive
 	defer func() { processAlive = old }()
 	processAlive = func(pid int) bool { return pid == 100 }
-	writeRoster(t, dir, fmt.Sprintf(`{"workers":{"aa": {"sessionId": %q, "pid": 100}}}`, sid))
+	writeRoster(t, dir, fmt.Sprintf(`{"workers":{%q: {"sessionId": %q, "pid": 100}}}`, sid[:8], sid))
 
 	if !RoundRunning(dir, sid) {
 		t.Error("a live worker with no job state must count as running")

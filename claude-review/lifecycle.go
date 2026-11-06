@@ -16,9 +16,8 @@ import (
 // Worker is one background worker in Claude Code's roster
 // (~/.claude/daemon/roster.json), as of 2.1.314.
 type Worker struct {
-	// Short is the roster key, the first 8 characters of the session id;
-	// `claude stop` and `claude attach` take it.
-	Short     string
+	// Short is the roster key; `claude stop` and `claude attach` take it.
+	Short     WorkerKey
 	SessionID string
 	PID       int
 	// ReplPID is the worker's own session process, which also has a
@@ -63,7 +62,11 @@ func readRoster(claudeDir string) ([]Worker, error) {
 	}
 	out := make([]Worker, 0, len(r.Workers))
 	for short, w := range r.Workers {
-		out = append(out, Worker{Short: short, SessionID: w.SessionID, PID: w.PID, ReplPID: w.ReplPID,
+		key, err := parseWorkerKey(short)
+		if err != nil {
+			return nil, fmt.Errorf("reading Claude Code's roster: %w", err)
+		}
+		out = append(out, Worker{Short: key, SessionID: w.SessionID, PID: w.PID, ReplPID: w.ReplPID,
 			Fork: w.Dispatch.Launch.Fork, LaunchID: w.Dispatch.Launch.SessionID})
 	}
 	return out, nil
@@ -79,8 +82,8 @@ type Sessions struct {
 	// interactive window, a `claude -p`, or a worker's own repl.
 	Window func(id string) int
 	Alive  func(pid int) bool
-	// Stop runs `claude stop <short>`; it returns before the pid ends.
-	Stop  func(short string) error
+	// Stop runs `claude stop <key>`; it returns before the pid ends.
+	Stop  func(key WorkerKey) error
 	Sleep func(time.Duration)
 	// Saved is the options id's background session was first launched
 	// with; ran is false when it never ran in the background.
@@ -276,7 +279,7 @@ func (s Sessions) stopAll(ws []Worker, why string) (RelaunchResult, error) {
 	var errs []error
 	shorts := make([]string, 0, len(ws))
 	for _, w := range ws {
-		shorts = append(shorts, w.Short)
+		shorts = append(shorts, string(w.Short))
 		errs = append(errs, s.stopAndWait(w))
 	}
 	return RelaunchResult{Kind: relaunchDuplicate, Detail: why + " (" + strings.Join(shorts, ", ") + "); stopped"}, errors.Join(errs...)
@@ -309,20 +312,41 @@ func (s Sessions) WindowOpen(id string) bool {
 	return err != nil || !ownedBy(pid, s.workersFor(id, all))
 }
 
-// shortID is a roster key as Claude Code writes it; anything else is not
-// passed to a shell.
-var shortID = regexp.MustCompile(`^[0-9a-f]{8}$`)
+// WorkerKey is a worker's roster key, the first 8 characters of its session
+// id. `claude attach` and `claude stop` take only this and fail on the full
+// session id ("No job matching", 2.1.314), so it is its own type: a session
+// id passed where a key belongs does not compile.
+type WorkerKey string
 
-// stopArgv is `claude stop <short>` under a pty: it refuses to run without
-// a terminal (2.1.314), and neither tick nor a click has one.
-func stopArgv(goos, short string) ([]string, error) {
-	if !shortID.MatchString(short) {
-		return nil, fmt.Errorf("not a worker id: %q", short)
+// workerKeyPattern is a roster key as Claude Code writes it; anything else
+// is not passed to a shell.
+var workerKeyPattern = regexp.MustCompile(`^[0-9a-f]{8}$`)
+
+func parseWorkerKey(s string) (WorkerKey, error) {
+	if !workerKeyPattern.MatchString(s) {
+		return "", fmt.Errorf("not a worker id: %q", s)
+	}
+	return WorkerKey(s), nil
+}
+
+// keyOf is the roster key a worker for session id would have, for a caller
+// that knows the session runs but holds no roster entry.
+func keyOf(id string) (WorkerKey, error) {
+	return parseWorkerKey(id[:min(8, len(id))])
+}
+
+// stopArgv is `claude stop <key>` under a pty: it refuses to run without
+// a terminal (2.1.314), and neither tick nor a click has one. The key is
+// checked again here, at the shell, whatever produced it.
+func stopArgv(goos string, key WorkerKey) ([]string, error) {
+	short, err := parseWorkerKey(string(key))
+	if err != nil {
+		return nil, err
 	}
 	if goos == darwin {
-		return []string{"script", "-q", "/dev/null", claudeCmd, "stop", short}, nil
+		return []string{"script", "-q", "/dev/null", claudeCmd, "stop", string(short)}, nil
 	}
-	return []string{"script", "-qec", claudeCmd + " stop " + short, "/dev/null"}, nil
+	return []string{"script", "-qec", claudeCmd + " stop " + string(short), "/dev/null"}, nil
 }
 
 // realSessions wires Sessions to Claude Code's files under claudeDir; run
@@ -334,8 +358,8 @@ func realSessions(claudeDir, goos string, run func(dir string, argv []string) (s
 		JobState: func(id string) string { return JobState(claudeDir, id) },
 		Window:   func(id string) int { return sessionPID(claudeDir, id) },
 		Alive:    func(pid int) bool { return processAlive(pid) },
-		Stop: func(short string) error {
-			argv, err := stopArgv(goos, short)
+		Stop: func(key WorkerKey) error {
+			argv, err := stopArgv(goos, key)
 			if err != nil {
 				return err
 			}

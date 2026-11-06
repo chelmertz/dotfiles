@@ -163,9 +163,14 @@ func indexOf(xs []string, x string) int {
 
 // `claude attach` matches only the roster key, the id's first 8
 // characters; the full id fails with "No job matching" (2.1.314).
-func TestAttachArgs(t *testing.T) {
-	if got := strings.Join(AttachArgs("7e9b0cb1-bf5d-5d6b-8227-689aa3d4f93c"), " "); got != "claude attach 7e9b0cb1" {
-		t.Errorf("got %q", got)
+func TestKeyOf(t *testing.T) {
+	if key, err := keyOf("7e9b0cb1-bf5d-5d6b-8227-689aa3d4f93c"); err != nil || key != "7e9b0cb1" {
+		t.Errorf("got %q %v", key, err)
+	}
+	for _, bad := range []string{"", "7e9b", "x; rm -rf ~"} {
+		if key, err := keyOf(bad); err == nil {
+			t.Errorf("%q gave key %q", bad, key)
+		}
 	}
 }
 

@@ -102,9 +102,7 @@ func ReviewArgs(cfg Config, pr PR, remote string, resume, detached bool) []strin
 	return append(append(args, "--disallowedTools"), denyRules...)
 }
 
-// AttachArgs opens a session that is already running in the background.
-// `claude attach` takes the roster key, the session id's first 8
-// characters; the full id matches no job.
-func AttachArgs(id string) []string {
-	return []string{claudeCmd, "attach", id[:8]}
+// AttachArgs opens a worker that is already running in the background.
+func AttachArgs(key WorkerKey) []string {
+	return []string{claudeCmd, "attach", string(key)}
 }

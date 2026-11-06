@@ -56,8 +56,8 @@ func (f *fakeSessions) sessions() Sessions {
 			}
 			return !f.dead[pid]
 		},
-		Stop: func(short string) error {
-			f.events = append(f.events, "stop "+short)
+		Stop: func(short WorkerKey) error {
+			f.events = append(f.events, "stop "+string(short))
 			if f.stopErr != nil {
 				return f.stopErr
 			}
@@ -98,7 +98,7 @@ func (f *fakeSessions) launch() error {
 }
 
 func workerFor(id string, pid int) Worker {
-	return Worker{Short: id[:8], SessionID: id, PID: pid, LaunchID: id}
+	return Worker{Short: WorkerKey(id[:8]), SessionID: id, PID: pid, LaunchID: id}
 }
 
 func TestRosterIsThreeValued(t *testing.T) {
@@ -110,6 +110,10 @@ func TestRosterIsThreeValued(t *testing.T) {
 	if _, err := readRoster(dir); err == nil {
 		t.Error("an unreadable roster read as empty")
 	}
+	writeRoster(t, dir, `{"workers":{"x; rm -rf ~": {"pid": 5, "sessionId": "x"}}}`)
+	if _, err := readRoster(dir); err == nil {
+		t.Error("a roster key that is no worker id was read")
+	}
 	writeRoster(t, dir, fmt.Sprintf(`{"workers":{
 	  "188e19ec": {"pid": 5, "replPid": 6, "sessionId": "188e19ec-0000", "dispatch": {"launch": {"sessionId": %q, "fork": true}}},
 	  "d2cc10f2": {"pid": 7, "sessionId": %q, "dispatch": {"launch": {"sessionId": %q, "fork": false}}}}}`, sid, sid, sid))
@@ -117,7 +121,7 @@ func TestRosterIsThreeValued(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	slices.SortFunc(ws, func(a, b Worker) int { return strings.Compare(a.Short, b.Short) })
+	slices.SortFunc(ws, func(a, b Worker) int { return strings.Compare(string(a.Short), string(b.Short)) })
 	want := []Worker{
 		{Short: "188e19ec", SessionID: "188e19ec-0000", PID: 5, ReplPID: 6, Fork: true, LaunchID: sid},
 		{Short: "d2cc10f2", SessionID: sid, PID: 7, LaunchID: sid},
@@ -245,7 +249,7 @@ func TestRelaunchStopsAForkOrASecondWorker(t *testing.T) {
 		if err != nil || res.Kind != relaunchDuplicate {
 			t.Errorf("%s: got %+v %v", name, res, err)
 		}
-		if !slices.Contains(f.events, "stop "+extra.Short) {
+		if !slices.Contains(f.events, "stop "+string(extra.Short)) {
 			t.Errorf("%s: the extra worker was not stopped: %q", name, f.events)
 		}
 	}
@@ -267,7 +271,7 @@ func TestRelaunchLeavesALegacyWindowAlone(t *testing.T) {
 	}
 	// A worker's own sessions/ entry is not a window.
 	f = newFakeSessions()
-	f.workers = []Worker{{Short: sid[:8], SessionID: sid, PID: 100, ReplPID: 4242, LaunchID: sid}}
+	f.workers = []Worker{{Short: WorkerKey(sid[:8]), SessionID: sid, PID: 100, ReplPID: 4242, LaunchID: sid}}
 	f.states[sid] = "working"
 	f.window = 4242
 	if res, _ := f.sessions().Relaunch(sid, f.settle, f.launch); res.Kind != relaunchBusy {

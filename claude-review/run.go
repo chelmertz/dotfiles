@@ -328,11 +328,16 @@ func planClick(d Deps, cfg Config, pr PR, remote string) (click, error) {
 		// A terminal window, or another click's bootstrap mid-turn. Neither
 		// takes an attach; the window is where the next round is asked for.
 		return click{}, fmt.Errorf("claude-review: %s is already open (pid %d); ask for a new round in that window", pr.URL(), live.PID)
-	case live.PID > 0 && detached:
-		// `--bg --resume` on a running session would start a copy.
-		return click{}, fmt.Errorf("claude-review: %s is still running as %s; `claude attach %s` opens it", pr.URL(), id, id[:8])
 	case live.PID > 0:
-		return click{pr: pr, attach: true, argv: AttachArgs(id)}, nil
+		key, err := keyOf(id)
+		if err != nil {
+			return click{}, fmt.Errorf("claude-review: %s: %w", pr.URL(), err)
+		}
+		if detached {
+			// `--bg --resume` on a running session would start a copy.
+			return click{}, fmt.Errorf("claude-review: %s is still running as %s; `claude attach %s` opens it", pr.URL(), id, key)
+		}
+		return click{pr: pr, attach: true, argv: AttachArgs(key)}, nil
 	}
 	existed := d.SessionExists(d.ClaudeDir, id)
 	return click{pr: pr, bootstrap: !existed, detached: detached, argv: ReviewArgs(cfg, pr, remote, existed, detached)}, nil

@@ -93,17 +93,19 @@ func attach(d Deps, cfg Config, pr PR) int {
 	if err != nil {
 		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), err))
 	}
-	live := false
+	var key WorkerKey
 	for _, w := range d.Sessions.workersFor(id, all) {
-		live = live || w.SessionID == id
+		if w.SessionID == id {
+			key = w.Short
+		}
 	}
 	switch {
-	case live:
+	case key != "":
 		dir, _, err := d.FindRepo(cfg.GitRepoRoots, cfg.ClonePath, pr)
 		if err != nil {
 			return fail(d, err)
 		}
-		if err := openTerminal(d, cfg, dir, [][]string{AttachArgs(id)}, pr); err != nil {
+		if err := openTerminal(d, cfg, dir, [][]string{AttachArgs(key)}, pr); err != nil {
 			return fail(d, err)
 		}
 	case d.Sessions.WindowOpen(id):
