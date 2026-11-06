@@ -5,6 +5,7 @@
 - If the end goal is unclear, ask for it before proceeding.
 - Let the user know when they're using the wrong terms. Try to understand, and work with the input if it's clear enough, but correct the user.
 - In text that I (Claude) author (PR descriptions, commit messages, PR/code review comments), never use first-person "I" — that pronoun is reserved to signal a human author. Prefer active voice; avoid passive constructions.
+- Review-thread replies and inline comments on a PR go out as one review, never one by one: each separate comment emails the author (Adam asked, 2026-11-06). Queue them with `claude-review post <pr> reply|inline`, then send with `claude-review post <pr> review --at SHA --body TEXT`; `claude-sign-comments-hook` blocks the one-by-one `gh api` calls.
 - **Hard rule:** every comment I post on someone else's surface (GitHub PR/issue comments and reviews, artifact comment replies, Slack, Jira) ends with a line containing only `--claude`. No exceptions; a hook blocks unsigned `gh` comment calls.
 - Never refer to a GitHub PR/issue by number in any abbreviated form — not `owner/repo#123`, not `#123`, and not a bare `123`. Always the canonical URL (e.g. `https://github.com/owner/repo/pull/123`), every time the PR is mentioned, including in chat, in lists, in tables and on repeat mentions in the same message. Applies everywhere, all repos.
 

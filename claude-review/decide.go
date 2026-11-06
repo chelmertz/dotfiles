@@ -217,6 +217,10 @@ type RoundFacts struct {
 	// RoundReviewURL is a review by the user's account posted since the round
 	// started, at any head (a push mid-round moves it): the round's summary.
 	RoundReviewURL string
+	// UnsentDrafts counts the comments the round left in the account's
+	// draft review: they reach the author only with a summary, which the
+	// round never posted.
+	UnsentDrafts int
 }
 
 // Decision is what tick does with one finished round.
@@ -276,6 +280,11 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 	// it can add at that commit.
 	case r.Retries == 0:
 		return Decision{Retry: true}
+	// Cut off twice with comments in the draft: nothing sends them but the
+	// user, who decides what an unfinished round's comments are worth.
+	case f.UnsentDrafts > 0:
+		return Decision{Annotation: &Annotation{State: stateNeedsYou,
+			Note: fmt.Sprintf("the round left %d unsent comments in a draft review; submit or discard it on GitHub", f.UnsentDrafts), Links: []Link{attach, ignore}}}
 	}
 	return Decision{Annotation: &Annotation{State: stateStuck, Note: failedTwice(f), Links: []Link{attach, ignore}}}
 }
@@ -298,7 +307,7 @@ func failedTwice(f RoundFacts) string {
 
 // postedInline: inline comments (threads or replies) the round made.
 func postedInline(f RoundFacts) bool {
-	return f.NewThreads > 0 || f.NewReplies > 0
+	return f.NewThreads > 0 || f.NewReplies > 0 || f.UnsentDrafts > 0
 }
 
 // approvedBefore: the user approved an older head before the round started.
@@ -318,7 +327,7 @@ func ignoreLink(pr PR) Link { return Link{Label: "Ignore", URL: verbURL(pr, "ign
 // a round that only confirms fixes, and resolves those threads, is clean.
 func quietApprove(r Round, o Outcome, f RoundFacts, pr PR) bool {
 	return o.Kind == OutcomeApprove && o.PrURL == pr.URL() && o.SHA == r.Head && f.Head == r.Head &&
-		f.NewThreads == 0 && f.UnresolvedUserThreads == 0
+		f.NewThreads == 0 && f.UnsentDrafts == 0 && f.UnresolvedUserThreads == 0
 }
 
 // verbURL is a claude-review:// link with a verb, as the URL handler reads it.

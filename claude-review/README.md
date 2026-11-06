@@ -255,6 +255,13 @@ claude-review post <pr> review  --body TEXT --at SHA # always a COMMENT review, 
 claude-review post <pr> resolve --thread COMMENT_ID   # resolve a thread this account started
 ```
 
+`inline` and `reply` add to the account's draft (pending) review, and `review`
+submits that draft with the summary as its body, so the author gets one
+notification per round instead of one per comment. A draft holding a comment
+this tool did not sign is the user's own and is never added to or sent. A
+round cut off before its summary is resumed once; cut off again with comments
+in the draft, the PR goes to the user, who submits or discards the draft.
+
 `resolve` takes the id of any comment in the thread, as printed by
 `claude-review threads`, and resolves that thread only if this account
 started it; a thread someone else started is refused, one already resolved

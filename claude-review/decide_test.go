@@ -200,6 +200,17 @@ func TestDecide(t *testing.T) {
 			func(d Decision) bool { return d.Retry && d.Annotation == nil }, "retry"},
 		{"replies without a summary: interrupted, resumed", round, Outcome{}, RoundFacts{State: "open", Head: head, NewReplies: 1},
 			func(d Decision) bool { return d.Retry && d.Annotation == nil }, "retry"},
+		// Inline comments and replies wait in a draft that the summary sends.
+		{"drafts without a summary: interrupted, resumed", round, Outcome{}, RoundFacts{State: "open", Head: head, UnsentDrafts: 2},
+			func(d Decision) bool { return d.Retry && d.Annotation == nil }, "retry"},
+		{"drafts cut off again: the user decides on them", Round{ID: 1, PR: round.PR, Head: head, Retries: 1}, Outcome{}, RoundFacts{State: "open", Head: head, UnsentDrafts: 2},
+			func(d Decision) bool {
+				return !d.Retry && d.Annotation.State == stateNeedsYou && strings.Contains(d.Annotation.Note, "2 unsent comments")
+			}, "needs_you naming the draft"},
+		{"nothing to post, but a draft holds comments: resumed", round, Outcome{Kind: OutcomeNothing}, RoundFacts{State: "open", Head: head, UnsentDrafts: 1},
+			func(d Decision) bool { return d.Retry }, "retry"},
+		{"approve line with comments in the draft: no Approve link", round, approveLine, RoundFacts{State: "open", Head: head, UnsentDrafts: 1},
+			func(d Decision) bool { return d.MintFor == "" }, "no Approve link"},
 		{"cut off again: stuck", Round{ID: 1, PR: round.PR, Head: head, Retries: 1}, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 2},
 			func(d Decision) bool {
 				return !d.Retry && d.Annotation.State == stateStuck && strings.Contains(d.Annotation.Note, "summary")

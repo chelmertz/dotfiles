@@ -93,6 +93,15 @@ func (g GitHub) RoundFacts(pr PR, r Round) (RoundFacts, error) {
 	if f.UnresolvedUserThreads, err = g.unresolvedUserThreads(pr); err != nil {
 		return f, err
 	}
+	draft, err := fetchPending(g.Gh, pr)
+	if err != nil {
+		return f, err
+	}
+	for _, b := range draft.Bodies {
+		if signed(b) {
+			f.UnsentDrafts++
+		}
+	}
 	return f, nil
 }
 

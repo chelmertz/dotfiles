@@ -109,6 +109,10 @@ func newHost(t *testing.T, cfgJSON string, repoFound bool, exists bool) *fakeHos
 				return "[]", nil
 			case args[1] == "graphql" && strings.Contains(args[3], "viewer"):
 				return threadsJSON(false), nil
+			case args[1] == "graphql" && strings.Contains(args[3], "states: PENDING"):
+				return noDraft, nil
+			case args[1] == "graphql" && strings.Contains(args[3], "addPullRequestReview("):
+				return draftStarted, nil
 			case len(args) == 2 && args[1] == "repos/acme/widgets/pulls/42" && h.pull != "":
 				return h.pull, h.pullErr
 			case len(args) == 2 && args[1] == "repos/acme/widgets/pulls/42":

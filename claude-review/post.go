@@ -138,19 +138,21 @@ func runPostText(args []string, gh Gh, spend spendFunc, environ []string, stdout
 		fmt.Fprintln(stdout, url)
 		return 0
 	}
-	slot, limit := postSlotNew, newPostLimit
-	if in.kind == kindReview {
-		slot, limit = postSlotSummary, summaryPostLimit
-	}
-	if in.kind == kindReply {
-		// One answer per comment from the other side, at a commit: a second
-		// author reply gets its answer, and our own replies, signed, never
-		// open a slot, so a round cannot keep answering itself.
-		slot, limit = fmt.Sprintf("thread %d after %d", root, last), threadPostLimit
+	slot, limit := in.slot(root, last)
+	draft, queued, err := in.readDraft(gh)
+	if err != nil {
+		fmt.Fprintf(stderr, "claude-review post: reading the draft review: %v\n", err)
+		return 1
+	} else if queued {
+		fmt.Fprintln(stderr, "claude-review post: already in the draft review, not added again")
+		return 0
 	}
 	if err := spend(pr, slot, limit); err != nil {
 		fmt.Fprintln(stderr, "claude-review post: not posted:", err)
 		return 1
+	}
+	if handled, code := in.viaDraft(gh, draft, stdout, stderr); handled {
+		return code
 	}
 	out, err := in.send(gh)
 	if err != nil {
@@ -159,6 +161,57 @@ func runPostText(args []string, gh Gh, spend spendFunc, environ []string, stdout
 	}
 	fmt.Fprintln(stdout, htmlURL(out))
 	return 0
+}
+
+// slot is the budget slot this post spends and its limit.
+func (in postInput) slot(root, last int64) (string, int) {
+	switch in.kind {
+	case kindReview:
+		return postSlotSummary, summaryPostLimit
+	case kindReply:
+		// One answer per comment from the other side, at a commit: a second
+		// author reply gets its answer, and our own replies, signed, never
+		// open a slot, so a round cannot keep answering itself.
+		return fmt.Sprintf("thread %d after %d", root, last), threadPostLimit
+	}
+	return postSlotNew, newPostLimit
+}
+
+// readDraft reads the account's draft review, and whether this inline
+// comment or reply is already in it (a retry). A PR-level comment never
+// goes through the draft.
+func (in postInput) readDraft(gh Gh) (draft pendingReview, queued bool, err error) {
+	if in.kind == kindComment {
+		return draft, false, nil
+	}
+	if draft, err = fetchPending(gh, in.pr); err != nil {
+		return draft, false, err
+	}
+	return draft, in.kind != kindReview && draft.holds(in.body), nil
+}
+
+// viaDraft queues an inline comment or a reply in the draft review, or sends
+// the draft with the summary; handled is false for a post that goes out on
+// its own (a PR-level comment, or a summary with no draft open).
+func (in postInput) viaDraft(gh Gh, draft pendingReview, stdout, stderr io.Writer) (handled bool, code int) {
+	switch {
+	case in.kind == kindInline || in.kind == kindReply:
+		if err := in.queue(gh, draft); err != nil {
+			fmt.Fprintf(stderr, "claude-review post: %v\n", err)
+			return true, 1
+		}
+		fmt.Fprintln(stdout, "added to the draft review; the summary review (post review) sends it")
+		return true, 0
+	case in.kind == kindReview && draft.ID != "":
+		url, err := submitPending(gh, draft, in.body)
+		if err != nil {
+			fmt.Fprintf(stderr, "claude-review post: %v\n", err)
+			return true, 1
+		}
+		fmt.Fprintln(stdout, url)
+		return true, 0
+	}
+	return false, 0
 }
 
 // postInput is one validated-enough post request; send validates the rest.

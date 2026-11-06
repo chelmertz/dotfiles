@@ -68,6 +68,10 @@ func TestRecordedRounds(t *testing.T) {
 			}
 			gh := &fixtureGitHub{GitHub: GitHub{User: "me", Gh: func(args ...string) (string, error) {
 				out, ok := rr.Gh[strings.Join(args, " ")]
+				// Recorded before rounds wrote draft reviews: none was open.
+				if !ok && len(args) > 2 && args[1] == "graphql" && strings.Contains(args[3], "states: PENDING") {
+					out, ok = noDraft, true
+				}
 				if !ok {
 					t.Errorf("unrecorded gh call: %q", args)
 				}

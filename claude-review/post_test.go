@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -10,6 +11,39 @@ import (
 	"testing"
 	"time"
 )
+
+// The draft review's GraphQL answers.
+const (
+	noDraft      = `{"data":{"repository":{"pullRequest":{"id":"PR1","reviews":{"nodes":[]}}}}}`
+	draftStarted = `{"data":{"addPullRequestReview":{"pullRequestReview":{"id":"R1"}}}}`
+	draftAdded   = `{"data":{}}`
+	draftMsg     = "added to the draft review; the summary review (post review) sends it\n"
+	threads77    = `{"data":{"viewer":{"login":"me"},"repository":{"pullRequest":{"reviewThreads":{"nodes":[{"id":"T1","comments":{"nodes":[{"databaseId":77}]}}]}}}}}`
+)
+
+// draftWith is a pending review holding bodies.
+func draftWith(bodies ...string) string {
+	var cs []string
+	for _, b := range bodies {
+		j, _ := json.Marshal(map[string]string{"body": b})
+		cs = append(cs, string(j))
+	}
+	return `{"data":{"repository":{"pullRequest":{"id":"PR1","reviews":{"nodes":[{"id":"R9","comments":{"nodes":[` + strings.Join(cs, ",") + `]}}]}}}}}`
+}
+
+// afterCheck is what gh answers after the duplicate check for kind, with no
+// draft open: an inline comment or a reply starts one and lands in it.
+func afterCheck(kind string) []string {
+	switch kind {
+	case kindInline:
+		return []string{noDraft, draftStarted, draftAdded}
+	case kindReply:
+		return []string{noDraft, threads77, headSha, draftStarted, draftAdded}
+	case kindReview:
+		return []string{noDraft, `{"html_url":"new"}`}
+	}
+	return []string{`{"html_url":"new"}`}
+}
 
 type fakeGh struct {
 	calls [][]string
@@ -91,13 +125,13 @@ func TestPost_CommentAcceptsBareTarget(t *testing.T) {
 // A review attaches to the commit the session read, not to whatever the head
 // is when it posts: a push mid-round must not look reviewed.
 func TestPost_ReviewIsACommentOnTheReviewedCommit(t *testing.T) {
-	g := &fakeGh{outs: []string{"[]", urlU}}
+	g := &fakeGh{outs: []string{"[]", noDraft, urlU}}
 	code, _, errb := post(t, g, prURL, kindReview, bodyFlag, "Ship it.", atFlag, olderSha)
 	if code != 0 {
 		t.Fatalf("code %d stderr %q", code, errb)
 	}
 	sameArgv(t, "duplicate check", g.calls[0], []string{api, paginate, reviewsURL})
-	sameArgv(t, "gh", g.calls[1], []string{api, "-X", httpPost, reviewsURL, "-f", "body=Ship it.\n\n--claude", "-f", "event=COMMENT", "-f", "commit_id=" + olderSha})
+	sameArgv(t, "gh", g.calls[2], []string{api, "-X", httpPost, reviewsURL, "-f", "body=Ship it.\n\n--claude", "-f", "event=COMMENT", "-f", "commit_id=" + olderSha})
 	// No way to approve or request changes through the pre-approved command.
 	if code, _, errb := post(t, &fakeGh{}, prURL, kindReview, bodyFlag, "x", atFlag, olderSha, "--event", "APPROVE"); code != 2 || !strings.Contains(errb, "flag provided but not defined") {
 		t.Errorf("--event must not exist: code %d stderr %q", code, errb)
@@ -113,16 +147,51 @@ func TestPost_ReviewIsACommentOnTheReviewedCommit(t *testing.T) {
 // The line was picked in the reviewed commit, so the comment anchors there,
 // not on whatever the head is by the time it posts.
 func TestPost_InlineAnchorsOnTheReviewedCommit(t *testing.T) {
-	g := &fakeGh{outs: []string{"[]", urlU}}
+	g := &fakeGh{outs: append([]string{"[]"}, afterCheck(kindInline)...)}
 	code, out, errb := post(t, g, prURL, kindInline, bodyFlag, "Off by one.", pathFlag, "pkg/a.go", lineFlag, "12", atFlag, olderSha)
-	if code != 0 || len(g.calls) != 2 {
+	if code != 0 || len(g.calls) != 4 {
 		t.Fatalf("code %d calls %d stderr %q", code, len(g.calls), errb)
 	}
 	sameArgv(t, "duplicate check", g.calls[0], []string{api, paginate, commentsURL})
-	sameArgv(t, "post", g.calls[1], []string{api, "-X", httpPost, commentsURL,
-		"-f", "body=Off by one.\n\n--claude", "-f", "commit_id=" + olderSha, "-f", "path=pkg/a.go", "-F", "line=12", "-f", "side=RIGHT"})
-	if out != "u\n" {
+	sameArgv(t, "start the draft", g.calls[2], []string{api, "graphql", "-f", "query=" + addPendingReviewMutation, "-f", "pr=PR1", "-f", "at=" + olderSha})
+	sameArgv(t, "add to the draft", g.calls[3], []string{api, "graphql", "-f", "query=" + addPendingThreadMutation, "-f", "review=R1",
+		"-f", "path=pkg/a.go", "-F", "line=12", "-f", "side=RIGHT", "-f", "body=Off by one.\n\n--claude"})
+	if out != draftMsg {
 		t.Errorf("stdout %q", out)
+	}
+}
+
+// One email per comment was what an author complained about: an inline
+// comment and a reply land in the account's draft review, and the summary
+// sends that draft. A draft holding the user's own unsigned comments is
+// never added to or sent.
+func TestPost_TheSummarySendsTheDraft(t *testing.T) {
+	signedDraft := draftWith("Off by one.\n\n--claude")
+	g := &fakeGh{outs: []string{"[]", signedDraft, `{"data":{"submitPullRequestReview":{"pullRequestReview":{"url":"rev"}}}}`}}
+	code, out, errb := post(t, g, prURL, kindReview, bodyFlag, "Two findings.", atFlag, olderSha)
+	if code != 0 || out != "rev\n" || len(g.calls) != 3 {
+		t.Fatalf("code %d out %q calls %d stderr %q", code, out, len(g.calls), errb)
+	}
+	sameArgv(t, "submit", g.calls[2], []string{api, "graphql", "-f", "query=" + submitPendingMutation, "-f", "review=R9", "-f", "body=Two findings.\n\n--claude"})
+
+	g = &fakeGh{outs: []string{"[]", signedDraft, draftAdded}}
+	if code, _, errb := post(t, g, prURL, kindInline, bodyFlag, "Again.", pathFlag, "a", lineFlag, "3", atFlag, olderSha); code != 0 || len(g.calls) != 3 || !strings.Contains(g.calls[2][3], "addPullRequestReviewThread(") {
+		t.Errorf("adding to an open draft: code %d calls %q stderr %q", code, g.calls, errb)
+	}
+
+	g = &fakeGh{outs: []string{"[]", signedDraft}}
+	if code, _, errb := post(t, g, prURL, kindInline, bodyFlag, "Off by one.", pathFlag, "a", lineFlag, "3", atFlag, olderSha); code != 0 || len(g.calls) != 2 || !strings.Contains(errb, "already in the draft") {
+		t.Errorf("a retry of a queued comment: code %d calls %q stderr %q", code, g.calls, errb)
+	}
+
+	for _, args := range [][]string{
+		{kindInline, bodyFlag, "x", pathFlag, "a", lineFlag, "3", atFlag, olderSha},
+		{kindReview, bodyFlag, "x", atFlag, olderSha},
+	} {
+		g := &fakeGh{outs: []string{"[]", draftWith("my own note", "y\n\n--claude")}}
+		if code, _, errb := post(t, g, append([]string{prURL}, args...)...); code != 1 || len(g.calls) != 2 || !strings.Contains(errb, "draft review of yours") {
+			t.Errorf("%s with the user's draft open: code %d calls %q stderr %q", args[0], code, g.calls, errb)
+		}
 	}
 }
 
@@ -218,13 +287,14 @@ func TestPostRule(t *testing.T) {
 }
 
 func TestPost_Reply(t *testing.T) {
-	g := &fakeGh{outs: []string{"[]", urlU}}
+	g := &fakeGh{outs: append([]string{"[]"}, afterCheck(kindReply)...)}
 	code, out, errb := post(t, g, prURL, kindReply, bodyFlag, "Conceded.", toFlag, "77")
-	if code != 0 || out != "u\n" {
-		t.Fatalf("code %d out %q stderr %q", code, out, errb)
+	if code != 0 || out != draftMsg || len(g.calls) != 6 {
+		t.Fatalf("code %d out %q calls %d stderr %q", code, out, len(g.calls), errb)
 	}
 	sameArgv(t, "duplicate check", g.calls[0], []string{api, paginate, commentsURL})
-	sameArgv(t, "post", g.calls[1], []string{api, "-X", httpPost, "repos/acme/widgets/pulls/42/comments/77/replies", "-f", "body=Conceded.\n\n--claude"})
+	sameArgv(t, "start the draft on the head", g.calls[4], []string{api, "graphql", "-f", "query=" + addPendingReviewMutation, "-f", "pr=PR1", "-f", "at=" + headSha})
+	sameArgv(t, "reply in the draft", g.calls[5], []string{api, "graphql", "-f", "query=" + addPendingReplyMutation, "-f", "review=R1", "-f", "thread=T1", "-f", "body=Conceded.\n\n--claude"})
 	for _, to := range []string{"0", "-1"} {
 		g := &fakeGh{}
 		if code, _, errb := post(t, g, prURL, kindReply, bodyFlag, "x", toFlag, to); code != 2 || len(g.calls) != 0 || !strings.Contains(errb, "reply needs --to") {
@@ -285,9 +355,13 @@ func TestPost_SameTextElsewhereIsPosted(t *testing.T) {
 		{"review from an earlier round", `[{"body":"x\n\n--claude","submitted_at":"` + old + `","html_url":"dup"}]`, []string{kindReview, bodyFlag, "x", atFlag, headSha}},
 	}
 	for _, c := range cases {
-		g := &fakeGh{outs: []string{c.list, `{"html_url":"new"}`}}
+		g := &fakeGh{outs: append([]string{c.list}, afterCheck(c.args[0])...)}
 		code, out, errb := post(t, g, append([]string{prURL}, c.args...)...)
-		if code != 0 || out != "new\n" || strings.Contains(errb, "already") {
+		want := "new\n"
+		if c.args[0] == kindInline || c.args[0] == kindReply {
+			want = draftMsg
+		}
+		if code != 0 || out != want || strings.Contains(errb, "already") {
 			t.Errorf("%s: code %d out %q stderr %q", c.name, code, out, errb)
 		}
 	}
@@ -399,7 +473,7 @@ func TestPost_ReplyBudgetIsPerAuthorComment(t *testing.T) {
 		{"another thread's comments do not count", `[{"id":77,"body":"why?"},{"id":90,"body":"elsewhere"},{"id":91,"in_reply_to_id":90,"body":"x"}]`, "thread 77 after 77"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			g := &fakeGh{outs: []string{c.thread, urlU}}
+			g := &fakeGh{outs: append([]string{c.thread}, afterCheck(kindReply)...)}
 			var slots []string
 			var out, errb bytes.Buffer
 			code := runPost([]string{prURL, kindReply, bodyFlag, "Answer.", toFlag, "77"}, g.run, func(_ PR, slot string, _ int) error { slots = append(slots, slot); return nil }, nil, &out, &errb)

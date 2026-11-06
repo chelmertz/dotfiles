@@ -30,6 +30,9 @@ GH_COMMENT_HEAD = re.compile(
     r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*gh\s+(pr\s+(comment|review)|issue\s+comment|api)\b"
 )
 COMMENT_PATH = re.compile(r"/(comments|reviews)(/\d+)?/?$")
+# One review comment or thread reply per call is one email to the author per
+# call; an author asked for them in one go (2026-11-06).
+ONE_BY_ONE = re.compile(r"(?:^|/)repos/[^/]+/[^/]+/pulls/\d+/comments(/\d+/replies)?/?$")
 VAR_REF = re.compile(r"^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$")
 ASSIGN = re.compile(r"(?:^|[;&|\s])([A-Za-z_][A-Za-z0-9_]*)=(\"[^\"]*\"|'[^']*'|\S+)")
 
@@ -177,12 +180,20 @@ def check_gh_api(args: list[str], cmd: str) -> None:
             continue
         positionals.append(a)
     path = positionals[0] if positionals else ""
-    if not path or path == "graphql" or not COMMENT_PATH.search(path.split("?")[0]):
-        return
     method = (flag_value(args, ("--method", "-X")) or "").upper()
     has_fields = any(a in ("-f", "-F", "--field", "--raw-field", "--input") for a in args)
     if not method and has_fields:
         method = "POST"
+    if method == "POST" and ONE_BY_ONE.search(path.split("?")[0]):
+        print(
+            "[claude-sign-comments-hook]: each review comment or thread reply posted on its own "
+            "sends the author an email. Queue them with `claude-review post <pr> inline|reply ...`, "
+            "then send them all as one review with `claude-review post <pr> review --at SHA --body TEXT`.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    if not path or path == "graphql" or not COMMENT_PATH.search(path.split("?")[0]):
+        return
     if method not in ("POST", "PATCH", "PUT"):
         return
     ctx = f"gh api {method} {path}"
