@@ -125,6 +125,7 @@ in
     ./git.nix
     ./bin.nix
     ./claude.nix
+    ./claude-private-skills.nix
     ./neovim.nix
     ./espanso.nix
     ./vscode.nix
