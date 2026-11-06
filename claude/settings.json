@@ -60,7 +60,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "notify-send 'Claude Code' 'Awaiting permission' --expire-time=10000"
+            "command": "notify-send --app-name=Claude --expire-time=10000 'Awaiting permission' \"$(jq -r '.cwd // empty' | sed \"s|^$HOME|~|\")\""
           }
         ]
       },
