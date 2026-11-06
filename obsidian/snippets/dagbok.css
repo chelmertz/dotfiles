@@ -168,3 +168,22 @@ li[data-task="-"] {
   font-size: 0.8em;
   border-top: 1px solid var(--background-modifier-border);
 }
+
+/* ── Tasks short-mode hover tooltip (dates + source link) ── *
+ * Obsidian paint-contains every Live Preview widget
+ * (.cm-content > [contenteditable=false] { contain: paint !important }),
+ * which clips the tooltip Tasks appends inside the query block. Tasks also
+ * never positions it, so .tooltip's fixed left:50% lands it mid-window.
+ * Lift the containment for Tasks blocks and pin the tooltip above its task. */
+.markdown-source-view.mod-cm6 .cm-content > .cm-embed-block:has(.block-language-tasks) {
+  contain: none !important;
+  overflow: visible !important;
+}
+.block-language-tasks .task-list-item { position: relative; }
+.block-language-tasks .task-list-item .tooltip.pop-up {
+  position: absolute;
+  bottom: 100%;
+  left: 2ch;
+  transform: none;
+  text-align: left;
+}
