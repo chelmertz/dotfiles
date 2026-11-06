@@ -88,6 +88,11 @@
             "type": "command",
             "command": "p-launcher session-brief",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "command -v direnv >/dev/null && [ -n \"$CLAUDE_ENV_FILE\" ] && direnv export bash > \"$CLAUDE_ENV_FILE\" 2>/dev/null; true",
+            "timeout": 120
           }
         ]
       }
@@ -157,6 +162,17 @@
           {
             "type": "command",
             "command": "claude-security-gate-hook"
+          }
+        ]
+      }
+    ],
+    "CwdChanged": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v direnv >/dev/null && [ -n \"$CLAUDE_ENV_FILE\" ] && direnv export bash > \"$CLAUDE_ENV_FILE\" 2>/dev/null; true",
+            "timeout": 120
           }
         ]
       }
