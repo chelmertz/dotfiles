@@ -319,6 +319,12 @@
               touch $out
             '';
 
+          # The Thunderbird Shift+T todo host; see checks/thunderbird-todo.py.
+          thunderbird-todo = pkgs.runCommand "thunderbird-todo" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+            python3 -I ${./checks/thunderbird-todo.py} ${../thunderbird/obsidian-todo-host.py}
+            touch $out
+          '';
+
           i3-helpers =
             assert self.nixosConfigurations.tau.config.environment.localBinInPath;
             pkgs.runCommand "i3-helpers" { nativeBuildInputs = [ pkgs.python3 ]; } ''

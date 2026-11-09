@@ -76,6 +76,9 @@ let
         # selected messages only, so a collapsed thread row would move one
         # message and leave the rest of the conversation in Inbox.
         x = "cmd:cmd_selectThread";
+        # Gmail's "add to Tasks": the open message becomes a task in the
+        # Obsidian vault's mail.md, through the obsidian-todo add-on below.
+        "shift+t" = "memsg:${todoId}:todo";
         # Page the open message while focus stays in the list, via the two
         # builtins the patch below adds.
         pagedown = "tbkeys:messagePageDown";
@@ -160,6 +163,21 @@ let
     sys.stdout.buffer.flush()
   '';
 
+  # Shift+T (bound in tbkeysMain) adds the open message as a task with a mid:
+  # link to mail.md in the vault, the mail twin of the wee menu's T. The id
+  # comes from the add-on's manifest, so the binding cannot drift from it.
+  todoId = (lib.importJSON ../thunderbird/obsidian-todo/manifest.json).browser_specific_settings.gecko.id;
+  obsidianTodo =
+    pkgs.runCommand "thunderbird-addon-obsidian-todo" { nativeBuildInputs = [ pkgs.zip ]; }
+      ''
+        mkdir -p "$out/${extensionDir}"
+        cd ${../thunderbird/obsidian-todo}
+        zip -qr -X "$out/${extensionDir}/${todoId}.xpi" .
+      '';
+  obsidianTodoHost = pkgs.writeScript "obsidian-todo-native-host" (
+    "#!${pkgs.python3}/bin/python3 -I\n" + builtins.readFile ../thunderbird/obsidian-todo-host.py
+  );
+
   gmailAccount =
     {
       address,
@@ -226,6 +244,7 @@ lib.mkIf config.dotfiles.nixos {
         tbkeys
         nostalgy
         claudeReview
+        obsidianTodo
       ];
       settings = {
         # Extensions installed by home-manager are otherwise disabled until
@@ -266,6 +285,14 @@ lib.mkIf config.dotfiles.nixos {
     path = "${claudeReviewHost}";
     type = "stdio";
     allowed_extensions = [ claudeReviewId ];
+  };
+
+  home.file.".mozilla/native-messaging-hosts/obsidian_todo.json".text = builtins.toJSON {
+    name = "obsidian_todo";
+    description = "Adds mail as tasks to the Obsidian vault for the Thunderbird add-on";
+    path = "${obsidianTodoHost}";
+    type = "stdio";
+    allowed_extensions = [ todoId ];
   };
 
   accounts.email.accounts = {

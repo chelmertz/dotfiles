@@ -754,6 +754,10 @@ in
   # share/ is searched before the system's, so installing chromium here (for
   # the YouTube Music window) silently made it the browser.
   #
+  # mid: (RFC 2392, a Message-ID) opens the message in Thunderbird, which
+  # handles the scheme but whose .desktop does not claim it. The Shift+T todos
+  # in nix/thunderbird.nix link mail that way.
+  #
   # inode/directory is here because nothing claimed it and the fallback was
   # whichever .desktop happened to win: baobab, the disk usage analyser, which
   # is not a file manager and asserts its way to a crash on some trees.
@@ -812,6 +816,7 @@ in
     ${pkgs.xdg-utils}/bin/xdg-mime default claude-resume.desktop x-scheme-handler/claude-resume
     ${pkgs.xdg-utils}/bin/xdg-mime default claude-review.desktop x-scheme-handler/claude-review
     ${pkgs.xdg-utils}/bin/xdg-mime default wee-open.desktop x-scheme-handler/wee
+    ${pkgs.xdg-utils}/bin/xdg-mime default thunderbird.desktop x-scheme-handler/mid
     ${pkgs.xdg-utils}/bin/xdg-mime default com.mitchellh.ghostty.desktop x-scheme-handler/terminal
     ${pkgs.xdg-utils}/bin/xdg-mime default yazi.desktop inode/directory
     ${pkgs.xdg-utils}/bin/xdg-mime default firefox.desktop x-scheme-handler/http x-scheme-handler/https text/html
