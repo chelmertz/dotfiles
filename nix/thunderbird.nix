@@ -295,6 +295,20 @@ lib.mkIf config.dotfiles.nixos {
     allowed_extensions = [ todoId ];
   };
 
+  # mid: links (the Shift+T todos) open the message in Thunderbird, then focus
+  # its main window, which also switches to its workspace; Thunderbird alone
+  # selects the message but leaves focus where the click was. bin/wee-open does
+  # the same for wee:// links. Registered in home.activation.xdgDefaultApps.
+  xdg.desktopEntries.mid-open = {
+    name = "Thunderbird message link";
+    exec = "${pkgs.writeShellScript "mid-open" ''
+      ${config.programs.thunderbird.package}/bin/thunderbird "$1"
+      ${pkgs.i3}/bin/i3-msg -q '[class="(?i)thunderbird" window_role="3pane"] focus'
+    ''} %u";
+    noDisplay = true;
+    mimeType = [ "x-scheme-handler/mid" ];
+  };
+
   accounts.email.accounts = {
     work = gmailAccount {
       address = workEmail;
