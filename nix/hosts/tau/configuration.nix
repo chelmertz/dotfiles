@@ -416,10 +416,14 @@
   # a working tree builds whatever is uncommitted there. This makes main
   # deploy-on-push for tau.
   #
-  # --recreate-lock-file re-resolves every input instead of reading the
-  # committed lock, which is the point: that lock only moves when nix-bump runs.
-  # nix refuses to write a lock back to a remote flake and errors rather than
-  # ignoring it, hence --no-write-lock-file.
+  # --update-input re-resolves nixpkgs-stable, which this system is built from,
+  # instead of reading the committed lock: that lock only moves when nix-bump
+  # runs. Every other input stays locked. --recreate-lock-file re-locked all of
+  # them, and root failed every run from 2026-10 to 2026-11 fetching the private
+  # git+ssh inputs (sift, private-dotfiles) that this system never evaluates; a
+  # locked input that is never used is never fetched. nix refuses to write a
+  # lock back to a remote flake and errors rather than ignoring it, hence
+  # --no-write-lock-file.
   #
   # upgrade = false drops the --upgrade the module would otherwise append. It
   # means `nix-channel --update`, and there are no channels here.
@@ -428,7 +432,8 @@
     operation = "boot";
     flake = "github:chelmertz/dotfiles?dir=nix";
     flags = [
-      "--recreate-lock-file"
+      "--update-input"
+      "nixpkgs-stable"
       "--no-write-lock-file"
     ];
     upgrade = false;
