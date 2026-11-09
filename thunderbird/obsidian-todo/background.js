@@ -1,6 +1,6 @@
-// Shift+T (Gmail's "add to Tasks") is bound in tbkeys-lite to
-// memsg:obsidian-todo@helmertz:todo (nix/thunderbird.nix), which arrives here
-// as an external message. Each displayed message goes to the native host
+// The Todo button, or Shift+T (Gmail's "add to Tasks"), bound in tbkeys-lite
+// to memsg:obsidian-todo@helmertz:todo (nix/thunderbird.nix), which arrives
+// here as an external message. Each displayed message goes to the native host
 // (obsidian_todo, nix/thunderbird.nix), which writes the task; a MailExtension
 // cannot write files.
 const TBKEYS = "tbkeys-lite@addons.thunderbird.net";
@@ -23,11 +23,19 @@ async function addTodos() {
   return results;
 }
 
-messenger.runtime.onMessageExternal.addListener((message, sender) => {
-  if (sender.id !== TBKEYS || message !== "todo") return;
+function todo(via) {
+  console.log("obsidian-todo: via", via);
   addTodos()
     .catch((e) => ["todo failed: " + e])
-    .then((results) =>
-      messenger.notifications.create({ type: "basic", title: "Obsidian todo", message: results.join("\n") })
-    );
+    .then((results) => {
+      console.log("obsidian-todo:", results);
+      return messenger.notifications.create({ type: "basic", title: "Obsidian todo", message: results.join("\n") });
+    })
+    .catch((e) => console.error("obsidian-todo: notification failed:", e));
+}
+
+messenger.runtime.onMessageExternal.addListener((message, sender) => {
+  if (sender.id === TBKEYS && message === "todo") todo("Shift+T");
 });
+// The Todo button beside Claude review in the message header.
+messenger.messageDisplayAction.onClicked.addListener(() => todo("button"));

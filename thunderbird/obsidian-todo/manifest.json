@@ -1,11 +1,12 @@
 {
   "manifest_version": 2,
   "name": "Obsidian todo",
-  "version": "1.0",
+  "version": "1.1",
   "description": "Adds the open message as a task with a mid: link to mail.md in the Obsidian vault.",
   "browser_specific_settings": {
     "gecko": { "id": "obsidian-todo@helmertz", "strict_min_version": "128.0" }
   },
   "permissions": ["messagesRead", "nativeMessaging", "notifications"],
-  "background": { "scripts": ["background.js"] }
+  "background": { "scripts": ["background.js"] },
+  "message_display_action": { "default_title": "Todo" }
 }
