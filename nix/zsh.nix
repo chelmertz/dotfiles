@@ -1,4 +1,9 @@
-{ pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 {
   # Powerlevel10k config file
   home.file.".p10k.zsh".source = ./p10k.zsh;
@@ -146,7 +151,11 @@
 
     initContent = lib.mkMerge [
       # Powerlevel10k instant prompt - must be at the very top
+      # A shell opened in a dir with an .envrc printed direnv's log after the
+      # preamble, which p10k warns about. Loading the env first is p10k's own
+      # recipe; home-manager's hook further down then finds nothing to report.
       (lib.mkBefore ''
+        emulate zsh -c "$(${config.programs.direnv.package}/bin/direnv export zsh)"
         if [[ -r "''${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-''${(%):-%n}.zsh" ]]; then
           source "''${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-''${(%):-%n}.zsh"
         fi
