@@ -164,6 +164,9 @@ in
   # ~/.config/weechat; scripts under the latter are silently never loaded.
   # slack_hints draws the shortcut bar.
   home.file.".local/share/weechat/python/autoload/slack_hints.py".source = ../weechat/slack_hints.py;
+  # wee-slack turns :large_red_square: into 🟥 only with this map in its data
+  # dir; without it every shortcode, in messages and bot alerts alike, stays text.
+  home.file.".local/share/weechat/weemoji.json".source = "${pkgs.weechatScripts.wee-slack.src}/weemoji.json";
 
   home.username = "ch";
   home.homeDirectory = "/home/ch";
