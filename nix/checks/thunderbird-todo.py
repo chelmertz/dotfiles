@@ -33,7 +33,7 @@ with tempfile.TemporaryDirectory() as vault:
     pr = {"id": "<owner/repo/pull/7/c1@github.com>", "author": "Ada L <ada@example.com>",
           "subject": "Re: fix #12 in the #parser"}
     r = call(vault, pr)
-    assert r == {"ok": True, "result": "todo added to mail.md"}, r
+    assert r == {"ok": True, "result": "todo mail"}, r
     [task] = lines(vault)
     assert task.startswith(
         "- [ ] Ada L: Re: fix \\#12 in the \\#parser [mail](mid:owner/repo/pull/7/c1@github.com) ➕ "

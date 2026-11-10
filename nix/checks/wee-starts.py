@@ -603,7 +603,7 @@ if todo_note != ("- [ ] erin: see https://one.example/a. "
                  "[wee](wee://x.slack.com/archives/C1/p0000000002200000) "
                  "[Slack](https://x.slack.com/archives/C1/p0000000002200000) ⏫ ➕ %s\n"
                  "  > see https://one.example/a.\n" % time.strftime("%Y-%m-%d")) or todo_sent[:2] != [
-        "notify-send|-a|wee|todo added to slack.md|erin: see https://one.example/a.",
+        "notify-send|-a|wee|todo wee|erin: see https://one.example/a.",
         "notify-send|-a|wee|todo already in slack.md|erin: see https://one.example/a."]:
     print("menu ! then T: note %r, notifications %s" % (todo_note, todo_sent))
     failed = True

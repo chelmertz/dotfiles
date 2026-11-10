@@ -377,9 +377,11 @@ def run_action(action, msgs):
         except (OSError, ValueError) as e:
             result = "todo failed: {}".format(e)
         show_notice(result)
-        # The outcome as the summary, which message as the body.
+        # The outcome as the summary, which message as the body. The bar
+        # notice keeps the file name; the summary names only the source.
         author, text = message_text(msg)
-        subprocess.Popen(["notify-send", "-a", "wee", result,
+        title = "todo wee" if result == "todo added to " + TODO_NOTE else result
+        subprocess.Popen(["notify-send", "-a", "wee", title,
                           "{}: {}".format(author, one_line(text, TODO_NOTIFY))],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif action == "view":

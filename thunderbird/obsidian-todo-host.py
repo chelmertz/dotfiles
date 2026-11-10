@@ -55,7 +55,8 @@ def add_todo(vault, msg):
         body += "\n"
     with open(note, "w", encoding="utf-8") as f:
         f.write(body + task + "\n")
-    return True, "todo added to " + TODO_NOTE
+    # The result is the notification title; it says which source, not which file.
+    return True, "todo mail"
 
 
 def main():
