@@ -5,33 +5,38 @@
 // cannot write files.
 const TBKEYS = "tbkeys-lite@addons.thunderbird.net";
 
+// "Ada L <ada@example.com>" -> "Ada L"; a bare address stays as it is.
+const sender = (author) => (author || "").replace(/\s*<[^>]*>$/, "").replace(/^"(.*)"$/, "$1") || author;
+
+function notify(title, message) {
+  return messenger.notifications.create({ type: "basic", title, message });
+}
+
+// One notification per message: the outcome as the title, which message
+// (sender: subject) as the body.
 async function addTodos() {
   const [tab] = await messenger.tabs.query({ active: true, currentWindow: true });
   const shown = tab && (await messenger.messageDisplay.getDisplayedMessages(tab.id));
   // A MessageList since Thunderbird 121, a plain array before.
   const msgs = (shown && (shown.messages || shown)) || [];
-  if (!msgs.length) return ["no message open"];
-  const results = [];
+  if (!msgs.length) return notify("todo failed", "no message open");
   for (const m of msgs) {
     const res = await messenger.runtime.sendNativeMessage("obsidian_todo", {
       id: m.headerMessageId,
       author: m.author,
       subject: m.subject,
     });
-    results.push(res.result);
+    console.log("obsidian-todo:", res);
+    await notify(res.result, `${sender(m.author)}: ${m.subject || "(no subject)"}`);
   }
-  return results;
 }
 
 function todo(via) {
   console.log("obsidian-todo: via", via);
-  addTodos()
-    .catch((e) => ["todo failed: " + e])
-    .then((results) => {
-      console.log("obsidian-todo:", results);
-      return messenger.notifications.create({ type: "basic", title: "Obsidian todo", message: results.join("\n") });
-    })
-    .catch((e) => console.error("obsidian-todo: notification failed:", e));
+  addTodos().catch((e) => {
+    console.error("obsidian-todo:", e);
+    return notify("todo failed", String(e));
+  });
 }
 
 messenger.runtime.onMessageExternal.addListener((message, sender) => {

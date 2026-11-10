@@ -35,7 +35,7 @@
 # Tasks line with its wee link to slack.md in plugins.var.wee.todo_vault, whose
 # daily template shows the next few in a Slack section. A message already
 # linked anywhere in the vault, open, done or cancelled, is not added again.
-# notify-send reports either way.
+# notify-send reports either way, with the message's author and start.
 #
 # The menu's R hands each GitHub PR linked in the message to claude-review as
 # claude-review://owner/repo/number, the link the GitHub button opens too, and
@@ -377,7 +377,10 @@ def run_action(action, msgs):
         except (OSError, ValueError) as e:
             result = "todo failed: {}".format(e)
         show_notice(result)
-        subprocess.Popen(["notify-send", "-a", "wee", "wee", result],
+        # The outcome as the summary, which message as the body.
+        author, text = message_text(msg)
+        subprocess.Popen(["notify-send", "-a", "wee", result,
+                          "{}: {}".format(author, one_line(text, TODO_NOTIFY))],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif action == "view":
         view_images(buffer, [u for u in links(msg) if IMAGE.match(u)])
@@ -435,9 +438,18 @@ def weelink(buffer, msg):
 
 THREAD_SUMMARY = re.compile(r"\s*\[ Thread: [^\]]*\]$")
 TODO_HEAD = 100  # screen columns of the message on the task line itself
+TODO_NOTIFY = 80  # and in the notification body
 TODO_NOTE = "slack.md"  # in the vault; the daily template queries it by name
 QUOTE_LINES = 5
 QUOTE_CHARS = 400
+
+
+def message_text(msg):
+    """The message's author and text, without wee-slack's thread summary."""
+    _, author, _, _ = msg[1][0]
+    lines = [e[2] for e in msg[1]]
+    lines[-1] = THREAD_SUMMARY.sub("", lines[-1])
+    return author.strip(), "\n".join(lines).strip()
 
 
 def add_todo(msg, link, now):
@@ -455,15 +467,13 @@ def add_todo(msg, link, now):
                 with open(path, encoding="utf-8", errors="replace") as f:
                     if key in f.read():
                         return "todo already in " + os.path.relpath(path, vault)
-    _, author, _, _ = msg[1][0]
-    lines = [e[2] for e in msg[1]]
-    lines[-1] = THREAD_SUMMARY.sub("", lines[-1])
+    author, text = message_text(msg)
     # "#chan" would turn into a tag, which the backlog queries filter on; a
     # "#" inside a URL is not a tag and stays.
-    text = re.sub(r"(^|\s)#", r"\1\\#", "\n".join(lines).strip())
+    text = re.sub(r"(^|\s)#", r"\1\\#", text)
     # ➕ is Tasks' created date: the daily note's Slack section sorts on it.
     task = "- [ ] {}: {} [wee]({}) [Slack]({}){} ➕ {}".format(
-        author.strip(), one_line(text, TODO_HEAD), link,
+        author, one_line(text, TODO_HEAD), link,
         link.replace("wee://", "https://", 1), " ⏫" if now else "",
         time.strftime("%Y-%m-%d"))
     note = os.path.join(vault, TODO_NOTE)

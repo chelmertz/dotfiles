@@ -54,7 +54,8 @@ os.chmod(os.path.join(stubs, "feh"), 0o755)
 i3log = os.path.join(tmp, "i3log")
 for name in ("i3-msg", "notify-send"):
     with open(os.path.join(stubs, name), "w") as f:
-        f.write('#!/bin/sh\necho "%s $*" >> %s\n' % (name, i3log))
+        # "|" between arguments, so a notification's summary and body stay apart.
+        f.write('#!/bin/sh\nIFS="|"; echo "%s|$*" >> %s\n' % (name, i3log))
     os.chmod(os.path.join(stubs, name), 0o755)
 os.makedirs(os.path.join(tmp, "run"), mode=0o700)
 # An Obsidian vault for the menu's todo actions, without slack.md yet.
@@ -602,8 +603,8 @@ if todo_note != ("- [ ] erin: see https://one.example/a. "
                  "[wee](wee://x.slack.com/archives/C1/p0000000002200000) "
                  "[Slack](https://x.slack.com/archives/C1/p0000000002200000) ⏫ ➕ %s\n"
                  "  > see https://one.example/a.\n" % time.strftime("%Y-%m-%d")) or todo_sent[:2] != [
-        "notify-send -a wee wee todo added to slack.md",
-        "notify-send -a wee wee todo already in slack.md"]:
+        "notify-send|-a|wee|todo added to slack.md|erin: see https://one.example/a.",
+        "notify-send|-a|wee|todo already in slack.md|erin: see https://one.example/a."]:
     print("menu ! then T: note %r, notifications %s" % (todo_note, todo_sent))
     failed = True
 if (not 1 <= len(long_quote) <= 5 or not long_quote[-1].endswith("…")
