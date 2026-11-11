@@ -5,7 +5,7 @@ const PR = /^([^/]+)\/([^/]+)\/pull\/(\d+)[/@]/;
 
 function reviewUrl(msg) {
   const m = msg && PR.exec(msg.headerMessageId);
-  return m && `claude-review://${m[1]}/${m[2]}/${m[3]}`;
+  return m && `claude-review://${m[1]}/${m[2]}/${m[3]}?from=thunderbird`;
 }
 
 // A MailExtension cannot start a process, so the native host (claude_review,

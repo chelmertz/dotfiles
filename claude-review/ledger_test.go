@@ -1,6 +1,7 @@
 package main
 
 import (
+	"maps"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -237,7 +238,7 @@ func TestLedgerDiffBase(t *testing.T) {
 // counts toward neither the per-PR daily cap nor the breaker.
 func TestClickRoundsCountTowardNoCap(t *testing.T) {
 	l := openTestLedger(t)
-	if _, err := l.StartRound(widgetsPR, "h1", clickTrigger(t0), t0); err != nil {
+	if _, err := l.StartRound(widgetsPR, "h1", clickTrigger(t0, "elly"), t0); err != nil {
 		t.Fatal(err)
 	}
 	if n, _ := l.RoundsSince(widgetsPR, t0.Add(-time.Hour)); n != 0 {
@@ -254,5 +255,36 @@ func TestClickRoundsCountTowardNoCap(t *testing.T) {
 	}
 	if n, _ := l.Launches(t0.Add(-time.Hour)); n != 1 {
 		t.Errorf("Launches: %d", n)
+	}
+}
+
+// Started rounds by where they came from: a click by its link's ?from=, an
+// older click without one as unknown, and tick's own as tick; only rounds
+// started since the cut-off count.
+func TestRoundSources(t *testing.T) {
+	l := openTestLedger(t)
+	for _, r := range []struct {
+		trigger string
+		at      time.Time
+	}{
+		{clickTrigger(t0, "elly"), t0},
+		{clickTrigger(t0, "elly"), t0},
+		{clickTrigger(t0, "thunderbird"), t0},
+		{"click@" + t0.UTC().Format(time.RFC3339), t0},
+		{"review_requested@x", t0},
+		{"new_head", t0},
+		{clickTrigger(t0, "slack"), t0.Add(-48 * time.Hour)},
+	} {
+		if _, err := l.StartRound(widgetsPR, "h", r.trigger, r.at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := l.RoundSources(t0.Add(-time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]int{"elly": 2, "thunderbird": 1, "unknown": 1, "tick": 2}
+	if !maps.Equal(got, want) {
+		t.Errorf("got %v, want %v", got, want)
 	}
 }

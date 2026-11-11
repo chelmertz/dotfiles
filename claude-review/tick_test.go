@@ -901,7 +901,7 @@ func TestTickResumesFlaglessUnderTheSavedPolicy(t *testing.T) {
 // its worker still working on it: the merge came mid-round.
 func (w *tickWorld) closedWithWorker(t *testing.T, n, pid int) PR {
 	pr := w.accept(t, n)
-	if _, err := w.h.ledger.StartRound(pr, "h1", clickTrigger(t0), t0); err != nil {
+	if _, err := w.h.ledger.StartRound(pr, "h1", clickTrigger(t0, "elly"), t0); err != nil {
 		t.Fatal(err)
 	}
 	w.fs.workers = append(w.fs.workers, workerFor(pr.RoundSessionID(), pid))
@@ -1036,5 +1036,77 @@ func TestTickLogsWhatItDoes(t *testing.T) {
 	}
 	if !strings.Contains(w.out.String(), "start a round on https://github.com/acme/widgets/pull/42") {
 		t.Errorf("journal %q names no started round", w.out)
+	}
+}
+
+// Start is offered on elly's row for a review asked of the user by name in
+// review_repos that tick would not run on its own: not accepted, not
+// ignored, not the user's own, with nothing claude-review shows already.
+func TestTickOffersStartWhereAClickIsWhatIsMissing(t *testing.T) {
+	w := newTickWorld(t)
+	mine := requestedPR(4)
+	mine.Author = "me"
+	rereview := requestedPR(8)
+	rereview.ReviewRequestedFromUsers, rereview.RereviewFrom = nil, []string{"me"}
+	unasked := requestedPR(2)
+	unasked.ReviewRequestedFromUsers = nil
+	elsewhere := requestedPR(3)
+	elsewhere.Url = "https://github.com/other/x/pull/3"
+	w.elly.prs = []EllyPR{requestedPR(1), unasked, elsewhere, mine, requestedPR(5), requestedPR(6), requestedPR(7), rereview}
+	w.accept(t, 5)
+	if err := w.h.ledger.Ignore(PR{Owner: "acme", Repo: "widgets", Number: 6}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.h.ledger.SetAnnotation(PR{Owner: "acme", Repo: "widgets", Number: 7}, Annotation{State: stateNeedsYou, Note: "a question"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	var offered []string
+	for u, a := range w.elly.put {
+		if a.State == stateInfo {
+			offered = append(offered, u)
+			want := []Link{{Label: "Start", URL: "claude-review://acme/widgets/" + u[strings.LastIndex(u, "/")+1:] + "?from=elly", Primary: true}}
+			if !slices.Equal(a.Links, want) {
+				t.Errorf("%s: links %+v, want %+v", u, a.Links, want)
+			}
+			if got := w.elly.expires[u].Sub(w.h.now()); got != offerTTL {
+				t.Errorf("%s: offer lives %v, want %v", u, got, offerTTL)
+			}
+		}
+	}
+	slices.Sort(offered)
+	if want := []string{"https://github.com/acme/widgets/pull/1", "https://github.com/acme/widgets/pull/8"}; !slices.Equal(offered, want) {
+		t.Errorf("offered %v, want %v", offered, want)
+	}
+	// only the accepted #5 runs; an offer starts nothing
+	if len(w.started) != 1 {
+		t.Errorf("started %d rounds, want 1", len(w.started))
+	}
+}
+
+func TestTickDryRunOffersNothing(t *testing.T) {
+	w := newTickWorld(t)
+	w.elly.prs = []EllyPR{requestedPR(1)}
+	w.h.dry = true
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.elly.put) != 0 || !strings.Contains(w.out.String(), "would offer Start on https://github.com/acme/widgets/pull/1") {
+		t.Errorf("put %v, out %s", w.elly.put, w.out)
+	}
+}
+
+// A PR a click holds gets no offer: the click writes its own "starting".
+func TestTickOffersNothingOnAPRAClickHolds(t *testing.T) {
+	w := newTickWorld(t)
+	w.elly.prs = []EllyPR{requestedPR(1)}
+	w.locked[PR{Owner: "acme", Repo: "widgets", Number: 1}.SessionID().String()] = true
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.elly.put) != 0 {
+		t.Errorf("offered under a click: %v", w.elly.put)
 	}
 }

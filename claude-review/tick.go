@@ -121,6 +121,7 @@ func (h tickHost) tick() error {
 	if err := h.refresh(); err != nil {
 		return err
 	}
+	h.offerStarts(prs)
 	h.linkSessions(prs)
 	// A failed run is what the timer's journal shows.
 	if reason, err := h.ledger.Tripped(); err != nil || reason != "" {
@@ -410,6 +411,65 @@ func (h tickHost) sideEffects(pr PR, d Decision) error {
 	return nil
 }
 
+// offerTTL outlives one 5-minute tick, so a standing offer never blinks,
+// and lets one that stopped holding lapse within two.
+const offerTTL = 11 * time.Minute
+
+// offersStart is whether elly's row for p gets a Start: a review asked of
+// the user by name in review_repos that only a click would start (no
+// acceptance, no ignore, not the user's own), and nothing claude-review
+// already shows there. A click is the user's act; the offer only puts the
+// link on the page, beside the mail and the GitHub button.
+func offersStart(p EllyPR, cfg TickConfig, accepted, ignored, annotated bool) bool {
+	pr, err := ParseTarget(p.Url)
+	if err != nil || accepted || ignored || annotated || strings.EqualFold(p.Author, cfg.User) {
+		return false
+	}
+	asked := slices.ContainsFunc(append(append([]string{}, p.ReviewRequestedFromUsers...), p.RereviewFrom...), func(u string) bool { return strings.EqualFold(u, cfg.User) })
+	return asked && repoAllowed(pr.Owner, pr.Repo, cfg.ReviewRepos)
+}
+
+// startOffer is the info annotation that is Start on elly's row. It lives
+// in elly only: the ledger's rows are round states, and the first one a
+// click writes ("starting") replaces it.
+func startOffer(pr PR) Annotation {
+	return Annotation{State: stateInfo, Links: []Link{{Label: "Start", URL: "claude-review://" + pr.Owner + "/" + pr.Repo + "/" + itoaPR(pr) + "?from=elly", Primary: true}}}
+}
+
+// offerStarts sends Start where offersStart holds, each under the PR's
+// lock so it never lands on a click's "starting". Failures are said, never
+// the tick's.
+func (h tickHost) offerStarts(prs []EllyPR) {
+	for _, p := range prs {
+		pr, err := ParseTarget(p.Url)
+		if err != nil {
+			continue
+		}
+		_, accepted, err1 := h.ledger.Acceptance(pr)
+		ignored, err2 := h.ledger.Ignored(pr)
+		_, annotated, err3 := h.ledger.Annotation(pr)
+		if err := errors.Join(err1, err2, err3); err != nil {
+			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
+			continue
+		}
+		if !offersStart(p, h.tcfg, accepted, ignored, annotated) {
+			continue
+		}
+		if h.dry {
+			fmt.Fprintf(h.out, "would offer Start on %s\n", pr.URL())
+			continue
+		}
+		unlock, err := h.lock(pr.SessionID().String())
+		if err != nil {
+			continue // a click has it, and writes its own row
+		}
+		if err := h.elly.Put(pr.URL(), startOffer(pr), h.now().Add(offerTTL)); err != nil {
+			fmt.Fprintf(h.out, "claude-review tick: %s: offering Start: %v\n", pr.URL(), err)
+		}
+		unlock()
+	}
+}
+
 // clearOrSay clears pr's annotation, reporting a failure without stopping.
 func (h tickHost) clearOrSay(pr PR) {
 	if err := h.do("clear "+pr.URL(), func() error { return h.clear(pr) }); err != nil {
@@ -503,6 +563,73 @@ func (h tickHost) markRunning(pr PR, by string, at time.Time) error {
 		return err
 	}
 	return h.do("send "+pr.URL()+" to elly", func() error { return h.elly.Put(pr.URL(), a, a.Expires) })
+}
+
+// startingLifetime bounds a "starting" row a crashed click never cleared.
+const startingLifetime = 2 * time.Minute
+
+// markStarting shows a click on pr before anything else runs, so the page
+// answers the click at once.
+func (h tickHost) markStarting(pr PR, from string, at time.Time) error {
+	a := Annotation{State: stateRunning, Note: "starting (a click from " + from + ")", Expires: at.Add(startingLifetime)}
+	if err := h.ledger.SetAnnotation(pr, a); err != nil || h.elly == nil {
+		return err
+	}
+	return h.do("send "+pr.URL()+" to elly", func() error { return h.elly.Put(pr.URL(), a, a.Expires) })
+}
+
+// startingRow shows a click in elly at once (markStarting) and returns
+// what follows the click. One that started no round puts back the row the
+// "starting" replaced (unstart). A running round's row is kept instead of
+// marked, as the click is likely mid-round; then only a failed click drops
+// a running row, as before.
+func (h tickHost) startingRow(pr PR, from string, say func(error)) (finish func(started, failed bool), err error) {
+	prev, hadPrev, err := h.ledger.Annotation(pr)
+	if err != nil {
+		return nil, err
+	}
+	if hadPrev && prev.State == stateRunning {
+		return func(_, failed bool) {
+			if failed {
+				say(h.dropRunning(pr))
+			}
+		}, nil
+	}
+	say(h.markStarting(pr, from, h.now()))
+	return func(started, _ bool) {
+		if !started {
+			say(h.unstart(pr, prev, hadPrev))
+		}
+	}, nil
+}
+
+// unstart follows a click that started no round. A row still running is
+// the click's own "starting" and gives way to what was there before; a row
+// the click's outcome replaced (a gate, a settled round) stays. elly then
+// gets whatever the ledger holds.
+func (h tickHost) unstart(pr PR, prev Annotation, hadPrev bool) error {
+	cur, ok, err := h.ledger.Annotation(pr)
+	if err != nil {
+		return err
+	}
+	if ok && cur.State == stateRunning {
+		if hadPrev {
+			err = h.ledger.SetAnnotation(pr, prev)
+		} else {
+			err = h.ledger.ClearAnnotation(pr)
+		}
+		if err != nil {
+			return err
+		}
+		cur, ok = prev, hadPrev
+	}
+	if h.elly == nil {
+		return nil
+	}
+	if expires, send := h.refreshedExpiry(cur); ok && send {
+		return h.elly.Put(pr.URL(), cur, expires)
+	}
+	return h.elly.Delete(pr.URL())
 }
 
 // markRunningOrSay is markRunning for a round already started: a failure

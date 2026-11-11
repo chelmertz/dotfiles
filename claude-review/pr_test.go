@@ -129,3 +129,33 @@ func TestParseTarget_RefusesDotSegmentsAfterTheNumber(t *testing.T) {
 		}
 	}
 }
+
+// A claude-review link may say where it was clicked; the tag never changes
+// which PR it names, and anything but a short lower-case word is refused.
+func TestParseTarget_AcceptsAnEntrySource(t *testing.T) {
+	for in, from := range map[string]string{
+		"claude-review://acme/widgets/1234?from=elly":         "elly",
+		"claude-review://acme/widgets/1234/?from=thunderbird": "thunderbird",
+		"claude-review://acme/widgets/1234":                   "unknown",
+		httpsURL + "/pull/1234?from=elly":                     "unknown",
+	} {
+		got, err := ParseTarget(in)
+		if err != nil || got != (PR{Owner: owner, Repo: repoName, Number: 1234}) {
+			t.Errorf("%q: %+v, %v", in, got, err)
+		}
+		if s := EntrySource(in); s != from {
+			t.Errorf("%q: source %q, want %q", in, s, from)
+		}
+	}
+	for _, in := range []string{
+		"claude-review://acme/widgets/1234?from=",
+		"claude-review://acme/widgets/1234?from=Elly",
+		"claude-review://acme/widgets/1234?from=elly&x=1",
+		"claude-review://acme/widgets/1234?from=abcdefghijklmnopq",
+		"claude-review://acme/widgets/1234?to=elly",
+	} {
+		if _, err := ParseTarget(in); err == nil {
+			t.Errorf("%q: accepted", in)
+		}
+	}
+}

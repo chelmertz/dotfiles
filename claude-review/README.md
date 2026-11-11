@@ -167,9 +167,22 @@ there, in which case nothing starts. A window on the round session, a
 session saved under other options, a tripped breaker, or a worker that never
 appears is reported the same way and starts nothing. The click records its round in the ledger, so the next tick
 settles it like its own (a click's round counts toward neither cap).
-Each started click logs one "click timing" line to the journal (stages
-accept, prepare, bootstrap on a first handover, clear, launch, listed, and
-the total), so a slow click names its slow stage:
+A click's first act is a `running` row in elly reading "starting (a click
+from <source>)", before any GitHub call or launch, so an open elly page shows
+the click within a second whichever link it came from. A round already
+running keeps its own row. A click that starts no round puts back the row
+the "starting" replaced, or keeps the one its outcome wrote (a gate, a
+settled round); a crashed click's row lapses after 2 minutes.
+
+Links may end in `?from=<word>`: the GitHub button sends `github`,
+Thunderbird `thunderbird`, weechat's Slack hints `slack` and elly's offer
+`elly`. The round records it (`click@<time>?from=<word>`), and
+`claude-review stats [-days N]` counts started rounds per source, tick's
+own as `tick`. Anyone can write the tag; it is never a permission.
+
+Each click that reaches the launch logs one line to the journal with its
+source and timings (stages accept, prepare, bootstrap on a first handover,
+clear, launch, listed, and the total), so a slow click names its slow stage:
 `journalctl --user -t claude-review.desktop -g timing`.
 Watching is opt-in: `claude attach <id>`, or the Open-session link in elly.
 A PR GitHub reports merged or closed gets no round: the click records no
@@ -760,6 +773,14 @@ claude-review alone. It holds:
    positive evidence: the user's own approval stands at the current head, or
    GitHub reports the PR merged or closed. A PR missing from one elly read is
    not evidence; its annotation expires instead.
+10. Offer Start on elly's row for a review asked of the user by name (or a
+   re-review) in `review_repos` that only a click would start: not accepted,
+   not ignored, not the user's own, with no row claude-review already shows.
+   The offer is an `info` annotation whose one primary link,
+   `claude-review://owner/repo/number?from=elly`, elly shows as the row's
+   verb. It lives 11 minutes, so it lapses within two ticks once it no longer
+   holds, and is skipped while a click holds the PR. A clicked offer is an
+   ordinary click: the user's act, as from the mail or the GitHub button.
 
 #### The breaker
 

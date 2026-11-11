@@ -70,7 +70,7 @@
 		if (!pr) return;
 
 		const url = `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}`;
-		const scheme = `claude-review://${pr.owner}/${pr.repo}/${pr.number}`;
+		const scheme = `claude-review://${pr.owner}/${pr.repo}/${pr.number}?from=github`;
 		const cmd = `claude-review ${url}`;
 
 		const box = document.createElement("div");

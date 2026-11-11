@@ -1926,9 +1926,8 @@ in
         export PATH=${lib.makeBinPath [ pkgs.libnotify pkgs.xdg-utils pkgs.gnugrep pkgs.coreutils ]}:$PATH
         config=''${XDG_CONFIG_HOME:-$HOME/.config}
         owners=$(cat "$config/elly/work-owners" 2>/dev/null || true)
-        # claude-review's own list, so elly offers Start exactly where tick runs
-        repos=$(grep -v '^[[:space:]]*#' "$config/claude-review/review-repos" 2>/dev/null | tr -d ' \t' | grep . | paste -sd, - || true)
-        exec ${pkgs.elly}/bin/elly "$@" -work-owners="$owners" -review-repos="$repos"
+        # Start on a row is claude-review's offer, sent by its tick
+        exec ${pkgs.elly}/bin/elly "$@" -work-owners="$owners"
       ''} -db %h/.local/share/elly/elly.db -notify -page-url=http://elly.localhost:9876 -annotation-schemes=claude-review,claude-resume";
       Restart = "on-failure";
     };

@@ -67,6 +67,7 @@ const usageText = `usage: claude-review [--dry-run] <pr>
        claude-review approve <pr> --at SHA
        claude-review slack [--dry-run] <pr>...
        claude-review tick [--dry-run | --reset]
+       claude-review stats [-days N]
 
   <pr>   a GitHub PR URL, claude-review://owner/repo/number or owner/repo/number
 
@@ -81,6 +82,8 @@ it is yours to run, and the session is denied it.
 refuses a PR that is red, pending, conflicting, a draft or owes a reply.
 ` + "`claude-review tick`" + ` runs owed rounds on accepted PRs in review_repos, unattended,
 and reports them to elly; a timer runs it.
+` + "`claude-review stats`" + ` counts recent rounds by where they were started
+(a link's ?from=, or tick).
 `
 
 // subcommands are the gh-backed commands beside the default launch.
@@ -97,6 +100,9 @@ func runSessionCommand(args []string, d Deps) (int, bool) {
 	}
 	if args[0] == "post" {
 		return runPost(args[1:], d.Gh, ledgerSpend(d), d.Environ, d.Stdout, d.Stderr), true
+	}
+	if args[0] == "stats" {
+		return runStats(args[1:], d), true
 	}
 	if sub, ok := readCommands[args[0]]; ok {
 		return sub(args[1:], newPRReader(d), d.Stdout, d.Stderr), true
@@ -154,13 +160,14 @@ func run(args []string, d Deps) int {
 		return fail(d, err)
 	}
 
-	return launch(d, cfg, pr, dir, remote, *dryRun)
+	return launch(d, cfg, pr, dir, remote, *dryRun, EntrySource(fs.Arg(0)))
 }
 
 // launch plans one click on pr in dir and runs it, or prints it. A PR in
 // review_repos runs in its background worker (backgroundClick); any other
-// opens a window, under the user's own settings.
-func launch(d Deps, cfg Config, pr PR, dir, remote string, dryRun bool) int {
+// opens a window, under the user's own settings. from is where the link was
+// clicked (EntrySource), recorded with the round.
+func launch(d Deps, cfg Config, pr PR, dir, remote string, dryRun bool, from string) int {
 	background := repoAllowed(pr.Owner, pr.Repo, cfg.ReviewRepos)
 	if dryRun {
 		plan, err := planClick(d, cfg, pr, remote)
@@ -195,7 +202,7 @@ func launch(d Deps, cfg Config, pr PR, dir, remote string, dryRun bool) int {
 		return fail(d, fmt.Errorf("claude-review: %s is merged/closed; no round", pr.URL()))
 	}
 	if background {
-		return backgroundClick(d, cfg, pr, dir, remote, head, sw)
+		return backgroundClick(d, cfg, clickTarget{pr: pr, dir: dir, remote: remote, head: head, from: from}, sw)
 	}
 	plan, err := planClick(d, cfg, pr, remote)
 	if err != nil {
@@ -240,7 +247,12 @@ func planBackgroundClick(d Deps, cfg Config, pr PR, remote string) (click, error
 // idle worker, and records the round once the worker is listed, so tick
 // settles it like its own. head is the PR head the click saw ("" when
 // GitHub did not say; then nothing is recorded).
-func backgroundClick(d Deps, cfg Config, pr PR, dir, remote, head string, sw *stopwatch) int {
+//
+// Its first act is a "starting" row in elly, so an open page shows the click
+// within a second whichever link it came from; a click that starts no round
+// puts back what was there (unstart).
+func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
+	pr, dir, remote, head, from := c.pr, c.dir, c.remote, c.head, c.from
 	l, err := OpenLedger(LedgerPath(d.StateDir))
 	if err != nil {
 		return fail(d, err)
@@ -249,11 +261,25 @@ func backgroundClick(d Deps, cfg Config, pr PR, dir, remote, head string, sw *st
 	if reason, err := l.Tripped(); err != nil || reason != "" {
 		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), errors.Join(err, breakerError(reason))))
 	}
-	// read before the round starts: it records a round and a running note
+	// No out: a click reports through its notification, and the running
+	// row's own failures through say.
+	h := tickHost{ledger: l, elly: Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile(d.RuntimeDir)}, now: time.Now}
+	say := func(err error) {
+		if err != nil {
+			fmt.Fprintf(d.Stderr, "claude-review: %s: %v\n", pr.URL(), err)
+		}
+	}
+	// read before the "starting" row and the round: both replace its note
 	before, err := l.Handover(pr)
 	if err != nil {
 		return fail(d, err)
 	}
+	finish, err := h.startingRow(pr, from, say)
+	if err != nil {
+		return fail(d, err)
+	}
+	started, failed := false, false
+	defer func() { finish(started, failed) }()
 	if err := d.Trust(dir); err != nil {
 		return fail(d, fmt.Errorf("claude-review: trusting %s for Claude Code: %w", dir, err))
 	}
@@ -264,39 +290,37 @@ func backgroundClick(d Deps, cfg Config, pr PR, dir, remote, head string, sw *st
 		}
 		return newTickHost(d, cfg, l, user).settleUnread(pr)
 	}
-	// No out: a click reports through its notification, and the running
-	// row's own failures through say.
-	h := tickHost{ledger: l, elly: Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile(d.RuntimeDir)}}
-	say := func(err error) {
-		if err != nil {
-			fmt.Fprintf(d.Stderr, "claude-review: %s: %v\n", pr.URL(), err)
-		}
-	}
 	at := time.Now()
 	sw.mark("prepare")
 	starter := clickStarter(d, cfg)
 	starter.mark = sw.mark
 	res, err := starter.start(cfg, pr, dir, remote, false, settle)
 	sw.mark("listed")
-	fmt.Fprintf(d.Stderr, "claude-review: %s: click timing: %s\n", pr.URL(), sw)
+	fmt.Fprintf(d.Stderr, "claude-review: %s: click from %s, timing: %s\n", pr.URL(), from, sw)
 	if err != nil && res.Kind != relaunchDuplicate {
-		say(h.dropRunning(pr))
+		failed = true
 		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), err))
 	}
-	started, err := h.afterRelaunch(pr, res, err, func() error {
+	started, err = h.afterRelaunch(pr, res, err, func() error {
 		if head == "" {
 			return nil // nothing recorded, so nothing would settle a running row
 		}
-		if _, err := l.StartRound(pr, head, clickTrigger(at), at); err != nil {
+		if _, err := l.StartRound(pr, head, clickTrigger(at, from), at); err != nil {
 			return err
 		}
 		say(h.markRunning(pr, "a click", at))
 		return nil
 	})
-	if err != nil {
-		say(h.dropRunning(pr))
-	}
+	failed = err != nil
 	return clickOutcome(d, pr, res, started, err, before)
+}
+
+// clickTarget is what a background click acts on: the PR, its clone and
+// remote, the head GitHub reported ("" when it did not say), and where the
+// link was clicked.
+type clickTarget struct {
+	pr                      PR
+	dir, remote, head, from string
 }
 
 // clickOutcome tells the user what a background click did, and on a start

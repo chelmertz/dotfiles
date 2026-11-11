@@ -292,9 +292,14 @@ type Annotation struct {
 type Link struct {
 	Label string `json:"label"`
 	URL   string `json:"url"`
+	// Primary makes elly show the link as the row's action (the Start
+	// offer); elly honours it only on an info annotation naming the PR.
+	Primary bool `json:"primary,omitempty"`
 }
 
 const (
+	// stateInfo carries only links: the Start offer, never a round state.
+	stateInfo     = "info"
 	stateHandled  = "handled"
 	stateNeedsYou = "needs_you"
 	stateRunning  = "running"
@@ -396,8 +401,42 @@ func (l *Ledger) LastHead(pr PR) (string, error) {
 	return head, err
 }
 
-// clickTrigger is the trigger a click's round is recorded under.
-func clickTrigger(at time.Time) string { return "click@" + at.UTC().Format(time.RFC3339) }
+// RoundSources counts the rounds started since since by where they came
+// from: a click by its link's ?from= ("unknown" for an older click or an
+// untagged link), every other round as "tick". For `claude-review stats`.
+func (l *Ledger) RoundSources(since time.Time) (map[string]int, error) {
+	rows, err := l.db.Query(`select trigger from rounds where started_at >= ?`, since.Unix())
+	if err != nil {
+		return nil, fmt.Errorf("round sources: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string]int{}
+	for rows.Next() {
+		var trigger string
+		if err := rows.Scan(&trigger); err != nil {
+			return nil, fmt.Errorf("round sources: %w", err)
+		}
+		out[triggerSource(trigger)]++
+	}
+	return out, rows.Err()
+}
+
+// triggerSource is the source clickTrigger wrote into trigger.
+func triggerSource(trigger string) string {
+	if !strings.HasPrefix(trigger, "click@") {
+		return "tick"
+	}
+	if _, from, ok := strings.Cut(trigger, "?from="); ok && from != "" {
+		return from
+	}
+	return "unknown"
+}
+
+// clickTrigger is the trigger a click's round is recorded under, with where
+// the link was clicked (EntrySource) for `claude-review stats`.
+func clickTrigger(at time.Time, from string) string {
+	return "click@" + at.UTC().Format(time.RFC3339) + "?from=" + from
+}
 
 // metaClaudeVersion is the Claude Code version the last passing self-check ran on.
 const metaClaudeVersion = "claude_version"

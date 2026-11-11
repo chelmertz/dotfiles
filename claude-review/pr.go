@@ -21,9 +21,21 @@ type PR struct {
 // are strict on purpose: the input is reachable from a clickable link.
 var (
 	ghURL  = regexp.MustCompile(`^https://github\.com/([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/pull/([1-9][0-9]*)([/#?].*)?$`)
-	scheme = regexp.MustCompile(`^claude-review://([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/([1-9][0-9]*)/?$`)
+	scheme = regexp.MustCompile(`^claude-review://([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/([1-9][0-9]*)/?(?:\?from=[a-z]{1,16})?$`)
 	bare   = regexp.MustCompile(`^([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/([1-9][0-9]*)$`)
+	// fromTag is where a claude-review link says it was clicked.
+	fromTag = regexp.MustCompile(`^claude-review://[^?]*\?from=([a-z]{1,16})$`)
 )
+
+// EntrySource is where a claude-review link was clicked ("elly",
+// "thunderbird", "github", ...), from its ?from= tag, or "unknown". Anyone
+// can write the tag: it feeds statistics, never a decision.
+func EntrySource(s string) string {
+	if m := fromTag.FindStringSubmatch(s); m != nil && scheme.MatchString(s) {
+		return m[1]
+	}
+	return "unknown"
+}
 
 // ParseTarget accepts a GitHub PR URL, a claude-review:// URI or a bare
 // owner/repo/number.

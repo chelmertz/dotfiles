@@ -153,7 +153,7 @@ let
 
     n = struct.unpack("=I", sys.stdin.buffer.read(4))[0]
     url = json.loads(sys.stdin.buffer.read(n)).get("url", "")
-    ok = re.fullmatch(r"claude-review://[\w.-]+/[\w.-]+/\d+", url) is not None
+    ok = re.fullmatch(r"claude-review://[\w.-]+/[\w.-]+/\d+(\?from=[a-z]{1,16})?", url) is not None
     if ok:
         # Own session: Thunderbird kills the host once it has answered.
         subprocess.Popen(["${pkgs.xdg-utils}/bin/xdg-open", url], start_new_session=True,

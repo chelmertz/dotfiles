@@ -404,7 +404,7 @@ def run_action(action, msgs):
         if msg_id.startswith("$"):
             w.command(buffer, msg_id + "+:eyes:")
         for pr in prs:
-            open_url(pr.replace("https://github.com/", "claude-review://").replace("/pull/", "/"))
+            open_url(pr.replace("https://github.com/", "claude-review://").replace("/pull/", "/") + "?from=slack")
     elif action == "open":
         urls = links(msg)
         if not urls:

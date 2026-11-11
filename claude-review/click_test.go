@@ -1,11 +1,18 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"html"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -297,12 +304,104 @@ func TestClickLogsItsStageTimings(t *testing.T) {
 		if code := run([]string{target}, h.d); code != 0 {
 			t.Fatalf("exists=%v: exit %d: %s", exists, code, h.stderr)
 		}
-		want := "click timing: accept 1.0s prepare 1.0s bootstrap 1.0s clear 1.0s launch 1.0s listed 1.0s total 6.0s"
+		want := "click from unknown, timing: accept 1.0s prepare 1.0s bootstrap 1.0s clear 1.0s launch 1.0s listed 1.0s total 6.0s"
 		if exists {
-			want = "click timing: accept 1.0s prepare 1.0s clear 1.0s launch 1.0s listed 1.0s total 5.0s"
+			want = "click from unknown, timing: accept 1.0s prepare 1.0s clear 1.0s launch 1.0s listed 1.0s total 5.0s"
 		}
 		if !strings.Contains(h.stderr.String(), testPR.URL()+": "+want+"\n") {
 			t.Errorf("exists=%v: stderr lacks %q:\n%s", exists, want, h.stderr)
+		}
+	}
+}
+
+// ellyRecorder is an elly that records annotation writes as events, in the
+// same list as the fake roster's, so a test can see what came first.
+func ellyRecorder(t *testing.T, h *fakeHost, fs *fakeSessions) {
+	t.Helper()
+	var mu sync.Mutex
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var a struct{ State, Note string }
+		_ = json.Unmarshal(body, &a)
+		mu.Lock()
+		fs.events = append(fs.events, strings.TrimSpace(r.Method+" "+a.State+" "+a.Note))
+		mu.Unlock()
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(srv.Close)
+	h.d.RuntimeDir = t.TempDir()
+	if err := os.MkdirAll(filepath.Dir(ellyTokenFile(h.d.RuntimeDir)), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(ellyTokenFile(h.d.RuntimeDir), []byte("tok"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := strings.Replace(reviewRepoCfg, "http://127.0.0.1:1", srv.URL, 1)
+	if err := os.WriteFile(ConfigPath(h.d.UserConfigDir), []byte(cfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A click tells elly "starting" before anything slow runs, so an open page
+// answers at once whichever link was clicked; the round then shows as
+// started, and the link's ?from= is recorded with it.
+func TestClickShowsStartingFirstAndRecordsWhereItCameFrom(t *testing.T) {
+	h, fs := clickHost(t, true)
+	ellyRecorder(t, h, fs)
+	if code := run([]string{"claude-review://acme/widgets/42?from=elly"}, h.d); code != 0 {
+		t.Fatalf("exit %d: %s", code, h.stderr)
+	}
+	want := "PUT running starting (a click from elly),trust " + cloneOf + ",launch,PUT running started by a click"
+	if got := strings.Join(fs.events, ","); got != want {
+		t.Errorf("events\n%s, want\n%s", got, want)
+	}
+	rounds, _ := h.ledger(t).UnreadRounds()
+	if len(rounds) != 1 || !strings.HasSuffix(rounds[0].Trigger, "?from=elly") {
+		t.Errorf("rounds %+v", rounds)
+	}
+	if !strings.Contains(h.stderr.String(), "click from elly, timing:") {
+		t.Errorf("stderr: %s", h.stderr)
+	}
+}
+
+// A click that starts no round puts back the row it replaced, in the
+// ledger and in elly.
+func TestClickThatStartsNothingPutsBackTheRow(t *testing.T) {
+	h, fs := clickHost(t, true)
+	ellyRecorder(t, h, fs)
+	l := h.ledger(t)
+	was := Annotation{State: stateHandled, Note: "round found nothing to post"}
+	if err := l.SetAnnotation(testPR, was); err != nil {
+		t.Fatal(err)
+	}
+	fs.workers = []Worker{workerFor(testPR.RoundSessionID(), 500)}
+	fs.states[testPR.RoundSessionID()] = "working"
+	if code := run([]string{target}, h.d); code != 0 {
+		t.Fatalf("exit %d: %s", code, h.stderr)
+	}
+	if got, want := strings.Join(fs.events, ","), "PUT running starting (a click from unknown),trust "+cloneOf+",PUT handled round found nothing to post"; got != want {
+		t.Errorf("events\n%s, want\n%s", got, want)
+	}
+	if a, ok, _ := l.Annotation(testPR); !ok || a.State != was.State || a.Note != was.Note {
+		t.Errorf("ledger holds %+v %v", a, ok)
+	}
+}
+
+// A click on a PR whose round is running leaves its running row alone.
+func TestClickMidRoundKeepsTheRunningRow(t *testing.T) {
+	h, fs := clickHost(t, true)
+	ellyRecorder(t, h, fs)
+	if err := h.ledger(t).SetAnnotation(testPR, Annotation{State: stateRunning, Note: "started by tick"}); err != nil {
+		t.Fatal(err)
+	}
+	fs.workers = []Worker{workerFor(testPR.RoundSessionID(), 500)}
+	fs.states[testPR.RoundSessionID()] = "working"
+	if code := run([]string{target}, h.d); code != 0 {
+		t.Fatalf("exit %d: %s", code, h.stderr)
+	}
+	for _, e := range fs.events {
+		if strings.HasPrefix(e, "PUT") || strings.HasPrefix(e, "DELETE") {
+			t.Errorf("elly was written: %q", fs.events)
 		}
 	}
 }

@@ -135,8 +135,13 @@ func TestThunderbirdHostPassesNoVerbs(t *testing.T) {
 		t.Fatal("no re.fullmatch pattern in nix/thunderbird.nix")
 	}
 	full := regexp.MustCompile("^(?:" + string(m[1]) + ")$")
-	if !full.MatchString("claude-review://acme/widgets/42") {
-		t.Errorf("pattern %s refuses a plain PR link", m[1])
+	for _, u := range []string{"claude-review://acme/widgets/42", "claude-review://acme/widgets/42?from=thunderbird"} {
+		if !full.MatchString(u) {
+			t.Errorf("pattern %s refuses %s", m[1], u)
+		}
+	}
+	if u := "claude-review://acme/widgets/42?from=x&y=1"; full.MatchString(u) {
+		t.Errorf("pattern %s passes %s", m[1], u)
 	}
 	for _, verb := range []string{"approve?at=" + sha + "&token=x", "attach", "ignore"} {
 		if u := "claude-review://acme/widgets/42/" + verb; full.MatchString(u) {
