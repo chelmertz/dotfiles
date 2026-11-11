@@ -249,7 +249,7 @@ func TestNotifyLog(t *testing.T) {
 	notify("multi\nline")
 	notifyInfo("hi")
 	b, err := os.ReadFile(log)
-	if err != nil || string(b) != "critical\tp-launcher failed\tmulti line\nlow\tp-launcher\thi\n" {
+	if err != nil || string(b) != "critical\tFailed\tmulti line\nlow\thi\t\n" {
 		t.Fatalf("%q %v", b, err)
 	}
 }

@@ -54,7 +54,7 @@ if unknown:
 
 
 def note(msg):
-    subprocess.run(["notify-send", "-u", "normal", "Slack (wee)", msg], check=False)
+    subprocess.run(["notify-send", "-a", "wee", msg], check=False)
 
 
 def warn(msg):
@@ -205,7 +205,7 @@ def main():
     stored_teams = {team_of(x) for x, _ in stored}
     if not cookie or stored_teams - set(found):
         warn("Slack cookie invalid or missing; decrypting a fresh one")
-        note("Refreshing Slack session…")
+        note("Refreshing the Slack session")
         fresh = decrypt_cookie()
         if fresh:
             cookie = fresh
@@ -213,12 +213,12 @@ def main():
 
     if not found:
         warn("no valid Slack session; open Slack desktop once, then /python reload slack")
-        note("Slack session expired. Open Slack desktop once to refresh.")
+        note("Slack session expired: open Slack desktop once")
         return 1
     missing = stored_teams - set(found)
     if missing:
         warn("no valid token for team(s) %s; open Slack desktop once" % ", ".join(sorted(missing)))
-        note("Some Slack workspaces need a refresh. Open Slack desktop once.")
+        note("Some Slack workspaces expired: open Slack desktop once")
 
     value = ",".join("%s:d=%s" % (found[t], cookie) for t in teams if t in found)
     current = ",".join("%s:d=%s" % p for p in stored)

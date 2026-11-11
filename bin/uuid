@@ -3,4 +3,4 @@
 uuid=$(python3 -c 'from uuid import uuid4; print(str(uuid4()));')
 echo -n "$uuid" | xclip -i -selection primary
 echo -n "$uuid" | xclip -i -selection clipboard
-notify-send "Copied UUID $uuid"
+notify-send -a uuid "Copied" "$uuid"

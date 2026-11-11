@@ -52,7 +52,7 @@ check_layout() {
 		printf '%b' "$issues" >&2
 		if command -v notify-send >/dev/null 2>&1; then
 			body=$(printf '%b' "$issues")
-			notify-send -u critical -- "screenlayout: $layout failed" "$body"
+			notify-send -a screenlayout -u critical -- "$layout failed" "$body"
 		fi
 		return 1
 	fi

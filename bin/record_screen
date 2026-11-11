@@ -96,12 +96,12 @@ while true; do
 
     case "$choice" in
         "Pick monitor")
-            notify-send -t 2000 "Screen Recording" "Click anywhere to select that monitor"
+            notify-send -a record_screen -t 2000 "Click a monitor"
             point=$(slop --tolerance=0 --noopengl --format="%x %y" 2>/dev/null) || continue
             read -r px py <<< "$point"
             MONITOR_NAME=$(point_to_monitor "$px" "$py")
             if [ -z "$MONITOR_NAME" ]; then
-                notify-send -t 2000 "Screen Recording" "Could not determine monitor"
+                notify-send -a record_screen -t 2000 "No monitor under the click"
             fi
             ;;
         Screenkey:*)
@@ -131,7 +131,7 @@ done
 
 # Resolve capture geometry
 if [ "$ACTION" = "rectangle" ]; then
-    notify-send -t 2000 "Screen Recording" "Click a window or drag a rectangle"
+    notify-send -a record_screen -t 2000 "Click a window or drag a rectangle"
     slop_out=$(slop --noopengl --bordersize=4 --format "%x %y %w %h") || exit 1
     read -r X Y W H <<< "$slop_out"
 else
@@ -200,7 +200,7 @@ cleanup
 trap - EXIT
 
 if [ "$STOP_REQUESTED" -eq 0 ]; then
-    notify-send -u critical "Screen Recording" "ffmpeg exited early:\n$(tail -n 3 "$tmpfile.log")"
+    notify-send -a record_screen -u critical "ffmpeg exited early" "$(tail -n 3 "$tmpfile.log")"
     rm -f "$tmpfile" "$tmpfile.log"
     exit 1
 fi
@@ -216,5 +216,5 @@ if zenity --question \
     rd "$tmpfile"
 else
     rm -f "$tmpfile"
-    notify-send -t 2000 "Screen Recording" "Recording discarded"
+    notify-send -a record_screen -t 2000 "Recording discarded"
 fi

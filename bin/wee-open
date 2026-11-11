@@ -46,11 +46,11 @@ def send(command):
 def main(argv):
     match = LINK.match(argv[1] if len(argv) > 1 else "")
     if not match:
-        subprocess.run(["notify-send", "wee-open", "not a wee link: %s" % argv[1:]])
+        subprocess.run(["notify-send", "-a", "wee", "--", "Not a wee link", " ".join(argv[1:])])
         return 1
     url = "https://" + match.group(1)
     if not send("*/slack openlink " + url):
-        subprocess.run(["notify-send", "wee-open", "wee is not running: F9, then the link again"])
+        subprocess.run(["notify-send", "-a", "wee", "wee is not running", "F9, then the link again"])
         return 1
     subprocess.run(["i3-msg", "-q", '[class="^org\\.weechat\\.wee$"] focus'])
     return 0

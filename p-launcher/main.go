@@ -426,13 +426,14 @@ func report(err error) {
 // notify-send failure is logged next to the original error, never instead
 // of it.
 func notify(body string) {
-	notifySend("critical", "p-launcher failed", body)
+	notifySend("critical", "Failed", body)
 }
 
 // notifyInfo raises a low-urgency, non-error desktop notification, e.g. a
-// typed menu entry that matched no project.
-func notifyInfo(body string) {
-	notifySend("low", "p-launcher", body)
+// typed menu entry that matched no project. The one line is the summary;
+// the app name already says p-launcher.
+func notifyInfo(text string) {
+	notifySend("low", text, "")
 }
 
 // notifySend raises a desktop notification, or appends it to the file named
@@ -452,7 +453,7 @@ func notifySend(urgency, title, body string) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if _, nerr := runCmd(ctx, "notify-send", "-u", urgency, "-a", "p-launcher", title, html.EscapeString(body)); nerr != nil {
+	if _, nerr := runCmd(ctx, "notify-send", "-u", urgency, "-a", "p-launcher", html.EscapeString(title), html.EscapeString(body)); nerr != nil {
 		fmt.Fprintln(os.Stderr, "p-launcher: notify-send also failed:", nerr)
 	}
 }

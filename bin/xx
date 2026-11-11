@@ -45,7 +45,7 @@ die() { printf 'xx: %s\n' "$*" >&2; exit 1; }
 
 note() {
 	printf 'xx: %s\n' "$*" >&2
-	command -v notify-send >/dev/null && notify-send "xx" "$*"
+	command -v notify-send >/dev/null && notify-send -a xx -- "$*"
 }
 
 dbg() { [ -n "${XX_DEBUG:-}" ] && printf 'xx[dbg] %s\n' "$*" >&2; return 0; }
