@@ -514,7 +514,9 @@ in
           # The appcards patch adds app_unfurls, which hides the cards apps
           # like GitHub add to links while website previews stay. The users
           # patch looks up senders users.list lacks (Slack Connect people) and
-          # reprints the channel with their name instead of the bare id.
+          # reprints the channel with their name instead of the bare id. The
+          # emoji patch renders :shortcodes: in app messages' blocks, which
+          # upstream left raw in the buffer and the desktop notification.
           (wee-slack.overrideAttrs (o: {
             patches = (o.patches or [ ]) ++ [
               ../weechat/wee-slack-unreads.patch
@@ -532,6 +534,7 @@ in
               ../weechat/wee-slack-files.patch
               ../weechat/wee-slack-appcards.patch
               ../weechat/wee-slack-users.patch
+              ../weechat/wee-slack-emoji.patch
             ];
           }))
           # /go drew its "Go to:" prompt only on the next redraw, and Esc on

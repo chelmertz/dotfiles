@@ -510,6 +510,19 @@ if (asked != ["users.info"] or not uteam.users["U9"].is_external
     print("unknown sender: asked=%s reprint=%s" % (asked, uchan.reprint_messages.call_args))
     failed = True
 
+# Emoji (weechat/wee-slack-emoji.patch): app messages put :shortcodes: in
+# mrkdwn and plain_text blocks, which upstream renders raw, so the buffer and
+# the desktop notification showed ":red_circle: Build Failed".
+wee_slack.config = mock.MagicMock(render_emoji_as_string=False, map_underline_to="_")
+wee_slack.EMOJI.update({"red_circle": "\U0001f534", "rocket": "\U0001f680"})
+shown = wee_slack.unfurl_blocks([
+    {"type": "section", "text": {"type": "mrkdwn", "text": ":red_circle: *Build Failed*"}},
+    {"type": "context", "elements": [{"type": "plain_text", "text": ":rocket: ok"}]},
+])
+if ":red_circle:" in shown[0] or not shown[0].startswith("\U0001f534") or shown[1] != "\U0001f680 ok":
+    print("block emoji: rendered %r" % shown)
+    failed = True
+
 if head != ["query", "on-screen"]:
     print("foreground requests not at the head of the waiting list:", head)
     failed = True

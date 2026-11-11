@@ -1,0 +1,19 @@
+--- a/wee_slack.py
++++ b/wee_slack.py
+@@ -5185,10 +5185,14 @@
+ 
+ 
+ def unfurl_block_element(element):
++    # App messages (GitHub, New Relic) put :shortcodes: here, and render()
++    # skips block text when it replaces them, so do it per element.
+     if element["type"] == "mrkdwn":
+-        return render_formatting(unhtmlescape(unfurl_refs(element["text"])))
++        return replace_string_with_emoji(
++            render_formatting(unhtmlescape(unfurl_refs(element["text"])))
++        )
+     elif element["type"] == "plain_text":
+-        return unhtmlescape(unfurl_refs(element["text"]))
++        return replace_string_with_emoji(unhtmlescape(unfurl_refs(element["text"])))
+     elif element["type"] == "image":
+         if element.get("alt_text"):
+             return "{} ({})".format(element["image_url"], element["alt_text"])
