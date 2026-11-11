@@ -347,7 +347,7 @@ func TestTickCleanRoundGetsAWorkingApproveLink(t *testing.T) {
 	if ok, _ := w.h.ledger.UseToken(pr, u.Query().Get("at"), tok); !ok {
 		t.Errorf("the Approve link's token is not one the ledger minted: %s", a.Links[0].URL)
 	}
-	if want := []string{pr.URL() + " needs you: clean round at aaaaaaaaa"}; !slices.Equal(w.notified, want) {
+	if want := []string{pr.URL() + " needs you: clean round at aaaaaaaaa; approve it yourself, claude-review never does"}; !slices.Equal(w.notified, want) {
 		t.Errorf("notified %q, want %q", w.notified, want)
 	}
 }
@@ -1108,5 +1108,29 @@ func TestTickOffersNothingOnAPRAClickHolds(t *testing.T) {
 	}
 	if len(w.elly.put) != 0 {
 		t.Errorf("offered under a click: %v", w.elly.put)
+	}
+}
+
+// A real tick writes why it leaves each PR to the journal, not only a dry
+// run: "no slot" and "never clicked" otherwise read as tick finding nothing.
+func TestTickLogsWhyItLeavesEachPR(t *testing.T) {
+	w := newTickWorld(t)
+	w.h.tcfg.MaxRunning = 1
+	for n := 1; n <= 2; n++ {
+		w.accept(t, n)
+		w.elly.prs = append(w.elly.prs, requestedPR(n))
+	}
+	w.elly.prs = append(w.elly.prs, requestedPR(3))
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	out := w.out.String()
+	for _, want := range []string{
+		"leave https://github.com/acme/widgets/pull/2: " + string(skipNoSlot),
+		"leave https://github.com/acme/widgets/pull/3: " + string(skipNotAccepted),
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
 	}
 }

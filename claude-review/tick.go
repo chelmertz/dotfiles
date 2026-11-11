@@ -359,10 +359,10 @@ func (h tickHost) settleUnread(pr PR) error {
 // Without retry, a retry decision only marks the round read.
 func (h tickHost) apply(pr PR, r Round, d Decision, retry bool) (bool, error) {
 	if d.Retry && retry {
-		started := false
+		var not skip
 		err := h.do("retry "+pr.URL(), func() error {
 			var err error
-			started, err = h.launch(pr, nil, func(at time.Time) error {
+			not, err = h.launch(pr, nil, func(at time.Time) error {
 				if err := h.ledger.MarkRetried(r.ID); err != nil {
 					return err
 				}
@@ -371,7 +371,10 @@ func (h tickHost) apply(pr PR, r Round, d Decision, retry bool) (bool, error) {
 			})
 			return err
 		})
-		return started || h.dry, err
+		if not != "" {
+			h.leave(pr, not)
+		}
+		return (err == nil && not == "") || h.dry, err
 	}
 	if err := h.sideEffects(pr, d); err != nil {
 		return false, err
@@ -484,64 +487,81 @@ func (h tickHost) clear(pr PR) error {
 	return h.elly.Delete(pr.URL())
 }
 
-// startOwed starts the rounds planTick picks, at most MaxRunning at once.
+// startOwed starts the rounds planTick picks, at most MaxRunning at once,
+// and says in the journal why it leaves each other PR.
 func (h tickHost) startOwed(prs []EllyPR, running int) error {
 	plans, err := planTick(prs, h.tcfg, h.ledger, h.gh, h.now())
 	if err != nil {
 		return err
 	}
 	for _, p := range plans {
+		if p.Skip != "" {
+			h.leave(p.PR, p.Skip)
+			continue
+		}
 		gate, err := h.gateNote(p)
 		if err != nil {
 			return err
 		}
 		if gate != nil {
+			if h.out != nil {
+				fmt.Fprintf(h.out, "hold %s: %s\n", p.PR.URL(), gate.Note)
+			}
 			if err := h.mark(p.PR, *gate); err != nil {
 				return err
 			}
 			continue
 		}
-		started, err := h.startOne(p, running)
+		s, err := h.startOne(p, running)
 		if err != nil {
 			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", p.PR.URL(), err)
 		}
-		if started {
+		if s != "" {
+			h.leave(p.PR, s)
+		} else if err == nil {
 			running++
 		}
 	}
 	return nil
 }
 
-// startOne starts p's round under the PR's lock, unless a click holds it,
-// a legacy window holds the session, a round runs, or no slot is free.
-func (h tickHost) startOne(p Planned, running int) (bool, error) {
+// leave writes why tick leaves pr alone, "would leave" in a dry run.
+func (h tickHost) leave(pr PR, s skip) {
+	if h.out == nil {
+		return
+	}
+	verb := "leave"
+	if h.dry {
+		verb = "would leave"
+	}
+	fmt.Fprintf(h.out, "%s %s: %s\n", verb, pr.URL(), s)
+}
+
+// startOne starts p's round under the PR's lock, or names what holds it
+// back: a click holding it, a legacy window on the session, a running
+// round, or no free slot. "" with no error is a start.
+func (h tickHost) startOne(p Planned, running int) (skip, error) {
 	unlock, err := h.lock(p.PR.SessionID().String())
 	if errors.Is(err, errLocked) {
-		if h.dry {
-			fmt.Fprintf(h.out, "would leave %s: a click holds it\n", p.PR.URL())
-		}
-		return false, nil
+		return skipClickHolds, nil
 	}
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	defer unlock()
 	if h.sess.WindowOpen(p.PR.RoundSessionID()) {
-		return false, h.markWindow(p.PR)
+		return skipWindowOpen, h.markWindow(p.PR)
 	}
 	if h.running(p.PR.RoundSessionID()) {
-		if h.dry {
-			fmt.Fprintf(h.out, "would leave %s: its session is open\n", p.PR.URL())
-		}
-		return false, nil
+		return skipRunning, nil
 	}
 	if running >= h.tcfg.MaxRunning {
-		return false, nil
+		return skipNoSlot, nil
 	}
-	started := false
+	var not skip
 	err = h.do(fmt.Sprintf("start a round on %s at %.9s (%s)", p.PR.URL(), p.Head, p.Trigger), func() error {
 		var err error
-		started, err = h.launch(p.PR, func() error { return h.settleUnread(p.PR) }, func(at time.Time) error {
+		not, err = h.launch(p.PR, func() error { return h.settleUnread(p.PR) }, func(at time.Time) error {
 			if _, err := h.ledger.StartRound(p.PR, p.Head, p.Trigger, at); err != nil {
 				return err
 			}
@@ -550,7 +570,7 @@ func (h tickHost) startOne(p Planned, running int) (bool, error) {
 		})
 		return err
 	})
-	return started || h.dry, err
+	return not, err
 }
 
 // markRunning shows pr's just-recorded round in elly at once, with an
@@ -706,9 +726,9 @@ func (h tickHost) gateNote(p Planned) (*Annotation, error) {
 // tripped until the user resets it, so a loop that keeps starting rounds
 // stops at the cap even after the window moves on. settle reads the PR's
 // last round before its idle worker is stopped. The caller holds the lock.
-func (h tickHost) launch(pr PR, settle func() error, record func(at time.Time) error) (started bool, err error) {
+func (h tickHost) launch(pr PR, settle func() error, record func(at time.Time) error) (notStarted skip, err error) {
 	if h.dry {
-		return false, errors.New("refusing to start a round in a dry run")
+		return "", errors.New("refusing to start a round in a dry run")
 	}
 	defer func() {
 		if err == nil {
@@ -720,27 +740,27 @@ func (h tickHost) launch(pr PR, settle func() error, record func(at time.Time) e
 	}()
 	reason, err := h.ledger.Tripped()
 	if err != nil || reason != "" {
-		return false, errors.Join(err, breakerError(reason))
+		return "", errors.Join(err, breakerError(reason))
 	}
 	n, err := h.ledger.Launches(h.now().Add(-24 * time.Hour))
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	if n >= h.tcfg.TotalDailyCap {
 		reason = fmt.Sprintf("%d rounds started in 24 hours, the limit across all PRs", n)
-		return false, errors.Join(h.ledger.Trip(reason), breakerError(reason))
+		return "", errors.Join(h.ledger.Trip(reason), breakerError(reason))
 	}
 	dir, remote, err := h.findRepo(pr)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	if err := h.trust(dir); err != nil {
-		return false, err
+		return "", err
 	}
 	at := h.now()
 	res, err := h.starter().start(h.cfg, pr, dir, remote, true, settle)
 	if err != nil && res.Kind != relaunchDuplicate {
-		return false, err
+		return "", err
 	}
 	return h.afterRelaunch(pr, res, err, func() error { return record(at) })
 }
@@ -751,27 +771,29 @@ func (h tickHost) starter() roundStarter {
 }
 
 // afterRelaunch turns Relaunch's outcome into ledger writes: the round is
-// recorded only once its worker is listed and alone.
-func (h tickHost) afterRelaunch(pr PR, res RelaunchResult, stopErr error, record func() error) (bool, error) {
-	needsYou := func(note string) error {
-		return h.mark(pr, Annotation{State: stateNeedsYou, Note: note, Links: []Link{ignoreLink(pr)}})
+// recorded only once its worker is listed and alone. notStarted names why
+// no round started; "" with no error is a start.
+func (h tickHost) afterRelaunch(pr PR, res RelaunchResult, stopErr error, record func() error) (notStarted skip, err error) {
+	needsYou := func(note string) (skip, error) {
+		return skip(note), h.mark(pr, Annotation{State: stateNeedsYou, Note: note, Links: []Link{ignoreLink(pr)}})
 	}
 	switch res.Kind {
 	case relaunched:
-		return true, record()
+		return "", record()
 	case relaunchWindow:
-		return false, h.markWindow(pr)
+		return skipWindowOpen, h.markWindow(pr)
 	case relaunchUnknown:
-		return false, fmt.Errorf("nothing started: %s", res.Detail)
+		return "", fmt.Errorf("nothing started: %s", res.Detail)
 	case relaunchDuplicate:
 		reason := pr.URL() + ": " + res.Detail
-		return false, errors.Join(stopErr, needsYou(res.Detail+"; rounds are paused for every PR"), h.ledger.Trip(reason), breakerError(reason))
+		s, err := needsYou(res.Detail + "; rounds are paused for every PR")
+		return s, errors.Join(stopErr, err, h.ledger.Trip(reason), breakerError(reason))
 	case relaunchNotListed:
-		return false, needsYou("the round was launched but " + res.Detail + "; nothing was recorded")
+		return needsYou("the round was launched but " + res.Detail + "; nothing was recorded")
 	case relaunchPolicy:
-		return false, needsYou("nothing started: " + res.Detail)
+		return needsYou("nothing started: " + res.Detail)
 	}
-	return false, nil // busy: a round still runs there
+	return skipBusy, nil
 }
 
 // refreshedExpiry is when a re-sent a expires: annotationTTL from now, or

@@ -44,8 +44,6 @@ type TickConfig struct {
 const (
 	gateFreshLook = "fresh_look"
 	gatePaused    = "paused"
-	// gateClosed drops a PR merged or closed since elly last polled it.
-	gateClosed = "closed"
 
 	// GitHub's words for a PR and a review, as tick compares them.
 	prOpen         = "open"
@@ -92,16 +90,36 @@ type Gate interface {
 	Base(pr PR) (base string, open bool, err error)
 }
 
-// Planned is one PR this tick acts on: a round to start, or a gate that
-// stops it and needs the user.
+// skip is why tick leaves a PR in review_repos alone, as the journal says
+// it. The empty skip starts a round, unless a gate stops it.
+type skip string
+
+const (
+	skipNotAccepted skip = "never clicked; tick runs only PRs started once by a click"
+	skipIgnored     skip = "ignored until the next click"
+	skipNothingOwed skip = "nothing owed: no request, no reply, no new head"
+	skipAlreadyRan  skip = "a round at this head already saw this update"
+	skipClosed      skip = "merged or closed since elly's last poll"
+	// Decided at start, under the PR's lock.
+	skipClickHolds skip = "a click holds it"
+	skipWindowOpen skip = "its review window is open"
+	skipRunning    skip = "its session is open"
+	skipNoSlot     skip = "no free slot (max_running)"
+	skipBusy       skip = "a round still runs in its worker"
+)
+
+// Planned is tick's decision on one PR in review_repos: a round to start,
+// a gate that stops it and needs the user, or a skip.
 type Planned struct {
 	PR      PR
 	Head    string
 	Trigger string
 	Gate    string
+	Skip    skip
 }
 
-// planTick picks the PRs to act on, in elly's order.
+// planTick decides on every PR in review_repos the user did not write, in
+// elly's order. The PRs to run are those with neither Skip nor Gate.
 func planTick(prs []EllyPR, cfg TickConfig, l *Ledger, g Gate, now time.Time) ([]Planned, error) {
 	var out []Planned
 	for _, p := range prs {
@@ -117,18 +135,25 @@ func planTick(prs []EllyPR, cfg TickConfig, l *Ledger, g Gate, now time.Time) ([
 }
 
 // planOne decides about one PR: whether a round is owed, and whether a gate
-// stops it.
+// stops it. ok is false only for a PR outside review_repos or the user's
+// own, which tick never considers.
 func planOne(p EllyPR, cfg TickConfig, l *Ledger, g Gate, now time.Time) (Planned, bool, error) {
 	pr, ok := eligible(p, cfg)
 	if !ok {
 		return Planned{}, false, nil
 	}
+	out := Planned{PR: pr, Head: p.HeadRefOid}
+	left := func(s skip) (Planned, bool, error) { out.Skip = s; return out, true, nil }
 	acc, accepted, err := l.Acceptance(pr)
-	if err != nil || !accepted {
+	if err != nil {
 		return Planned{}, false, err
 	}
+	if !accepted {
+		return left(skipNotAccepted)
+	}
 	if ignored, err := l.Ignored(pr); err != nil || ignored {
-		return Planned{}, false, err
+		out.Skip = skipIgnored
+		return out, err == nil, err
 	}
 	lastHead, err := l.LastHead(pr)
 	if err != nil {
@@ -137,18 +162,26 @@ func planOne(p EllyPR, cfg TickConfig, l *Ledger, g Gate, now time.Time) (Planne
 	if lastHead == "" {
 		lastHead = acc.Head
 	}
-	trigger := roundTrigger(p, cfg.User, lastHead)
-	if trigger == "" {
-		return Planned{}, false, nil
+	out.Trigger = roundTrigger(p, cfg.User, lastHead)
+	if out.Trigger == "" {
+		return left(skipNothingOwed)
 	}
 	// A round at this head that started after the PR last changed already
 	// saw everything elly reports: a click answering a review request is
 	// one, while elly lists the request until its next poll.
-	if ran, err := l.RanAt(pr, p.HeadRefOid, trigger, p.LastUpdated); err != nil || ran {
+	if ran, err := l.RanAt(pr, p.HeadRefOid, out.Trigger, p.LastUpdated); err != nil || ran {
+		out.Skip = skipAlreadyRan
+		return out, err == nil, err
+	}
+	open, gate, err := gateFor(pr, acc, p.HeadRefOid, cfg, l, g, now)
+	if err != nil {
 		return Planned{}, false, err
 	}
-	gate, err := gateFor(pr, acc, p.HeadRefOid, cfg, l, g, now)
-	return Planned{PR: pr, Head: p.HeadRefOid, Trigger: trigger, Gate: gate}, err == nil && gate != gateClosed, err
+	if !open {
+		return left(skipClosed)
+	}
+	out.Gate = gate
+	return out, true, nil
 }
 
 // eligible: a PR in review_repos that the user did not write.
@@ -157,31 +190,29 @@ func eligible(p EllyPR, cfg TickConfig) (PR, bool) {
 	return pr, err == nil && repoAllowed(p.RepoOwner, p.RepoName, cfg.ReviewRepos) && !strings.EqualFold(p.Author, cfg.User)
 }
 
-// gateFor is what stops an owed round: a PR closed since elly's last poll,
-// one that changed under its first look, or the daily cap. "" lets it run.
-func gateFor(pr PR, acc Acceptance, head string, cfg TickConfig, l *Ledger, g Gate, now time.Time) (string, error) {
+// gateFor is what stops an owed round: a PR closed since elly's last poll
+// (open false), one that changed under its first look, or the daily cap.
+// "" lets it run.
+func gateFor(pr PR, acc Acceptance, head string, cfg TickConfig, l *Ledger, g Gate, now time.Time) (open bool, gate string, err error) {
 	base, open, err := g.Base(pr)
-	if err != nil {
-		return "", err
-	}
-	if !open {
-		return gateClosed, nil
+	if err != nil || !open {
+		return open, "", err
 	}
 	fresh, err := needsFreshLook(pr, acc, base, head, g)
 	if err != nil {
-		return "", err
+		return true, "", err
 	}
 	if fresh {
-		return gateFreshLook, nil
+		return true, gateFreshLook, nil
 	}
 	n, err := l.RoundsSince(pr, now.Add(-24*time.Hour))
 	if err != nil {
-		return "", err
+		return true, "", err
 	}
 	if cfg.DailyCap > 0 && n >= cfg.DailyCap {
-		return gatePaused, nil
+		return true, gatePaused, nil
 	}
-	return "", nil
+	return true, "", nil
 }
 
 // needsFreshLook: a head that no longer contains the accepted one, or a new
@@ -269,7 +300,7 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 		if f.UserReview != nil && f.UserReview.State == reviewApproved {
 			return Decision{Annotation: &Annotation{State: stateHandled, Note: "clean round; your approval stands", Links: summary()}}
 		}
-		return Decision{MintFor: r.Head, Annotation: &Annotation{State: stateNeedsYou, Note: "clean round at " + r.Head[:9], Links: summary(attach, ignore)}}
+		return Decision{MintFor: r.Head, Annotation: &Annotation{State: stateNeedsYou, Note: "clean round at " + r.Head[:9] + "; approve it yourself, claude-review never does", Links: summary(attach, ignore)}}
 	// The summary is posted last, so it is what says the round finished.
 	case f.RoundReviewURL != "":
 		return Decision{Annotation: &Annotation{State: stateHandled, Note: "round posted its review", Links: summary()}}

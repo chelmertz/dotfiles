@@ -75,6 +75,17 @@ func (f fakeGate) Base(pr PR) (string, bool, error) {
 	return f.base, !f.closed && !f.closedPRs[pr.Number], f.baseErr[pr.Number]
 }
 
+// notSkipped is the plans tick acts on: a round, or a gate to show.
+func notSkipped(plans []Planned) []Planned {
+	var out []Planned
+	for _, p := range plans {
+		if p.Skip == "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 func TestPlanTick(t *testing.T) {
 	cfg := TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 3}
 	requested := func(p *EllyPR) { p.ReviewRequestedFromUsers = []string{"me"} }
@@ -84,7 +95,7 @@ func TestPlanTick(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return got
+		return notSkipped(got)
 	}
 	ok := fakeGate{descends: true, base: "main"}
 
@@ -262,4 +273,48 @@ func hasLink(a *Annotation, part string) bool {
 		}
 	}
 	return false
+}
+
+// Every PR in review_repos that tick leaves alone carries the reason, so
+// the journal can say why a round did not start.
+func TestPlanTickNamesWhyItLeavesAPR(t *testing.T) {
+	cfg := TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 3}
+	asked := ellyPR(func(p *EllyPR) { p.ReviewRequestedFromUsers = []string{"me"} })
+	ok := fakeGate{descends: true, base: "main"}
+	skipOf := func(l *Ledger, g fakeGate, p EllyPR) skip {
+		t.Helper()
+		got, err := planTick([]EllyPR{p}, cfg, l, g, t0)
+		if err != nil || len(got) != 1 {
+			t.Fatalf("planned %+v %v", got, err)
+		}
+		return got[0].Skip
+	}
+	l := openTestLedger(t)
+	if s := skipOf(l, ok, asked); s != skipNotAccepted {
+		t.Errorf("never clicked: %q", s)
+	}
+	if err := l.Accept(widgetsPR, "h1", "main", t0); err != nil {
+		t.Fatal(err)
+	}
+	if s := skipOf(l, ok, ellyPR(nil)); s != skipNothingOwed {
+		t.Errorf("at the accepted head, nothing asked: %q", s)
+	}
+	if s := skipOf(l, fakeGate{descends: true, base: "main", closed: true}, asked); s != skipClosed {
+		t.Errorf("merged since elly's poll: %q", s)
+	}
+	if s := skipOf(l, ok, asked); s != "" {
+		t.Errorf("owed: %q", s)
+	}
+	if _, err := l.StartRound(widgetsPR, "h1", "click@x", t0.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if s := skipOf(l, ok, asked); s != skipAlreadyRan {
+		t.Errorf("a round after the last update: %q", s)
+	}
+	if err := l.Ignore(widgetsPR); err != nil {
+		t.Fatal(err)
+	}
+	if s := skipOf(l, ok, asked); s != skipIgnored {
+		t.Errorf("ignored: %q", s)
+	}
 }

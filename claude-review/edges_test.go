@@ -25,7 +25,7 @@ func TestPlanTickAcceptedHeadIsTheLastLook(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := planTick([]EllyPR{ellyPR(nil)}, cfg, l, fakeGate{descends: true, base: "main"}, t0)
-	if err != nil || len(got) != 0 {
+	if err != nil || len(notSkipped(got)) != 0 {
 		t.Errorf("a PR at the accepted head, nothing asked: %+v %v", got, err)
 	}
 }
@@ -434,7 +434,7 @@ func TestPlanTickARoundAfterTheLastUpdateCoversIt(t *testing.T) {
 			t.Fatal(err)
 		}
 		got, err := planTick([]EllyPR{asked}, cfg, l, fakeGate{descends: true, base: "main"}, t0.Add(time.Hour))
-		if err != nil || len(got) != c.want {
+		if err != nil || len(notSkipped(got)) != c.want {
 			t.Errorf("click round at %v, PR updated %v: planned %+v %v, want %d", c.started, t0, got, err, c.want)
 		}
 	}

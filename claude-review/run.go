@@ -301,7 +301,7 @@ func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
 		failed = true
 		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), err))
 	}
-	started, err = h.afterRelaunch(pr, res, err, func() error {
+	not, err := h.afterRelaunch(pr, res, err, func() error {
 		if head == "" {
 			return nil // nothing recorded, so nothing would settle a running row
 		}
@@ -311,7 +311,7 @@ func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
 		say(h.markRunning(pr, "a click", at))
 		return nil
 	})
-	failed = err != nil
+	started, failed = not == "" && err == nil, err != nil
 	return clickOutcome(d, pr, res, started, err, before)
 }
 

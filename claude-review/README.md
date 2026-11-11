@@ -782,6 +782,19 @@ claude-review alone. It holds:
    holds, and is skipped while a click holds the PR. A clicked offer is an
    ordinary click: the user's act, as from the mail or the GitHub button.
 
+#### Why a PR got no round
+
+Each tick writes one journal line per PR in `review_repos` that it leaves
+alone, "leave <url>: <reason>", and "hold <url>: <note>" for a gate that
+needs the user (the daily cap, a force-push under the first look). The
+reasons: never clicked, ignored, nothing owed, a round already saw this
+update, merged or closed since elly's poll, a click holds it, its window or
+session is open, a round still runs in its worker, no free slot, or the
+needs-you note a failed launch wrote. A started round logs "start a round
+on <url>". `journalctl --user -u claude-review-tick -g pull/42` answers
+"why did this PR not run". The user's own PRs and repos outside
+`review_repos` are never considered and never logged.
+
 #### The breaker
 
 Every round start and retry goes through one function, and that function
@@ -819,7 +832,8 @@ outstanding" without an approval as unclear.
   confirmation dialog. An approve line conditioned on CI ("approve once
   green") counts as approve: a red build is the author's to fix. `tick`
   also sends a desktop notification, "<url> needs you: clean round at
-  <sha>"; approving stays the user's click on the link.
+  <sha>; approve it yourself, claude-review never does": approving stays
+  the user's click on the link.
 - **Question line**: `needs_you` with an Open-session link. The note
   carries the question: "the round has a question for you: <text>", where
   the text is the last paragraph before the question line, on one line,
