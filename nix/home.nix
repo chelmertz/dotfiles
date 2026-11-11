@@ -1075,6 +1075,9 @@ in
     # The repos `claude-review tick` may run in are listed in a
     # machine-local review-repos file beside this config, not in this repo.
     round_wrapper = [ "capped" ];
+    # Rounds per PR per 24 h. The default 6 paused an author's ordinary hour
+    # of push-and-reply; total_daily_cap (24) still bounds the whole day.
+    daily_cap = 12;
     clone_path = "~/code/github/{owner}/{repo}";
     review_prompt = ''
       Perform an adversarial code review of {url}.
