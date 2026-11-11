@@ -181,9 +181,8 @@
         exec $HOME/.local/bin/autorandr-learn
       '';
       # X11 carries one global DPI, so docking between the 109 dpi ultrawide
-      # and the 162 dpi laptop panel leaves one of them wrong. Only
-      # applications started after the switch read the new value, so this
-      # fixes what is opened next rather than what is already open.
+      # and the 162 dpi laptop panel leaves one of them wrong. The script
+      # restarts i3 and dunst on a change; open windows keep the old value.
       "30-dpi" = ''
         exec $HOME/.local/bin/autorandr-dpi
       '';
