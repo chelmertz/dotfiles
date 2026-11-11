@@ -41,6 +41,7 @@ func realDeps() Deps {
 		SessionRunning: SessionRunning,
 		Lock:           h.lockUnderCache,
 		Sleep:          time.Sleep,
+		Now:            time.Now,
 		Exec:           h.execAttached,
 		Output:         h.execOutput,
 		Capture:        h.execStdout,

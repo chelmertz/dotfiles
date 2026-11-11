@@ -14,6 +14,8 @@ type roundStarter struct {
 	exists  func(id ids.SessionID) bool
 	run     func(dir string, argv []string) error
 	wrapper []string
+	// mark, when set, records the end of a stage: bootstrap, clear, launch.
+	mark func(stage string)
 }
 
 // start launches the next round on pr in dir. rereview asks for the
@@ -26,6 +28,7 @@ func (r roundStarter) start(cfg Config, pr PR, dir, remote string, rereview bool
 		if err := r.run(dir, RoundBootstrapArgs(pr)); err != nil {
 			return RelaunchResult{}, fmt.Errorf("creating the round session: %w", err)
 		}
+		r.marked("bootstrap")
 	}
 	resume := rereview || existed
 	argv, err := r.sess.LaunchArgv(id, PolicyFlags(pr, remote), RoundArgs(cfg, pr, remote, resume), ResumeArgs(cfg, pr, remote, resume))
@@ -34,5 +37,15 @@ func (r roundStarter) start(cfg Config, pr PR, dir, remote string, rereview bool
 		return RelaunchResult{Kind: relaunchPolicy, Detail: err.Error()}, nil //nolint:nilerr // see above
 	}
 	argv = append(append([]string{}, r.wrapper...), argv...)
-	return r.sess.Relaunch(id, settle, func() error { return r.run(dir, argv) })
+	return r.sess.Relaunch(id, settle, func() error {
+		r.marked("clear") // settling and stopping the last worker
+		defer r.marked("launch")
+		return r.run(dir, argv)
+	})
+}
+
+func (r roundStarter) marked(stage string) {
+	if r.mark != nil {
+		r.mark(stage)
+	}
 }

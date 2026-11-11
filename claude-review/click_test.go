@@ -285,3 +285,24 @@ func TestHandoverWords(t *testing.T) {
 		}
 	}
 }
+
+// A click logs how long each stage took, so a slow click names its stage:
+// the bootstrap only when the round session is new. The clock advances one
+// second per reading.
+func TestClickLogsItsStageTimings(t *testing.T) {
+	for _, exists := range []bool{true, false} {
+		h, _ := clickHost(t, exists)
+		var tick time.Duration
+		h.d.Now = func() time.Time { tick += time.Second; return time.Unix(0, 0).Add(tick) }
+		if code := run([]string{target}, h.d); code != 0 {
+			t.Fatalf("exists=%v: exit %d: %s", exists, code, h.stderr)
+		}
+		want := "click timing: accept 1.0s prepare 1.0s bootstrap 1.0s clear 1.0s launch 1.0s listed 1.0s total 6.0s"
+		if exists {
+			want = "click timing: accept 1.0s prepare 1.0s clear 1.0s launch 1.0s listed 1.0s total 5.0s"
+		}
+		if !strings.Contains(h.stderr.String(), testPR.URL()+": "+want+"\n") {
+			t.Errorf("exists=%v: stderr lacks %q:\n%s", exists, want, h.stderr)
+		}
+	}
+}

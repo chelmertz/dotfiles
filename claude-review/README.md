@@ -167,6 +167,10 @@ there, in which case nothing starts. A window on the round session, a
 session saved under other options, a tripped breaker, or a worker that never
 appears is reported the same way and starts nothing. The click records its round in the ledger, so the next tick
 settles it like its own (a click's round counts toward neither cap).
+Each started click logs one "click timing" line to the journal (stages
+accept, prepare, bootstrap on a first handover, clear, launch, listed, and
+the total), so a slow click names its slow stage:
+`journalctl --user -t claude-review.desktop -g timing`.
 Watching is opt-in: `claude attach <id>`, or the Open-session link in elly.
 A PR GitHub reports merged or closed gets no round: the click records no
 acceptance, starts nothing and notifies "<url> is merged/closed; no round".

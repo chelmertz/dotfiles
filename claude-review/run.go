@@ -39,6 +39,8 @@ type Deps struct {
 	Lock func(name string) (unlock func(), err error)
 	// Sleep waits between polls.
 	Sleep func(time.Duration)
+	// Now reads the clock for a click's stage timings.
+	Now func() time.Time
 	// Exec runs argv in dir with the terminal attached and waits.
 	Exec func(dir string, argv []string) error
 	// Output runs argv in dir, waits, and returns its combined output.
@@ -184,14 +186,16 @@ func launch(d Deps, cfg Config, pr PR, dir, remote string, dryRun bool) int {
 		return fail(d, fmt.Errorf("claude-review: locking %s: %w", pr.URL(), err))
 	}
 	defer unlock()
+	sw := newStopwatch(d.Now)
 	head, closed := recordAcceptance(d, cfg, pr)
+	sw.mark("accept")
 	if closed {
 		// Only a PR in review_repos is asked about. tick's sweep would stop
 		// the round anyway; refusing here spares it a slot meanwhile.
 		return fail(d, fmt.Errorf("claude-review: %s is merged/closed; no round", pr.URL()))
 	}
 	if background {
-		return backgroundClick(d, cfg, pr, dir, remote, head)
+		return backgroundClick(d, cfg, pr, dir, remote, head, sw)
 	}
 	plan, err := planClick(d, cfg, pr, remote)
 	if err != nil {
@@ -236,7 +240,7 @@ func planBackgroundClick(d Deps, cfg Config, pr PR, remote string) (click, error
 // idle worker, and records the round once the worker is listed, so tick
 // settles it like its own. head is the PR head the click saw ("" when
 // GitHub did not say; then nothing is recorded).
-func backgroundClick(d Deps, cfg Config, pr PR, dir, remote, head string) int {
+func backgroundClick(d Deps, cfg Config, pr PR, dir, remote, head string, sw *stopwatch) int {
 	l, err := OpenLedger(LedgerPath(d.StateDir))
 	if err != nil {
 		return fail(d, err)
@@ -269,7 +273,12 @@ func backgroundClick(d Deps, cfg Config, pr PR, dir, remote, head string) int {
 		}
 	}
 	at := time.Now()
-	res, err := clickStarter(d, cfg).start(cfg, pr, dir, remote, false, settle)
+	sw.mark("prepare")
+	starter := clickStarter(d, cfg)
+	starter.mark = sw.mark
+	res, err := starter.start(cfg, pr, dir, remote, false, settle)
+	sw.mark("listed")
+	fmt.Fprintf(d.Stderr, "claude-review: %s: click timing: %s\n", pr.URL(), sw)
 	if err != nil && res.Kind != relaunchDuplicate {
 		say(h.dropRunning(pr))
 		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), err))
