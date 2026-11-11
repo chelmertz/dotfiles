@@ -245,6 +245,12 @@ in
       input-feedback-sounds = false;
     };
   };
+  # The X bell (XBell from any X client, e.g. ImageMagick `import`) is not a
+  # GTK sound: PipeWire's x11-bell module plays it through the default sink.
+  # pipewire.conf loads that module only while module.x11.bell is not false.
+  xdg.configFile."pipewire/pipewire.conf.d/no-x11-bell.conf".text = ''
+    context.properties = { module.x11.bell = false }
+  '';
   xdg.configFile."gtk-3.0/settings.ini".text = ''
     [Settings]
     gtk-cursor-theme-name=Yaru
