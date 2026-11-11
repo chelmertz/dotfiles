@@ -800,6 +800,10 @@ in
         user_pref("network.protocol-handler.expose.claude-review", false);
         // No beep when find-in-page has no match.
         user_pref("accessibility.typeaheadfind.enablesound", false);
+        // Session restore otherwise sends each window back to its saved
+        // _NET_WM_DESKTOP index after i3's assign has placed it on 1, and i3
+        // obeys: a window once moved to 2 reopened on 2.
+        user_pref("browser.sessionstore.restore_windows_to_virtual_desktop", false);
       '';
     in
     lib.hm.dag.entryAfter [ "linkGeneration" ] ''
