@@ -205,7 +205,7 @@ def main():
     stored_teams = {team_of(x) for x, _ in stored}
     if not cookie or stored_teams - set(found):
         warn("Slack cookie invalid or missing; decrypting a fresh one")
-        note("Refreshing the Slack session")
+        note("Refreshing session")
         fresh = decrypt_cookie()
         if fresh:
             cookie = fresh
@@ -213,12 +213,12 @@ def main():
 
     if not found:
         warn("no valid Slack session; open Slack desktop once, then /python reload slack")
-        note("Slack session expired: open Slack desktop once")
+        note("Session expired: open Slack desktop")
         return 1
     missing = stored_teams - set(found)
     if missing:
         warn("no valid token for team(s) %s; open Slack desktop once" % ", ".join(sorted(missing)))
-        note("Some Slack workspaces expired: open Slack desktop once")
+        note("Workspace expired: open Slack desktop")
 
     value = ",".join("%s:d=%s" % (found[t], cookie) for t in teams if t in found)
     current = ",".join("%s:d=%s" % p for p in stored)

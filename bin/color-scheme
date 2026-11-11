@@ -16,7 +16,7 @@ if command -v dconf >/dev/null 2>&1; then
 		echo "gsettings reads $current but dconf holds $held: the dconf backend is not loaded." >&2
 		echo "GIO_EXTRA_MODULES=${GIO_EXTRA_MODULES:-unset}; it must hold dconf's gio/modules." >&2
 		if command -v notify-send >/dev/null 2>&1; then
-			notify-send -a color-scheme -u critical "gsettings is not reaching dconf" \
+			notify-send -a color-scheme -u critical "gsettings not reaching dconf" \
 				"Reads $current, dconf holds $held. Nothing was changed."
 		fi
 		exit 1
@@ -50,7 +50,7 @@ if command -v dconf >/dev/null 2>&1; then
 		echo "gsettings reported success but dconf holds ${landed:-nothing}: the write did not land." >&2
 		echo "GIO_EXTRA_MODULES=${GIO_EXTRA_MODULES:-unset}; it must hold dconf's gio/modules." >&2
 		if command -v notify-send >/dev/null 2>&1; then
-			notify-send -a color-scheme -u critical "The write did not land" \
+			notify-send -a color-scheme -u critical "Write did not land" \
 				"dconf still holds ${landed:-nothing}. Nothing was changed."
 		fi
 		exit 1

@@ -101,7 +101,7 @@ while true; do
             read -r px py <<< "$point"
             MONITOR_NAME=$(point_to_monitor "$px" "$py")
             if [ -z "$MONITOR_NAME" ]; then
-                notify-send -a record_screen -t 2000 "No monitor under the click"
+                notify-send -a record_screen -t 2000 "No monitor there"
             fi
             ;;
         Screenkey:*)

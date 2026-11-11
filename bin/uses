@@ -91,7 +91,7 @@ if [ -n "$pre_existing_changes" ]; then
     # Repo was dirty, only commit the CSV changes
     repo_git add tables/*.csv
     repo_git commit -m "Update uses-this CSV" --quiet
-    notify-send -a uses --expire-time=5000 "CSV committed, not pushed" "The repo had uncommitted changes"
+    notify-send -a uses --expire-time=5000 "Not pushed: repo dirty"
 else
     # Repo was clean, do the full build and commit everything
     make -C "$REPO_DIR" docs --quiet
@@ -99,10 +99,10 @@ else
     repo_git commit -m "Update uses-this CSV" --quiet
 
     if [ "$ahead_count" -gt 0 ]; then
-        notify-send -a uses --expire-time=5000 "CSV committed, not pushed" "Local main was already ahead of origin"
+        notify-send -a uses --expire-time=5000 "Not pushed: main ahead of origin"
     else
         if ! repo_git push --quiet 2>&1; then
-            notify-send -a uses -u critical "CSV push failed"
+            notify-send -a uses -u critical "Push failed"
         fi
     fi
 fi
