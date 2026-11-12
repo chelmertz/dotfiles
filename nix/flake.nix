@@ -137,10 +137,17 @@
               # Unfree packages are not on cache.nixos.org (Hydra will not redistribute
               # them), so each bump downloads a vendor tarball and unpacks it locally —
               # 1.4G for vscode alone. Stable lags a release behind but rebuilds rarely.
+              # vscode 1.122+ moved its bundled rg; nixpkgs' postPatch still targets the
+              # old path and fails. Drop the overrideAttrs once the master fix
+              # (ripgrepPath in vscode/generic.nix) reaches nixpkgs-stable.
               (final: prev: {
-                inherit (pkgsStable)
-                  vscode
-                  ;
+                vscode = pkgsStable.vscode.overrideAttrs (old: {
+                  postPatch =
+                    builtins.replaceStrings
+                      [ "resources/app/node_modules/@vscode/ripgrep/bin/rg" ]
+                      [ "resources/app/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/linux-x64/rg" ]
+                      old.postPatch;
+                });
               })
               # cli-helpers 2.10.0 ships 3 test_style_output tests that compare hard-coded
               # ANSI sequences and break against current pygments output.
