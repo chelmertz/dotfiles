@@ -300,6 +300,8 @@ in
     rustc
     rust-analyzer
     claude-code
+    # Shows images in the terminal; Ghostty speaks its graphics protocol.
+    chafa
     # only for the YouTube Music app window (bin/ytmusic)
     chromium
     cloc
