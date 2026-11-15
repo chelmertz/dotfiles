@@ -138,14 +138,18 @@
               # them), so each bump downloads a vendor tarball and unpacks it locally —
               # 1.4G for vscode alone. Stable lags a release behind but rebuilds rarely.
               # vscode 1.122+ moved its bundled rg; nixpkgs' postPatch still targets the
-              # old path and fails. Drop the overrideAttrs once the master fix
+              # old path and fails. Stable reverted 1.144 -> 1.119 on 2026-11-09, so the
+              # rewrite applies by version. Drop the overrideAttrs once the master fix
               # (ripgrepPath in vscode/generic.nix) reaches nixpkgs-stable.
               (final: prev: {
                 vscode = pkgsStable.vscode.overrideAttrs (old: {
                   postPatch =
-                    builtins.replaceStrings
-                      [ "resources/app/node_modules/@vscode/ripgrep/bin/rg" ]
-                      [ "resources/app/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/linux-x64/rg" ]
+                    if nixpkgs.lib.versionAtLeast old.version "1.122" then
+                      builtins.replaceStrings
+                        [ "resources/app/node_modules/@vscode/ripgrep/bin/rg" ]
+                        [ "resources/app/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/linux-x64/rg" ]
+                        old.postPatch
+                    else
                       old.postPatch;
                 });
               })
