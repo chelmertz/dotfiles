@@ -123,6 +123,7 @@ in
     ./rust.nix
     ./zsh.nix
     ./git.nix
+    ./ssh.nix
     ./bin.nix
     ./claude.nix
     ./claude-private-skills.nix
