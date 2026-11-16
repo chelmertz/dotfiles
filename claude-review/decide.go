@@ -290,7 +290,7 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 	// Approve link or a retry.
 	case r.PostRefused:
 		return Decision{Ignore: true, Annotation: &Annotation{State: stateStuck,
-			Note: "a post was refused over the limit; no more rounds on this PR until you click it again", Links: summary(attach)}}
+			Note: "a post was refused over the limit; no more rounds on this PR until you start one again", Links: summary(startAgainLink(pr))}}
 	case o.Kind == OutcomeQuestion:
 		return Decision{Annotation: &Annotation{State: stateNeedsYou, Note: questionNote(o), Links: summary(answerLink(pr), forkLink(pr), ignore)}}
 	case f.NewThreads > 0 && approvedEarlier:
@@ -357,6 +357,11 @@ func attachLink(pr PR) Link { return Link{Label: "Open session", URL: verbURL(pr
 // needs_you row's first link its button under the link's own label, so the
 // button says what to do.
 func answerLink(pr PR) Link { return Link{Label: "Answer", URL: verbURL(pr, "attach")} }
+// startAgainLink is a click from elly: a new round, re-accepting the PR.
+func startAgainLink(pr PR) Link {
+	return Link{Label: "Start again", URL: fmt.Sprintf("claude-review://%s/%s/%d?from=elly", pr.Owner, pr.Repo, pr.Number)}
+}
+
 func ignoreLink(pr PR) Link { return Link{Label: "Ignore", URL: verbURL(pr, "ignore")} }
 
 // quietApprove: the session's approve line names this PR at the head tick

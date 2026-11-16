@@ -330,3 +330,12 @@ func TestDecideAQuestionLeadsWithAnswer(t *testing.T) {
 		t.Errorf("answer link %+v", l)
 	}
 }
+
+// A post-limit stop has no worker to attach to: its button starts a new
+// round, the click the note asks for (2026-11-16: "no round running").
+func TestDecideAPostRefusedRowStartsAgain(t *testing.T) {
+	d := decide(Round{Head: sha, PostRefused: true}, Outcome{}, RoundFacts{State: prOpen, Head: sha}, widgetsPR)
+	if d.Annotation == nil || len(d.Annotation.Links) == 0 || d.Annotation.Links[0] != startAgainLink(widgetsPR) || hasLink(d.Annotation, "attach") {
+		t.Errorf("links %+v", d.Annotation)
+	}
+}
