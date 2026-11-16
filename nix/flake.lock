@@ -249,11 +249,11 @@
     "private-dotfiles": {
       "flake": false,
       "locked": {
-        "lastModified": 1793959176,
-        "narHash": "sha256-bOPrV0rFabmVFMxJm1w6tmtagf7qUZ6bKCmAwwBJmok=",
+        "lastModified": 1794822002,
+        "narHash": "sha256-EvOmu6ew7G6pvPuyF6FbRYTkvfmcZq20eGYtuV1AjfM=",
         "ref": "refs/heads/main",
-        "rev": "f9722b469ba3fa75e4e5fb7f1110f1dd5e670ddb",
-        "revCount": 3,
+        "rev": "c134ddceb986d60cbbcc1293dfe6c0ca6ba2067d",
+        "revCount": 4,
         "type": "git",
         "url": "ssh://git@github.com/chelmertz/private-dotfiles"
       },
