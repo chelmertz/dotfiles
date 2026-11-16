@@ -14,10 +14,10 @@
     # SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU, checked against
     # GitHub's published fingerprint), so the alias reuses github.com's
     # known_hosts entry instead of trusting a new one.
-    matchBlocks."github.com" = {
-      hostname = "ssh.github.com";
-      port = 443;
-      extraOptions.HostKeyAlias = "github.com";
+    settings."github.com" = {
+      HostName = "ssh.github.com";
+      Port = 443;
+      HostKeyAlias = "github.com";
     };
   };
 }
