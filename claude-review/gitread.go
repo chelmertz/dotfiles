@@ -189,6 +189,9 @@ func runDiff(args []string, r prReader, stdout, stderr io.Writer) int {
 	if err != nil {
 		return readFail("diff", err, stderr)
 	}
+	if base == head {
+		return readFail("diff", fmt.Errorf("nothing changed since %s, the head the last round or the user's acceptance saw; for the whole PR use `gh pr diff %d -R %s/%s`", base, pr.Number, pr.Owner, pr.Repo), stderr)
+	}
 	if _, err := r.git("merge-base", "--is-ancestor", base, head); err != nil {
 		return readFail("diff", fmt.Errorf("the PR was rewritten since %s, the head of the last round; use `gh pr diff %d -R %s/%s`", base, pr.Number, pr.Owner, pr.Repo), stderr)
 	}

@@ -25,13 +25,18 @@ Sign every comment you post with a line containing only ` + "`--claude`" + `.`
 // replaces defaultPrompt and so needs its own copy of it.
 const deferralRule = `Treat "this should be a follow-up PR", "out of scope for this PR" and "can be fixed later", in the description, the comments or the code, as findings against this PR when the fix fits in it. Every extra PR costs a human review round, that cost grows faster than the number of PRs, and a deferred fix is debt this PR could have avoided. Do not make such suggestions yourself either. Ask for the fix in this PR, and name a separate PR only when the change truly cannot land here, and say why.`
 
+// otherReviewers follows every prompt, a custom review_prompt included: a
+// bot's finding in a collapsed PR comment has no thread to answer, and a
+// rule against repeating findings kept a verified XSS out of every thread.
+const otherReviewers = "\n\nA finding that another reviewer, a person or a bot, raised outside a thread (in a PR comment or a review body) and that you have verified at the PR head gets an inline thread of its own, crediting the source, and counts toward your verdict. That is not a duplicate. Never leave out a verified security or error-handling finding."
+
 // cleanRound follows the posting policy, so a custom review_prompt keeps it.
 // The summary opens with the verdict because the author reads it with no
 // approval beside it: the approval is the user's click, after the round.
 const cleanRound = "\n\nOpen the summary with a one-line verdict for the author: `Reviewed at <short sha>: nothing found. Recommended for approval; a human approval follows separately.` when the round finds nothing worth raising, otherwise `Reviewed at <short sha>: N points to address before approval.` (the sha is `git rev-parse FETCH_HEAD`). If the round finds nothing worth raising, end by telling the user they can approve with `! claude-review approve {url} --at <that full sha>`. Never approve yourself."
 
 // rereviewPreface is prepended on every click after the first.
-const rereviewPreface = "New review round for {url}: re-check your earlier findings against the new commits and the replies on the PR, then review what changed since. `claude-review diff {url}` prints the commits and the diff since the last round. `claude-review threads {url}` prints every comment, review and inline thread with its id. Answer an existing thread instead of opening a new one, and never post a finding that is already on the PR. Every thread where the author replied gets an answer in that thread with `claude-review post {url} reply --to <id>`: one line naming what settled it (the commit, or the reply) when it is settled, or the point that remains when it is not. The summary may list them too, but it does not replace the reply in the thread. Then resolve each thread you started that you judge settled with `claude-review post {url} resolve --thread <id>`, and leave open every thread you do not judge settled; never resolve a thread someone else started. If there are no new commits and no reply that needs an answer, say so, post nothing, and end with a line containing only `" + nothingLine + "`.\n\n"
+const rereviewPreface = "New review round for {url}: re-check your earlier findings against the new commits and the replies on the PR, then review what changed since. `claude-review diff {url}` prints the commits and the diff since the last round. `claude-review threads {url}` prints every comment, review and inline thread with its id. Answer an existing thread instead of opening a second one on the same finding. Every thread where the author replied gets an answer in that thread with `claude-review post {url} reply --to <id>`: one line naming what settled it (the commit, or the reply) when it is settled, or the point that remains when it is not. The summary may list them too, but it does not replace the reply in the thread. Then resolve each thread you started that you judge settled with `claude-review post {url} resolve --thread <id>`, where <id> is the comment `threads` marks as the one that starts a thread, and leave open every thread you do not judge settled; never resolve a thread someone else started. If there are no new commits and no reply that needs an answer, say so, post nothing, and end with a line containing only `" + nothingLine + "`.\n\n"
 
 const postAuto = "\n\nWhen done, post the findings as inline review comments and, last, one summary review, without asking. Inline and PR-level comments share a budget of 12 per commit: when there are more findings, post the most important inline and list the rest in the summary review, which has its own budget. Post only through `claude-review post {url} inline --path FILE --line N --at SHA --body TEXT` (SHA is the full `git rev-parse FETCH_HEAD` you reviewed), `claude-review post {url} reply --to COMMENT_ID --body TEXT`, `claude-review post {url} comment --body TEXT` and `claude-review post {url} review --at SHA --body TEXT`; those run without a prompt and sign for you. Inline comments and replies wait in a draft review that the summary review sends, so the author gets one notification: post the summary last, also in a round that only replies. Pass the body as inline text."
 const postAsk = "\n\nWhen done, present the findings here and wait for approval before posting anything to GitHub."
@@ -74,7 +79,7 @@ func BuildPrompt(cfg Config, pr PR, remote string, resume bool) string {
 	} else {
 		body += postAsk
 	}
-	body += cleanRound + questionRound
+	body += otherReviewers + cleanRound + questionRound
 	if resume {
 		body = rereviewPreface + body
 	}

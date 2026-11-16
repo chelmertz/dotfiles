@@ -218,7 +218,7 @@ func TestRereviewAnswersEveryRepliedThreadInIt(t *testing.T) {
 // resolves a thread it still disputes, nor one it did not start.
 func TestRereviewResolvesSettledThreadsOfOurs(t *testing.T) {
 	p := BuildPrompt(Config{PostWithoutAsking: true}, testPR, "origin", true)
-	want := "Then resolve each thread you started that you judge settled with `claude-review post https://github.com/acme/widgets/pull/42 resolve --thread <id>`, and leave open every thread you do not judge settled; never resolve a thread someone else started."
+	want := "Then resolve each thread you started that you judge settled with `claude-review post https://github.com/acme/widgets/pull/42 resolve --thread <id>`, where <id> is the comment `threads` marks as the one that starts a thread, and leave open every thread you do not judge settled; never resolve a thread someone else started."
 	if !strings.Contains(p, want) {
 		t.Errorf("the re-review prompt does not ask to resolve settled threads:\n%s", p)
 	}
@@ -274,5 +274,25 @@ func TestRoundsNameThePRsRepositoryToGh(t *testing.T) {
 	}
 	if got := fill(fork, "origin", "{repo}"); got != "me/widgets" {
 		t.Errorf("{repo} is %q", got)
+	}
+}
+
+// A verified finding another reviewer raised outside a thread (a bot's
+// collapsed comment) is raised in its own thread, whatever review_prompt
+// says: on 2026-11-16 a reflected XSS a bot found never reached a thread.
+func TestPromptRaisesOtherReviewersFindingsInAThread(t *testing.T) {
+	for _, cfg := range []Config{{}, {ReviewPrompt: "Review {url}."}} {
+		for _, resume := range []bool{false, true} {
+			p := BuildPrompt(cfg, widgetsPR, "origin", resume)
+			if !strings.Contains(p, "another reviewer") || !strings.Contains(p, "crediting") {
+				t.Errorf("prompt (custom %v, resume %v) lacks the other-reviewer rule", cfg.ReviewPrompt != "", resume)
+			}
+			if strings.Contains(p, "never post a finding that is already on the PR") {
+				t.Error("the old rule that kept a bot's finding out of threads is still there")
+			}
+			if resume && !strings.Contains(p, "starts a thread") {
+				t.Error("the resolve instruction does not say which id to pass")
+			}
+		}
 	}
 }

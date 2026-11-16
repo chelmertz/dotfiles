@@ -79,8 +79,12 @@ func header[I ghID](kind string, c ghItem[I]) string {
 	default:
 		h += fmt.Sprintf(" on %s:%d", c.Path, c.Line)
 	}
-	if !c.InReplyTo.IsZero() {
+	switch {
+	case !c.InReplyTo.IsZero():
 		h += fmt.Sprintf(", reply to %s", c.InReplyTo)
+	case kind == kindInline:
+		// The id resolve --thread takes.
+		h += ", starts a thread"
 	}
 	return h
 }

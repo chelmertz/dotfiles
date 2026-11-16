@@ -26,9 +26,9 @@ func TestThreads_PrintsEverythingWithIDs(t *testing.T) {
 	}
 	want := "--- comment 1 by ada\n    summary\n    ---\n    more\n\n" +
 		"--- review 3 by bo COMMENTED\n    see inline\n\n" +
-		"--- inline 4 by cy on a.go:7\n    nit\n\n" +
+		"--- inline 4 by cy on a.go:7, starts a thread\n    nit\n\n" +
 		"--- inline 5 by ada on a.go:7, reply to 4\n    done\n\n" +
-		"--- inline 6 by cy on b.go, outdated, was line 233\n    old\n\n"
+		"--- inline 6 by cy on b.go, outdated, was line 233, starts a thread\n    old\n\n"
 	if out != want {
 		t.Errorf("got\n%s\nwant\n%s", out, want)
 	}

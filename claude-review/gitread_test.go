@@ -95,6 +95,11 @@ func TestDiffOnlyAlongThePRsHistory(t *testing.T) {
 			t.Errorf("%s: code %d out %q stderr %q", name, code, out, errb)
 		}
 	}
+	// A first round's base is the head the user accepted, the head itself:
+	// an empty diff read as "nothing to review" (2026-11-16).
+	if code, out, errb := read(t, "diff", r.reader(r.head), prURL); code != 1 || out != "" || !strings.Contains(errb, "nothing changed since "+r.head) || !strings.Contains(errb, "gh pr diff 42 -R acme/widgets") {
+		t.Errorf("base at the head: code %d out %q stderr %q", code, out, errb)
+	}
 	if code, _, _ := read(t, "diff", r.reader(r.base), prURL, r.side); code != 2 {
 		t.Errorf("a base from the session: code %d", code)
 	}
