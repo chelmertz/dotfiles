@@ -28,6 +28,7 @@ type fakeSessions struct {
 	onLaunch   func(f *fakeSessions)
 	saved      map[ids.SessionID][]string // a session's saved background options
 	savedErr   error
+	restoreErr error
 	launchErr  error
 	settleErr  error
 	events     []string
@@ -77,6 +78,14 @@ func (f *fakeSessions) sessions() Sessions {
 		Saved: func(id ids.SessionID) ([]string, bool, error) {
 			flags, ok := f.saved[id]
 			return flags, ok, f.savedErr
+		},
+		Restore: func(id ids.SessionID, flags []string) error {
+			f.events = append(f.events, "restore")
+			if f.restoreErr != nil {
+				return f.restoreErr
+			}
+			f.saved[id] = slices.Clone(flags)
+			return nil
 		},
 	}
 }
@@ -348,6 +357,100 @@ func TestLaunchArgvIsFlaglessOnlyUnderTheSamePolicy(t *testing.T) {
 	f.savedErr = errors.New("no respawnFlags")
 	if argv, err := s.LaunchArgv(sid, policy, first, later); err == nil || argv != nil {
 		t.Errorf("unreadable saved options: %q %v", argv, err)
+	}
+}
+
+// The user can change an attached round session's permission mode, and
+// Claude Code saves it (dontAsk to plan on a real PR, 2026-11-15). The
+// reviewer carries on: a mode-only difference launches flagless after the
+// policy is put back; any other difference still launches nothing.
+func TestRoundArgvRestoresOnlyAChangedPermissionMode(t *testing.T) {
+	policy := []string{"--permission-mode", "dontAsk", "--allowedTools", "Agent"}
+	first, later := []string{"first"}, []string{"later"}
+	f := newFakeSessions()
+	s := f.sessions()
+	// In place, and moved to the end, as Claude Code saves it.
+	for _, changed := range [][]string{
+		{"--permission-mode", "plan", "--allowedTools", "Agent"},
+		{"--allowedTools", "Agent", "--permission-mode", "plan"},
+	} {
+		f.saved = map[ids.SessionID][]string{sid: changed}
+		if argv, restore, err := s.RoundArgv(sid, policy, first, later); err != nil || !restore || !slices.Equal(argv, later) {
+			t.Errorf("mode changed %q: %q %v %v", changed, argv, restore, err)
+		}
+	}
+	if _, err := s.LaunchArgv(sid, policy, first, later); err == nil || !strings.Contains(err.Error(), `"plan"`) || strings.Contains(err.Error(), "Agent") {
+		t.Errorf("the refusal does not name just the mode: %v", err)
+	}
+	f.saved[sid] = slices.Clone(policy)
+	if argv, restore, err := s.RoundArgv(sid, policy, first, later); err != nil || restore || !slices.Equal(argv, later) {
+		t.Errorf("same policy: %q %v %v", argv, restore, err)
+	}
+	for _, other := range [][]string{
+		{"--permission-mode", "plan", "--allowedTools", "Bash"},
+		{"--permission-mode", "dontAsk", "--allowedTools", "Bash"},
+		{"--permission-mode", "plan", "--allowedTools", "Agent", "Bash"},
+		{"--allowedTools", "Agent", "--permission-mode", "plan", "--permission-mode", "plan"},
+		{"--allowedTools", "Agent"},
+	} {
+		f.saved[sid] = other
+		if argv, restore, err := s.RoundArgv(sid, policy, first, later); err == nil || restore || argv != nil {
+			t.Errorf("%q launched: %q %v", other, argv, restore)
+		}
+	}
+}
+
+// The policy goes back only once the idle worker is stopped, so the worker
+// cannot save its own options over it, and before the flagless launch.
+func TestRoundStarterRestoresAfterTheStopBeforeTheLaunch(t *testing.T) {
+	f := newFakeSessions()
+	f.workers = []Worker{{SessionID: widgetsPR.RoundSessionID(), Short: widgetsPR.RoundSessionID().Key(), PID: 7}}
+	f.states[widgetsPR.RoundSessionID()] = jobDone
+	policy := PolicyFlags(widgetsPR, "origin")
+	// As Claude Code saved it on a real PR: the changed pair moved last.
+	changed := append(slices.Clone(policy[2:]), "--permission-mode", "plan")
+	if policy[0] != "--permission-mode" {
+		t.Fatalf("the policy no longer opens with the mode: %q", policy[:2])
+	}
+	f.saved = map[ids.SessionID][]string{widgetsPR.RoundSessionID(): changed}
+	f.onLaunch = func(f *fakeSessions) {
+		f.workers = []Worker{{SessionID: widgetsPR.RoundSessionID(), Short: widgetsPR.RoundSessionID().Key(), PID: 8}}
+	}
+	var ran [][]string
+	r := roundStarter{sess: f.sessions(), exists: func(ids.SessionID) bool { return true },
+		run: func(_ string, argv []string) error { ran = append(ran, argv); return f.launch() }}
+	res, err := r.start(Config{}, widgetsPR, "/clone", "origin", true, f.settle)
+	if err != nil || res.Kind != relaunched {
+		t.Fatalf("%+v %v", res, err)
+	}
+	if got := strings.Join(f.events, ","); got != "settle,stop "+widgetsPR.RoundSessionID().Key().String()+",restore,launch" {
+		t.Errorf("events %s", got)
+	}
+	if len(ran) != 1 || slices.Contains(ran[0], "--permission-mode") {
+		t.Errorf("not a flagless resume: %q", ran)
+	}
+	if !slices.Equal(f.saved[widgetsPR.RoundSessionID()], policy) {
+		t.Errorf("saved %q", f.saved[widgetsPR.RoundSessionID()])
+	}
+}
+
+// writeSaved replaces only respawnFlags; the rest of Claude Code's job file
+// stays as it was.
+func TestWriteSavedKeepsTheRestOfTheJob(t *testing.T) {
+	dir := t.TempDir()
+	writeJobBody(t, dir, `{"state":"blocked","needs":"a question","respawnFlags":["--permission-mode","plan"]}`)
+	if err := writeSaved(dir, sid, []string{"--permission-mode", "dontAsk"}); err != nil {
+		t.Fatal(err)
+	}
+	if flags, _, err := readSaved(dir, sid); err != nil || !slices.Equal(flags, []string{"--permission-mode", "dontAsk"}) {
+		t.Errorf("saved %q %v", flags, err)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "jobs", sid.Key().String(), "state.json"))
+	if err != nil || !strings.Contains(string(b), `"needs": "a question"`) || !strings.Contains(string(b), `"state": "blocked"`) {
+		t.Errorf("job file %s %v", b, err)
+	}
+	if err := writeSaved(t.TempDir(), sid, nil); err == nil {
+		t.Error("wrote options for a session with no job")
 	}
 }
 

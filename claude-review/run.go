@@ -233,7 +233,7 @@ func clickStarter(d Deps, cfg Config) roundStarter {
 func planBackgroundClick(d Deps, cfg Config, pr PR, remote string) (click, error) {
 	id := pr.RoundSessionID()
 	existed := d.SessionExists(d.ClaudeDir, id)
-	argv, err := d.Sessions.LaunchArgv(id, PolicyFlags(pr, remote), RoundArgs(cfg, pr, remote, existed), ResumeArgs(cfg, pr, remote, existed))
+	argv, _, err := d.Sessions.RoundArgv(id, PolicyFlags(pr, remote), RoundArgs(cfg, pr, remote, existed), ResumeArgs(cfg, pr, remote, existed))
 	if err != nil {
 		return click{}, fmt.Errorf("claude-review: %s: nothing starts: %w", pr.URL(), err)
 	}

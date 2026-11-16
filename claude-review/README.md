@@ -733,7 +733,15 @@ claude-review alone. It holds:
    session's saved options (`respawnFlags` in
    `~/.claude/jobs/<first 8>/state.json`) were read and found equal to the
    current policy; other options, or none readable, start nothing and mark
-   the PR `needs_you` with the reason. A session with no transcript yet is
+   the PR `needs_you` with the reason. One difference is repaired instead:
+   a user attached to the worker can change its permission mode, and Claude
+   Code saves that (`dontAsk` to `plan` on 2026-11-15). When the mode is
+   the only difference the reviewer carries on: once the idle worker is
+   stopped, claude-review writes the policy back into `respawnFlags` (the
+   rest of the job file kept, through a temp file and a rename, then read
+   back) and resumes flagless. A flagless resume runs under the saved
+   options, not the transcript's last mode (checked live 2026-11-16).
+   A session with no transcript yet is
    first created with one headless turn under the policy's permission
    flags. A worker stays alive and idle after its round ends, so:
    - no worker for the session: launch;

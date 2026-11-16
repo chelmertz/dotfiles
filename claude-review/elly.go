@@ -89,12 +89,14 @@ func (e Elly) Put(prURL string, a Annotation, expires time.Time) error {
 }
 
 // PutSource writes pr's annotation under another source than this tool's.
+// The note goes out cut to what elly accepts: a longer one is refused with
+// a 400 and the row keeps its old state.
 func (e Elly) PutSource(source, prURL string, a Annotation, expires time.Time) error {
 	links := a.Links
 	if links == nil {
 		links = []Link{}
 	}
-	body, err := json.Marshal(map[string]any{"state": a.State, "note": a.Note, "links": links, "expiresAt": expires.UTC().Format(time.RFC3339)})
+	body, err := json.Marshal(map[string]any{"state": a.State, "note": capRunes(a.Note, ellyMaxNote), "links": links, "expiresAt": expires.UTC().Format(time.RFC3339)})
 	if err != nil {
 		return err
 	}

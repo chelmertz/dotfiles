@@ -8,7 +8,7 @@ import (
 
 // roundStarter is how a click and tick start a round in a PR's round
 // session: create it if it has no transcript, pick the launch from what the
-// session saved (LaunchArgv), and relaunch its one worker (Relaunch).
+// session saved (RoundArgv), and relaunch its one worker (Relaunch).
 type roundStarter struct {
 	sess    Sessions
 	exists  func(id ids.SessionID) bool
@@ -31,7 +31,8 @@ func (r roundStarter) start(cfg Config, pr PR, dir, remote string, rereview bool
 		r.marked("bootstrap")
 	}
 	resume := rereview || existed
-	argv, err := r.sess.LaunchArgv(id, PolicyFlags(pr, remote), RoundArgs(cfg, pr, remote, resume), ResumeArgs(cfg, pr, remote, resume))
+	policy := PolicyFlags(pr, remote)
+	argv, restore, err := r.sess.RoundArgv(id, policy, RoundArgs(cfg, pr, remote, resume), ResumeArgs(cfg, pr, remote, resume))
 	if err != nil {
 		// Not a failure of the launch: the caller marks the PR needs_you.
 		return RelaunchResult{Kind: relaunchPolicy, Detail: err.Error()}, nil //nolint:nilerr // see above
@@ -40,6 +41,11 @@ func (r roundStarter) start(cfg Config, pr PR, dir, remote string, rereview bool
 	return r.sess.Relaunch(id, settle, func() error {
 		r.marked("clear") // settling and stopping the last worker
 		defer r.marked("launch")
+		if restore {
+			if err := r.sess.Restore(id, policy); err != nil {
+				return err
+			}
+		}
 		return r.run(dir, argv)
 	})
 }

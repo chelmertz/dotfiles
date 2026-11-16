@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestElly(t *testing.T) {
@@ -58,6 +59,16 @@ func TestElly(t *testing.T) {
 	}
 	if got.body["state"] != stateNeedsYou || got.body["expiresAt"] != "2026-10-31T12:00:00Z" || !strings.Contains(asJSON(got.body["links"]), `"label":"Open session"`) {
 		t.Errorf("PUT body %+v", got.body)
+	}
+
+	// elly refuses a note over 300 runes with a 400, which loses the whole
+	// row; a long note (a policy mismatch listing every flag) goes out cut.
+	long := Annotation{State: stateNeedsYou, Note: strings.Repeat("é", 400)}
+	if err := e.Put(widgetsPR.URL(), long, t0); err != nil {
+		t.Fatal(err)
+	}
+	if note, _ := got.body["note"].(string); utf8.RuneCountInString(note) != 300 || !strings.HasSuffix(note, "…") {
+		t.Errorf("a 400-rune note went out as %d runes", utf8.RuneCountInString(note))
 	}
 
 	if err := e.Delete(widgetsPR.URL()); err != nil || got.method != "DELETE" || got.contentType != "" {

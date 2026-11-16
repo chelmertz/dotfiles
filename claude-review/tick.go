@@ -798,6 +798,20 @@ func (h tickHost) afterRelaunch(pr PR, res RelaunchResult, stopErr error, record
 	return skipBusy, nil
 }
 
+// settledOnGitHub: GitHub holds the evidence that pr's row is done: the
+// PR is merged or closed, the user's approval stands at its head, or the
+// user answered the round's question there.
+func (h tickHost) settledOnGitHub(pr PR, a Annotation) (bool, error) {
+	state, head, user, err := h.gh.Standing(pr)
+	if err != nil {
+		return false, err
+	}
+	if state != prOpen || (user != nil && user.State == reviewApproved && user.CommitID == head) {
+		return true, nil
+	}
+	return h.answered(pr, a)
+}
+
 // answered: a round's question is the user's until the user's account posts
 // on the PR after the round settled. The signal lives on GitHub, where the
 // author sees it too; tick only reads it.
@@ -852,19 +866,12 @@ func (h tickHost) refresh() error {
 		if !send {
 			continue
 		}
-		state, head, user, err := h.gh.Standing(pr)
+		done, err := h.settledOnGitHub(pr, a)
 		if err != nil {
 			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 			continue
 		}
-		if state != prOpen || (user != nil && user.State == reviewApproved && user.CommitID == head) {
-			h.clearOrSay(pr)
-			continue
-		}
-		if answered, err := h.answered(pr, a); err != nil {
-			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
-			continue
-		} else if answered {
+		if done {
 			h.clearOrSay(pr)
 			continue
 		}

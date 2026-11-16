@@ -85,6 +85,9 @@ type Sessions struct {
 	// Saved is the options id's background session was first launched
 	// with; ran is false when it never ran in the background.
 	Saved func(id ids.SessionID) (flags []string, ran bool, err error)
+	// Restore replaces the options id's background session saved; only
+	// while no worker runs for it, or the worker saves its own over them.
+	Restore func(id ids.SessionID, flags []string) error
 }
 
 // readSaved reads the options Claude Code saved for id's background
@@ -131,7 +134,81 @@ func (s Sessions) LaunchArgv(id ids.SessionID, policy, first, later []string) ([
 	case slices.Equal(saved, policy):
 		return later, nil
 	}
+	if mode, ok := modeOnly(saved, policy); ok {
+		want, _, _ := splitMode(policy)
+		return nil, fmt.Errorf("the session's permission mode was changed to %q; the round policy's is %q", mode, want)
+	}
 	return nil, fmt.Errorf("the session was started with other options than the round policy: %q", saved)
+}
+
+// RoundArgv is LaunchArgv for a round, where the user may have attached to
+// the session and changed its permission mode, which Claude Code saves
+// (dontAsk to plan, 2.1.322). The reviewer carries on: when the mode is the
+// only difference, it launches flagless too, and restore says the policy
+// must be put back (Restore) once the worker is stopped. A flagless resume
+// runs under the saved options, not the transcript's last mode (checked
+// live 2026-11-16).
+func (s Sessions) RoundArgv(id ids.SessionID, policy, first, later []string) (argv []string, restore bool, err error) {
+	argv, err = s.LaunchArgv(id, policy, first, later)
+	if err == nil {
+		return argv, false, nil
+	}
+	if saved, _, serr := s.Saved(id); serr == nil {
+		if _, ok := modeOnly(saved, policy); ok {
+			return later, true, nil
+		}
+	}
+	return nil, false, err
+}
+
+// modeOnly reports whether saved is policy with another permission mode,
+// and that mode. Claude Code moves the changed pair to the end of the saved
+// options, so the pair is compared apart from the rest, whose order holds.
+func modeOnly(saved, policy []string) (string, bool) {
+	sm, srest, ok1 := splitMode(saved)
+	pm, prest, ok2 := splitMode(policy)
+	if !ok1 || !ok2 || sm == pm || !slices.Equal(srest, prest) {
+		return "", false
+	}
+	return sm, true
+}
+
+// splitMode takes the one --permission-mode pair out of flags.
+func splitMode(flags []string) (mode string, rest []string, ok bool) {
+	i := slices.Index(flags, flagMode)
+	if i < 0 || i+1 >= len(flags) || slices.Contains(flags[i+1:], flagMode) {
+		return "", nil, false
+	}
+	rest = append(slices.Clone(flags[:i]), flags[i+2:]...)
+	return flags[i+1], rest, true
+}
+
+// writeSaved replaces respawnFlags in id's job file, keeping every other
+// field, through a temp file and a rename, then reads it back.
+func writeSaved(claudeDir string, id ids.SessionID, flags []string) error {
+	path := filepath.Join(claudeDir, "jobs", id.Key().String(), "state.json")
+	b, err := os.ReadFile(path) //nolint:gosec // path under the user's own config dir
+	if err != nil {
+		return fmt.Errorf("restoring the session's saved options: %w", err)
+	}
+	var job map[string]json.RawMessage
+	if err := json.Unmarshal(b, &job); err != nil {
+		return fmt.Errorf("restoring the session's saved options: %w", err)
+	}
+	if job["respawnFlags"], err = json.Marshal(flags); err != nil {
+		return err
+	}
+	if err := writeJSONAtomic(path, job); err != nil {
+		return fmt.Errorf("restoring the session's saved options: %w", err)
+	}
+	got, _, err := readSaved(claudeDir, id)
+	if err != nil {
+		return fmt.Errorf("restoring the session's saved options: %w", err)
+	}
+	if !slices.Equal(got, flags) {
+		return fmt.Errorf("restoring the session's saved options did not hold: %q", got)
+	}
+	return nil
 }
 
 // RelaunchKind is how Relaunch ended without an error.
@@ -340,7 +417,8 @@ func realSessions(claudeDir, goos string, run func(dir string, argv []string) (s
 			}
 			return nil
 		},
-		Sleep: time.Sleep,
-		Saved: func(id ids.SessionID) ([]string, bool, error) { return readSaved(claudeDir, id) },
+		Sleep:   time.Sleep,
+		Saved:   func(id ids.SessionID) ([]string, bool, error) { return readSaved(claudeDir, id) },
+		Restore: func(id ids.SessionID, flags []string) error { return writeSaved(claudeDir, id, flags) },
 	}
 }
