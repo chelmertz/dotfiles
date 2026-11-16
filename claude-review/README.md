@@ -846,9 +846,9 @@ outstanding" without an approval as unclear.
   round summary and how much changed since the user's last approval. No
   confirmation dialog. An approve line conditioned on CI ("approve once
   green") counts as approve: a red build is the author's to fix. `tick`
-  also sends a desktop notification, "<url> needs you: clean round at
-  <sha>; approve it yourself, claude-review never does": approving stays
-  the user's click on the link.
+  also sends a desktop notification, "<url> needs you: LGTM at <sha>;
+  approve it if you agree": approving stays the user's click on the link,
+  which elly shows as the row's Approve button.
 - **Question line**: `needs_you` with Answer and Fork links. Answer opens
   the session (attach) and comes first, since elly makes a needs_you row's
   first link its button under that link's label. The note

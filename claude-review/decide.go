@@ -300,7 +300,7 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 		if f.UserReview != nil && f.UserReview.State == reviewApproved {
 			return Decision{Annotation: &Annotation{State: stateHandled, Note: "clean round; your approval stands", Links: summary()}}
 		}
-		return Decision{MintFor: r.Head, Annotation: &Annotation{State: stateNeedsYou, Note: "clean round at " + r.Head[:9] + "; approve it yourself, claude-review never does", Links: summary(attach, ignore)}}
+		return Decision{MintFor: r.Head, Annotation: &Annotation{State: stateNeedsYou, Note: "LGTM at " + r.Head[:9] + "; approve it if you agree", Links: summary(attach, ignore)}}
 	// The summary is posted last, so it is what says the round finished.
 	case f.RoundReviewURL != "":
 		return Decision{Annotation: &Annotation{State: stateHandled, Note: "round posted its review", Links: summary()}}
