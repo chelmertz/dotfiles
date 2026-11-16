@@ -292,7 +292,7 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 		return Decision{Ignore: true, Annotation: &Annotation{State: stateStuck,
 			Note: "a post was refused over the limit; no more rounds on this PR until you click it again", Links: summary(attach)}}
 	case o.Kind == OutcomeQuestion:
-		return Decision{Annotation: &Annotation{State: stateNeedsYou, Note: questionNote(o), Links: summary(attach, forkLink(pr), ignore)}}
+		return Decision{Annotation: &Annotation{State: stateNeedsYou, Note: questionNote(o), Links: summary(answerLink(pr), forkLink(pr), ignore)}}
 	case f.NewThreads > 0 && approvedEarlier:
 		return Decision{DismissReviewID: f.UserReview.ID, Annotation: &Annotation{State: stateNeedsYou,
 			Note: "new findings after your approval; your approval was dismissed", Links: summary(attach, ignore)}}
@@ -352,6 +352,11 @@ func approvedBefore(r Round, f RoundFacts) bool {
 }
 
 func attachLink(pr PR) Link { return Link{Label: "Open session", URL: verbURL(pr, "attach")} }
+
+// answerLink is attach on a row that asks the user something. elly makes a
+// needs_you row's first link its button under the link's own label, so the
+// button says what to do.
+func answerLink(pr PR) Link { return Link{Label: "Answer", URL: verbURL(pr, "attach")} }
 func ignoreLink(pr PR) Link { return Link{Label: "Ignore", URL: verbURL(pr, "ignore")} }
 
 // quietApprove: the session's approve line names this PR at the head tick

@@ -318,15 +318,7 @@ func (h tickHost) settleRound(pr PR, r Round, retry bool) (busy bool, err error)
 		return true, nil
 	}
 	if why, ok := h.blocked(pr.RoundSessionID()); ok {
-		// No retry: it would resume on top of the live, waiting worker.
-		note := "the round is waiting for you"
-		if why != "" {
-			note += ": " + capRunes(why, maxQuestionNote)
-		}
-		d := Decision{Annotation: &Annotation{State: stateNeedsYou,
-			Note: note, Links: []Link{attachLink(pr), ignoreLink(pr)}}}
-		_, err := h.apply(pr, r, d, retry)
-		return false, err
+		return false, h.settleBlocked(pr, r, why, retry)
 	}
 	msg, err := h.lastMessage(pr.RoundSessionID())
 	if err != nil {
@@ -337,6 +329,36 @@ func (h tickHost) settleRound(pr PR, r Round, retry bool) (busy bool, err error)
 		return false, err // GitHub unreachable: read it next tick
 	}
 	return h.apply(pr, r, decide(r, ReadOutcome(msg), facts, pr), retry)
+}
+
+// settleBlocked reads a round whose worker waits for the user. It is the
+// question line's row: the user answers in the session, or forks it for
+// prod data. No retry: it would resume on top of the waiting worker. A push
+// since the round started overtakes the question: the worker is stopped and
+// the round read, so the new head gets a round of its own, which asks again
+// if the question still holds.
+func (h tickHost) settleBlocked(pr PR, r Round, why string, retry bool) error {
+	_, head, _, err := h.gh.Standing(pr)
+	if err != nil {
+		return err // GitHub unreachable: read it next tick
+	}
+	if head != "" && head != r.Head {
+		all, err := h.sess.Roster()
+		if err != nil {
+			return err
+		}
+		for _, w := range h.sess.workersFor(pr.RoundSessionID(), all) {
+			if err := h.do(fmt.Sprintf("stop worker %s on %s: a push overtook its question", w.Short, pr.URL()), func() error { return h.sess.stopAndWait(w) }); err != nil {
+				return err
+			}
+		}
+		_, err = h.apply(pr, r, Decision{Clear: true}, false)
+		return err
+	}
+	d := Decision{Annotation: &Annotation{State: stateNeedsYou,
+		Note: questionNote(Outcome{Question: capRunes(why, maxQuestionNote)}), Links: []Link{answerLink(pr), forkLink(pr), ignoreLink(pr)}}}
+	_, err = h.apply(pr, r, d, retry)
+	return err
 }
 
 // settleUnread reads pr's unread rounds before its idle worker is stopped

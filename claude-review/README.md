@@ -770,9 +770,14 @@ claude-review alone. It holds:
      run"; the first tick that sees it gone clears that. Windows from
      before clicks went background hold the PR's window session, a
      different id, and no longer hold rounds back.
-7. A round whose job is `blocked` (waiting for a permission it was not
-   given) gets `needs_you` with an Open-session link and no retry: a retry
-   would resume on top of the waiting worker.
+7. A round whose job is `blocked` (waiting on the user, in practice a
+   question its job's `needs` names) gets the question line's row: Answer,
+   Fork with prod data and Ignore, the job's words as the question, and no
+   retry, which would resume on top of the waiting worker. When the PR's
+   head has moved since the round started, a push overtook the question:
+   the worker is stopped and the round read, so the new head gets a round
+   of its own, which asks again if the question still holds. Left alone,
+   the waiting worker held the PR with no round on the new commits.
 8. For every other round the ledger started and has not marked read, decide the
    outcome from GitHub and the ledger, never from the session's text alone
    (next section). Mark it read.
@@ -844,7 +849,9 @@ outstanding" without an approval as unclear.
   also sends a desktop notification, "<url> needs you: clean round at
   <sha>; approve it yourself, claude-review never does": approving stays
   the user's click on the link.
-- **Question line**: `needs_you` with Open-session and Fork links. The note
+- **Question line**: `needs_you` with Answer and Fork links. Answer opens
+  the session (attach) and comes first, since elly makes a needs_you row's
+  first link its button under that link's label. The note
   carries the question: "the round has a question for you: <text>", where
   the text is the last paragraph before the question line, on one line,
   control characters dropped, cut at 200 characters with "…". It is the
@@ -1068,7 +1075,8 @@ The links claude-review writes:
 | Link | When | URL |
 | --- | --- | --- |
 | Approve | the checks under "Reading a round's outcome" pass | `claude-review://<owner>/<repo>/<n>/approve?at=<sha>&token=<t>` |
-| Open session | question line, failed round | `claude-review://<owner>/<repo>/<n>/attach` |
+| Answer | question line, blocked round; elly's row button | `claude-review://<owner>/<repo>/<n>/attach` |
+| Open session | failed round, dismissed approval | `claude-review://<owner>/<repo>/<n>/attach` |
 | Fork with prod data | question line | `claude-review://<owner>/<repo>/<n>/fork` |
 | Attach | every `running` row | `claude-review://<owner>/<repo>/<n>/attach` |
 | Ignore | every `needs_you` row | `claude-review://<owner>/<repo>/<n>/ignore` |

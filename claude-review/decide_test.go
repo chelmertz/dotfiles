@@ -318,3 +318,15 @@ func TestPlanTickNamesWhyItLeavesAPR(t *testing.T) {
 		t.Errorf("ignored: %q", s)
 	}
 }
+
+// elly's button on a needs_you row is its first link naming the PR, with
+// that link's label: on a question it must answer it.
+func TestDecideAQuestionLeadsWithAnswer(t *testing.T) {
+	q := decide(Round{Head: sha}, Outcome{Kind: OutcomeQuestion, Question: "rows?"}, RoundFacts{State: prOpen, Head: sha}, widgetsPR)
+	if q.Annotation == nil || len(q.Annotation.Links) == 0 || q.Annotation.Links[0] != answerLink(widgetsPR) {
+		t.Errorf("question links %+v", q.Annotation)
+	}
+	if l := answerLink(widgetsPR); l.Label != "Answer" || l.URL != "claude-review://acme/widgets/42/attach" {
+		t.Errorf("answer link %+v", l)
+	}
+}

@@ -492,8 +492,8 @@ func TestLaunchRefusesInADryRun(t *testing.T) {
 // retry would resume on top of the live, blocked worker.
 func TestTickABlockedRoundNeedsTheUser(t *testing.T) {
 	for why, want := range map[string]string{
-		"Does the ignore step print \"proceeding with build\"?": "the round is waiting for you: Does the ignore step print \"proceeding with build\"?",
-		"": "the round is waiting for you",
+		"Does the ignore step print \"proceeding with build\"?": "the round has a question for you: Does the ignore step print \"proceeding with build\"?",
+		"": "the round has a question for you",
 	} {
 		w := newTickWorld(t)
 		pr := w.accept(t, 1)
@@ -510,9 +510,41 @@ func TestTickABlockedRoundNeedsTheUser(t *testing.T) {
 		}
 		all, _ := w.h.ledger.Annotations()
 		a := all[pr.URL()]
-		if a.State != stateNeedsYou || a.Note != want || !hasLink(&a, "attach") {
+		// The same row as a round that ended on the question line: elly's
+		// button is the first link, so it reads Answer and opens the session.
+		if a.State != stateNeedsYou || a.Note != want || len(a.Links) == 0 || a.Links[0] != answerLink(pr) || !slices.Contains(a.Links, forkLink(pr)) {
 			t.Errorf("blocked on %q: annotation %+v", why, a)
 		}
+	}
+}
+
+// A push after the round started overtakes its question: the waiting worker
+// is stopped and the round read, so the new head gets a round of its own,
+// which asks again if the question still holds. Left alone, the blocked
+// worker held the PR with no round on the new commits (2026-11-16).
+func TestTickABlockedRoundOvertakenByAPushIsStopped(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 1)
+	if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0); err != nil {
+		t.Fatal(err)
+	}
+	w.gh.facts = RoundFacts{State: "open", Head: "h2"}
+	w.gh.state, w.gh.head = prOpen, "h2"
+	w.fs.workers = append(w.fs.workers, workerFor(pr.RoundSessionID(), 601))
+	w.fs.states[pr.RoundSessionID()] = "blocked"
+	w.blocked[pr.RoundSessionID()] = "does the query return rows?"
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(w.fs.events, "stop "+pr.RoundSessionID().Key().String()) {
+		t.Errorf("the overtaken worker was not stopped: %q", w.fs.events)
+	}
+	if unread, _ := w.h.ledger.UnreadRounds(); slices.ContainsFunc(unread, func(r Round) bool { return r.Head == "h1" }) {
+		t.Errorf("the overtaken round is still unread: %+v", unread)
+	}
+	all, _ := w.h.ledger.Annotations()
+	if a, ok := all[pr.URL()]; ok && a.State == stateNeedsYou {
+		t.Errorf("the overtaken question still waits on the user: %+v", a)
 	}
 }
 
