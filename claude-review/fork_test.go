@@ -169,3 +169,31 @@ func TestMetabaseReadRulesFollowTheSymlink(t *testing.T) {
 		t.Errorf("%q lacks %s", got, want)
 	}
 }
+
+// home-manager links the skill folder through two store paths before the
+// clone (2026-11-16): ~/.claude/skills/metabase-sql -> <hm-files>/... ->
+// <hm_metabasesql> -> clone. Claude Code checks a Read rule on every hop.
+func TestMetabaseReadRulesAllowEveryHop(t *testing.T) {
+	home, store, clone := t.TempDir(), t.TempDir(), t.TempDir()
+	if err := os.WriteFile(filepath.Join(clone, "SKILL.md"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	hop2 := filepath.Join(store, "x-hm_metabasesql")
+	hop1 := filepath.Join(store, "files", "metabase-sql")
+	for _, d := range []string{filepath.Dir(hop1), filepath.Join(home, ".claude", "skills")} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, l := range [][2]string{{clone, hop2}, {hop2, hop1}, {hop1, filepath.Join(home, ".claude", "skills", "metabase-sql")}} {
+		if err := os.Symlink(l[0], l[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := metabaseReadRules(home)
+	for _, want := range []string{"Read(~/.claude/skills/metabase-sql/**)", "Read(/" + hop1 + "/**)", "Read(/" + hop2 + "/**)", "Read(/" + clone + "/**)"} {
+		if !slices.Contains(got, want) {
+			t.Errorf("%q lacks %s", got, want)
+		}
+	}
+}

@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 )
@@ -33,13 +34,31 @@ var forkDenyRules = []string{
 }
 
 // metabaseReadRules let the fork read the skill. Claude Code checks a Read
-// rule on every hop of a symlink, so the folder the skill's files resolve
-// to (a clone or a store path, wherever home-manager links them) is
-// allowed too, found at launch rather than named here.
+// rule on every hop of a symlink, and home-manager links the skill folder
+// through two store paths before the clone (2026-11-16), so every hop of
+// the folder's chain, and the folder SKILL.md resolves into, is allowed,
+// found at launch rather than named here.
 func metabaseReadRules(home string) []string {
 	rules := []string{"Read(~/.claude/skills/metabase-sql/**)"}
+	add := func(dir string) {
+		if r := "Read(/" + dir + "/**)"; !slices.Contains(rules, r) {
+			rules = append(rules, r)
+		}
+	}
+	p := filepath.Join(home, ".claude", "skills", "metabase-sql")
+	for range 8 {
+		t, err := os.Readlink(p)
+		if err != nil {
+			break
+		}
+		if !filepath.IsAbs(t) {
+			t = filepath.Join(filepath.Dir(p), t)
+		}
+		p = filepath.Clean(t)
+		add(p)
+	}
 	if real, err := filepath.EvalSymlinks(filepath.Join(home, ".claude", "skills", "metabase-sql", "SKILL.md")); err == nil {
-		rules = append(rules, "Read(/"+filepath.Dir(real)+"/**)")
+		add(filepath.Dir(real))
 	}
 	return rules
 }
