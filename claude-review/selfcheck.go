@@ -34,8 +34,8 @@ const donePolls = 480
 
 // selfCheckFlags have the round policy's shape: dontAsk, no settings file,
 // no MCP, then an allow and a deny list, which Claude Code must save.
-var selfCheckFlags = []string{"--permission-mode", "dontAsk", "--setting-sources", "", "--strict-mcp-config",
-	"--allowedTools", "Agent", "--disallowedTools", "WebFetch"}
+var selfCheckFlags = []string{flagMode, "dontAsk", flagSettings, "", flagStrictMCP,
+	flagAllowed, "Agent", flagDenied, "WebFetch"}
 
 func (c selfChecker) check() (err error) {
 	if err := os.MkdirAll(c.dir, 0o700); err != nil {
@@ -57,9 +57,9 @@ func (c selfChecker) check() (err error) {
 	}
 	// The same launch a round makes: the flags on the first background
 	// launch, none after it, and only when the saved options match.
-	first := append(append([]string{claudeCmd, flagBg}, selfCheckFlags[:policyHead]...), "--resume", id.String(), selfCheckPrompt)
+	first := append(append([]string{claudeCmd, flagBg}, selfCheckFlags[:policyHead]...), flagResume, id.String(), selfCheckPrompt)
 	first = append(first, selfCheckFlags[policyHead:]...)
-	later := []string{claudeCmd, flagBg, "--resume", id.String(), selfCheckPrompt}
+	later := []string{claudeCmd, flagBg, flagResume, id.String(), selfCheckPrompt}
 	for _, what := range []string{"a first background round", "a resume after stop"} {
 		argv, err := c.sess.LaunchArgv(id, selfCheckFlags, first, later)
 		if err != nil {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
@@ -198,6 +199,32 @@ func (g GitHub) Dismiss(pr PR, id ids.ReviewID, message string) error {
 		return fmt.Errorf("dismiss review %s: %w\n%s", id, err, strings.TrimSpace(out))
 	}
 	return nil
+}
+
+// PostedSince: the user's account submitted a review, or wrote an inline or
+// a PR-level comment, on pr after t.
+func (g GitHub) PostedSince(pr PR, t time.Time) (bool, error) {
+	reviewList, err := ghList[ids.ReviewID](g.Gh, g.api(pr, reviews, pr.Number))
+	if err != nil {
+		return false, err
+	}
+	for _, rv := range reviewList {
+		if strings.EqualFold(rv.User.Login, g.User) && rv.SubmittedAt.After(t) {
+			return true, nil
+		}
+	}
+	for _, endpoint := range []string{reviewComments, issueComments} {
+		list, err := ghList[ids.CommentID](g.Gh, g.api(pr, endpoint, pr.Number))
+		if err != nil {
+			return false, err
+		}
+		for _, c := range list {
+			if strings.EqualFold(c.User.Login, g.User) && c.CreatedAt.After(t) {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 // Standing is the PR's state, head and the user's standing review, for

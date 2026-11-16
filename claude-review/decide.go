@@ -292,7 +292,7 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 		return Decision{Ignore: true, Annotation: &Annotation{State: stateStuck,
 			Note: "a post was refused over the limit; no more rounds on this PR until you click it again", Links: summary(attach)}}
 	case o.Kind == OutcomeQuestion:
-		return Decision{Annotation: &Annotation{State: stateNeedsYou, Note: questionNote(o), Links: summary(attach, ignore)}}
+		return Decision{Annotation: &Annotation{State: stateNeedsYou, Note: questionNote(o), Links: summary(attach, forkLink(pr), ignore)}}
 	case f.NewThreads > 0 && approvedEarlier:
 		return Decision{DismissReviewID: f.UserReview.ID, Annotation: &Annotation{State: stateNeedsYou,
 			Note: "new findings after your approval; your approval was dismissed", Links: summary(attach, ignore)}}

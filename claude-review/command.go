@@ -50,6 +50,12 @@ const (
 	flagSessionID = "--session-id"
 	flagMaxTurns  = "--max-turns"
 	flagBg        = "--bg"
+	flagResume    = "--resume"
+	flagSettings  = "--setting-sources"
+	flagStrictMCP = "--strict-mcp-config"
+	flagMode      = "--permission-mode"
+	flagAllowed   = "--allowedTools"
+	flagDenied    = "--disallowedTools"
 )
 
 func fill(pr PR, remote, s string) string {
@@ -93,15 +99,15 @@ func ReviewArgs(cfg Config, pr PR, remote string, resume, detached bool) []strin
 	if detached {
 		args = append(args, flagBg)
 	}
-	args = append(args, "--resume", pr.SessionID().String(), BuildPrompt(cfg, pr, remote, resume))
-	args = append(append(args, "--allowedTools", threadsRule(pr)), readRules(pr)...)
+	args = append(args, flagResume, pr.SessionID().String(), BuildPrompt(cfg, pr, remote, resume))
+	args = append(append(args, flagAllowed, threadsRule(pr)), readRules(pr)...)
 	if cfg.PostWithoutAsking {
 		// One rule, pinned to the PR, for a tool with no file-reading flag.
 		// gh itself is never pre-approved: a prefix rule cannot constrain
 		// flags, and gh has several that read a file into a body.
 		args = append(args, postRule(pr))
 	}
-	return append(append(args, "--disallowedTools"), denyRules...)
+	return append(append(args, flagDenied), denyRules...)
 }
 
 // AttachArgs opens a worker that is already running in the background.

@@ -343,9 +343,9 @@ func slackPrompt(pr PR, s prState) string {
 func SlackArgs(pr PR, prompt string, resume bool) []string {
 	args := []string{claudeCmd, "-p"}
 	if resume {
-		args = append(args, "--resume", pr.SessionID().String())
+		args = append(args, flagResume, pr.SessionID().String())
 	}
-	return append(args, "--no-session-persistence", "--strict-mcp-config", "--max-turns", "1", prompt, "--tools", "")
+	return append(args, "--no-session-persistence", flagStrictMCP, "--max-turns", "1", prompt, "--tools", "")
 }
 
 const maxSlackWords = 100

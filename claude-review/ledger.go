@@ -246,6 +246,15 @@ func (l *Ledger) MarkRead(id ids.RoundID) error {
 	return err
 }
 
+// LastReadAt is when pr's last round was settled, and whether one was.
+func (l *Ledger) LastReadAt(pr PR) (time.Time, bool, error) {
+	var at sql.NullInt64
+	if err := l.db.QueryRow(`select max(read_at) from rounds where pr = ?`, pr.URL()).Scan(&at); err != nil {
+		return time.Time{}, false, err
+	}
+	return time.Unix(at.Int64, 0).UTC(), at.Valid, nil
+}
+
 func (l *Ledger) MarkRetried(id ids.RoundID) error {
 	_, err := l.db.Exec(`update rounds set retries = retries + 1 where id = ?`, id)
 	return err

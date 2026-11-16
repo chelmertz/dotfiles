@@ -53,10 +53,10 @@ func PolicyFlags(pr PR, remote string) []string {
 func policyFlags(pr PR, remote, id string) []string {
 	n := itoaPR(pr)
 	args := []string{
-		"--permission-mode", "dontAsk",
-		"--setting-sources", "",
-		"--strict-mcp-config",
-		"--allowedTools",
+		flagMode, "dontAsk",
+		flagSettings, "",
+		flagStrictMCP,
+		flagAllowed,
 		// Scoped like Read: a bare Grep or Glob searched the parent directory
 		// in a live check on 2026-10-31, naming and matching files outside.
 		"Read(./**)", "Grep(./**)", "Glob(./**)",
@@ -73,7 +73,7 @@ func policyFlags(pr PR, remote, id string) []string {
 	}
 	args = append(args, readRules(pr)...)
 	args = append(args, postRule(pr))
-	args = append(append(append(args, personaReadRules...), "Agent", "--disallowedTools"), denyRules...)
+	args = append(append(append(args, personaReadRules...), "Agent", flagDenied), denyRules...)
 	// Not left to dontAsk: Claude Code lets some git reads through without
 	// a rule (`git status` did on 2026-10-31), and these four take --output.
 	args = append(args, "Bash(git show *)", "Bash(git diff *)", "Bash(git log *)", "Bash(git grep *)")
@@ -118,14 +118,14 @@ func RoundPrompt(cfg Config, pr PR, remote string, resume bool) string {
 func RoundArgs(cfg Config, pr PR, remote string, resume bool) []string {
 	flags := PolicyFlags(pr, remote)
 	args := append([]string{claudeCmd, flagBg}, flags[:policyHead]...)
-	args = append(args, "--resume", pr.RoundSessionID().String(), RoundPrompt(cfg, pr, remote, resume))
+	args = append(args, flagResume, pr.RoundSessionID().String(), RoundPrompt(cfg, pr, remote, resume))
 	return append(args, flags[policyHead:]...)
 }
 
 // ResumeArgs is every later round: no flags, so Claude Code continues the
 // session under its saved options instead of forking it.
 func ResumeArgs(cfg Config, pr PR, remote string, resume bool) []string {
-	return []string{claudeCmd, flagBg, "--resume", pr.RoundSessionID().String(), RoundPrompt(cfg, pr, remote, resume)}
+	return []string{claudeCmd, flagBg, flagResume, pr.RoundSessionID().String(), RoundPrompt(cfg, pr, remote, resume)}
 }
 
 // RoundBootstrapArgs creates the round session under its fixed id, under

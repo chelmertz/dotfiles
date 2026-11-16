@@ -14,6 +14,7 @@ func TestParseVerb(t *testing.T) {
 		"claude-review://acme/widgets/42/approve?at=" + sha + "&token=ab12": "approve",
 		"claude-review://acme/widgets/42/attach":                            "attach",
 		"claude-review://acme/widgets/42/ignore":                            "ignore",
+		"claude-review://acme/widgets/42/fork":                              "fork",
 		"claude-review://acme/widgets/42":                                   "",
 		"claude-review://acme/widgets/42/merge":                             "",
 		"claude-review://../widgets/42/ignore":                              "",
@@ -143,7 +144,7 @@ func TestThunderbirdHostPassesNoVerbs(t *testing.T) {
 	if u := "claude-review://acme/widgets/42?from=x&y=1"; full.MatchString(u) {
 		t.Errorf("pattern %s passes %s", m[1], u)
 	}
-	for _, verb := range []string{"approve?at=" + sha + "&token=x", "attach", "ignore"} {
+	for _, verb := range []string{"approve?at=" + sha + "&token=x", "attach", "fork", "ignore"} {
 		if u := "claude-review://acme/widgets/42/" + verb; full.MatchString(u) {
 			t.Errorf("pattern %s passes %s", m[1], u)
 		}

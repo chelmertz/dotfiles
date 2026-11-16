@@ -770,8 +770,10 @@ claude-review alone. It holds:
    (next section). Mark it read.
 9. Re-send every live annotation with a fresh expiry, except `running`,
    which keeps its own and is dropped once that has passed. Delete one only on
-   positive evidence: the user's own approval stands at the current head, or
-   GitHub reports the PR merged or closed. A PR missing from one elly read is
+   positive evidence: the user's own approval stands at the current head,
+   GitHub reports the PR merged or closed, or, on a question row, the user's
+   account reviewed or commented on the PR after the round was settled (the
+   answer lives on GitHub, where the author sees it too). A PR missing from one elly read is
    not evidence; its annotation expires instead.
 10. Offer Start on elly's row for a review asked of the user by name (or a
    re-review) in `review_repos` that only a click would start: not accepted,
@@ -834,7 +836,7 @@ outstanding" without an approval as unclear.
   also sends a desktop notification, "<url> needs you: clean round at
   <sha>; approve it yourself, claude-review never does": approving stays
   the user's click on the link.
-- **Question line**: `needs_you` with an Open-session link. The note
+- **Question line**: `needs_you` with Open-session and Fork links. The note
   carries the question: "the round has a question for you: <text>", where
   the text is the last paragraph before the question line, on one line,
   control characters dropped, cut at 200 characters with "…". It is the
@@ -987,6 +989,23 @@ org named like a verb cannot collide.
   It never resumes a session interactively, which would be a window under
   the user's own settings and hold every round back; with no worker it
   notifies "no round running on <url>".
+- `claude-review://<owner>/<repo>/<n>/fork` opens a terminal running an
+  interactive fork of the round session (`--resume <id> --fork-session`),
+  so a round's question can be answered with prod data through the
+  `metabase-sql` skill. Unattended rounds never get prod access: they read
+  text the PR author controls and post without asking, and a read-only key
+  plus that channel moves prod rows onto GitHub. The fork is locked so the
+  user sees every outbound call: no settings source (the user's own allow
+  list pre-approves curl, gh and git push), no MCP servers, default
+  permission mode, the round's read rules plus Read on the skill, and
+  denies for curl, wget, WebFetch, WebSearch, `git push`, `gh gist`, `op`,
+  `printenv`, `env`, an `MB_*` environment prefix, and Write or Edit in the
+  clone. `mb-sql` and `claude-review post` are on no list, so each call
+  asks with the SQL or the comment body in view. The link is not the gate:
+  under the PR's lock the verb opens nothing unless the PR is in
+  `review_repos`, its row holds the Fork link tick wrote for a question, and
+  the round's job is not working. The fork gets its own session id, so the
+  round session and its saved policy are untouched.
 - `claude-review://<owner>/<repo>/<n>/ignore` sets the sticky ignore. A
   forged one only stops automation on that PR.
 
@@ -1042,6 +1061,7 @@ The links claude-review writes:
 | --- | --- | --- |
 | Approve | the checks under "Reading a round's outcome" pass | `claude-review://<owner>/<repo>/<n>/approve?at=<sha>&token=<t>` |
 | Open session | question line, failed round | `claude-review://<owner>/<repo>/<n>/attach` |
+| Fork with prod data | question line | `claude-review://<owner>/<repo>/<n>/fork` |
 | Attach | every `running` row | `claude-review://<owner>/<repo>/<n>/attach` |
 | Ignore | every `needs_you` row | `claude-review://<owner>/<repo>/<n>/ignore` |
 | Round summary | every finished round | `https://github.com/<owner>/<repo>/pull/<n>#pullrequestreview-<id>` |

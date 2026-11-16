@@ -39,6 +39,8 @@ type tickGitHub interface {
 	Gate
 	RoundFacts(pr PR, r Round) (RoundFacts, error)
 	Standing(pr PR) (state, head string, user *Review, err error)
+	// PostedSince: the user's account reviewed or commented on pr after t.
+	PostedSince(pr PR, t time.Time) (bool, error)
 	Dismiss(pr PR, id ids.ReviewID, message string) error
 }
 
@@ -796,6 +798,20 @@ func (h tickHost) afterRelaunch(pr PR, res RelaunchResult, stopErr error, record
 	return skipBusy, nil
 }
 
+// answered: a round's question is the user's until the user's account posts
+// on the PR after the round settled. The signal lives on GitHub, where the
+// author sees it too; tick only reads it.
+func (h tickHost) answered(pr PR, a Annotation) (bool, error) {
+	if !slices.Contains(a.Links, forkLink(pr)) {
+		return false, nil
+	}
+	since, ok, err := h.ledger.LastReadAt(pr)
+	if err != nil || !ok {
+		return false, err
+	}
+	return h.gh.PostedSince(pr, since)
+}
+
 // refreshedExpiry is when a re-sent a expires: annotationTTL from now, or
 // its own expiry, never extended, so a round nothing settles stops showing
 // as running. Zero means that has passed; send is false while too little of
@@ -842,6 +858,13 @@ func (h tickHost) refresh() error {
 			continue
 		}
 		if state != prOpen || (user != nil && user.State == reviewApproved && user.CommitID == head) {
+			h.clearOrSay(pr)
+			continue
+		}
+		if answered, err := h.answered(pr, a); err != nil {
+			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
+			continue
+		} else if answered {
 			h.clearOrSay(pr)
 			continue
 		}
