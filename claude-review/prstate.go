@@ -40,17 +40,13 @@ func (l *Ledger) DeletePRState(pr PR) error {
 	return err
 }
 
-// metaPRStateMigrated marks the one-time migration from rows to pr_state.
-const metaPRStateMigrated = "pr_state_migrated"
-
-// migratePRState gives every accepted PR a state, once: an unread round is
+// migratePRState gives every accepted PR without a state one, on every
+// open, so a PR a build without pr_state accepted is caught up later; it
+// never overwrites a state. An unread round is
 // running; otherwise the stored row maps by its state and note
 // (migratedState), and anything unmapped is idle. Ignored PRs are idle:
 // Ignore is gone.
 func (l *Ledger) migratePRState() error {
-	if done, err := l.Meta(metaPRStateMigrated); err != nil || done != "" {
-		return err
-	}
 	prs, err := l.acceptedURLs()
 	if err != nil {
 		return err
@@ -77,14 +73,11 @@ func (l *Ledger) migratePRState() error {
 			return err
 		}
 	}
-	if _, err := tx.Exec(`replace into meta (key, value) values (?, '1')`, metaPRStateMigrated); err != nil {
-		return err
-	}
 	return tx.Commit()
 }
 
 func (l *Ledger) acceptedURLs() ([]string, error) {
-	rows, err := l.db.Query(`select pr from acceptance`)
+	rows, err := l.db.Query(`select pr from acceptance where pr not in (select pr from pr_state)`)
 	if err != nil {
 		return nil, err
 	}

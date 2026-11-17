@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"path/filepath"
 	"testing"
 )
@@ -82,7 +81,7 @@ func TestMigratePRState(t *testing.T) {
 				}
 			}
 			// The ledger as it was before pr_state existed.
-			if _, err := l.db.Exec(`drop table pr_state; delete from meta`); err != nil {
+			if _, err := l.db.Exec(`delete from pr_state`); err != nil {
 				t.Fatal(err)
 			}
 			_ = l.Close()
@@ -104,8 +103,9 @@ func TestMigratePRState(t *testing.T) {
 	}
 }
 
-// The migration runs once: a state written after it is never overwritten.
-func TestMigratePRStateRunsOnce(t *testing.T) {
+// The migration never overwrites a state, and catches up a PR accepted
+// without one.
+func TestMigratePRStateNeverOverwrites(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "ledger.db")
 	l, err := OpenLedger(path)
 	if err != nil {
@@ -114,16 +114,25 @@ func TestMigratePRStateRunsOnce(t *testing.T) {
 	if err := l.Accept(widgetsPR, "aaa", "main", t0); err != nil {
 		t.Fatal(err)
 	}
+	if err := l.SetPRState(widgetsPR, PRState{State: stHeld, Kind: kindLaunch, Head: "aaa"}); err != nil {
+		t.Fatal(err)
+	}
+	other := PR{Owner: "o", Repo: "r", Number: 7}
+	if err := l.Accept(other, "ccc", "main", t0); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.SetAnnotation(other, Annotation{State: stateHandled, Note: noteRoundPosted}); err != nil {
+		t.Fatal(err)
+	}
 	_ = l.Close()
 	if l, err = OpenLedger(path); err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = l.Close() }()
-	if _, ok, _ := l.PRState(widgetsPR); ok {
-		t.Fatal("a PR accepted after the migration got a state from it")
+	if got, _, _ := l.PRState(widgetsPR); got.Kind != kindLaunch {
+		t.Fatalf("overwritten: %+v", got)
 	}
-	var n int
-	if err := l.db.QueryRow(`select count(*) from meta where key = ?`, metaPRStateMigrated).Scan(&n); err != nil && err != sql.ErrNoRows || n != 1 {
-		t.Fatalf("migration mark: %d %v", n, err)
+	if got, ok, _ := l.PRState(other); !ok || got.Kind != kindPosted || got.Head != "ccc" {
+		t.Fatalf("not caught up: %+v ok=%v", got, ok)
 	}
 }
