@@ -83,16 +83,16 @@ func TestIgnoreVerbIsGone(t *testing.T) {
 	}
 }
 
-// attach never resumes a session interactively: that would be a window
-// under the user's own settings, which blocks rounds. A live worker is
-// attached to; with none there is nothing to watch.
+// attach never resumes a session itself: that would be a window under the
+// user's own settings, which blocks rounds. A live worker is attached to;
+// with none, Open Claude forks (TestOpenClaudeForksAnEndedReview).
 func TestAttachVerbNeverResumes(t *testing.T) {
 	h, fs := clickHost(t, true)
 	if code := run([]string{"claude-review://acme/widgets/42/attach"}, h.d); code != 0 {
 		t.Fatalf("exit %d: %s", code, h.stderr)
 	}
-	if len(h.scripts) != 0 || notified(h) != "no round running on acme/widgets/pull/42" {
-		t.Errorf("no worker: scripts %q, notified %q", h.scripts, notified(h))
+	if len(h.scripts) != 0 {
+		t.Errorf("no worker, no review: scripts %q", h.scripts)
 	}
 	fs.workers = []Worker{workerFor(widgetsPR.RoundSessionID(), 500)}
 	if code := run([]string{"claude-review://acme/widgets/42/attach"}, h.d); code != 0 {

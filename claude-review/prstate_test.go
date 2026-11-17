@@ -48,7 +48,7 @@ func TestMigratePRState(t *testing.T) {
 		{"dismissed", Annotation{State: stateNeedsYou, Note: "new findings after your approval; your approval was dismissed"}, false, stAwaiting, kindDismiss, ""},
 		{"drafts", Annotation{State: stateNeedsYou, Note: "the round left 3 unsent comments in a draft review; submit or discard it on GitHub"}, false, stAwaiting, kindDrafts, "3"},
 		{"fresh look", Annotation{State: stateNeedsYou, Note: "the PR changed under its first look (force-push or new base); click claude review to look again"}, false, stHeld, kindFresh, ""},
-		{"window", Annotation{State: stateNeedsYou, Note: windowNote}, false, stHeld, kindWindow, ""},
+		{"window", Annotation{State: stateNeedsYou, Note: legacyWindowNote}, false, stHeld, kindWindow, ""},
 		{"paused", Annotation{State: stateNeedsYou, Note: "paused: the daily round limit for this PR is reached"}, false, stIdle, "", ""},
 		{"refused, summary posted", Annotation{State: stateStuck, Note: "a post was refused over the limit; no more rounds on this PR until you start one again"}, false, stHandled, kindPosted, detailCapped},
 		{"failed", Annotation{State: stateStuck, Note: "round stopped twice before posting its summary"}, false, stStuck, kindFailed, "round stopped twice before posting its summary"},
@@ -65,7 +65,7 @@ func TestMigratePRState(t *testing.T) {
 				t.Fatal(err)
 			}
 			pr := widgetsPR
-			c.a.Links = []Link{{Label: "Round summary", URL: "https://github.com/o/r/pull/42#r1"}}
+			c.a.Links = []Link{{Label: legacySummaryLabel, URL: "https://github.com/o/r/pull/42#r1"}}
 			if err := l.Accept(pr, "aaa", "main", t0); err != nil {
 				t.Fatal(err)
 			}
@@ -121,7 +121,7 @@ func TestMigratePRStateNeverOverwrites(t *testing.T) {
 	if err := l.Accept(other, "ccc", "main", t0); err != nil {
 		t.Fatal(err)
 	}
-	if err := l.SetAnnotation(other, Annotation{State: stateHandled, Note: noteRoundPosted}); err != nil {
+	if err := l.SetAnnotation(other, Annotation{State: stateHandled, Note: legacyPosted}); err != nil {
 		t.Fatal(err)
 	}
 	_ = l.Close()

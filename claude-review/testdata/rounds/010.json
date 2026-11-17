@@ -15,7 +15,7 @@
   "happened": "Interactive round: posted 18 inline findings and a summary at the head; no approval.",
   "want": {
     "annotation": "handled",
-    "note": "round posted its review",
+    "note": "Claude posted its review",
     "retry": false,
     "dismiss": false
   }

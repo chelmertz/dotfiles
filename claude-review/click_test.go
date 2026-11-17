@@ -370,7 +370,9 @@ func TestClickThatStartsNothingPutsBackTheRow(t *testing.T) {
 	h, fs := clickHost(t, true)
 	ellyRecorder(t, h, fs)
 	l := h.ledger(t)
-	was := Annotation{State: stateHandled, Note: "round found nothing to post"}
+	// a row from before pr_state: the click puts back what it meant, in
+	// today's words
+	was := Annotation{State: stateHandled, Note: legacyNothing}
 	if err := l.SetAnnotation(testPR, was); err != nil {
 		t.Fatal(err)
 	}
@@ -379,10 +381,10 @@ func TestClickThatStartsNothingPutsBackTheRow(t *testing.T) {
 	if code := run([]string{target}, h.d); code != 0 {
 		t.Fatalf("exit %d: %s", code, h.stderr)
 	}
-	if got, want := strings.Join(fs.events, ","), "PUT running starting (a click from unknown),trust "+cloneOf+",PUT handled round found nothing to post"; got != want {
+	if got, want := strings.Join(fs.events, ","), "PUT running starting (a click from unknown),trust "+cloneOf+",PUT handled "+noteNothing; got != want {
 		t.Errorf("events\n%s, want\n%s", got, want)
 	}
-	if a, ok, _ := l.Annotation(testPR); !ok || a.State != was.State || a.Note != was.Note {
+	if a, ok, _ := l.Annotation(testPR); !ok || a.State != was.State || a.Note != noteNothing {
 		t.Errorf("ledger holds %+v %v", a, ok)
 	}
 }

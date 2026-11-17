@@ -494,8 +494,8 @@ func TestLaunchRefusesInADryRun(t *testing.T) {
 // retry would resume on top of the live, blocked worker.
 func TestTickABlockedRoundNeedsTheUser(t *testing.T) {
 	for why, want := range map[string]string{
-		"Does the ignore step print \"proceeding with build\"?": "the round has a question for you: Does the ignore step print \"proceeding with build\"?",
-		"": "the round has a question for you",
+		"Does the ignore step print \"proceeding with build\"?": "Claude has a question for you: Does the ignore step print \"proceeding with build\"?",
+		"": "Claude has a question for you",
 	} {
 		w := newTickWorld(t)
 		pr := w.accept(t, 1)
@@ -514,7 +514,7 @@ func TestTickABlockedRoundNeedsTheUser(t *testing.T) {
 		a := all[pr.URL()]
 		// The same row as a round that ended on the question line: elly's
 		// button is the Primary link, so it reads Answer and opens the session.
-		if a.State != stateNeedsYou || a.Note != want || len(a.Links) == 0 || a.Links[0] != primary(answerLink(pr)) || !slices.Contains(a.Links, forkLink(pr)) {
+		if a.State != stateNeedsYou || a.Note != want || len(a.Links) == 0 || a.Links[0] != primary(answerLink(pr)) || slices.Contains(a.Links, forkLink(pr)) {
 			t.Errorf("blocked on %q: annotation %+v", why, a)
 		}
 	}
@@ -787,7 +787,7 @@ func TestTickSettlesTheLastRoundBeforeStoppingItsWorker(t *testing.T) {
 	}
 }
 
-const windowNoteWant = "review window open; close it to let rounds run"
+const windowNoteWant = "Claude window open; close it to let reviews run"
 
 // A legacy window holds the PR's rounds back; tick says so in elly and
 // clears it on the first tick that sees the window gone.
@@ -1053,7 +1053,7 @@ func TestTickNotifiesEachNewNeedsYouOnce(t *testing.T) {
 		}
 	}
 	want := []string{
-		asked.URL() + " needs you: the round has a question for you: Which one?",
+		asked.URL() + " needs you: Claude has a question for you: Which one?",
 		gated.URL() + " needs you: " + w.elly.put[gated.URL()].Note,
 	}
 	slices.Sort(want)

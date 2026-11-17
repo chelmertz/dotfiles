@@ -151,7 +151,7 @@ func (l *Ledger) migratedFor(url string, a Annotation) (PRState, error) {
 		s.Since = time.Unix(started.Int64, 0).UTC()
 	}
 	for _, link := range a.Links {
-		if link.Label == labelRoundSummary {
+		if link.Label == legacySummaryLabel {
 			s.Review = link.URL
 		}
 	}
@@ -159,6 +159,16 @@ func (l *Ledger) migratedFor(url string, a Annotation) (PRState, error) {
 }
 
 var draftsNote = regexp.MustCompile(`^the round left (\d+) unsent comments`)
+
+// The old code's texts, frozen: rows show other words now, and only rows
+// written before pr_state existed carry these.
+const (
+	legacySummaryLabel = "Round summary"
+	legacyWindowNote   = "review window open; close it to let rounds run"
+	legacyPosted       = "round posted its review"
+	legacyNothing      = "round found nothing to post"
+	legacyApproval     = "clean round; your approval stands"
+)
 
 // migratedState maps a row the old code wrote to the state it meant. The
 // notes are the old code's exact texts; a running row without an unread
@@ -178,7 +188,7 @@ func migratedState(a Annotation) PRState {
 			return PRState{State: stAwaiting, Kind: kindDrafts, Detail: draftsNote.FindStringSubmatch(n)[1]}
 		case strings.HasPrefix(n, "the PR changed under its first look"):
 			return PRState{State: stHeld, Kind: kindFresh}
-		case n == windowNote:
+		case n == legacyWindowNote:
 			return PRState{State: stHeld, Kind: kindWindow}
 		}
 	case stateStuck:
@@ -188,11 +198,11 @@ func migratedState(a Annotation) PRState {
 		return PRState{State: stStuck, Kind: kindFailed, Detail: n}
 	case stateHandled:
 		switch n {
-		case noteRoundPosted:
+		case legacyPosted:
 			return PRState{State: stHandled, Kind: kindPosted}
-		case noteNothing:
+		case legacyNothing:
 			return PRState{State: stHandled, Kind: kindNothing}
-		case noteApprovalStands:
+		case legacyApproval:
 			return PRState{State: stHandled, Kind: kindApproved}
 		}
 	}

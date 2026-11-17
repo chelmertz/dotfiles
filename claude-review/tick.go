@@ -84,7 +84,7 @@ type tickHost struct {
 
 // windowNote is the needs_you note for a PR whose session is open in a
 // legacy interactive window: tick cannot start a round beside it.
-const windowNote = "review window open; close it to let rounds run"
+const windowNote = "Claude window open; close it to let reviews run"
 
 func (h tickHost) do(what string, fn func() error) error {
 	if h.dry {
@@ -663,7 +663,7 @@ func (h tickHost) setRow(pr PR, a Annotation) error {
 // breaker holds back, "" when neither does.
 func (h tickHost) pausedNote(p Planned) (string, error) {
 	if p.Gate == gatePaused {
-		return "paused: the daily round limit for this PR is reached", nil
+		return "paused: the daily review limit for this PR is reached", nil
 	}
 	reason, err := h.ledger.Tripped()
 	if err != nil || reason == "" {

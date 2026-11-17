@@ -15,7 +15,7 @@
   "happened": "Interactive round on the user's own PR: posted 4 inline findings and a summary at the head; no approval possible.",
   "want": {
     "annotation": "handled",
-    "note": "round posted its review",
+    "note": "Claude posted its review",
     "retry": false,
     "dismiss": false
   }

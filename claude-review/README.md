@@ -643,7 +643,7 @@ flowchart LR
     gh -- what the round posted --> tick
     tick -- dismiss own approval --> gh
     elly -- inbox, count, notifications --> user
-    user -- clicks Approve, Answer, Open session --> tick
+    user -- clicks Approve, Answer, Open Claude --> tick
 ```
 
 Only claude-review writes to GitHub: review comments unattended, approvals
@@ -781,13 +781,13 @@ claude-review alone. It holds:
      is recorded, and a retry that cannot start shows "nothing started";
    - a live session for the round session's id that is no worker's (a
      window someone opened on it with `claude --resume`) starts nothing and
-     marks the PR `needs_you` "review window open; close it to let rounds
+     marks the PR `needs_you` "Claude window open; close it to let reviews
      run"; the first tick that sees it gone clears that. Windows from
      before clicks went background hold the PR's window session, a
      different id, and no longer hold rounds back.
 7. A round whose job is `blocked` (waiting on the user, in practice a
    question its job's `needs` names) gets the question line's row: Answer,
-   Fork with prod data, the job's words as the question, and no
+   the job's words as the question, and no
    retry, which would resume on top of the waiting worker. The round stays
    unread, so a worker the user answered in the session shows `running`
    again and is settled when it ends. When the PR's
@@ -870,10 +870,10 @@ outstanding" without an approval as unclear.
   also sends a desktop notification, "<url> needs you: LGTM at <sha>;
   approve it if you agree": approving stays the user's click on the link,
   which elly shows as the row's Approve button.
-- **Question line**: `needs_you` with Answer and Fork links. Answer opens
+- **Question line**: `needs_you` with an Answer link. Answer opens
   the session (attach) and is the row's Primary link, which elly makes its
   button under that link's label. The note
-  carries the question: "the round has a question for you: <text>", where
+  carries the question: "Claude has a question for you: <text>", where
   the text is the last paragraph before the question line, on one line,
   control characters dropped, cut at 200 characters with "…". It is the
   session's text and may echo the PR, so elly and the desktop notification
@@ -1020,12 +1020,14 @@ org named like a verb cannot collide.
   can show the user a link (Slack, a web page) could get unreviewed code
   approved in one click, and the head check would not stop them, because the
   author knows the head.
-- `claude-review://<owner>/<repo>/<n>/attach` opens a terminal running
-  `claude attach` on the PR's live background worker, under the PR's lock.
-  It never resumes a session interactively, which would be a window under
-  the user's own settings and hold every round back; with no worker it
-  notifies "no round running on <url>".
-- `claude-review://<owner>/<repo>/<n>/fork` opens a terminal running an
+- `claude-review://<owner>/<repo>/<n>/attach` (Open Claude) opens a
+  terminal running `claude attach` on the PR's live background worker,
+  under the PR's lock. With no worker, it opens the fork below once a
+  review of the PR has ended, and otherwise notifies that Claude has not
+  looked at the PR yet. It never resumes the session itself, which would be
+  a window under the user's own settings and hold every round back.
+- `claude-review://<owner>/<repo>/<n>/fork` (old rows only; Open Claude
+  replaced the link) and attach without a worker open a terminal running an
   interactive fork of the round session (`--resume <id> --fork-session`),
   so a round's question can be answered with prod data through the
   `metabase-sql` skill. Unattended rounds never get prod access: they read
@@ -1097,12 +1099,9 @@ The links claude-review writes:
 | --- | --- | --- |
 | Approve | the checks under "Reading a round's outcome" pass | `claude-review://<owner>/<repo>/<n>/approve?at=<sha>&token=<t>` |
 | Answer | question line, blocked round; elly's row button | `claude-review://<owner>/<repo>/<n>/attach` |
-| Open session | failed round, dismissed approval, unsent drafts, open window, paused | `claude-review://<owner>/<repo>/<n>/attach` |
+| Open Claude | every row but a question's, whose Answer is the same link; the row's button on a failed review, dismissed approval, unsent drafts, open window, paused | `claude-review://<owner>/<repo>/<n>/attach` |
 | Start again / Look again | post refused, nothing started, changed under the first look | `claude-review://<owner>/<repo>/<n>?from=elly` |
-| Fork with prod data | question line | `claude-review://<owner>/<repo>/<n>/fork` |
 | ? | every row | `claude-review://<owner>/<repo>/<n>/states`: writes the states page (every state and move, drawn from the rules `transition` runs, each state's row text from `render`, this PR's state marked) and opens it in the browser |
-| Attach | every `running` row | `claude-review://<owner>/<repo>/<n>/attach` |
-| Round summary | every finished round | `https://github.com/<owner>/<repo>/pull/<n>#pullrequestreview-<id>` |
 | Session | any listed PR a session acted on (source `claude-session`, state `info`) | `claude-resume://<session id>` |
 
 Every tick also reads the transcripts under `~/.claude/projects` (not the
@@ -1140,8 +1139,9 @@ on render.
   allowlisted custom scheme is passed as `template.URL` only after the check
   above, repeated at render time against the current flag, so restarting elly
   without the flag revokes the scheme.
-- A custom-scheme link renders with its verb visible next to the label, so a
-  label cannot disguise an approve link as "Open session".
+- A custom-scheme link shows its scheme and verb on hover (visible beside
+  the label until 2026-11-17, when the user chose a cleaner row): the label
+  is the tool's, the hover says what the click runs.
 - With no annotations, the page and the count are exactly as today.
 
 ### Effect on the count

@@ -240,16 +240,16 @@ func TestDecide(t *testing.T) {
 			func(d Decision) bool { return d.DismissReviewID.IsZero() }, "no dismissal"},
 		{"question", round, Outcome{Kind: OutcomeQuestion}, open,
 			func(d Decision) bool {
-				return isK(d, kindQuestion) && hasLink(row(d), "attach") && note(d) == "the round has a question for you"
+				return isK(d, kindQuestion) && hasLink(row(d), "attach") && note(d) == "Claude has a question for you"
 			}, "needs_you + attach, today's note"},
 		{"question with its text", round, Outcome{Kind: OutcomeQuestion, Question: "Per booking or per venue?"}, open,
 			func(d Decision) bool {
-				return isK(d, kindQuestion) && note(d) == "the round has a question for you: Per booking or per venue?"
+				return isK(d, kindQuestion) && note(d) == "Claude has a question for you: Per booking or per venue?"
 			}, "needs_you with the question"},
 		{"findings posted: handled", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 3, RoundReviewURL: roundReview},
 			func(d Decision) bool {
-				return isK(d, kindPosted) && hasLink(row(d), "pullrequestreview-5")
-			}, "handled + summary link"},
+				return isK(d, kindPosted) && d.Next.Review == roundReview && hasLink(row(d), "attach") && !hasLink(row(d), "pullrequestreview-5")
+			}, "handled, Open Claude, summary kept in state not on the row"},
 		{"nothing to post, said so: handled, not retried", round, Outcome{Kind: OutcomeNothing}, open,
 			func(d Decision) bool { return !d.Retry && isK(d, kindNothing) }, "handled"},
 		{"nothing to show for it: retry once", round, Outcome{}, open,
@@ -353,11 +353,12 @@ func TestDecideAQuestionLeadsWithAnswer(t *testing.T) {
 	}
 }
 
-// A post-limit stop has no worker to attach to: its button starts a new
-// round, the click the note asks for (2026-11-16: "no round running").
+// A post-limit stop has no worker: its button starts a new review, the click
+// the note asks for (2026-11-16: "no round running"); Open Claude sits
+// beside it, not as the button.
 func TestDecideAPostRefusedRowStartsAgain(t *testing.T) {
 	d := decide(Round{Head: sha, PostRefused: true}, Outcome{}, RoundFacts{State: prOpen, Head: sha}, widgetsPR)
-	if a := row(d); a == nil || len(a.Links) == 0 || a.Links[0] != primary(startAgainLink(widgetsPR)) || hasLink(a, "attach") {
+	if a := row(d); a == nil || len(a.Links) < 2 || a.Links[0] != primary(startAgainLink(widgetsPR)) || a.Links[1] != attachLink(widgetsPR) {
 		t.Errorf("links %+v", a)
 	}
 }

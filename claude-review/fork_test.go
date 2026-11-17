@@ -64,58 +64,67 @@ func listAfter(args []string, flag string) []string {
 	return out
 }
 
-func TestDecideOffersAForkOnAQuestionOnly(t *testing.T) {
-	r := Round{Head: sha, StartedAt: time.Now()}
+// Every row Claude has a session behind offers Open Claude, and none still
+// offers the old fork link: Open Claude is the fork when nothing works.
+func TestDecideOffersOpenClaudeOnEveryRow(t *testing.T) {
 	f := RoundFacts{State: prOpen, Head: sha}
-	q := decide(r, Outcome{Kind: OutcomeQuestion, Question: "run this?"}, f, widgetsPR)
-	if !hasLink(row(q), verbURL(widgetsPR, "fork")) {
-		t.Errorf("a question offers no fork: %+v", row(q))
-	}
-	refused := decide(Round{Head: sha, PostRefused: true}, Outcome{Kind: OutcomeQuestion}, f, widgetsPR)
-	failed := decide(Round{Head: sha, Retries: 1}, Outcome{}, f, widgetsPR)
-	for name, d := range map[string]Decision{"post refused": refused, "failed twice": failed} {
-		if hasLink(row(d), verbURL(widgetsPR, "fork")) {
-			t.Errorf("%s offers a fork: %+v", name, row(d))
+	for name, d := range map[string]Decision{
+		"question":     decide(Round{Head: sha, StartedAt: time.Now()}, Outcome{Kind: OutcomeQuestion, Question: "run this?"}, f, widgetsPR),
+		"post refused": decide(Round{Head: sha, PostRefused: true}, Outcome{Kind: OutcomeQuestion}, f, widgetsPR),
+		"failed twice": decide(Round{Head: sha, Retries: 1}, Outcome{}, f, widgetsPR),
+		"nothing":      decide(Round{Head: sha}, Outcome{Kind: OutcomeNothing}, f, widgetsPR),
+	} {
+		if !hasLink(row(d), verbURL(widgetsPR, "attach")) || hasLink(row(d), verbURL(widgetsPR, "fork")) {
+			t.Errorf("%s: %+v", name, row(d))
 		}
 	}
 }
 
-// The link is not the gate: a forged one for a PR with no question, outside
-// the review repos, or while a round works opens nothing.
-func TestForkVerbOpensOnlyOnAWaitingQuestion(t *testing.T) {
-	h, fs := clickHost(t, true)
-	link := "claude-review://acme/widgets/42/fork"
-	if code := run([]string{link}, h.d); code != 1 || len(h.scripts) != 0 {
-		t.Fatalf("no question waiting: exit %d, scripts %q", code, h.scripts)
-	}
-	l, err := OpenLedger(LedgerPath(h.d.StateDir))
-	if err != nil {
-		t.Fatal(err)
-	}
-	q := decide(Round{Head: sha}, Outcome{Kind: OutcomeQuestion}, RoundFacts{State: prOpen, Head: sha}, widgetsPR)
-	if err := l.SetPRState(widgetsPR, *q.Next); err != nil {
-		t.Fatal(err)
-	}
-	_ = l.Close()
-	fs.states[widgetsPR.RoundSessionID()] = "working"
-	if code := run([]string{link}, h.d); code != 1 || len(h.scripts) != 0 {
-		t.Fatalf("a working round: exit %d, scripts %q", code, h.scripts)
-	}
-	fs.states[widgetsPR.RoundSessionID()] = jobDone
-	h.locked = true
-	if code := run([]string{link}, h.d); code != 1 || len(h.scripts) != 0 {
-		t.Fatalf("ignored the PR's lock: exit %d", code)
-	}
-	h.locked = false
-	if code := run([]string{link}, h.d); code != 0 {
-		t.Fatalf("exit %d: %s", code, h.stderr)
-	}
-	script := strings.Join(mapValues(h.scripts), "\n")
-	if !strings.Contains(script, "--fork-session") || !strings.Contains(script, widgetsPR.RoundSessionID().String()) {
-		t.Errorf("no fork of the round session: %q", script)
-	}
-	if code := run([]string{"claude-review://other/repo/1/fork"}, h.d); code != 1 {
-		t.Errorf("a PR outside the review repos: exit %d", code)
+// The link is not the gate: Open Claude forks only a PR in the review repos
+// whose review has ended, while nothing works on it, under its lock; a PR
+// Claude never looked at gets a notice instead. The old fork link does the
+// same.
+func TestOpenClaudeForksAnEndedReview(t *testing.T) {
+	for _, verb := range []string{"attach", "fork"} {
+		t.Run(verb, func(t *testing.T) {
+			h, fs := clickHost(t, true)
+			link := "claude-review://acme/widgets/42/" + verb
+			if code := run([]string{link}, h.d); code != 0 || len(h.scripts) != 0 || !strings.Contains(notified(h), "has not looked at") {
+				t.Fatalf("no review yet: exit %d, scripts %q, notified %q", code, h.scripts, notified(h))
+			}
+			l, err := OpenLedger(LedgerPath(h.d.StateDir))
+			if err != nil {
+				t.Fatal(err)
+			}
+			id, err := l.StartRound(widgetsPR, sha, "test", time.Now().Add(-time.Hour))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := l.MarkRead(id); err != nil {
+				t.Fatal(err)
+			}
+			_ = l.Close()
+			fs.states[widgetsPR.RoundSessionID()] = "working"
+			if code := run([]string{link}, h.d); code != 1 || len(h.scripts) != 0 {
+				t.Fatalf("something working: exit %d, scripts %q", code, h.scripts)
+			}
+			fs.states[widgetsPR.RoundSessionID()] = jobDone
+			h.locked = true
+			if code := run([]string{link}, h.d); code != 1 || len(h.scripts) != 0 {
+				t.Fatalf("ignored the PR's lock: exit %d", code)
+			}
+			h.locked = false
+			if code := run([]string{link}, h.d); code != 0 {
+				t.Fatalf("exit %d: %s", code, h.stderr)
+			}
+			script := strings.Join(mapValues(h.scripts), "\n")
+			if !strings.Contains(script, "--fork-session") || !strings.Contains(script, widgetsPR.RoundSessionID().String()) || !strings.Contains(script, flagSettings) || !strings.Contains(script, flagStrictMCP) {
+				t.Errorf("no locked-down fork of the PR's session: %q", script)
+			}
+			if code := run([]string{"claude-review://other/repo/1/" + verb}, h.d); code != 1 {
+				t.Errorf("a PR outside the review repos: exit %d", code)
+			}
+		})
 	}
 }
 

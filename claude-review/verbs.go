@@ -78,10 +78,10 @@ func notIssued(pr PR) error {
 	return fmt.Errorf("claude-review: that Approve link for %s is not one this machine issued, or it was used already", pr.URL())
 }
 
-// attach opens the PR's live background worker in a terminal, under the
-// PR's lock. It never resumes a session interactively: that window would
-// run under the user's own settings and hold every round back. With no
-// worker there is nothing to watch, and it says so.
+// attach is Open Claude: the PR's live background worker in a terminal,
+// under the PR's lock, or with none working, a locked-down fork of its last
+// session (fork.go). It never resumes the session itself: that window would
+// run under the user's own settings and hold every round back.
 func attach(d Deps, cfg Config, pr PR) int {
 	id := pr.RoundSessionID()
 	unlock, err := d.Lock(pr.SessionID().String())
@@ -114,7 +114,7 @@ func attach(d Deps, cfg Config, pr PR) int {
 	case d.Sessions.WindowOpen(id):
 		return fail(d, fmt.Errorf("claude-review: %s is already open in a window", pr.URL()))
 	default:
-		tell(d, "no round running on "+pr.URL())
+		return openFork(d, cfg, pr)
 	}
 	return 0
 }

@@ -293,7 +293,6 @@ func render(pr PR, s PRState, v View) Annotation {
 func statesLink(pr PR) Link { return Link{Label: "?", URL: verbURL(pr, "states")} }
 
 func renderRow(pr PR, s PRState, v View) Annotation {
-	summary := s.summary
 	var a Annotation
 	switch s.State {
 	case stStarting:
@@ -304,15 +303,15 @@ func renderRow(pr PR, s PRState, v View) Annotation {
 		a = Annotation{State: stateRunning, Note: "starting (" + from + ")", Expires: s.Since.Add(startingLifetime)}
 	case stRunning:
 		by := map[string]string{kindTick: kindTick, kindClick: "a click", kindRetry: "tick (retry)"}[s.Kind]
-		a = Annotation{State: stateRunning, Note: "started by " + by, Links: []Link{{Label: "Attach", URL: verbURL(pr, "attach")}}, Expires: s.Since.Add(roundLifetime)}
+		a = Annotation{State: stateRunning, Note: "started by " + by, Links: []Link{attachLink(pr)}, Expires: s.Since.Add(roundLifetime)}
 	case stAwaiting, stHeld:
 		a = renderNeedsYou(pr, s, v)
 	case stStuck:
 		a.State = stateStuck
 		if s.Kind == kindRefused {
-			a.Note, a.Links = "a post was refused over the limit; no more rounds on this PR until you start one again", summary(primary(startAgainLink(pr)))
+			a.Note, a.Links = "a post was refused over the limit; no more reviews on this PR until you start one again", []Link{primary(startAgainLink(pr)), attachLink(pr)}
 		} else {
-			a.Note, a.Links = firstNonEmpty(s.Detail, "round failed twice"), summary(primary(attachLink(pr)))
+			a.Note, a.Links = firstNonEmpty(s.Detail, "Claude failed twice"), []Link{primary(attachLink(pr))}
 		}
 	case stHandled, stIdle:
 		if v.Paused != "" {
@@ -326,7 +325,7 @@ func renderRow(pr PR, s PRState, v View) Annotation {
 		if s.Kind == kindPosted && s.Detail == detailCapped {
 			a.Note = noteCapped
 		}
-		a.Links = summary()
+		a.Links = []Link{attachLink(pr)}
 	default:
 		return Annotation{}
 	}
@@ -334,46 +333,37 @@ func renderRow(pr PR, s PRState, v View) Annotation {
 	return a
 }
 
-// Texts the migration from stored rows matches exactly (prstate.go).
+// Row texts. elly's reader cares whether the PR needs them, not about
+// rounds, so no row says "round".
 const (
-	labelRoundSummary = "Round summary"
-	noteRoundPosted   = "round posted its review"
-	noteCapped        = "round posted its review at the comment limit; the rest of its findings are in the summary"
+	noteRoundPosted = "Claude posted its review"
+	noteCapped      = "Claude posted its review at the comment limit; the rest is in its summary comment"
 	// detailCapped marks a handled{posted} round whose comments hit the
 	// per-head limit.
 	detailCapped       = "capped"
-	noteNothing        = "round found nothing to post"
-	noteApprovalStands = "clean round; your approval stands"
+	noteNothing        = "Claude found nothing to post"
+	noteApprovalStands = "Claude found nothing new; your approval stands"
 )
 
 func primary(l Link) Link { l.Primary = true; return l }
 
-// summary adds the round's summary review to links, when there is one.
-func (s PRState) summary(links ...Link) []Link {
-	if s.Review != "" {
-		links = append(links, Link{Label: labelRoundSummary, URL: s.Review})
-	}
-	return links
-}
-
 // renderNeedsYou is an awaiting or held row: it waits on the user.
 func renderNeedsYou(pr PR, s PRState, v View) Annotation {
 	a := Annotation{State: stateNeedsYou}
-	summary := s.summary
 	switch s.Kind {
 	case kindQuestion:
-		a.Note, a.Links = questionNote(Outcome{Question: s.Detail}), summary(primary(answerLink(pr)), forkLink(pr))
+		a.Note, a.Links = questionNote(Outcome{Question: s.Detail}), []Link{primary(answerLink(pr))}
 	case kindApprove:
 		a.Note = "LGTM at " + shortSHA(s.Head) + "; approve it if you agree"
-		a.Links = summary(Link{Label: "Approve", URL: approveURL(pr, s.Head, v.Token), Primary: true}, attachLink(pr))
+		a.Links = []Link{{Label: "Approve", URL: approveURL(pr, s.Head, v.Token), Primary: true}, attachLink(pr)}
 	case kindDrafts:
-		a.Note = "the round left " + s.Detail + " unsent comments in a draft review; submit or discard it on GitHub"
+		a.Note = "Claude left " + s.Detail + " unsent comments in a draft review; submit or discard it on GitHub"
 		a.Links = []Link{primary(attachLink(pr))}
 	case kindDismiss:
-		a.Note, a.Links = "new findings after your approval; your approval was dismissed", summary(primary(attachLink(pr)))
+		a.Note, a.Links = "new findings after your approval; your approval was dismissed", []Link{primary(attachLink(pr))}
 	case kindFresh:
 		a.Note = "the PR changed under its first look (force-push or new base); click claude review to look again"
-		a.Links = []Link{primary(Link{Label: "Look again", URL: startAgainLink(pr).URL})}
+		a.Links = []Link{primary(Link{Label: "Look again", URL: startAgainLink(pr).URL}), attachLink(pr)}
 	case kindWindow:
 		a.Note, a.Links = windowNote, []Link{primary(attachLink(pr))}
 	case kindLaunch:

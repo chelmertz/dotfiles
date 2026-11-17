@@ -339,17 +339,17 @@ func refused(f RoundFacts) (State, string, string) {
 // questionNote carries the round's question when it found one.
 func questionNote(o Outcome) string {
 	if o.Question == "" {
-		return "the round has a question for you"
+		return "Claude has a question for you"
 	}
-	return "the round has a question for you: " + o.Question
+	return "Claude has a question for you: " + o.Question
 }
 
 // failedTwice names how a round that never finished failed.
 func failedTwice(f RoundFacts) string {
 	if postedInline(f) {
-		return "round stopped twice before posting its summary"
+		return "Claude stopped twice before posting its summary"
 	}
-	return "round failed twice"
+	return "Claude failed twice"
 }
 
 // postedInline: inline comments (threads or replies) the round made.
@@ -365,7 +365,9 @@ func approvedBefore(r Round, f RoundFacts) bool {
 	return u != nil && u.State == reviewApproved && u.CommitID != f.Head && u.SubmittedAt.Before(r.StartedAt)
 }
 
-func attachLink(pr PR) Link { return Link{Label: "Open session", URL: verbURL(pr, "attach")} }
+// attachLink opens Claude on the PR: the working session, or a locked-down
+// fork of the last one (verbs.go attach).
+func attachLink(pr PR) Link { return Link{Label: "Open Claude", URL: verbURL(pr, "attach")} }
 
 // answerLink is attach on a row that asks the user something. elly makes a
 // needs_you row's primary link its button under the link's own label, so
