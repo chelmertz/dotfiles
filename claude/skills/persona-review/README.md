@@ -62,6 +62,19 @@ later found. Each persona then ran blind against the snapshot.
 
 The fixtures hold work data and are kept outside this repo.
 
+- **domain-model** (added 2026-11-17, not backtested): reads a design for
+  the shape of its data rather than its rules: states the types allow and
+  the domain forbids, facts dropped and later guessed back, text read back
+  as data, decisions returned as bags, the same decision made in two
+  layers. Added after a run of bugs on one tool that each came from such a
+  shape (a merged search that lost which source found a record, display
+  text a migration had to parse) and that no other persona looks for. It
+  pairs with refactor mode, where the code already exists and is part of
+  the input.
+
 ## Not yet tested
 
-PR mode (reviewing a diff against an earlier persona review) has no backtest.
+PR mode (reviewing a diff against an earlier persona review), refactor mode
+and the `domain-model` persona have no backtest. Iterating to a pass is new
+too: the three-run cap is a guess, set so a persistent finding reaches the
+user as a decision instead of looping.

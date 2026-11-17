@@ -1,6 +1,6 @@
 ---
 name: persona-review
-description: Use when the user asks to review a design, plan or PR "with the personas", types /persona-review, or has just written a *-design.md or *-plan.md and wants it checked before code is written. Runs blind persona reviewers (security, stakeholder assumptions, lifecycle state model) in parallel, merges and verifies their findings locally, and writes one review file. With a PR URL it reviews the diff and checks it against the project's earlier persona review.
+description: Use when the user asks to review a design, plan or PR "with the personas", types /persona-review, or has just written a *-design.md or *-plan.md and wants it checked before code is written. Runs blind persona reviewers (security, stakeholder assumptions, lifecycle state model, domain model) in parallel, merges and verifies their findings locally, and writes one review file. With a PR URL it reviews the diff and checks it against the project's earlier persona review.
 argument-hint: "<design file | PR URL> [persona,persona]"
 ---
 
@@ -15,6 +15,11 @@ review stays with `/code-review` and `/security-review`.
 - **Design mode** (the default and the validated use): the argument is a
   design or plan file. Without one, take the newest `*-design.md` or
   `*-plan.md` in the project folder and say which.
+- **Refactor mode**: the design changes code that already exists (new
+  types, a moved decision, fewer layers). The code as it stands is part of
+  the input, not background: every reviewer reads the files the design
+  names, and a finding may attach to current code the design leaves as is.
+  Default personas here are `domain-model, state-model, security`.
 - **PR mode**: the argument is a PR URL. The input is its diff plus the
   newest `*-persona-review.md` in the project folder, if any. Without a
   design review this is an adversarial review whose yield is untested; say so
@@ -29,8 +34,12 @@ review stays with `/code-review` and `/security-review`.
   where they are posted, and the caller's working rules (a read-only
   checkout, how to read the PR head) go to every reviewer verbatim.
 - Personas: the argument's list, else the project `CLAUDE.md` line
-  `personas: a, b`, else `security, assumptions, state-model`. Never more
-  than three: reading cost grows with every persona and precision drops.
+  `personas: a, b`, else the mode's default (design mode:
+  `security, assumptions, state-model`). Never more than three: reading
+  cost grows with every persona and precision drops.
+- `domain-model` (types and data flow that rule mistakes out) has no
+  backtest yet; say so in the output when it runs, and weigh its findings
+  by the evidence each cites rather than by the persona's record.
 
 ## Run
 
@@ -49,11 +58,19 @@ review stays with `/code-review` and `/security-review`.
 3. Merge yourself: dedupe across runs and personas, then **verify every
    finding** against the code or the quoted design line. Drop what does not
    hold; never forward a finding unread.
+4. **Iterate when asked to.** Revise the design for each verified finding,
+   or record why it stands as written, then run the same personas again on
+   the revised design, blind to the earlier findings. The review passes
+   when a run yields no verified finding that the design neither answers
+   nor records as a deliberate trade-off. Stop after three runs and hand
+   what is left to the user as decisions: a reviewer that keeps finding
+   things is reporting a tension, not a gap.
 
 ## Output
 
 Inside a `~/p` project, write one file to the project folder:
-`<YYYY-MM-DD>-<topic>-persona-review.md`. Per finding: the decision it
+`<YYYY-MM-DD>-<topic>-persona-review.md`, one section per run when
+iterating, each finding marked with how the design answered it. Per finding: the decision it
 attaches to, the failure scenario, what to decide instead, and who decides.
 
 - **Stakeholder questions** go in their own section, each phrased for a
