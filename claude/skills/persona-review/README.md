@@ -76,5 +76,9 @@ The fixtures hold work data and are kept outside this repo.
 
 PR mode (reviewing a diff against an earlier persona review), refactor mode
 and the `domain-model` persona have no backtest. Iterating to a pass is new
-too: the three-run cap is a guess, set so a persistent finding reaches the
-user as a decision instead of looping.
+too. Its first long use (2026-11-17, a refactor design, 16 runs) showed
+findings narrowing but never stopping: each revision's additions drew the
+next run's findings, and the runs that removed an addition (back to
+today's behaviour, trade-off stated) converged fastest. Hence the pass
+rule by severity and the "prefer removing" note; the three-run default
+stays for reviews nobody asked to iterate.

@@ -60,11 +60,18 @@ review stays with `/code-review` and `/security-review`.
    hold; never forward a finding unread.
 4. **Iterate when asked to.** Revise the design for each verified finding,
    or record why it stands as written, then run the same personas again on
-   the revised design, blind to the earlier findings. The review passes
-   when a run yields no verified finding that the design neither answers
-   nor records as a deliberate trade-off. Stop after three runs and hand
-   what is left to the user as decisions: a reviewer that keeps finding
-   things is reporting a tension, not a gap.
+   the revised design, blind to the earlier findings, and ask each finding
+   for a severity. The review passes when a run yields nothing above low
+   severity and no new class of problem, and the next revision answers
+   every finding of that run; a large design never reaches zero findings,
+   because each revision's additions are new surface. Without a request
+   to iterate to a pass, stop after three runs and hand what is left to
+   the user as decisions: a reviewer that keeps finding the same thing is
+   reporting a tension, not a gap.
+   - **Prefer removing to adding.** When a run's findings sit inside a
+     mechanism the last revision added, first try going back to today's
+     behaviour and stating the trade-off; a design that answers every
+     finding with more machinery never converges.
 
 ## Output
 
