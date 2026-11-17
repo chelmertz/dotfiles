@@ -50,7 +50,7 @@ func TestMigratePRState(t *testing.T) {
 		{"fresh look", Annotation{State: stateNeedsYou, Note: "the PR changed under its first look (force-push or new base); click claude review to look again"}, false, stHeld, kindFresh, ""},
 		{"window", Annotation{State: stateNeedsYou, Note: windowNote}, false, stHeld, kindWindow, ""},
 		{"paused", Annotation{State: stateNeedsYou, Note: "paused: the daily round limit for this PR is reached"}, false, stIdle, "", ""},
-		{"refused", Annotation{State: stateStuck, Note: "a post was refused over the limit; no more rounds on this PR until you start one again"}, false, stStuck, kindRefused, ""},
+		{"refused, summary posted", Annotation{State: stateStuck, Note: "a post was refused over the limit; no more rounds on this PR until you start one again"}, false, stHandled, kindPosted, detailCapped},
 		{"failed", Annotation{State: stateStuck, Note: "round stopped twice before posting its summary"}, false, stStuck, kindFailed, "round stopped twice before posting its summary"},
 		{"posted", Annotation{State: stateHandled, Note: "round posted its review"}, false, stHandled, kindPosted, ""},
 		{"nothing", Annotation{State: stateHandled, Note: "round found nothing to post"}, false, stHandled, kindNothing, ""},
@@ -134,5 +134,28 @@ func TestMigratePRStateNeverOverwrites(t *testing.T) {
 	}
 	if got, ok, _ := l.PRState(other); !ok || got.Kind != kindPosted || got.Head != "ccc" {
 		t.Fatalf("not caught up: %+v ok=%v", got, ok)
+	}
+}
+
+// A stuck{post_refused} stored before the cap counted as finished, with its
+// summary posted, opens as handled; one without a summary stays stuck.
+func TestOpenUncapsStuckWithASummary(t *testing.T) {
+	path := t.TempDir() + "/l.db"
+	l, err := OpenLedger(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, b := PR{Owner: "o", Repo: "r", Number: 1}, PR{Owner: "o", Repo: "r", Number: 2}
+	_ = l.SetPRState(a, PRState{State: stStuck, Kind: kindRefused, Review: a.URL() + "#r"})
+	_ = l.SetPRState(b, PRState{State: stStuck, Kind: kindRefused})
+	_ = l.Close()
+	if l, err = OpenLedger(path); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = l.Close() }()
+	sa, _, _ := l.PRState(a)
+	sb, _, _ := l.PRState(b)
+	if sa.State != stHandled || sa.Detail != detailCapped || sb.State != stStuck {
+		t.Fatalf("a %+v, b %+v", sa, sb)
 	}
 }

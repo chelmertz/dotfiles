@@ -231,6 +231,10 @@ func TestDecide(t *testing.T) {
 			func(d Decision) bool {
 				return isK(d, kindRefused) && strings.Contains(note(d), "refused")
 			}, "stuck, refused"},
+		{"a refused post, summary posted: handled", Round{PR: round.PR, Head: head, PostRefused: true}, approveLine, RoundFacts{State: "open", Head: head, RoundReviewURL: roundReview},
+			func(d Decision) bool {
+				return isK(d, kindPosted) && d.Next.State == stHandled && strings.Contains(note(d), "limit") && !d.Retry
+			}, "handled at the limit"},
 		{"findings with the approval at the current head do not dismiss", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 1, UserReview: approved(head), RoundReviewURL: roundReview},
 			func(d Decision) bool { return d.DismissReviewID.IsZero() }, "no dismissal"},
 		{"question", round, Outcome{Kind: OutcomeQuestion}, open,

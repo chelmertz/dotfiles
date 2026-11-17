@@ -73,7 +73,33 @@ func (l *Ledger) migratePRState() error {
 			return err
 		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return l.uncapStuck()
+}
+
+// uncapStuck rewrites a stuck{post_refused} stored before 2026-11-17 whose
+// round still posted its summary (Review set): decide now calls that round
+// handled, and the stored row would otherwise hold the PR back for good.
+func (l *Ledger) uncapStuck() error {
+	all, err := l.PRStates()
+	if err != nil {
+		return err
+	}
+	for url, s := range all {
+		if s.State == stStuck && s.Kind == kindRefused && s.Review != "" {
+			s.State, s.Kind, s.Detail = stHandled, kindPosted, detailCapped
+			raw, err := json.Marshal(s)
+			if err != nil {
+				return err
+			}
+			if _, err := l.db.Exec(`update pr_state set state = ? where pr = ?`, string(raw), url); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (l *Ledger) acceptedURLs() ([]string, error) {

@@ -311,6 +311,9 @@ func render(pr PR, s PRState, v View) Annotation {
 		}
 		a.State = stateHandled
 		a.Note = map[string]string{kindPosted: noteRoundPosted, kindNothing: noteNothing, kindApproved: noteApprovalStands}[s.Kind]
+		if s.Kind == kindPosted && s.Detail == detailCapped {
+			a.Note = noteCapped
+		}
 		a.Links = summary()
 	default:
 		return Annotation{}
@@ -321,8 +324,12 @@ func render(pr PR, s PRState, v View) Annotation {
 
 // Texts the migration from stored rows matches exactly (prstate.go).
 const (
-	labelRoundSummary  = "Round summary"
-	noteRoundPosted    = "round posted its review"
+	labelRoundSummary = "Round summary"
+	noteRoundPosted   = "round posted its review"
+	noteCapped        = "round posted its review at the comment limit; the rest of its findings are in the summary"
+	// detailCapped marks a handled{posted} round whose comments hit the
+	// per-head limit.
+	detailCapped       = "capped"
 	noteNothing        = "round found nothing to post"
 	noteApprovalStands = "clean round; your approval stands"
 )

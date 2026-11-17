@@ -317,8 +317,10 @@ one per thread. Our own replies are signed and never open a slot, so a
 round cannot keep answering itself, and an author who replies twice at one
 commit gets two answers (a per-thread limit paused such a PR on
 2026-11-02). Past the budget the
-post is refused before anything is sent, and an unattended round that hit
-it ends as `stuck` with the PR held back until the next click. The
+post is refused before anything is sent. A round that hit it and still
+posted its summary ends as handled, the rest of its findings listed in
+that summary; one that never got its summary out ends as `stuck`, with the
+PR held back until the next click or re-request. The
 budget lives in the runner's ledger, and a post that cannot read it is
 refused. A post whose body holds the value of a secret-shaped environment
 variable (a name with token, key, secret, pass, auth or cred) is refused

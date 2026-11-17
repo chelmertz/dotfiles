@@ -282,9 +282,12 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 		return Decision{Clear: true}
 	// Before any reading of the round's words or findings: a round pushed
 	// over its post limit is suspect whatever it says, and never earns an
-	// Approve link or a retry.
+	// Approve link or a retry. The limit already stopped the extra posts, so
+	// one that still posted its summary finished: the rest of its findings
+	// are listed there. Only a round that never got its summary out holds the
+	// PR back.
 	case r.PostRefused:
-		return next(stStuck, kindRefused, "")
+		return next(refused(f))
 	case o.Kind == OutcomeQuestion:
 		return next(stAwaiting, kindQuestion, o.Question)
 	case f.NewThreads > 0 && approvedBefore(r, f):
@@ -319,6 +322,15 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 		return next(stAwaiting, kindDrafts, fmt.Sprint(f.UnsentDrafts))
 	}
 	return next(stStuck, kindFailed, failedTwice(f))
+}
+
+// refused is a round with a post refused over the limit: handled if its
+// summary went out, stuck if not.
+func refused(f RoundFacts) (State, string, string) {
+	if f.RoundReviewURL != "" {
+		return stHandled, kindPosted, detailCapped
+	}
+	return stStuck, kindRefused, ""
 }
 
 // questionNote carries the round's question when it found one.
