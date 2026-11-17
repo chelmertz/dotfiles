@@ -67,7 +67,9 @@ type fakeTickGitHub struct {
 	posted     bool
 }
 
-func (g *fakeTickGitHub) PostedSince(PR, time.Time) (bool, error) { return g.posted, nil }
+func (g *fakeTickGitHub) RepliedInRoundThread(PR, time.Time, time.Time) (bool, error) {
+	return g.posted, nil
+}
 
 func (g *fakeTickGitHub) RoundFacts(PR, Round) (RoundFacts, error) { return g.facts, nil }
 func (g *fakeTickGitHub) Standing(PR) (string, string, *Review, error) {

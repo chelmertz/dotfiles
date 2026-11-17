@@ -136,3 +136,47 @@ func reviewID(n int64) ids.ReviewID {
 	}
 	return id
 }
+
+// A question clears on the user's reply in a thread the round posted in,
+// after it settled; not on a post elsewhere, a signed post, or one before.
+func TestRepliedInRoundThread(t *testing.T) {
+	started := time.Date(2026, 11, 17, 10, 0, 0, 0, time.UTC)
+	settled := started.Add(time.Hour)
+	c := func(id, to int64, login, body string, at time.Time) ghItem[ids.CommentID] {
+		var it ghItem[ids.CommentID]
+		if err := it.ID.UnmarshalJSON([]byte(strconv.FormatInt(id, 10))); err != nil {
+			t.Fatal(err)
+		}
+		if to != 0 {
+			if err := it.InReplyTo.UnmarshalJSON([]byte(strconv.FormatInt(to, 10))); err != nil {
+				t.Fatal(err)
+			}
+		}
+		it.Body, it.CreatedAt = body, at
+		it.User.Login = login
+		return it
+	}
+	roundRoot := c(1, 0, "me", "finding\n\n--claude", started.Add(time.Minute))
+	oldRoot := c(5, 0, "me", "old finding\n\n--claude", started.Add(-time.Hour))
+	authorRoot := c(7, 0, "author", "why?", started.Add(-time.Hour))
+	roundReply := c(8, 7, "me", "because\n\n--claude", started.Add(time.Minute))
+	later := settled.Add(time.Minute)
+	cases := []struct {
+		name string
+		list []ghItem[ids.CommentID]
+		want bool
+	}{
+		{"reply under the round's comment", []ghItem[ids.CommentID]{roundRoot, c(2, 1, "Me", "yes, run it", later)}, true},
+		{"reply in a thread the round replied in", []ghItem[ids.CommentID]{authorRoot, roundReply, c(9, 7, "me", "ok", later)}, true},
+		{"reply before the round settled", []ghItem[ids.CommentID]{roundRoot, c(2, 1, "me", "yes", settled.Add(-time.Minute))}, false},
+		{"a signed reply is a round's", []ghItem[ids.CommentID]{roundRoot, c(2, 1, "me", "x\n\n--claude", later)}, false},
+		{"someone else's reply", []ghItem[ids.CommentID]{roundRoot, c(2, 1, "author", "yes", later)}, false},
+		{"a new thread of the user's", []ghItem[ids.CommentID]{roundRoot, c(3, 0, "me", "unrelated", later)}, false},
+		{"an earlier round's thread", []ghItem[ids.CommentID]{oldRoot, c(6, 5, "me", "yes", later)}, false},
+	}
+	for _, k := range cases {
+		if got := repliedInRoundThread("me", k.list, started, settled); got != k.want {
+			t.Errorf("%s: got %v, want %v", k.name, got, k.want)
+		}
+	}
+}

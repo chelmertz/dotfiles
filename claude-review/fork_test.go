@@ -119,8 +119,8 @@ func TestForkVerbOpensOnlyOnAWaitingQuestion(t *testing.T) {
 	}
 }
 
-// The question row is the user's until the user's account posts on the PR
-// after the round settled; the signal lives on GitHub.
+// The question row is the user's until the user replies in the round's
+// thread after it settled; the signal lives on GitHub.
 func TestTickQuestionClearsOnceTheUserPosts(t *testing.T) {
 	w := newTickWorld(t)
 	pr := w.accept(t, 42)

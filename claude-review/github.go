@@ -201,30 +201,37 @@ func (g GitHub) Dismiss(pr PR, id ids.ReviewID, message string) error {
 	return nil
 }
 
-// PostedSince: the user's account submitted a review, or wrote an inline or
-// a PR-level comment, on pr after t.
-func (g GitHub) PostedSince(pr PR, t time.Time) (bool, error) {
-	reviewList, err := ghList[ids.ReviewID](g.Gh, g.api(pr, reviews, pr.Number))
+// RepliedInRoundThread: see tickGitHub.
+func (g GitHub) RepliedInRoundThread(pr PR, started, settled time.Time) (bool, error) {
+	list, err := ghList[ids.CommentID](g.Gh, g.api(pr, reviewComments, pr.Number))
 	if err != nil {
 		return false, err
 	}
-	for _, rv := range reviewList {
-		if strings.EqualFold(rv.User.Login, g.User) && rv.SubmittedAt.After(t) {
-			return true, nil
+	return repliedInRoundThread(g.User, list, started, settled), nil
+}
+
+// repliedInRoundThread: user wrote an unsigned comment after settled in a
+// thread (GitHub points every reply at the thread's first comment) that
+// holds a signed comment from on or after started, the round's.
+func repliedInRoundThread(user string, list []ghItem[ids.CommentID], started, settled time.Time) bool {
+	root := func(c ghItem[ids.CommentID]) ids.CommentID {
+		if c.InReplyTo.IsZero() {
+			return c.ID
+		}
+		return c.InReplyTo
+	}
+	rounds := map[ids.CommentID]bool{}
+	for _, c := range list {
+		if signed(c.Body) && !c.CreatedAt.Before(started) {
+			rounds[root(c)] = true
 		}
 	}
-	for _, endpoint := range []string{reviewComments, issueComments} {
-		list, err := ghList[ids.CommentID](g.Gh, g.api(pr, endpoint, pr.Number))
-		if err != nil {
-			return false, err
-		}
-		for _, c := range list {
-			if strings.EqualFold(c.User.Login, g.User) && c.CreatedAt.After(t) {
-				return true, nil
-			}
+	for _, c := range list {
+		if strings.EqualFold(c.User.Login, user) && !signed(c.Body) && c.CreatedAt.After(settled) && rounds[root(c)] {
+			return true
 		}
 	}
-	return false, nil
+	return false
 }
 
 // Standing is the PR's state, head and the user's standing review, for

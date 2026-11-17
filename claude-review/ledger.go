@@ -239,13 +239,15 @@ func (l *Ledger) MarkRead(id ids.RoundID) error {
 	return err
 }
 
-// LastReadAt is when pr's last round was settled, and whether one was.
-func (l *Ledger) LastReadAt(pr PR) (time.Time, bool, error) {
-	var at sql.NullInt64
-	if err := l.db.QueryRow(`select max(read_at) from rounds where pr = ?`, pr.URL()).Scan(&at); err != nil {
-		return time.Time{}, false, err
+// LastSettled is when pr's last settled round started and settled, and
+// whether one was.
+func (l *Ledger) LastSettled(pr PR) (started, read time.Time, ok bool, err error) {
+	var s, r int64
+	err = l.db.QueryRow(`select started_at, read_at from rounds where pr = ? and read_at is not null order by read_at desc, id desc limit 1`, pr.URL()).Scan(&s, &r)
+	if errors.Is(err, sql.ErrNoRows) {
+		return time.Time{}, time.Time{}, false, nil
 	}
-	return time.Unix(at.Int64, 0).UTC(), at.Valid, nil
+	return time.Unix(s, 0).UTC(), time.Unix(r, 0).UTC(), err == nil, err
 }
 
 func (l *Ledger) MarkRetried(id ids.RoundID) error {

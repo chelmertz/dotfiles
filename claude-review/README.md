@@ -801,9 +801,12 @@ claude-review alone. It holds:
 9. Re-render every PR's row from its state with a fresh expiry, except
    `running`, which keeps its own and is dropped once that has passed. Move
    a state only on positive evidence: the user's own approval stands at the current head,
-   GitHub reports the PR merged or closed, or, on a question row, the user's
-   account reviewed or commented on the PR after the round was settled (the
-   answer lives on GitHub, where the author sees it too). A PR missing from one elly read is
+   GitHub reports the PR merged or closed, or, on a question row, the user
+   replied, after the round settled and without the signature, in a review
+   thread holding a signed comment from that round (the answer lives on
+   GitHub, where the author sees it too). Any other post on the PR leaves
+   the question; a round that posted no comment can only be answered in the
+   session (Answer), or dropped by a push. A PR missing from one elly read is
    not evidence; its annotation expires instead.
 10. Offer Start on elly's row for a review asked of the user by name (or a
    re-review) in `review_repos` that only a click would start: not accepted,

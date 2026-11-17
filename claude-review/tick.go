@@ -39,8 +39,9 @@ type tickGitHub interface {
 	Gate
 	RoundFacts(pr PR, r Round) (RoundFacts, error)
 	Standing(pr PR) (state, head string, user *Review, err error)
-	// PostedSince: the user's account reviewed or commented on pr after t.
-	PostedSince(pr PR, t time.Time) (bool, error)
+	// RepliedInRoundThread: the user replied after settled in a review
+	// thread holding a signed comment from on or after started.
+	RepliedInRoundThread(pr PR, started, settled time.Time) (bool, error)
 	Dismiss(pr PR, id ids.ReviewID, message string) error
 }
 
@@ -741,15 +742,17 @@ func (h tickHost) afterRelaunch(pr PR, res RelaunchResult, stopErr error, record
 	return skipBusy, nil
 }
 
-// answered: a round's question is the user's until the user's account posts
-// on the PR after the round settled. The signal lives on GitHub, where the
-// author sees it too; tick only reads it.
+// answered: a round's question is the user's until the user replies, after
+// the round settled, in a review thread the round posted in. Any other post
+// on the PR (a review of someone else's thread, a PR comment) leaves it.
+// The signal lives on GitHub, where the author sees it too; tick only reads
+// it.
 func (h tickHost) answered(pr PR) (bool, error) {
-	since, ok, err := h.ledger.LastReadAt(pr)
+	started, settled, ok, err := h.ledger.LastSettled(pr)
 	if err != nil || !ok {
 		return false, err
 	}
-	return h.gh.PostedSince(pr, since)
+	return h.gh.RepliedInRoundThread(pr, started, settled)
 }
 
 // refreshedExpiry is when a re-sent a expires: annotationTTL from now, or
