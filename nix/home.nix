@@ -1394,12 +1394,14 @@ in
   '';
 
   # Minimal compositor, only so dunst and rofi can draw antialiased transparent
-  # corners; X has no alpha without one. No blur, fades or shadows. xrender, not
-  # glx: the Nix Mesa gets no GL visual from Ubuntu's X server ("Root visual is
-  # not a GL visual"), same family as the EGL problem ghostty is wrapped for.
+  # corners; X has no alpha without one. No blur or fades; a shadow on rofi.
+  # glx, not xrender: xrender composites on the CPU and, at 3440x1440@100Hz,
+  # held i915's flip worker stalled 94% of the time and cut Firefox's
+  # MotionMark 1.3 score to 10 (glx: 240, no compositor: 223). xrender was
+  # only needed on gamma's Ubuntu X server, which had no GL visual.
   services.picom = {
     enable = true;
-    backend = "xrender";
+    backend = "glx";
     vSync = true;
     fade = false;
     # Shadow on rofi alone, so the launcher lifts off busy windows. Everything
