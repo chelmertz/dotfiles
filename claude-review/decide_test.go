@@ -41,6 +41,7 @@ func TestRoundTrigger(t *testing.T) {
 	}{
 		{"nothing owed", ellyPR(nil), "h1", ""},
 		{"review requested", ellyPR(func(p *EllyPR) { p.ReviewRequestedFromUsers = []string{"me"} }), "h1", "review_requested@" + t0.Format(time.RFC3339)},
+		{"asked through a team", ellyPR(func(p *EllyPR) { p.ReviewRequestedFromUsers, p.ReviewRequestedOfUser = []string{"@hidden"}, true }), "h1", "review_requested@" + t0.Format(time.RFC3339)},
 		{"someone else's request", ellyPR(func(p *EllyPR) { p.ReviewRequestedFromUsers = []string{"bob"} }), "h1", ""},
 		{"re-review", ellyPR(func(p *EllyPR) { p.RereviewFrom = []string{"me"} }), "h1", "rereview_requested@" + t0.Format(time.RFC3339)},
 		{"replies", ellyPR(func(p *EllyPR) { p.ThreadsActionable = 2 }), "h1", "replies@" + t0.Format(time.RFC3339)},

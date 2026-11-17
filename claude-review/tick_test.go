@@ -1089,7 +1089,9 @@ func TestTickOffersStartWhereAClickIsWhatIsMissing(t *testing.T) {
 	unasked.ReviewRequestedFromUsers = nil
 	elsewhere := requestedPR(3)
 	elsewhere.Url = "https://github.com/other/x/pull/3"
-	w.elly.prs = []EllyPR{requestedPR(1), unasked, elsewhere, mine, requestedPR(5), requestedPR(6), requestedPR(7), rereview}
+	team := requestedPR(9)
+	team.ReviewRequestedFromUsers, team.ReviewRequestedOfUser = []string{"@hidden"}, true
+	w.elly.prs = []EllyPR{requestedPR(1), unasked, elsewhere, mine, requestedPR(5), requestedPR(6), requestedPR(7), rereview, team}
 	w.accept(t, 5)
 	w.elly.prs[5].Buried = true
 	if err := w.h.ledger.SetPRState(PR{Owner: "acme", Repo: "widgets", Number: 7}, PRState{State: stAwaiting, Kind: kindQuestion, Detail: "a question"}); err != nil {
@@ -1112,7 +1114,7 @@ func TestTickOffersStartWhereAClickIsWhatIsMissing(t *testing.T) {
 		}
 	}
 	slices.Sort(offered)
-	if want := []string{"https://github.com/acme/widgets/pull/1", "https://github.com/acme/widgets/pull/8"}; !slices.Equal(offered, want) {
+	if want := []string{"https://github.com/acme/widgets/pull/1", "https://github.com/acme/widgets/pull/8", "https://github.com/acme/widgets/pull/9"}; !slices.Equal(offered, want) {
 		t.Errorf("offered %v, want %v", offered, want)
 	}
 	// only the accepted #5 runs; an offer starts nothing

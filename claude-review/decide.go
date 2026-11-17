@@ -18,9 +18,12 @@ type EllyPR struct {
 	HeadRefOid               string
 	LastUpdated              time.Time
 	ReviewRequestedFromUsers []string
-	RereviewFrom             []string
-	ThreadsActionable        int
-	Buried                   bool
+	// ReviewRequestedOfUser is elly's word that the user was asked, by name
+	// or through a team; a team request does not name the user in the list.
+	ReviewRequestedOfUser bool
+	RereviewFrom          []string
+	ThreadsActionable     int
+	Buried                bool
 }
 
 // TickConfig is what tick needs from the config.
@@ -70,7 +73,7 @@ func repoAllowed(owner, repo string, allow []string) bool {
 func roundTrigger(p EllyPR, user, lastHead string) string {
 	at := "@" + p.LastUpdated.UTC().Format(time.RFC3339)
 	switch {
-	case slices.Contains(p.ReviewRequestedFromUsers, user):
+	case p.ReviewRequestedOfUser || slices.Contains(p.ReviewRequestedFromUsers, user):
 		return "review_requested" + at
 	case slices.Contains(p.RereviewFrom, user):
 		return "rereview_requested" + at

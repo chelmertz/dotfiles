@@ -457,7 +457,7 @@ func offersStart(p EllyPR, cfg TickConfig, accepted, annotated bool) bool {
 	if err != nil || accepted || annotated || p.Buried || strings.EqualFold(p.Author, cfg.User) {
 		return false
 	}
-	asked := slices.ContainsFunc(append(append([]string{}, p.ReviewRequestedFromUsers...), p.RereviewFrom...), func(u string) bool { return strings.EqualFold(u, cfg.User) })
+	asked := p.ReviewRequestedOfUser || slices.ContainsFunc(append(append([]string{}, p.ReviewRequestedFromUsers...), p.RereviewFrom...), func(u string) bool { return strings.EqualFold(u, cfg.User) })
 	return asked && repoAllowed(pr.Owner, pr.Repo, cfg.ReviewRepos)
 }
 

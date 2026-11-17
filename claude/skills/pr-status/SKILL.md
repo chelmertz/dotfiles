@@ -36,7 +36,8 @@ Per PR, the fields that matter:
 | `ThreadsActionable` | `> 0` means **we** owe the reply, on anyone's PR. elly computes it against our username, so it does not flip with authorship: on someone else's PR it counts the threads we started and have neither answered nor reacted to. This is the count that was missed. |
 | `ThreadsWaiting` | threads where the other side owes the reply. |
 | `LastPrCommenter` | who spoke last, and `""` when that was a bot — elly ignores `github-actions` and `vercel`. Empty is "no human has spoken", not "unknown". |
-| `ReviewRequestedFromUsers` | who is being asked, `@`-prefixed for a team. Empty means nobody was requested, which on our own PR is the thing to say. |
+| `ReviewRequestedFromUsers` | who is being asked, `@`-prefixed for a team; `@hidden` is a team the token cannot read. Empty means nobody was requested, which on our own PR is the thing to say. |
+| `ReviewRequestedOfUser` | `true` when we are asked, by name **or through a team**. A team request does not put our login in the list, so this is the field that says we were asked. |
 | `RereviewFrom` | reviewers who reviewed before the latest push and were not re-requested. |
 | `ReviewStatus` | approval state **only**. Never read it alone. |
 | `IsDraft`, `Buried` | not anyone's turn; `Buried` is a decision the user already made. |
@@ -112,7 +113,7 @@ never come out as "waiting on someone else".
    `ReviewRequestedFromUsers`, and say plainly when that is empty, because a PR
    nobody was asked to review is waiting on us to ask.
 9. someone else's PR, none of the above → **ours to review only if we were
-   actually asked**: our login in `ReviewRequestedFromUsers` or `RereviewFrom`.
+   actually asked**: `ReviewRequestedOfUser`, or our login in `RereviewFrom`.
 
 Anything left over is a PR we are merely involved in, and it is nobody's turn.
 Do not put it in an "on you" list. This matters because it is most of them: the
@@ -133,7 +134,7 @@ Two failure modes to check for by name, because both have happened:
 - **A PR listed as theirs when the last word is ours.** `ThreadsActionable`
   settles it; nothing else does.
 - **A PR we only commented on, listed as a review we owe.** Step 9 settles it:
-  no login in `ReviewRequestedFromUsers` or `RereviewFrom` means nobody asked.
+  `ReviewRequestedOfUser` false and no login in `RereviewFrom` means nobody asked.
 
 If elly's `LastFetched` is more than ~15 minutes old, say the data's age rather
 than presenting it as current, or trigger a refresh:
