@@ -1100,6 +1100,7 @@ The links claude-review writes:
 | Open session | failed round, dismissed approval, unsent drafts, open window, paused | `claude-review://<owner>/<repo>/<n>/attach` |
 | Start again / Look again | post refused, nothing started, changed under the first look | `claude-review://<owner>/<repo>/<n>?from=elly` |
 | Fork with prod data | question line | `claude-review://<owner>/<repo>/<n>/fork` |
+| ? | every row | `claude-review://<owner>/<repo>/<n>/states`: writes the states page (every state and move, drawn from the rules `transition` runs, each state's row text from `render`, this PR's state marked) and opens it in the browser |
 | Attach | every `running` row | `claude-review://<owner>/<repo>/<n>/attach` |
 | Round summary | every finished round | `https://github.com/<owner>/<repo>/pull/<n>#pullrequestreview-<id>` |
 | Session | any listed PR a session acted on (source `claude-session`, state `info`) | `claude-resume://<session id>` |

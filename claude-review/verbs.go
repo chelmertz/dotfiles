@@ -12,7 +12,7 @@ import (
 
 // verbLink is a claude-review:// link with a verb, as tick writes them into
 // elly. The plain link without a verb stays the click it always was.
-var verbLink = regexp.MustCompile(`^claude-review://([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/([1-9][0-9]*)/(approve|attach|fork|ignore)(?:\?([^#]*))?$`)
+var verbLink = regexp.MustCompile(`^claude-review://([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/([1-9][0-9]*)/(approve|attach|fork|ignore|states)(?:\?([^#]*))?$`)
 
 // ParseVerb reads a verb link.
 func ParseVerb(s string) (PR, string, url.Values, bool) {
@@ -42,6 +42,8 @@ func runVerb(d Deps, cfg Config, pr PR, verb string, q url.Values) int {
 		return fail(d, fmt.Errorf("claude-review: Ignore is gone; bury %s in elly to stop its rounds", pr.URL()))
 	case "fork":
 		return fork(d, cfg, pr)
+	case "states":
+		return runStates([]string{pr.URL()}, d, true)
 	default: // attach
 		return attach(d, cfg, pr)
 	}

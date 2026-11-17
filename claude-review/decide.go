@@ -365,8 +365,8 @@ func approvedBefore(r Round, f RoundFacts) bool {
 func attachLink(pr PR) Link { return Link{Label: "Open session", URL: verbURL(pr, "attach")} }
 
 // answerLink is attach on a row that asks the user something. elly makes a
-// needs_you row's first link its button under the link's own label, so the
-// button says what to do.
+// needs_you row's primary link its button under the link's own label, so
+// the button says what to do.
 func answerLink(pr PR) Link { return Link{Label: "Answer", URL: verbURL(pr, "attach")} }
 
 // startAgainLink is a click from elly: a new round, re-accepting the PR.

@@ -280,7 +280,19 @@ type View struct {
 // render is the PR's elly row and the only writer of notes and links. Every
 // state that needs the user marks exactly one link Primary, which elly shows
 // as the row's button. idle and gone have no row: the zero Annotation.
+// render is a PR's elly row, with a `?` link to the states page on every
+// row it shows.
 func render(pr PR, s PRState, v View) Annotation {
+	a := renderRow(pr, s, v)
+	if a.State != "" {
+		a.Links = append(a.Links, statesLink(pr))
+	}
+	return a
+}
+
+func statesLink(pr PR) Link { return Link{Label: "?", URL: verbURL(pr, "states")} }
+
+func renderRow(pr PR, s PRState, v View) Annotation {
 	summary := s.summary
 	var a Annotation
 	switch s.State {

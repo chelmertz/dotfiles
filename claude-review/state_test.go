@@ -166,7 +166,7 @@ func TestRenderPaused(t *testing.T) {
 	v := View{Paused: "paused: the daily round limit for this PR is reached"}
 	for _, s := range []PRState{{State: stIdle}, {State: stHandled, Kind: kindPosted}} {
 		a := render(pr, s, v)
-		if a.State != stateNeedsYou || a.Note != v.Paused || len(a.Links) != 1 || !a.Links[0].Primary {
+		if a.State != stateNeedsYou || a.Note != v.Paused || len(a.Links) != 2 || !a.Links[0].Primary || a.Links[1] != statesLink(pr) {
 			t.Errorf("%s: %+v", s.State, a)
 		}
 	}

@@ -68,6 +68,7 @@ const usageText = `usage: claude-review [--dry-run] <pr>
        claude-review slack [--dry-run] <pr>...
        claude-review tick [--dry-run | --reset]
        claude-review stats [-days N]
+       claude-review states [<pr>]
 
   <pr>   a GitHub PR URL, claude-review://owner/repo/number or owner/repo/number
 
@@ -84,6 +85,8 @@ refuses a PR that is red, pending, conflicting, a draft or owes a reply.
 and reports them to elly; a timer runs it.
 ` + "`claude-review stats`" + ` counts recent rounds by where they were started
 (a link's ?from=, or tick).
+` + "`claude-review states [<pr>]`" + ` writes a page of every PR state and move, the
+PR's own marked, and prints its path; elly's ` + "`?`" + ` link opens it.
 `
 
 // subcommands are the gh-backed commands beside the default launch.
@@ -103,6 +106,9 @@ func runSessionCommand(args []string, d Deps) (int, bool) {
 	}
 	if args[0] == "stats" {
 		return runStats(args[1:], d), true
+	}
+	if args[0] == "states" {
+		return runStates(args[1:], d, false), true
 	}
 	if sub, ok := readCommands[args[0]]; ok {
 		return sub(args[1:], newPRReader(d), d.Stdout, d.Stderr), true
