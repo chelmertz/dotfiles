@@ -134,8 +134,8 @@ func TestRenderPrimaryLinks(t *testing.T) {
 			}
 			continue
 		}
-		s := PRState{State: k.State, Kind: k.Kind, Head: strings.Repeat("a", 40), Detail: strings.Repeat("x", 400), Since: at}
-		a := render(pr, s, View{Token: ids.Token{}, ReviewURL: "https://github.com/o/r/pull/1#r"})
+		s := PRState{State: k.State, Kind: k.Kind, Head: strings.Repeat("a", 40), Detail: strings.Repeat("x", 400), Review: "https://github.com/o/r/pull/1#r", Since: at}
+		a := render(pr, s, View{Token: ids.Token{}})
 		primaries := 0
 		for _, l := range a.Links {
 			if l.Primary {

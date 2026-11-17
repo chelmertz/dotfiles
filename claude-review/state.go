@@ -79,6 +79,7 @@ type PRState struct {
 	Kind   string
 	Detail string // the question, a launch failure, a count of drafts, who clicked
 	Head   string // the PR head the state is about
+	Review string // the round's summary review, linked from the row
 	Since  time.Time
 	Prev   *PRState
 }
@@ -261,17 +262,16 @@ func firstNonEmpty(a, b string) string {
 }
 
 // View is what render needs beyond the state: the Approve link's token,
-// minted for an awaiting{approve} head, and the round's summary review.
+// minted for an awaiting{approve} head.
 type View struct {
-	Token     ids.Token
-	ReviewURL string
+	Token ids.Token
 }
 
 // render is the PR's elly row and the only writer of notes and links. Every
 // state that needs the user marks exactly one link Primary, which elly shows
 // as the row's button. idle and gone have no row: the zero Annotation.
 func render(pr PR, s PRState, v View) Annotation {
-	summary := v.summary
+	summary := s.summary
 	var a Annotation
 	switch s.State {
 	case stStarting:
@@ -294,7 +294,7 @@ func render(pr PR, s PRState, v View) Annotation {
 		}
 	case stHandled:
 		a.State = stateHandled
-		a.Note = map[string]string{kindPosted: "round posted its review", kindNothing: "round found nothing to post", kindApproved: "clean round; your approval stands"}[s.Kind]
+		a.Note = map[string]string{kindPosted: noteRoundPosted, kindNothing: noteNothing, kindApproved: noteApprovalStands}[s.Kind]
 		a.Links = summary()
 	default:
 		return Annotation{}
@@ -303,12 +303,20 @@ func render(pr PR, s PRState, v View) Annotation {
 	return a
 }
 
+// Texts the migration from stored rows matches exactly (prstate.go).
+const (
+	labelRoundSummary  = "Round summary"
+	noteRoundPosted    = "round posted its review"
+	noteNothing        = "round found nothing to post"
+	noteApprovalStands = "clean round; your approval stands"
+)
+
 func primary(l Link) Link { l.Primary = true; return l }
 
 // summary adds the round's summary review to links, when there is one.
-func (v View) summary(links ...Link) []Link {
-	if v.ReviewURL != "" {
-		links = append(links, Link{Label: "Round summary", URL: v.ReviewURL})
+func (s PRState) summary(links ...Link) []Link {
+	if s.Review != "" {
+		links = append(links, Link{Label: labelRoundSummary, URL: s.Review})
 	}
 	return links
 }
@@ -316,7 +324,7 @@ func (v View) summary(links ...Link) []Link {
 // renderNeedsYou is an awaiting or held row: it waits on the user.
 func renderNeedsYou(pr PR, s PRState, v View) Annotation {
 	a := Annotation{State: stateNeedsYou}
-	summary := v.summary
+	summary := s.summary
 	switch s.Kind {
 	case kindQuestion:
 		a.Note, a.Links = questionNote(Outcome{Question: s.Detail}), summary(primary(answerLink(pr)), forkLink(pr))

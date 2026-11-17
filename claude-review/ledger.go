@@ -32,6 +32,7 @@ create table if not exists annotations (pr text primary key, state text not null
 create table if not exists posts (pr text not null, head text not null, slot text not null, n integer not null, primary key (pr, head, slot));
 create table if not exists post_refusals (pr text not null, at integer not null);
 create table if not exists meta (key text primary key, value text not null);
+create table if not exists pr_state (pr text primary key, state text not null);
 create table if not exists breaker (id integer primary key check (id = 1), tripped text, reset_at integer not null default 0);
 `
 
@@ -59,7 +60,12 @@ func OpenLedger(path string) (*Ledger, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("ledger schema: %w", err)
 	}
-	return &Ledger{db: db}, nil
+	l := &Ledger{db: db}
+	if err := l.migratePRState(); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("ledger pr_state: %w", err)
+	}
+	return l, nil
 }
 
 func (l *Ledger) Close() error { return l.db.Close() }

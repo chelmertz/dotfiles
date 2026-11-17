@@ -276,7 +276,7 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 	attach, ignore := attachLink(pr), ignoreLink(pr)
 	summary := func(links ...Link) []Link {
 		if f.RoundReviewURL != "" {
-			links = append(links, Link{Label: "Round summary", URL: f.RoundReviewURL})
+			links = append(links, Link{Label: labelRoundSummary, URL: f.RoundReviewURL})
 		}
 		return links
 	}
@@ -298,16 +298,16 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 			Note: "new findings after your approval; your approval was dismissed", Links: summary(attach, ignore)}}
 	case quietApprove(r, o, f, pr):
 		if f.UserReview != nil && f.UserReview.State == reviewApproved {
-			return Decision{Annotation: &Annotation{State: stateHandled, Note: "clean round; your approval stands", Links: summary()}}
+			return Decision{Annotation: &Annotation{State: stateHandled, Note: noteApprovalStands, Links: summary()}}
 		}
 		return Decision{MintFor: r.Head, Annotation: &Annotation{State: stateNeedsYou, Note: "LGTM at " + r.Head[:9] + "; approve it if you agree", Links: summary(attach, ignore)}}
 	// The summary is posted last, so it is what says the round finished.
 	case f.RoundReviewURL != "":
-		return Decision{Annotation: &Annotation{State: stateHandled, Note: "round posted its review", Links: summary()}}
+		return Decision{Annotation: &Annotation{State: stateHandled, Note: noteRoundPosted, Links: summary()}}
 	// Trusted like the question line: a crashed round never prints it, and
 	// GitHub confirmed above that the round posted nothing.
 	case o.Kind == OutcomeNothing && !postedInline(f):
-		return Decision{Annotation: &Annotation{State: stateHandled, Note: "round found nothing to post", Links: summary()}}
+		return Decision{Annotation: &Annotation{State: stateHandled, Note: noteNothing, Links: summary()}}
 	// Cut off (a shutdown, a crash) before its summary: the retry resumes the
 	// same session, which knows what it posted, and the post budget caps what
 	// it can add at that commit.
@@ -357,6 +357,7 @@ func attachLink(pr PR) Link { return Link{Label: "Open session", URL: verbURL(pr
 // needs_you row's first link its button under the link's own label, so the
 // button says what to do.
 func answerLink(pr PR) Link { return Link{Label: "Answer", URL: verbURL(pr, "attach")} }
+
 // startAgainLink is a click from elly: a new round, re-accepting the PR.
 func startAgainLink(pr PR) Link {
 	return Link{Label: "Start again", URL: fmt.Sprintf("claude-review://%s/%s/%d?from=elly", pr.Owner, pr.Repo, pr.Number)}
