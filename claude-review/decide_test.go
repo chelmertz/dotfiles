@@ -118,8 +118,10 @@ func TestPlanTick(t *testing.T) {
 	if got := plan(l, ok, ellyPR(func(p *EllyPR) { requested(p); p.RepoOwner = "globex" })); len(got) != 0 {
 		t.Errorf("a repo outside review_repos got %+v", got)
 	}
-	if got := plan(l, ok, ellyPR(func(p *EllyPR) { requested(p); p.Buried = true })); len(got) != 1 {
-		t.Errorf("bury is elly's display preference and must not stop rounds: %+v", got)
+	// Bury replaced Ignore (2026-11-16): elly unburies on someone else's
+	// update, a re-request included, and rounds resume.
+	if got := plan(l, ok, ellyPR(func(p *EllyPR) { requested(p); p.Buried = true })); len(got) != 0 {
+		t.Errorf("a buried PR is not left alone: %+v", got)
 	}
 
 	if got := plan(l, fakeGate{descends: false, base: "main"}, ellyPR(requested)); len(got) != 1 || got[0].Gate != gateFreshLook {
@@ -153,11 +155,8 @@ func TestPlanTick(t *testing.T) {
 		t.Errorf("past the daily cap: %+v", got)
 	}
 
-	if err := l.Ignore(widgetsPR); err != nil {
-		t.Fatal(err)
-	}
-	if got := plan(l, ok, ellyPR(func(p *EllyPR) { p.HeadRefOid = "h4" })); len(got) != 0 {
-		t.Errorf("an ignored PR got %+v", got)
+	if got := plan(l, ok, ellyPR(func(p *EllyPR) { p.HeadRefOid = "h4"; p.Buried = true })); len(got) != 0 {
+		t.Errorf("a buried PR got %+v", got)
 	}
 }
 
@@ -182,85 +181,105 @@ func TestDecide(t *testing.T) {
 		{"closed PR clears", round, approveLine, RoundFacts{State: "closed", Head: head},
 			func(d Decision) bool { return d.Clear }, "clear"},
 		{"clean round, no approval: Approve link", round, approveLine, open,
-			func(d Decision) bool { return d.Annotation.State == stateNeedsYou && d.MintFor == head }, "needs_you + token"},
+			func(d Decision) bool { return isK(d, kindApprove) }, "needs_you + token"},
+		{"clean round on the user's own PR: no Approve link", round, approveLine, RoundFacts{State: "open", Head: head, Own: true},
+			func(d Decision) bool { return isK(d, kindNothing) }, "handled, nothing"},
 		{"clean round under a standing approval", round, approveLine, RoundFacts{State: "open", Head: head, UserReview: approved("old")},
-			func(d Decision) bool { return d.Annotation.State == stateHandled && d.MintFor == "" }, "handled"},
+			func(d Decision) bool { return isK(d, kindApproved) }, "handled"},
 		{"approve line for another sha", round, Outcome{Kind: OutcomeApprove, PrURL: widgetsPR.URL(), SHA: strings.Repeat("f", 40)}, RoundFacts{State: "open", Head: head, RoundReviewURL: roundReview},
-			func(d Decision) bool { return d.MintFor == "" && d.Annotation.State == stateHandled }, "no Approve link"},
+			func(d Decision) bool { return d.Next.State == stHandled }, "no Approve link"},
 		{"approve line for another PR", round, Outcome{Kind: OutcomeApprove, PrURL: "https://github.com/acme/widgets/pull/43", SHA: head}, open,
-			func(d Decision) bool { return d.MintFor == "" }, "no Approve link"},
+			func(d Decision) bool { return !isK(d, kindApprove) }, "no Approve link"},
 		{"approve line but the round posted findings", round, approveLine, RoundFacts{State: "open", Head: head, NewThreads: 2, RoundReviewURL: roundReview},
-			func(d Decision) bool { return d.MintFor == "" }, "no Approve link"},
+			func(d Decision) bool { return !isK(d, kindApprove) }, "no Approve link"},
 		// A re-round that only confirms fixes in the threads and resolves them.
 		{"approve line and only replies: Approve link", round, approveLine, RoundFacts{State: "open", Head: head, NewReplies: 3, RoundReviewURL: roundReview},
-			func(d Decision) bool { return d.MintFor == head && d.Annotation.State == stateNeedsYou }, "needs_you + token"},
+			func(d Decision) bool { return isK(d, kindApprove) }, "needs_you + token"},
 		{"approve line but the user's threads are open", round, approveLine, RoundFacts{State: "open", Head: head, UnresolvedUserThreads: 1},
-			func(d Decision) bool { return d.MintFor == "" }, "no Approve link"},
+			func(d Decision) bool { return !isK(d, kindApprove) }, "no Approve link"},
 		{"approve line but the head moved", round, approveLine, RoundFacts{State: "open", Head: "moved"},
-			func(d Decision) bool { return d.MintFor == "" }, "no Approve link"},
+			func(d Decision) bool { return !isK(d, kindApprove) }, "no Approve link"},
 		{"findings after the user's approval dismiss it", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 1, UserReview: approved("old"), RoundReviewURL: roundReview},
-			func(d Decision) bool { return d.DismissReviewID == reviewID(9) && d.Annotation.State == stateNeedsYou }, "dismiss + needs_you"},
+			func(d Decision) bool { return d.DismissReviewID == reviewID(9) && isK(d, kindDismiss) }, "dismiss + needs_you"},
 		{"replies after the user's approval do not dismiss it", round, Outcome{}, RoundFacts{State: "open", Head: head, NewReplies: 2, UserReview: approved("old"), RoundReviewURL: roundReview},
-			func(d Decision) bool { return d.DismissReviewID.IsZero() && d.Annotation.State == stateHandled }, "no dismissal, handled"},
+			func(d Decision) bool { return d.DismissReviewID.IsZero() && d.Next.State == stHandled }, "no dismissal, handled"},
 		// The user read the findings and approved anyway, before tick settled the round.
 		{"an approval given after the round started is not dismissed", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 1, UserReview: &Review{ID: reviewID(9), State: "APPROVED", CommitID: "old", SubmittedAt: t0.Add(time.Minute)}, RoundReviewURL: roundReview},
-			func(d Decision) bool { return d.DismissReviewID.IsZero() && d.Annotation.State == stateHandled }, "no dismissal, handled"},
+			func(d Decision) bool { return d.DismissReviewID.IsZero() && d.Next.State == stHandled }, "no dismissal, handled"},
 		// The summary is posted last: without it the round was cut off
 		// (a shutdown, a crash) partway through posting, and resumes.
 		{"findings without a summary: interrupted, resumed", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 2},
-			func(d Decision) bool { return d.Retry && d.Annotation == nil }, "retry"},
+			func(d Decision) bool { return d.Retry && isK(d, kindRetry) }, "retry"},
 		{"replies without a summary: interrupted, resumed", round, Outcome{}, RoundFacts{State: "open", Head: head, NewReplies: 1},
-			func(d Decision) bool { return d.Retry && d.Annotation == nil }, "retry"},
+			func(d Decision) bool { return d.Retry && isK(d, kindRetry) }, "retry"},
 		// Inline comments and replies wait in a draft that the summary sends.
 		{"drafts without a summary: interrupted, resumed", round, Outcome{}, RoundFacts{State: "open", Head: head, UnsentDrafts: 2},
-			func(d Decision) bool { return d.Retry && d.Annotation == nil }, "retry"},
+			func(d Decision) bool { return d.Retry && isK(d, kindRetry) }, "retry"},
 		{"drafts cut off again: the user decides on them", Round{PR: round.PR, Head: head, Retries: 1}, Outcome{}, RoundFacts{State: "open", Head: head, UnsentDrafts: 2},
 			func(d Decision) bool {
-				return !d.Retry && d.Annotation.State == stateNeedsYou && strings.Contains(d.Annotation.Note, "2 unsent comments")
+				return !d.Retry && isK(d, kindDrafts) && strings.Contains(note(d), "2 unsent comments")
 			}, "needs_you naming the draft"},
 		{"nothing to post, but a draft holds comments: resumed", round, Outcome{Kind: OutcomeNothing}, RoundFacts{State: "open", Head: head, UnsentDrafts: 1},
 			func(d Decision) bool { return d.Retry }, "retry"},
 		{"approve line with comments in the draft: no Approve link", round, approveLine, RoundFacts{State: "open", Head: head, UnsentDrafts: 1},
-			func(d Decision) bool { return d.MintFor == "" }, "no Approve link"},
+			func(d Decision) bool { return !isK(d, kindApprove) }, "no Approve link"},
 		{"cut off again: stuck", Round{PR: round.PR, Head: head, Retries: 1}, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 2},
 			func(d Decision) bool {
-				return !d.Retry && d.Annotation.State == stateStuck && strings.Contains(d.Annotation.Note, "summary")
+				return !d.Retry && isK(d, kindFailed) && strings.Contains(note(d), "summary")
 			}, "stuck, names the missing summary"},
 		{"a refused post: stuck, held back", Round{PR: round.PR, Head: head, PostRefused: true}, approveLine, open,
 			func(d Decision) bool {
-				return d.Ignore && d.MintFor == "" && d.Annotation.State == stateStuck && strings.Contains(d.Annotation.Note, "refused")
-			}, "stuck + ignore"},
+				return isK(d, kindRefused) && strings.Contains(note(d), "refused")
+			}, "stuck, refused"},
 		{"findings with the approval at the current head do not dismiss", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 1, UserReview: approved(head), RoundReviewURL: roundReview},
 			func(d Decision) bool { return d.DismissReviewID.IsZero() }, "no dismissal"},
 		{"question", round, Outcome{Kind: OutcomeQuestion}, open,
 			func(d Decision) bool {
-				return d.Annotation.State == stateNeedsYou && hasLink(d.Annotation, "attach") && d.Annotation.Note == "the round has a question for you"
+				return isK(d, kindQuestion) && hasLink(row(d), "attach") && note(d) == "the round has a question for you"
 			}, "needs_you + attach, today's note"},
 		{"question with its text", round, Outcome{Kind: OutcomeQuestion, Question: "Per booking or per venue?"}, open,
 			func(d Decision) bool {
-				return d.Annotation.State == stateNeedsYou && d.Annotation.Note == "the round has a question for you: Per booking or per venue?"
+				return isK(d, kindQuestion) && note(d) == "the round has a question for you: Per booking or per venue?"
 			}, "needs_you with the question"},
 		{"findings posted: handled", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 3, RoundReviewURL: roundReview},
 			func(d Decision) bool {
-				return d.Annotation.State == stateHandled && hasLink(d.Annotation, "pullrequestreview-5")
+				return isK(d, kindPosted) && hasLink(row(d), "pullrequestreview-5")
 			}, "handled + summary link"},
 		{"nothing to post, said so: handled, not retried", round, Outcome{Kind: OutcomeNothing}, open,
-			func(d Decision) bool { return !d.Retry && d.Annotation != nil && d.Annotation.State == stateHandled }, "handled"},
+			func(d Decision) bool { return !d.Retry && isK(d, kindNothing) }, "handled"},
 		{"nothing to show for it: retry once", round, Outcome{}, open,
-			func(d Decision) bool { return d.Retry && d.Annotation == nil }, "retry"},
+			func(d Decision) bool { return d.Retry && isK(d, kindRetry) }, "retry"},
 		{"nothing again: round failed", Round{PR: round.PR, Head: head, Retries: 1}, Outcome{}, open,
 			func(d Decision) bool {
-				return !d.Retry && d.Annotation.State == stateStuck && strings.Contains(d.Annotation.Note, "failed")
+				return !d.Retry && isK(d, kindFailed) && strings.Contains(note(d), "failed")
 			}, "stuck failed"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			d := decide(c.r, c.o, c.f, widgetsPR)
 			if !c.check(d) {
-				t.Errorf("got %+v (annotation %+v), want %s", d, d.Annotation, c.explain)
+				t.Errorf("got %+v (next %+v), want %s", d, d.Next, c.explain)
 			}
 		})
 	}
+}
+
+func isK(d Decision, kind string) bool { return d.Next != nil && d.Next.Kind == kind }
+
+// row is the row a decision's state renders to.
+func row(d Decision) *Annotation {
+	if d.Next == nil {
+		return nil
+	}
+	a := render(widgetsPR, *d.Next, View{})
+	return &a
+}
+
+func note(d Decision) string {
+	if a := row(d); a != nil {
+		return a.Note
+	}
+	return ""
 }
 
 func hasLink(a *Annotation, part string) bool {
@@ -311,20 +330,18 @@ func TestPlanTickNamesWhyItLeavesAPR(t *testing.T) {
 	if s := skipOf(l, ok, asked); s != skipAlreadyRan {
 		t.Errorf("a round after the last update: %q", s)
 	}
-	if err := l.Ignore(widgetsPR); err != nil {
-		t.Fatal(err)
-	}
-	if s := skipOf(l, ok, asked); s != skipIgnored {
-		t.Errorf("ignored: %q", s)
+	asked.Buried = true
+	if s := skipOf(l, ok, asked); s != skipBuried {
+		t.Errorf("buried: %q", s)
 	}
 }
 
-// elly's button on a needs_you row is its first link naming the PR, with
-// that link's label: on a question it must answer it.
+// elly's button on a needs_you row is its Primary link, with that link's
+// label: on a question it must answer it.
 func TestDecideAQuestionLeadsWithAnswer(t *testing.T) {
 	q := decide(Round{Head: sha}, Outcome{Kind: OutcomeQuestion, Question: "rows?"}, RoundFacts{State: prOpen, Head: sha}, widgetsPR)
-	if q.Annotation == nil || len(q.Annotation.Links) == 0 || q.Annotation.Links[0] != answerLink(widgetsPR) {
-		t.Errorf("question links %+v", q.Annotation)
+	if a := row(q); a == nil || len(a.Links) == 0 || a.Links[0] != primary(answerLink(widgetsPR)) {
+		t.Errorf("question links %+v", a)
 	}
 	if l := answerLink(widgetsPR); l.Label != "Answer" || l.URL != "claude-review://acme/widgets/42/attach" {
 		t.Errorf("answer link %+v", l)
@@ -335,7 +352,7 @@ func TestDecideAQuestionLeadsWithAnswer(t *testing.T) {
 // round, the click the note asks for (2026-11-16: "no round running").
 func TestDecideAPostRefusedRowStartsAgain(t *testing.T) {
 	d := decide(Round{Head: sha, PostRefused: true}, Outcome{}, RoundFacts{State: prOpen, Head: sha}, widgetsPR)
-	if d.Annotation == nil || len(d.Annotation.Links) == 0 || d.Annotation.Links[0] != startAgainLink(widgetsPR) || hasLink(d.Annotation, "attach") {
-		t.Errorf("links %+v", d.Annotation)
+	if a := row(d); a == nil || len(a.Links) == 0 || a.Links[0] != primary(startAgainLink(widgetsPR)) || hasLink(a, "attach") {
+		t.Errorf("links %+v", a)
 	}
 }

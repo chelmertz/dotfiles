@@ -34,7 +34,10 @@ func TestTransition(t *testing.T) {
 		ok      bool
 	}{
 		{"closed from anything", question, Event{Kind: evClosed}, stGone, "", []Effect{efStopWorkers, efRoundsRead, efDelete}, true},
-		{"user approved", question, Event{Kind: evUserApproved, Head: "bbb"}, stHandled, kindApproved, []Effect{efRevokeTokens}, true},
+		{"user approved", question, Event{Kind: evUserApproved, Head: "bbb"}, stIdle, "", []Effect{efRevokeTokens}, true},
+		{"user approved mid-round", running, Event{Kind: evUserApproved}, stRunning, kindTick, nil, false},
+		{"tick launch failed", posted, Event{Kind: evNotStarted, Detail: "no clone"}, stHeld, kindLaunch, nil, true},
+		{"read before a new round", running, Event{Kind: evEnded, Next: &PRState{State: stIdle}}, stIdle, "", []Effect{efRoundsRead}, true},
 		{"click from idle", idle, Event{Kind: evClick, Detail: "elly"}, stStarting, kindClick, []Effect{efReaccept, efLaunch}, true},
 		{"click from stuck", stuck, Event{Kind: evClick}, stStarting, kindClick, []Effect{efReaccept, efLaunch}, true},
 		{"click while running", running, Event{Kind: evClick}, stRunning, kindTick, nil, false},
@@ -62,7 +65,8 @@ func TestTransition(t *testing.T) {
 		{"ended while blocked", question, Event{Kind: evEnded, Next: &posted}, stHandled, kindPosted, []Effect{efRoundsRead}, true},
 		{"ended needing retry", running, Event{Kind: evEnded, Next: &retry}, stRunning, kindRetry, []Effect{efLaunch}, true},
 		{"ended without a decision", running, Event{Kind: evEnded}, stRunning, kindTick, nil, false},
-		{"ended when idle", idle, Event{Kind: evEnded, Next: &posted}, stIdle, "", nil, false},
+		{"ended when idle", idle, Event{Kind: evEnded, Next: &posted}, stHandled, kindPosted, []Effect{efRoundsRead}, true},
+		{"ended when handled", posted, Event{Kind: evEnded, Next: &retry}, stHandled, kindPosted, nil, false},
 		{"answered", question, Event{Kind: evAnswered}, stIdle, "", nil, true},
 		{"answered without a question", st(stAwaiting, kindApprove), Event{Kind: evAnswered}, stAwaiting, kindApprove, nil, false},
 		{"window opened", question, Event{Kind: evWindowOpened}, stHeld, kindWindow, nil, true},
@@ -152,5 +156,21 @@ func TestRenderPrimaryLinks(t *testing.T) {
 		if a.Note == "" || utf8.RuneCountInString(a.Note) > ellyMaxNote {
 			t.Errorf("%s{%s}: note %q", k.State, k.Kind, a.Note)
 		}
+	}
+}
+
+// A held-back owed round shows as paused on a row that would otherwise not
+// need the user, and never hides one that does.
+func TestRenderPaused(t *testing.T) {
+	pr := PR{Owner: "o", Repo: "r", Number: 1}
+	v := View{Paused: "paused: the daily round limit for this PR is reached"}
+	for _, s := range []PRState{{State: stIdle}, {State: stHandled, Kind: kindPosted}} {
+		a := render(pr, s, v)
+		if a.State != stateNeedsYou || a.Note != v.Paused || len(a.Links) != 1 || !a.Links[0].Primary {
+			t.Errorf("%s: %+v", s.State, a)
+		}
+	}
+	if a := render(pr, PRState{State: stAwaiting, Kind: kindQuestion}, v); a.Note == v.Paused {
+		t.Errorf("paused hid a question: %+v", a)
 	}
 }

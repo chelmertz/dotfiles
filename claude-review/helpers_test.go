@@ -29,3 +29,11 @@ var widgetsPR = PR{Owner: owner, Repo: repoName, Number: 42}
 func writeFile(p, body string) error {
 	return os.WriteFile(p, []byte(body), 0o700) //nolint:gosec // test helper writes executable stubs
 }
+
+// move2 stores s as pr's state and shows its row, as a transition would.
+func (h tickHost) move2(pr PR, s PRState) error {
+	if err := h.ledger.SetPRState(pr, s); err != nil {
+		return err
+	}
+	return h.show(pr, s, "")
+}

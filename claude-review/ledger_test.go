@@ -32,21 +32,12 @@ func TestLedgerAcceptance(t *testing.T) {
 	if err := l.Accept(pr, "head1", "main", t0); err != nil {
 		t.Fatal(err)
 	}
-	if err := l.Ignore(pr); err != nil {
-		t.Fatal(err)
-	}
-	if ignored, _ := l.Ignored(pr); !ignored {
-		t.Fatal("ignore did not stick")
-	}
 	if err := l.Accept(pr, "head2", "develop", t0.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	a, ok, err := l.Acceptance(pr)
 	if err != nil || !ok || a.Head != "head2" || a.Base != "develop" {
 		t.Fatalf("got %+v %v %v, want the later click's head and base", a, ok, err)
-	}
-	if ignored, _ := l.Ignored(pr); ignored {
-		t.Error("a new first-look click must clear the ignore")
 	}
 }
 

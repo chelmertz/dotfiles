@@ -74,18 +74,12 @@ func TestApproveVerbNeedsAMintedToken(t *testing.T) {
 	}
 }
 
-func TestIgnoreVerbStopsRounds(t *testing.T) {
+// Rows sent before Ignore went carry its link until their next refresh; a
+// click on one says what replaced it.
+func TestIgnoreVerbIsGone(t *testing.T) {
 	h := verbHost(t)
-	if code := run([]string{"claude-review://acme/widgets/42/ignore"}, h.d); code != 0 {
+	if code := run([]string{"claude-review://acme/widgets/42/ignore"}, h.d); code == 0 || !strings.Contains(h.stderr.String(), "bury") {
 		t.Fatalf("exit %d: %s", code, h.stderr)
-	}
-	l, err := OpenLedger(LedgerPath(h.d.StateDir))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = l.Close() }()
-	if ignored, _ := l.Ignored(widgetsPR); !ignored {
-		t.Error("ignore did not stick")
 	}
 }
 

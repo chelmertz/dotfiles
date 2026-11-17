@@ -64,8 +64,11 @@ var allStates = []stateKey{
 	{stGone, ""},
 }
 
-// decidable is what decide may choose for an ended round.
+// decidable is what decide may choose for an ended round. idle is a round
+// read just before a new one replaces it; held{launch_failed} a retry that
+// could not start.
 var decidable = []stateKey{
+	{stIdle, ""}, {stHeld, kindLaunch},
 	{stRunning, kindRetry},
 	{stAwaiting, kindQuestion}, {stAwaiting, kindApprove}, {stAwaiting, kindDrafts}, {stAwaiting, kindDismiss},
 	{stStuck, kindRefused}, {stStuck, kindFailed},
@@ -195,10 +198,11 @@ var (
 // rules is the whole state machine; the first rule that applies wins.
 var rules = []rule{
 	{from: anyState, event: evClosed, to: to(stGone, ""), effects: []Effect{efStopWorkers, efRoundsRead, efDelete}},
-	{from: anyState, event: evUserApproved, to: to(stHandled, kindApproved), effects: []Effect{efRevokeTokens}},
+	// The user's approval at the head leaves nothing to show.
+	{from: notIn(in(stRunning, stStarting)), event: evUserApproved, to: to(stIdle, ""), effects: []Effect{efRevokeTokens}},
 	{from: notIn(in(stRunning, stStarting)), event: evClick, to: to(stStarting, kindClick), effects: []Effect{efReaccept, efLaunch}, remember: true},
 	{from: in(stStarting), event: evLaunched, to: to(stRunning, kindClick)},
-	{from: in(stStarting), event: evNotStarted, when: withReason, to: to(stHeld, kindLaunch)},
+	{from: notIn(in(stRunning)), event: evNotStarted, when: withReason, to: to(stHeld, kindLaunch)},
 	{from: in(stStarting), event: evNotStarted, to: toPrev},
 	{from: in(stStuck), event: evOwed, when: rerequested, to: to(stRunning, kindTick), effects: []Effect{efLaunch}},
 	{from: in(stIdle, stHandled, stAwaiting), event: evOwed, when: freshLook, to: to(stHeld, kindFresh)},
@@ -206,10 +210,14 @@ var rules = []rule{
 	{from: inKind(stHeld, kindLaunch), event: evOwed, to: to(stRunning, kindTick), effects: []Effect{efLaunch}},
 	{from: in(stAwaiting), event: evPush, to: to(stIdle, ""), effects: []Effect{efStopWorkers, efRevokeTokens}},
 	{from: in(stRunning), event: evBlocked, to: to(stAwaiting, kindQuestion), remember: true},
+	// A round recorded without its move (a crash between the two writes).
+	{from: in(stIdle), event: evBlocked, to: to(stAwaiting, kindQuestion)},
 	{from: inKind(stAwaiting, kindQuestion), event: evResumed, when: workerBack, to: toPrev},
 	{from: in(stRunning), event: evEnded, when: decidedRetry, to: toDecided, effects: []Effect{efLaunch}},
 	{from: in(stRunning), event: evEnded, when: decided, to: toDecided, effects: []Effect{efRoundsRead}},
 	{from: inKind(stAwaiting, kindQuestion), event: evEnded, when: decided, to: toDecided, effects: []Effect{efRoundsRead}},
+	// A round recorded without its move (a crash between the two writes).
+	{from: in(stIdle), event: evEnded, when: decided, to: toDecided, effects: []Effect{efRoundsRead}},
 	{from: inKind(stAwaiting, kindQuestion), event: evAnswered, to: to(stIdle, "")},
 	{from: notIn(inKind(stHeld, kindWindow)), event: evWindowOpened, to: to(stHeld, kindWindow), remember: true},
 	{from: inKind(stHeld, kindWindow), event: evWindowClosed, to: toPrev},
@@ -262,9 +270,11 @@ func firstNonEmpty(a, b string) string {
 }
 
 // View is what render needs beyond the state: the Approve link's token,
-// minted for an awaiting{approve} head.
+// minted for an awaiting{approve} head, and why an owed round is held back
+// this tick (the daily cap, the breaker), which is never stored.
 type View struct {
-	Token ids.Token
+	Token  ids.Token
+	Paused string
 }
 
 // render is the PR's elly row and the only writer of notes and links. Every
@@ -282,7 +292,7 @@ func render(pr PR, s PRState, v View) Annotation {
 		a = Annotation{State: stateRunning, Note: "starting (" + from + ")", Expires: s.Since.Add(startingLifetime)}
 	case stRunning:
 		by := map[string]string{kindTick: kindTick, kindClick: "a click", kindRetry: "tick (retry)"}[s.Kind]
-		a = Annotation{State: stateRunning, Note: "started by " + by, Links: []Link{attachLink(pr)}, Expires: s.Since.Add(roundLifetime)}
+		a = Annotation{State: stateRunning, Note: "started by " + by, Links: []Link{{Label: "Attach", URL: verbURL(pr, "attach")}}, Expires: s.Since.Add(roundLifetime)}
 	case stAwaiting, stHeld:
 		a = renderNeedsYou(pr, s, v)
 	case stStuck:
@@ -292,7 +302,13 @@ func render(pr PR, s PRState, v View) Annotation {
 		} else {
 			a.Note, a.Links = firstNonEmpty(s.Detail, "round failed twice"), summary(primary(attachLink(pr)))
 		}
-	case stHandled:
+	case stHandled, stIdle:
+		if v.Paused != "" {
+			return Annotation{State: stateNeedsYou, Note: capRunes(v.Paused, ellyMaxNote), Links: []Link{primary(attachLink(pr))}}
+		}
+		if s.State == stIdle {
+			return Annotation{}
+		}
 		a.State = stateHandled
 		a.Note = map[string]string{kindPosted: noteRoundPosted, kindNothing: noteNothing, kindApproved: noteApprovalStands}[s.Kind]
 		a.Links = summary()
@@ -342,7 +358,7 @@ func renderNeedsYou(pr PR, s PRState, v View) Annotation {
 	case kindWindow:
 		a.Note, a.Links = windowNote, []Link{primary(attachLink(pr))}
 	case kindLaunch:
-		a.Note, a.Links = "nothing started: "+s.Detail, []Link{primary(startAgainLink(pr))}
+		a.Note, a.Links = firstNonEmpty(s.Detail, "nothing started"), []Link{primary(startAgainLink(pr))}
 	}
 	return a
 }

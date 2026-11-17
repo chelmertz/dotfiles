@@ -81,7 +81,7 @@ func (g GitHub) RoundFacts(pr PR, r Round) (RoundFacts, error) {
 	if err != nil {
 		return f, err
 	}
-	f.Head, f.State = p.Head.SHA, pullState(p)
+	f.Head, f.State, f.Own = p.Head.SHA, pullState(p), strings.EqualFold(p.User.Login, g.User)
 	if f.State != prOpen {
 		return f, nil
 	}

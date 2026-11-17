@@ -75,6 +75,8 @@ type tickHost struct {
 	version   func() (string, error)
 	selfCheck func() error
 	notify    func(msg string)
+	// say reports a click's non-fatal failures (warn); tick's go to out.
+	say func(error)
 	// sessionIndex maps each PR to the session that last acted on it.
 	sessionIndex func() (map[string]SessionHit, error)
 }
@@ -117,10 +119,11 @@ func (h tickHost) tick() error {
 	if err != nil {
 		return err
 	}
-	if err := h.startOwed(prs, running); err != nil {
+	held, err := h.startOwed(prs, running)
+	if err != nil {
 		return err
 	}
-	if err := h.refresh(); err != nil {
+	if err := h.refresh(held); err != nil {
 		return err
 	}
 	h.offerStarts(prs)
@@ -268,8 +271,12 @@ func (h tickHost) closeOut(pr PR, rounds []Round) error {
 			return err
 		}
 	}
+	_, err = h.move(pr, Event{Kind: evClosed})
+	if err != nil {
+		return err
+	}
 	for _, r := range rounds {
-		if _, err := h.apply(pr, r, Decision{Clear: true}, false); err != nil {
+		if err := h.do("mark round "+pr.URL()+" read", func() error { return h.ledger.MarkRead(r.ID) }); err != nil {
 			return err
 		}
 	}
@@ -312,10 +319,12 @@ func (h tickHost) settle() (int, error) {
 
 // settleRound reads one round of pr under its lock. busy is true while the
 // round still runs or a retry started. With retry false a round that would
-// be retried is marked read instead: the caller is about to start a new one.
+// be retried, or waits on the user, is read instead: the caller is about to
+// start a new one.
 func (h tickHost) settleRound(pr PR, r Round, retry bool) (busy bool, err error) {
 	if h.running(pr.RoundSessionID()) {
-		return true, nil
+		_, err := h.move(pr, Event{Kind: evResumed})
+		return true, err
 	}
 	if why, ok := h.blocked(pr.RoundSessionID()); ok {
 		return false, h.settleBlocked(pr, r, why, retry)
@@ -331,34 +340,32 @@ func (h tickHost) settleRound(pr PR, r Round, retry bool) (busy bool, err error)
 	return h.apply(pr, r, decide(r, ReadOutcome(msg), facts, pr), retry)
 }
 
-// settleBlocked reads a round whose worker waits for the user. It is the
-// question line's row: the user answers in the session, or forks it for
-// prod data. No retry: it would resume on top of the waiting worker. A push
-// since the round started overtakes the question: the worker is stopped and
-// the round read, so the new head gets a round of its own, which asks again
-// if the question still holds.
+// settleBlocked reads a round whose worker waits for the user: the question
+// row, answered in the session or in a fork with prod data. The round stays
+// unread, so the worker's resuming and ending are seen. A push since the
+// round started overtakes the question: the worker is stopped and the round
+// read, so the new head gets a round of its own, which asks again if the
+// question still holds.
 func (h tickHost) settleBlocked(pr PR, r Round, why string, retry bool) error {
 	_, head, _, err := h.gh.Standing(pr)
 	if err != nil {
 		return err // GitHub unreachable: read it next tick
 	}
-	if head != "" && head != r.Head {
-		all, err := h.sess.Roster()
-		if err != nil {
-			return err
-		}
-		for _, w := range h.sess.workersFor(pr.RoundSessionID(), all) {
-			if err := h.do(fmt.Sprintf("stop worker %s on %s: a push overtook its question", w.Short, pr.URL()), func() error { return h.sess.stopAndWait(w) }); err != nil {
-				return err
-			}
-		}
-		_, err = h.apply(pr, r, Decision{Clear: true}, false)
+	if _, err := h.move(pr, Event{Kind: evBlocked, Detail: capRunes(why, maxQuestionNote)}); err != nil {
 		return err
 	}
-	d := Decision{Annotation: &Annotation{State: stateNeedsYou,
-		Note: questionNote(Outcome{Question: capRunes(why, maxQuestionNote)}), Links: []Link{answerLink(pr), forkLink(pr), ignoreLink(pr)}}}
-	_, err = h.apply(pr, r, d, retry)
-	return err
+	switch {
+	case head != "" && head != r.Head:
+		_, err = h.move(pr, Event{Kind: evPush, Head: head})
+	case !retry:
+		_, err = h.move(pr, Event{Kind: evEnded, Next: &PRState{State: stIdle}})
+	default:
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return h.do("mark round "+pr.URL()+" read", func() error { return h.ledger.MarkRead(r.ID) })
 }
 
 // settleUnread reads pr's unread rounds before its idle worker is stopped
@@ -380,62 +387,59 @@ func (h tickHost) settleUnread(pr PR) error {
 }
 
 // apply carries out one decision; it reports whether a retry started.
-// Without retry, a retry decision only marks the round read.
+// Without retry, a retry decision only reads the round.
 func (h tickHost) apply(pr PR, r Round, d Decision, retry bool) (bool, error) {
-	if d.Retry && retry {
-		var not skip
-		err := h.do("retry "+pr.URL(), func() error {
-			var err error
-			not, err = h.launch(pr, nil, func(at time.Time) error {
-				if err := h.ledger.MarkRetried(r.ID); err != nil {
-					return err
-				}
-				h.markRunningOrSay(pr, "tick (retry)", at)
-				return nil
-			})
-			return err
-		})
-		if not != "" {
-			h.leave(pr, not)
-		}
-		return (err == nil && not == "") || h.dry, err
-	}
-	if err := h.sideEffects(pr, d); err != nil {
-		return false, err
-	}
-	if a := d.Annotation; a != nil {
-		if d.MintFor != "" && !h.dry {
-			tok, err := h.ledger.MintToken(pr, d.MintFor)
-			if err != nil {
-				return false, err
-			}
-			a.Links = append([]Link{{Label: "Approve", URL: approveURL(pr, d.MintFor, tok)}}, a.Links...)
-		}
-		if err := h.mark(pr, *a); err != nil {
+	if d.Clear {
+		if _, err := h.move(pr, Event{Kind: evClosed}); err != nil {
 			return false, err
 		}
+		return false, h.do("mark round "+pr.URL()+" read", func() error { return h.ledger.MarkRead(r.ID) })
+	}
+	if d.Retry && retry {
+		return h.retry(pr, r, d)
+	}
+	if d.Retry {
+		d.Next = &PRState{State: stIdle}
+	}
+	if !d.DismissReviewID.IsZero() {
+		msg := "A later review round found new problems at the current head, so this approval no longer covers it."
+		if err := h.do(fmt.Sprintf("dismiss review %s on %s", d.DismissReviewID, pr.URL()), func() error { return h.gh.Dismiss(pr, d.DismissReviewID, msg) }); err != nil {
+			return false, err
+		}
+	}
+	if _, err := h.move(pr, Event{Kind: evEnded, Next: d.Next}); err != nil {
+		return false, err
 	}
 	return false, h.do("mark round "+pr.URL()+" read", func() error { return h.ledger.MarkRead(r.ID) })
 }
 
-// sideEffects are the decision's writes besides the annotation: dismiss
-// the user's approval, clear the PR, hold it back from rounds.
-func (h tickHost) sideEffects(pr PR, d Decision) error {
-	if !d.DismissReviewID.IsZero() {
-		msg := "A later review round found new problems at the current head, so this approval no longer covers it."
-		if err := h.do(fmt.Sprintf("dismiss review %s on %s", d.DismissReviewID, pr.URL()), func() error { return h.gh.Dismiss(pr, d.DismissReviewID, msg) }); err != nil {
+// retry resumes r's session for a round cut off before its summary, and
+// reports whether it started.
+func (h tickHost) retry(pr PR, r Round, d Decision) (bool, error) {
+	var not skip
+	failed := func(detail string) error {
+		_, err := h.move(pr, Event{Kind: evEnded, Next: &PRState{State: stHeld, Kind: kindLaunch, Detail: detail}})
+		return err
+	}
+	err := h.do("retry "+pr.URL(), func() error {
+		var err error
+		not, err = h.launch(pr, nil, func(time.Time) error {
+			if err := h.ledger.MarkRetried(r.ID); err != nil {
+				return err
+			}
+			_, err := h.move(pr, Event{Kind: evEnded, Next: d.Next})
 			return err
-		}
+		}, failed)
+		return err
+	})
+	if err != nil && !h.dry {
+		// the round it retried is over and none replaced it
+		err = errors.Join(err, failed("nothing started: "+err.Error()))
 	}
-	if d.Clear {
-		if err := h.do("clear "+pr.URL(), func() error { return h.clear(pr) }); err != nil {
-			return err
-		}
+	if not != "" {
+		h.leave(pr, not)
 	}
-	if d.Ignore {
-		return h.do("ignore "+pr.URL(), func() error { return h.ledger.Ignore(pr) })
-	}
-	return nil
+	return (err == nil && not == "") || h.dry, err
 }
 
 // offerTTL outlives one 5-minute tick, so a standing offer never blinks,
@@ -444,12 +448,12 @@ const offerTTL = 11 * time.Minute
 
 // offersStart is whether elly's row for p gets a Start: a review asked of
 // the user by name in review_repos that only a click would start (no
-// acceptance, no ignore, not the user's own), and nothing claude-review
+// acceptance, not the user's own), and nothing claude-review
 // already shows there. A click is the user's act; the offer only puts the
 // link on the page, beside the mail and the GitHub button.
-func offersStart(p EllyPR, cfg TickConfig, accepted, ignored, annotated bool) bool {
+func offersStart(p EllyPR, cfg TickConfig, accepted, annotated bool) bool {
 	pr, err := ParseTarget(p.Url)
-	if err != nil || accepted || ignored || annotated || strings.EqualFold(p.Author, cfg.User) {
+	if err != nil || accepted || annotated || p.Buried || strings.EqualFold(p.Author, cfg.User) {
 		return false
 	}
 	asked := slices.ContainsFunc(append(append([]string{}, p.ReviewRequestedFromUsers...), p.RereviewFrom...), func(u string) bool { return strings.EqualFold(u, cfg.User) })
@@ -473,13 +477,12 @@ func (h tickHost) offerStarts(prs []EllyPR) {
 			continue
 		}
 		_, accepted, err1 := h.ledger.Acceptance(pr)
-		ignored, err2 := h.ledger.Ignored(pr)
-		_, annotated, err3 := h.ledger.Annotation(pr)
-		if err := errors.Join(err1, err2, err3); err != nil {
+		_, annotated, err2 := h.ledger.PRState(pr)
+		if err := errors.Join(err1, err2); err != nil {
 			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 			continue
 		}
-		if !offersStart(p, h.tcfg, accepted, ignored, annotated) {
+		if !offersStart(p, h.tcfg, accepted, annotated) {
 			continue
 		}
 		if h.dry {
@@ -505,35 +508,32 @@ func (h tickHost) clearOrSay(pr PR) {
 }
 
 func (h tickHost) clear(pr PR) error {
-	if err := h.ledger.ClearAnnotation(pr); err != nil {
+	if err := h.ledger.ClearAnnotation(pr); err != nil || h.elly == nil {
 		return err
 	}
 	return h.elly.Delete(pr.URL())
 }
 
 // startOwed starts the rounds planTick picks, at most MaxRunning at once,
-// and says in the journal why it leaves each other PR.
-func (h tickHost) startOwed(prs []EllyPR, running int) error {
+// and says in the journal why it leaves each other PR. held maps each PR
+// whose owed round the daily cap or the breaker holds back to the note its
+// row shows this tick; that is never stored.
+func (h tickHost) startOwed(prs []EllyPR, running int) (held map[string]string, err error) {
 	plans, err := planTick(prs, h.tcfg, h.ledger, h.gh, h.now())
 	if err != nil {
-		return err
+		return nil, err
 	}
+	held = map[string]string{}
 	for _, p := range plans {
 		if p.Skip != "" {
 			h.leave(p.PR, p.Skip)
 			continue
 		}
-		gate, err := h.gateNote(p)
+		holds, err := h.hold(p, held)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if gate != nil {
-			if h.out != nil {
-				fmt.Fprintf(h.out, "hold %s: %s\n", p.PR.URL(), gate.Note)
-			}
-			if err := h.mark(p.PR, *gate); err != nil {
-				return err
-			}
+		if holds {
 			continue
 		}
 		s, err := h.startOne(p, running)
@@ -546,7 +546,7 @@ func (h tickHost) startOwed(prs []EllyPR, running int) error {
 			running++
 		}
 	}
-	return nil
+	return held, nil
 }
 
 // leave writes why tick leaves pr alone, "would leave" in a dry run.
@@ -561,9 +561,37 @@ func (h tickHost) leave(pr PR, s skip) {
 	fmt.Fprintf(h.out, "%s %s: %s\n", verb, pr.URL(), s)
 }
 
+// hold keeps p's owed round back when the PR changed under its first look,
+// the daily cap or the breaker says so, and reports whether it did.
+func (h tickHost) hold(p Planned, held map[string]string) (bool, error) {
+	note, err := h.pausedNote(p)
+	if err != nil {
+		return false, err
+	}
+	if p.Gate == gateFreshLook {
+		note = "the PR changed under its first look"
+		if _, err := h.move(p.PR, Event{Kind: evOwed, Head: p.Head, FreshLook: true}); err != nil {
+			return false, err
+		}
+	} else if note != "" {
+		held[p.PR.URL()] = note
+	}
+	if note != "" && h.out != nil {
+		fmt.Fprintf(h.out, "hold %s: %s\n", p.PR.URL(), note)
+	}
+	return note != "", nil
+}
+
+// owedEvent is the event p's round reports: a re-request lifts stuck.
+func owedEvent(p Planned) Event {
+	re := strings.HasPrefix(p.Trigger, "review_requested") || strings.HasPrefix(p.Trigger, "rereview_requested")
+	return Event{Kind: evOwed, Head: p.Head, Rerequest: re}
+}
+
 // startOne starts p's round under the PR's lock, or names what holds it
 // back: a click holding it, a legacy window on the session, a running
-// round, or no free slot. "" with no error is a start.
+// round, a state no owed round moves, or no free slot. "" with no error is
+// a start.
 func (h tickHost) startOne(p Planned, running int) (skip, error) {
 	unlock, err := h.lock(p.PR.SessionID().String())
 	if errors.Is(err, errLocked) {
@@ -574,10 +602,18 @@ func (h tickHost) startOne(p Planned, running int) (skip, error) {
 	}
 	defer unlock()
 	if h.sess.WindowOpen(p.PR.RoundSessionID()) {
-		return skipWindowOpen, h.markWindow(p.PR)
+		_, err := h.move(p.PR, Event{Kind: evWindowOpened})
+		return skipWindowOpen, err
 	}
 	if h.running(p.PR.RoundSessionID()) {
 		return skipRunning, nil
+	}
+	s, err := h.stateOf(p.PR)
+	if err != nil {
+		return "", err
+	}
+	if _, _, ok := transition(s, owedEvent(p), h.now()); !ok {
+		return skip("its state is " + describe(s) + ", which no owed round moves"), nil
 	}
 	if running >= h.tcfg.MaxRunning {
 		return skipNoSlot, nil
@@ -589,157 +625,50 @@ func (h tickHost) startOne(p Planned, running int) (skip, error) {
 			if _, err := h.ledger.StartRound(p.PR, p.Head, p.Trigger, at); err != nil {
 				return err
 			}
-			h.markRunningOrSay(p.PR, "tick", at)
-			return nil
+			_, err := h.move(p.PR, owedEvent(p))
+			return err
+		}, func(detail string) error {
+			_, err := h.move(p.PR, Event{Kind: evNotStarted, Detail: detail})
+			return err
 		})
 		return err
 	})
 	return not, err
 }
 
-// markRunning shows pr's just-recorded round in elly at once, with an
-// attach link, until settling it writes the outcome or roundLifetime after
-// at runs out. by names who started it. mark never notifies for it.
-func (h tickHost) markRunning(pr PR, by string, at time.Time) error {
-	a := Annotation{State: stateRunning, Note: "started by " + by,
-		Links: []Link{{Label: "Attach", URL: verbURL(pr, "attach")}}, Expires: at.Add(roundLifetime)}
-	if err := h.mark(pr, a); err != nil || h.elly == nil {
-		return err
-	}
-	return h.do("send "+pr.URL()+" to elly", func() error { return h.elly.Put(pr.URL(), a, a.Expires) })
-}
-
 // startingLifetime bounds a "starting" row a crashed click never cleared.
 const startingLifetime = 2 * time.Minute
 
-// markStarting shows a click on pr before anything else runs, so the page
-// answers the click at once.
-func (h tickHost) markStarting(pr PR, from string, at time.Time) error {
-	a := Annotation{State: stateRunning, Note: "starting (a click from " + from + ")", Expires: at.Add(startingLifetime)}
-	if err := h.ledger.SetAnnotation(pr, a); err != nil || h.elly == nil {
-		return err
-	}
-	return h.do("send "+pr.URL()+" to elly", func() error { return h.elly.Put(pr.URL(), a, a.Expires) })
-}
-
-// startingRow shows a click in elly at once (markStarting) and returns
-// what follows the click. One that started no round puts back the row the
-// "starting" replaced (unstart). A running round's row is kept instead of
-// marked, as the click is likely mid-round; then only a failed click drops
-// a running row, as before.
-func (h tickHost) startingRow(pr PR, from string, say func(error)) (finish func(started, failed bool), err error) {
-	prev, hadPrev, err := h.ledger.Annotation(pr)
-	if err != nil {
-		return nil, err
-	}
-	if hadPrev && prev.State == stateRunning {
-		return func(_, failed bool) {
-			if failed {
-				say(h.dropRunning(pr))
-			}
-		}, nil
-	}
-	say(h.markStarting(pr, from, h.now()))
-	return func(started, _ bool) {
-		if !started {
-			say(h.unstart(pr, prev, hadPrev))
-		}
-	}, nil
-}
-
-// unstart follows a click that started no round. A row still running is
-// the click's own "starting" and gives way to what was there before; a row
-// the click's outcome replaced (a gate, a settled round) stays. elly then
-// gets whatever the ledger holds.
-func (h tickHost) unstart(pr PR, prev Annotation, hadPrev bool) error {
-	cur, ok, err := h.ledger.Annotation(pr)
-	if err != nil {
-		return err
-	}
-	if ok && cur.State == stateRunning {
-		if hadPrev {
-			err = h.ledger.SetAnnotation(pr, prev)
-		} else {
-			err = h.ledger.ClearAnnotation(pr)
-		}
-		if err != nil {
-			return err
-		}
-		cur, ok = prev, hadPrev
-	}
-	if h.elly == nil {
-		return nil
-	}
-	if expires, send := h.refreshedExpiry(cur); ok && send {
-		return h.elly.Put(pr.URL(), cur, expires)
-	}
-	return h.elly.Delete(pr.URL())
-}
-
-// markRunningOrSay is markRunning for a round already started: a failure
-// to show it is reported, never the round's failure.
-func (h tickHost) markRunningOrSay(pr PR, by string, at time.Time) {
-	if err := h.markRunning(pr, by, at); err != nil && h.out != nil {
-		fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
-	}
-}
-
-// dropRunning clears pr's running row after a launch failed: the round it
-// stood for is over, and no new one started.
-func (h tickHost) dropRunning(pr PR) error {
-	a, ok, err := h.ledger.Annotation(pr)
-	if err != nil || !ok || a.State != stateRunning {
-		return err
-	}
-	return h.do("clear "+pr.URL(), func() error {
-		if err := h.ledger.ClearAnnotation(pr); err != nil || h.elly == nil {
-			return err
-		}
-		return h.elly.Delete(pr.URL())
-	})
-}
-
-func (h tickHost) markWindow(pr PR) error {
-	return h.mark(pr, Annotation{State: stateNeedsYou, Note: windowNote, Links: []Link{ignoreLink(pr)}})
-}
-
-// mark sets pr's annotation, and tells the desktop when it newly needs the
+// setRow stores pr's row and tells the desktop when it newly needs the
 // user: a state elly shows only to someone already looking is no signal.
-// An unchanged state and note stay quiet, so a gate seen every tick
+// An unchanged state and note stay quiet, so a row seen every tick
 // notifies once; an Approve link's fresh token does not count as a change.
-func (h tickHost) mark(pr PR, a Annotation) error {
-	return h.do(fmt.Sprintf("mark %s %s: %s", pr.URL(), a.State, a.Note), func() error {
-		was, had, err := h.ledger.Annotation(pr)
-		if err != nil {
-			return err
-		}
-		if err := h.ledger.SetAnnotation(pr, a); err != nil {
-			return err
-		}
-		// A click builds its host without one: it tells the desktop itself.
-		if h.notify != nil && needsUser(a.State) && (!had || was.State != a.State || was.Note != a.Note) {
-			h.notify(pr.URL() + " needs you: " + a.Note)
-		}
-		return nil
-	})
+func (h tickHost) setRow(pr PR, a Annotation) error {
+	was, had, err := h.ledger.Annotation(pr)
+	if err != nil {
+		return err
+	}
+	if err := h.ledger.SetAnnotation(pr, a); err != nil {
+		return err
+	}
+	// A click builds its host without one: it tells the desktop itself.
+	if h.notify != nil && needsUser(a.State) && (!had || was.State != a.State || was.Note != a.Note) {
+		h.notify(pr.URL() + " needs you: " + a.Note)
+	}
+	return nil
 }
 
-// gateNote is the annotation that holds p back, or nil when it may start.
-func (h tickHost) gateNote(p Planned) (*Annotation, error) {
-	switch p.Gate {
-	case gateFreshLook:
-		return &Annotation{State: stateNeedsYou, Note: "the PR changed under its first look (force-push or new base); click claude review to look again",
-			Links: []Link{ignoreLink(p.PR)}}, nil
-	case gatePaused:
-		return &Annotation{State: stateNeedsYou, Note: "paused: the daily round limit for this PR is reached",
-			Links: []Link{attachLink(p.PR), ignoreLink(p.PR)}}, nil
+// pausedNote is the row of a PR whose owed round the daily cap or the
+// breaker holds back, "" when neither does.
+func (h tickHost) pausedNote(p Planned) (string, error) {
+	if p.Gate == gatePaused {
+		return "paused: the daily round limit for this PR is reached", nil
 	}
 	reason, err := h.ledger.Tripped()
 	if err != nil || reason == "" {
-		return nil, err
+		return "", err
 	}
-	return &Annotation{State: stateNeedsYou, Note: "paused: " + reason + "; claude-review starts no round until it is reset",
-		Links: []Link{attachLink(p.PR), ignoreLink(p.PR)}}, nil
+	return "paused: " + reason + "; claude-review starts no round until it is reset", nil
 }
 
 // launch starts a round on pr in its clone and then records it with
@@ -750,18 +679,10 @@ func (h tickHost) gateNote(p Planned) (*Annotation, error) {
 // tripped until the user resets it, so a loop that keeps starting rounds
 // stops at the cap even after the window moves on. settle reads the PR's
 // last round before its idle worker is stopped. The caller holds the lock.
-func (h tickHost) launch(pr PR, settle func() error, record func(at time.Time) error) (notStarted skip, err error) {
+func (h tickHost) launch(pr PR, settle func() error, record func(at time.Time) error, failed func(detail string) error) (notStarted skip, err error) {
 	if h.dry {
 		return "", errors.New("refusing to start a round in a dry run")
 	}
-	defer func() {
-		if err == nil {
-			return
-		}
-		if dropErr := h.dropRunning(pr); dropErr != nil && h.out != nil {
-			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), dropErr)
-		}
-	}()
 	reason, err := h.ledger.Tripped()
 	if err != nil || reason != "" {
 		return "", errors.Join(err, breakerError(reason))
@@ -786,7 +707,7 @@ func (h tickHost) launch(pr PR, settle func() error, record func(at time.Time) e
 	if err != nil && res.Kind != relaunchDuplicate {
 		return "", err
 	}
-	return h.afterRelaunch(pr, res, err, func() error { return record(at) })
+	return h.afterRelaunch(pr, res, err, func() error { return record(at) }, failed)
 }
 
 // starter starts rounds the way a click does, through h.start.
@@ -795,17 +716,17 @@ func (h tickHost) starter() roundStarter {
 }
 
 // afterRelaunch turns Relaunch's outcome into ledger writes: the round is
-// recorded only once its worker is listed and alone. notStarted names why
-// no round started; "" with no error is a start.
-func (h tickHost) afterRelaunch(pr PR, res RelaunchResult, stopErr error, record func() error) (notStarted skip, err error) {
-	needsYou := func(note string) (skip, error) {
-		return skip(note), h.mark(pr, Annotation{State: stateNeedsYou, Note: note, Links: []Link{ignoreLink(pr)}})
-	}
+// recorded only once its worker is listed and alone; failed records why
+// none started. notStarted names why no round started; "" with no error is
+// a start.
+func (h tickHost) afterRelaunch(pr PR, res RelaunchResult, stopErr error, record func() error, failed func(detail string) error) (notStarted skip, err error) {
+	needsYou := func(note string) (skip, error) { return skip(note), failed(note) }
 	switch res.Kind {
 	case relaunched:
 		return "", record()
 	case relaunchWindow:
-		return skipWindowOpen, h.markWindow(pr)
+		_, err := h.move(pr, Event{Kind: evWindowOpened})
+		return skipWindowOpen, err
 	case relaunchUnknown:
 		return "", fmt.Errorf("nothing started: %s", res.Detail)
 	case relaunchDuplicate:
@@ -820,27 +741,10 @@ func (h tickHost) afterRelaunch(pr PR, res RelaunchResult, stopErr error, record
 	return skipBusy, nil
 }
 
-// settledOnGitHub: GitHub holds the evidence that pr's row is done: the
-// PR is merged or closed, the user's approval stands at its head, or the
-// user answered the round's question there.
-func (h tickHost) settledOnGitHub(pr PR, a Annotation) (bool, error) {
-	state, head, user, err := h.gh.Standing(pr)
-	if err != nil {
-		return false, err
-	}
-	if state != prOpen || (user != nil && user.State == reviewApproved && user.CommitID == head) {
-		return true, nil
-	}
-	return h.answered(pr, a)
-}
-
 // answered: a round's question is the user's until the user's account posts
 // on the PR after the round settled. The signal lives on GitHub, where the
 // author sees it too; tick only reads it.
-func (h tickHost) answered(pr PR, a Annotation) (bool, error) {
-	if !slices.Contains(a.Links, forkLink(pr)) {
-		return false, nil
-	}
+func (h tickHost) answered(pr PR) (bool, error) {
 	since, ok, err := h.ledger.LastReadAt(pr)
 	if err != nil || !ok {
 		return false, err
@@ -863,43 +767,87 @@ func (h tickHost) refreshedExpiry(a Annotation) (expires time.Time, send bool) {
 	return a.Expires, left >= time.Minute
 }
 
-// refresh re-sends every live annotation with a fresh expiry, and drops one
-// only on positive evidence: the PR is closed, or the user's own approval
-// stands at its head. A PR missing from elly is not evidence.
-func (h tickHost) refresh() error {
-	all, err := h.ledger.Annotations()
+// refresh re-renders every PR's row with a fresh expiry, and moves a state
+// only on positive evidence: the PR is closed, the user's own approval
+// stands at its head, the user answered a question, a window closed. A PR
+// missing from elly is not evidence. held is startOwed's paused rows.
+func (h tickHost) refresh(held map[string]string) error {
+	states, err := h.ledger.PRStates()
 	if err != nil {
 		return err
 	}
-	for url, a := range all {
+	rows, err := h.ledger.Annotations()
+	if err != nil {
+		return err
+	}
+	for url := range rows {
+		if _, ok := states[url]; !ok {
+			if pr, err := ParseTarget(url); err == nil {
+				h.clearOrSay(pr) // a row no state stands behind
+			}
+		}
+	}
+	for url := range held {
+		if _, ok := states[url]; !ok {
+			states[url] = PRState{State: stIdle} // accepted before any round
+		}
+	}
+	for url, s := range states {
 		pr, err := ParseTarget(url)
 		if err != nil {
 			continue
 		}
-		if a.Note == windowNote && !h.sess.WindowOpen(pr.RoundSessionID()) {
-			h.clearOrSay(pr)
-			continue
-		}
-		expires, send := h.refreshedExpiry(a)
-		if expires.IsZero() {
-			h.clearOrSay(pr)
-			continue
-		}
-		if !send {
-			continue
-		}
-		done, err := h.settledOnGitHub(pr, a)
-		if err != nil {
+		if s, err = h.evidence(pr, s); err != nil {
 			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 			continue
 		}
-		if done {
-			h.clearOrSay(pr)
+		if s.State == stGone {
 			continue
 		}
-		if err := h.do("send "+pr.URL()+" to elly", func() error { return h.elly.Put(url, a, expires) }); err != nil {
+		if err := h.do("send "+pr.URL()+" to elly", func() error { return h.show(pr, s, held[url]) }); err != nil {
 			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 		}
 	}
 	return nil
+}
+
+// evidence moves s on what GitHub and the desktop say, and returns the
+// state after. An idle PR is not asked about: it has no row.
+func (h tickHost) evidence(pr PR, s PRState) (PRState, error) {
+	if s.State == stHeld && s.Kind == kindWindow && !h.sess.WindowOpen(pr.RoundSessionID()) {
+		next, err := h.move(pr, Event{Kind: evWindowClosed})
+		if err != nil {
+			return s, err
+		}
+		s = next
+	}
+	if s.State == stIdle {
+		return s, nil
+	}
+	e, err := h.onGitHub(pr, s)
+	if err != nil || e == nil {
+		return s, err
+	}
+	return h.move(pr, *e)
+}
+
+// onGitHub is the event GitHub holds for pr in s, nil for none.
+func (h tickHost) onGitHub(pr PR, s PRState) (*Event, error) {
+	state, head, user, err := h.gh.Standing(pr)
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case state != prOpen:
+		return &Event{Kind: evClosed}, nil
+	case user != nil && user.State == reviewApproved && user.CommitID == head:
+		return &Event{Kind: evUserApproved, Head: head}, nil
+	case s.State == stAwaiting && s.Kind == kindQuestion:
+		answered, err := h.answered(pr)
+		if err != nil || !answered {
+			return nil, err
+		}
+		return &Event{Kind: evAnswered}, nil
+	}
+	return nil, nil
 }

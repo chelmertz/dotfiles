@@ -172,3 +172,25 @@ func migratedState(a Annotation) PRState {
 	}
 	return PRState{State: stIdle}
 }
+
+// PRStates is every stored state by PR URL.
+func (l *Ledger) PRStates() (map[string]PRState, error) {
+	rows, err := l.db.Query(`select pr, state from pr_state`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string]PRState{}
+	for rows.Next() {
+		var url, raw string
+		if err := rows.Scan(&url, &raw); err != nil {
+			return nil, err
+		}
+		var s PRState
+		if err := json.Unmarshal([]byte(raw), &s); err != nil {
+			return nil, err
+		}
+		out[url] = s
+	}
+	return out, rows.Err()
+}

@@ -68,14 +68,14 @@ func TestDecideOffersAForkOnAQuestionOnly(t *testing.T) {
 	r := Round{Head: sha, StartedAt: time.Now()}
 	f := RoundFacts{State: prOpen, Head: sha}
 	q := decide(r, Outcome{Kind: OutcomeQuestion, Question: "run this?"}, f, widgetsPR)
-	if !hasLink(q.Annotation, verbURL(widgetsPR, "fork")) {
-		t.Errorf("a question offers no fork: %+v", q.Annotation)
+	if !hasLink(row(q), verbURL(widgetsPR, "fork")) {
+		t.Errorf("a question offers no fork: %+v", row(q))
 	}
 	refused := decide(Round{Head: sha, PostRefused: true}, Outcome{Kind: OutcomeQuestion}, f, widgetsPR)
 	failed := decide(Round{Head: sha, Retries: 1}, Outcome{}, f, widgetsPR)
 	for name, d := range map[string]Decision{"post refused": refused, "failed twice": failed} {
-		if hasLink(d.Annotation, verbURL(widgetsPR, "fork")) {
-			t.Errorf("%s offers a fork: %+v", name, d.Annotation)
+		if hasLink(row(d), verbURL(widgetsPR, "fork")) {
+			t.Errorf("%s offers a fork: %+v", name, row(d))
 		}
 	}
 }
@@ -93,7 +93,7 @@ func TestForkVerbOpensOnlyOnAWaitingQuestion(t *testing.T) {
 		t.Fatal(err)
 	}
 	q := decide(Round{Head: sha}, Outcome{Kind: OutcomeQuestion}, RoundFacts{State: prOpen, Head: sha}, widgetsPR)
-	if err := l.SetAnnotation(widgetsPR, *q.Annotation); err != nil {
+	if err := l.SetPRState(widgetsPR, *q.Next); err != nil {
 		t.Fatal(err)
 	}
 	_ = l.Close()
@@ -132,7 +132,7 @@ func TestTickQuestionClearsOnceTheUserPosts(t *testing.T) {
 		t.Fatal(err)
 	}
 	q := decide(Round{Head: "h1"}, Outcome{Kind: OutcomeQuestion}, RoundFacts{State: prOpen, Head: "h1"}, pr)
-	if err := w.h.ledger.SetAnnotation(pr, *q.Annotation); err != nil {
+	if err := w.h.ledger.SetPRState(pr, *q.Next); err != nil {
 		t.Fatal(err)
 	}
 	if err := w.h.tick(); err != nil {

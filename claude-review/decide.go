@@ -96,7 +96,7 @@ type skip string
 
 const (
 	skipNotAccepted skip = "never clicked; tick runs only PRs started once by a click"
-	skipIgnored     skip = "ignored until the next click"
+	skipBuried      skip = "buried in elly; rounds resume when someone else updates it"
 	skipNothingOwed skip = "nothing owed: no request, no reply, no new head"
 	skipAlreadyRan  skip = "a round at this head already saw this update"
 	skipClosed      skip = "merged or closed since elly's last poll"
@@ -151,9 +151,8 @@ func planOne(p EllyPR, cfg TickConfig, l *Ledger, g Gate, now time.Time) (Planne
 	if !accepted {
 		return left(skipNotAccepted)
 	}
-	if ignored, err := l.Ignored(pr); err != nil || ignored {
-		out.Skip = skipIgnored
-		return out, err == nil, err
+	if p.Buried {
+		return left(skipBuried)
 	}
 	lastHead, err := l.LastHead(pr)
 	if err != nil {
@@ -250,6 +249,9 @@ type RoundFacts struct {
 	// RoundReviewURL is a review by the user's account posted since the round
 	// started, at any head (a push mid-round moves it): the round's summary.
 	RoundReviewURL string
+	// Own: the user wrote the PR, which GitHub lets nobody approve but
+	// another account.
+	Own bool
 	// UnsentDrafts counts the comments the round left in the account's
 	// draft review: they reach the author only with a summary, which the
 	// round never posted.
@@ -258,30 +260,23 @@ type RoundFacts struct {
 
 // Decision is what tick does with one finished round.
 type Decision struct {
-	Clear           bool
-	Annotation      *Annotation
-	MintFor         string
+	Clear bool
+	// Next is the PR's state after the round; nil with Clear.
+	Next            *PRState
 	DismissReviewID ids.ReviewID
 	Retry           bool
-	// Ignore holds the PR back from rounds until the user's next click.
-	Ignore bool
 }
 
-// decide reads one finished round against GitHub. stuck, not needs_you,
-// marks the outcomes nothing but the user moves: a refused post holds the PR
-// back until the next click, and a round that failed twice is not retried. The session's own words
-// (o) never suffice: an Approve link also needs GitHub to show a quiet round
-// at the head tick recorded, and "handled" needs the round's review.
+// decide reads one finished round against GitHub. stuck marks the outcomes
+// nothing but the user moves: a refused post holds the PR back until a click
+// or a re-request, and a round that failed twice is not retried. The
+// session's own words (o) never suffice: Approve also needs GitHub to show
+// a quiet round at the head tick recorded, and "handled" needs the round's
+// review.
 func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
-	attach, ignore := attachLink(pr), ignoreLink(pr)
-	summary := func(links ...Link) []Link {
-		if f.RoundReviewURL != "" {
-			links = append(links, Link{Label: labelRoundSummary, URL: f.RoundReviewURL})
-		}
-		return links
+	next := func(st State, kind, detail string) Decision {
+		return Decision{Next: &PRState{State: st, Kind: kind, Detail: detail, Head: r.Head, Review: f.RoundReviewURL}}
 	}
-	approvedEarlier := approvedBefore(r, f)
-
 	switch {
 	case f.State != prOpen:
 		return Decision{Clear: true}
@@ -289,37 +284,41 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 	// over its post limit is suspect whatever it says, and never earns an
 	// Approve link or a retry.
 	case r.PostRefused:
-		return Decision{Ignore: true, Annotation: &Annotation{State: stateStuck,
-			Note: "a post was refused over the limit; no more rounds on this PR until you start one again", Links: summary(startAgainLink(pr))}}
+		return next(stStuck, kindRefused, "")
 	case o.Kind == OutcomeQuestion:
-		return Decision{Annotation: &Annotation{State: stateNeedsYou, Note: questionNote(o), Links: summary(answerLink(pr), forkLink(pr), ignore)}}
-	case f.NewThreads > 0 && approvedEarlier:
-		return Decision{DismissReviewID: f.UserReview.ID, Annotation: &Annotation{State: stateNeedsYou,
-			Note: "new findings after your approval; your approval was dismissed", Links: summary(attach, ignore)}}
+		return next(stAwaiting, kindQuestion, o.Question)
+	case f.NewThreads > 0 && approvedBefore(r, f):
+		d := next(stAwaiting, kindDismiss, "")
+		d.DismissReviewID = f.UserReview.ID
+		return d
 	case quietApprove(r, o, f, pr):
 		if f.UserReview != nil && f.UserReview.State == reviewApproved {
-			return Decision{Annotation: &Annotation{State: stateHandled, Note: noteApprovalStands, Links: summary()}}
+			return next(stHandled, kindApproved, "")
 		}
-		return Decision{MintFor: r.Head, Annotation: &Annotation{State: stateNeedsYou, Note: "LGTM at " + r.Head[:9] + "; approve it if you agree", Links: summary(attach, ignore)}}
+		if f.Own {
+			return next(stHandled, kindNothing, "") // no Approve the author could use
+		}
+		return next(stAwaiting, kindApprove, "")
 	// The summary is posted last, so it is what says the round finished.
 	case f.RoundReviewURL != "":
-		return Decision{Annotation: &Annotation{State: stateHandled, Note: noteRoundPosted, Links: summary()}}
+		return next(stHandled, kindPosted, "")
 	// Trusted like the question line: a crashed round never prints it, and
 	// GitHub confirmed above that the round posted nothing.
 	case o.Kind == OutcomeNothing && !postedInline(f):
-		return Decision{Annotation: &Annotation{State: stateHandled, Note: noteNothing, Links: summary()}}
+		return next(stHandled, kindNothing, "")
 	// Cut off (a shutdown, a crash) before its summary: the retry resumes the
 	// same session, which knows what it posted, and the post budget caps what
 	// it can add at that commit.
 	case r.Retries == 0:
-		return Decision{Retry: true}
+		d := next(stRunning, kindRetry, "")
+		d.Retry = true
+		return d
 	// Cut off twice with comments in the draft: nothing sends them but the
 	// user, who decides what an unfinished round's comments are worth.
 	case f.UnsentDrafts > 0:
-		return Decision{Annotation: &Annotation{State: stateNeedsYou,
-			Note: fmt.Sprintf("the round left %d unsent comments in a draft review; submit or discard it on GitHub", f.UnsentDrafts), Links: []Link{attach, ignore}}}
+		return next(stAwaiting, kindDrafts, fmt.Sprint(f.UnsentDrafts))
 	}
-	return Decision{Annotation: &Annotation{State: stateStuck, Note: failedTwice(f), Links: []Link{attach, ignore}}}
+	return next(stStuck, kindFailed, failedTwice(f))
 }
 
 // questionNote carries the round's question when it found one.
@@ -362,8 +361,6 @@ func answerLink(pr PR) Link { return Link{Label: "Answer", URL: verbURL(pr, "att
 func startAgainLink(pr PR) Link {
 	return Link{Label: "Start again", URL: fmt.Sprintf("claude-review://%s/%s/%d?from=elly", pr.Owner, pr.Repo, pr.Number)}
 }
-
-func ignoreLink(pr PR) Link { return Link{Label: "Ignore", URL: verbURL(pr, "ignore")} }
 
 // quietApprove: the session's approve line names this PR at the head tick
 // recorded, the head has not moved, and GitHub shows the round started no

@@ -58,7 +58,7 @@ func TestGitHubRoundFacts(t *testing.T) {
 	start := t0
 	before, after := start.Add(-time.Hour).Format(time.RFC3339), start.Add(time.Minute).Format(time.RFC3339)
 	g := &routeGh{routes: map[string]string{
-		"repos/acme/widgets/pulls/42": `{"state":"open","merged":false,"head":{"sha":"h2"},"base":{"ref":"main"}}`,
+		"repos/acme/widgets/pulls/42": `{"state":"open","merged":false,"user":{"login":"Bob"},"head":{"sha":"h2"},"base":{"ref":"main"}}`,
 		"repos/acme/widgets/pulls/42/reviews": `[
 			{"id":1,"user":{"login":"me"},"state":"APPROVED","commit_id":"h1","submitted_at":"` + before + `","html_url":"r1"},
 			{"id":2,"user":{"login":"bob"},"state":"COMMENTED","commit_id":"h2","submitted_at":"` + after + `","html_url":"r2"},
@@ -78,6 +78,12 @@ func TestGitHubRoundFacts(t *testing.T) {
 	}
 	if f.State != "open" || f.Head != "h2" {
 		t.Errorf("state/head: %+v", f)
+	}
+	if f.Own {
+		t.Error("bob's PR reads as the user's own")
+	}
+	if own, err := (GitHub{Gh: g.run, User: "bob"}).RoundFacts(widgetsPR, Round{Head: "h2", StartedAt: start}); err != nil || !own.Own {
+		t.Errorf("the author's own PR: %v %v", own.Own, err)
 	}
 	// Inline comment 10 only: a new thread by the user's account, after the
 	// start. The replies 13 and 14 confirm or answer, and the summary review

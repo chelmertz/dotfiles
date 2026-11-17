@@ -74,7 +74,7 @@ func TestReadOutcomeCapsTheQuestion(t *testing.T) {
 		t.Errorf("ellyMaxNote is %d; elly accepts notes of at most 300 runes", ellyMaxNote)
 	}
 	d := decide(Round{Head: sha}, o, RoundFacts{State: prOpen, Head: sha}, testPR)
-	if n := utf8.RuneCountInString(d.Annotation.Note); n > ellyMaxNote {
+	if n := utf8.RuneCountInString(note(d)); n > ellyMaxNote {
 		t.Errorf("the longest question note is %d runes, over elly's %d", n, ellyMaxNote)
 	}
 }

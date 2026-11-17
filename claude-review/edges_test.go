@@ -295,41 +295,13 @@ func TestTickAGatedPRDoesNotStopTheNext(t *testing.T) {
 	}
 }
 
-type deleteFailingElly struct{ *fakeElly }
-
-func (deleteFailingElly) Delete(string) error { return errors.New("elly: 503") }
-
-// A failed launch clears the running row it stood for; a failure to clear
-// it is reported, and a clean clear reports nothing.
-func TestLaunchFailureClearsTheRunningRow(t *testing.T) {
-	for _, failing := range []bool{false, true} {
-		w := newTickWorld(t)
-		if failing {
-			w.h.elly = deleteFailingElly{w.elly}
-		}
-		w.h.findRepo = func(PR) (string, string, error) { return "", "", errors.New("repo not found") }
-		if err := w.h.ledger.SetAnnotation(widgetsPR, Annotation{State: stateRunning, Note: "started by tick"}); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := w.h.launch(widgetsPR, nil, func(time.Time) error { return nil }); err == nil {
-			t.Fatal("launch without a clone succeeded")
-		}
-		if _, ok, _ := w.h.ledger.Annotation(widgetsPR); ok {
-			t.Errorf("failing %v: the running row stayed", failing)
-		}
-		if said := strings.Contains(w.out.String(), "elly: 503"); said != failing || strings.Contains(w.out.String(), "<nil>") {
-			t.Errorf("failing %v: out %q", failing, w.out.String())
-		}
-	}
-}
-
 func TestLaunchCapCountsTheLastDay(t *testing.T) {
 	w := newTickWorld(t)
 	w.h.tcfg.TotalDailyCap = 1
 	if _, err := w.h.ledger.StartRound(widgetsPR, "h1", "new_head", t0.Add(-time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := w.h.launch(widgetsPR, nil, func(time.Time) error { return nil }); err == nil || len(w.started) != 0 {
+	if _, err := w.h.launch(widgetsPR, nil, func(time.Time) error { return nil }, nil); err == nil || len(w.started) != 0 {
 		t.Errorf("a launch an hour ago did not reach a cap of 1: err %v, started %q", err, w.started)
 	}
 }
@@ -382,17 +354,6 @@ func TestLoadConfigEllyURL(t *testing.T) {
 	}
 	if cfg, err := LoadConfig(ConfigPath(dir), "/h"); err != nil || cfg.EllyURL != "http://127.0.0.1:1" {
 		t.Errorf("set: %q %v", cfg.EllyURL, err)
-	}
-}
-
-// A round already started is not failed by elly refusing its running row,
-// but the refusal reaches the journal.
-func TestMarkRunningOrSayReportsAFailedSend(t *testing.T) {
-	w := newTickWorld(t)
-	w.elly.putErr = errors.New("elly: 503")
-	w.h.markRunningOrSay(widgetsPR, "tick", t0)
-	if !strings.Contains(w.out.String(), "claude-review tick: "+widgetsPR.URL()+": elly: 503") {
-		t.Errorf("out %q", w.out.String())
 	}
 }
 

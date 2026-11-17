@@ -98,7 +98,7 @@ func TestTickAFailedLaunchLeavesNoRunning(t *testing.T) {
 	if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0.Add(-time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	if err := w.h.markRunning(pr, "tick", t0.Add(-time.Hour)); err != nil {
+	if err := w.h.move2(pr, PRState{State: stRunning, Kind: kindTick, Since: t0.Add(-time.Hour)}); err != nil {
 		t.Fatal(err)
 	}
 	w.elly.put = map[string]Annotation{}               // what the earlier launch sent
@@ -117,8 +117,9 @@ func TestTickAFailedLaunchLeavesNoRunning(t *testing.T) {
 			t.Errorf("%s: elly shows %+v", p.Slug(), a)
 		}
 	}
-	if !slices.Contains(w.elly.deleted, pr.URL()) {
-		t.Errorf("the stale running row was not deleted from elly: %q", w.elly.deleted)
+	// The retry that could not start says so, and offers a new round.
+	if a := w.elly.put[pr.URL()]; a.State != stateNeedsYou || !strings.Contains(a.Note, "claude: not found") || a.Links[0] != primary(startAgainLink(pr)) {
+		t.Errorf("the failed retry shows %+v", a)
 	}
 }
 
@@ -153,7 +154,7 @@ func TestTickRefreshKeepsTheRoundLifetime(t *testing.T) {
 	w := newTickWorld(t)
 	pr := w.accept(t, 42)
 	at := t0.Add(-time.Hour)
-	if err := w.h.markRunning(pr, "a click", at); err != nil {
+	if err := w.h.move2(pr, PRState{State: stRunning, Kind: kindClick, Since: at}); err != nil {
 		t.Fatal(err)
 	}
 	w.live[pr.RoundSessionID()] = true
@@ -182,7 +183,7 @@ func TestTickSweepClearsRunningOnAClosedPR(t *testing.T) {
 	w.gh.closedPRs = map[int]bool{}
 	w.gh.facts = RoundFacts{State: "open", Head: "h1"}
 	pr := w.closedWithWorker(t, 43, 502)
-	if err := w.h.markRunning(pr, "a click", t0); err != nil {
+	if err := w.h.move2(pr, PRState{State: stRunning, Kind: kindClick, Since: t0}); err != nil {
 		t.Fatal(err)
 	}
 	if err := w.h.tick(); err != nil {
@@ -218,7 +219,7 @@ func TestClickMarksItsRoundRunning(t *testing.T) {
 
 func TestClickAFailedLaunchLeavesNoRunning(t *testing.T) {
 	h, _ := clickHost(t, true)
-	if err := (tickHost{ledger: h.ledger(t)}).markRunning(testPR, "tick", t0); err != nil {
+	if err := (tickHost{ledger: h.ledger(t), now: time.Now}).move2(testPR, PRState{State: stRunning, Kind: kindTick, Since: t0}); err != nil {
 		t.Fatal(err)
 	}
 	h.outErr = errors.New("claude: not found")

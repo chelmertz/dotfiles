@@ -391,7 +391,7 @@ func TestClickThatStartsNothingPutsBackTheRow(t *testing.T) {
 func TestClickMidRoundKeepsTheRunningRow(t *testing.T) {
 	h, fs := clickHost(t, true)
 	ellyRecorder(t, h, fs)
-	if err := h.ledger(t).SetAnnotation(testPR, Annotation{State: stateRunning, Note: "started by tick"}); err != nil {
+	if err := h.ledger(t).SetPRState(testPR, PRState{State: stRunning, Kind: kindTick}); err != nil {
 		t.Fatal(err)
 	}
 	fs.workers = []Worker{workerFor(testPR.RoundSessionID(), 500)}

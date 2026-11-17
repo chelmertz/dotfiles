@@ -252,7 +252,7 @@ func planBackgroundClick(d Deps, cfg Config, pr PR, remote string) (click, error
 // within a second whichever link it came from; a click that starts no round
 // puts back what was there (unstart).
 func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
-	pr, dir, remote, head, from := c.pr, c.dir, c.remote, c.head, c.from
+	pr, dir, remote, from := c.pr, c.dir, c.remote, c.from
 	l, err := OpenLedger(LedgerPath(d.StateDir))
 	if err != nil {
 		return fail(d, err)
@@ -263,23 +263,30 @@ func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
 	}
 	// No out: a click reports through its notification, and the running
 	// row's own failures through say.
-	h := tickHost{ledger: l, elly: Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile(d.RuntimeDir)}, now: time.Now}
 	say := func(err error) {
 		if err != nil {
 			fmt.Fprintf(d.Stderr, "claude-review: %s: %v\n", pr.URL(), err)
 		}
 	}
+	h := tickHost{ledger: l, elly: Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile(d.RuntimeDir)}, now: time.Now, say: say}
 	// read before the "starting" row and the round: both replace its note
 	before, err := l.Handover(pr)
 	if err != nil {
 		return fail(d, err)
 	}
-	finish, err := h.startingRow(pr, from, say)
+	// The "starting" row; a click on a running round leaves its row be.
+	_, err = h.move(pr, Event{Kind: evClick, Detail: from})
 	if err != nil {
 		return fail(d, err)
 	}
-	started, failed := false, false
-	defer func() { finish(started, failed) }()
+	started := false
+	defer func() {
+		if !started {
+			// back to what the click replaced, unless an outcome moved it on
+			_, err := h.move(pr, Event{Kind: evNotStarted})
+			say(err)
+		}
+	}()
 	if err := d.Trust(dir); err != nil {
 		return fail(d, fmt.Errorf("claude-review: trusting %s for Claude Code: %w", dir, err))
 	}
@@ -298,21 +305,34 @@ func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
 	sw.mark("listed")
 	fmt.Fprintf(d.Stderr, "claude-review: %s: click from %s, timing: %s\n", pr.URL(), from, sw)
 	if err != nil && res.Kind != relaunchDuplicate {
-		failed = true
 		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), err))
 	}
-	not, err := h.afterRelaunch(pr, res, err, func() error {
-		if head == "" {
-			return nil // nothing recorded, so nothing would settle a running row
-		}
-		if _, err := l.StartRound(pr, head, clickTrigger(at, from), at); err != nil {
-			return err
-		}
-		say(h.markRunning(pr, "a click", at))
-		return nil
+	not, err := h.afterRelaunch(pr, res, err, func() error { return h.recordClick(c, at) }, func(detail string) error {
+		_, err := h.move(pr, Event{Kind: evNotStarted, Detail: detail})
+		return err
 	})
-	started, failed = not == "" && err == nil, err != nil
+	started = not == "" && err == nil
 	return clickOutcome(d, pr, res, started, err, before)
+}
+
+// recordClick records a click's round once its worker is listed, and moves
+// the PR to running. A click whose head GitHub did not say records nothing,
+// so nothing would settle a running round.
+func (h tickHost) recordClick(c clickTarget, at time.Time) error {
+	if c.head == "" {
+		return nil
+	}
+	if _, err := h.ledger.StartRound(c.pr, c.head, clickTrigger(at, c.from), at); err != nil {
+		return err
+	}
+	// settleUnread may have moved the state on since the click
+	if s, err := h.stateOf(c.pr); err == nil && s.State != stStarting {
+		_, err = h.move(c.pr, Event{Kind: evClick, Detail: c.from})
+		h.warn(c.pr, err)
+	}
+	_, err := h.move(c.pr, Event{Kind: evLaunched})
+	h.warn(c.pr, err)
+	return nil
 }
 
 // clickTarget is what a background click acts on: the PR, its clone and

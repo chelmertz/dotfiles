@@ -459,7 +459,9 @@ Three ways to give the session the PR's code were on the table.
   `~/.claude/projects/` age out after 30 days unused (`cleanupPeriodDays`);
   background sessions survive sleep and resume after a reboot.
 - **own PRs**: reviewing your own PR in a separate session needs nothing
-  extra. The writer session picks the comments up on the PR, as today.
+  extra. The writer session picks the comments up on the PR, as today. Only
+  a click runs a round there (tick never does), and a clean round ends
+  handled with no Approve link: GitHub lets no author approve their own PR.
 
 ```mermaid
 stateDiagram-v2
@@ -603,11 +605,11 @@ does everything Claude-shaped, including deciding when a round runs.
 | Review one PR in a session (prompts, clone, PR-derived session id) | no | yes, as today |
 | Refuse a round while the PR's session is open | no | yes, as today |
 | Approve at the reviewed commit (`approve --at`) | no | yes, as today |
-| Ledger: acceptance, ignore, rounds, approve tokens | no | new |
+| Ledger: acceptance, PR state, rounds, approve tokens | no | new |
 | Decide when a round runs, and with which permissions | no | new: `tick` |
 | Read a finished round's outcome, checked against GitHub | no | new: `tick` |
 | Write annotations to elly | no | new: `tick` |
-| Handle clicks on annotation links | no | new: `approve`, `attach`, `ignore` verbs on `claude-review://` |
+| Handle clicks on annotation links | no | new: `approve`, `attach`, `fork` verbs on `claude-review://` |
 | Write to GitHub | never | yes: reviews, replies, approvals, dismissing the user's own approval |
 
 elly stays read-only toward GitHub. An approval goes out through
@@ -639,7 +641,7 @@ flowchart LR
     gh -- what the round posted --> tick
     tick -- dismiss own approval --> gh
     elly -- inbox, count, notifications --> user
-    user -- clicks Approve, Open session, Ignore --> tick
+    user -- clicks Approve, Answer, Open session --> tick
 ```
 
 Only claude-review writes to GitHub: review comments unattended, approvals
@@ -659,9 +661,18 @@ claude-review alone. It holds:
 - **Acceptance**: one row per PR, written by the user's own first
   `claude-review://` click on the PR, with the head and base commit at that
   moment. An existing session file is not acceptance.
-- **Ignore**: sticky, set from an Ignore link, cleared by the next first-look
-  click. elly's bury stays a display preference: elly unburies a PR whose
-  `LastUpdated` moves, so bury cannot stop rounds.
+- **PR state**: one per accepted PR (`pr_state`), the only source of the
+  row elly shows. `transition` in `state.go` is the one place it changes and
+  only interprets the `rules` table; `render` is the one writer of a row and
+  marks exactly one link Primary on every row that needs the user. Nothing
+  reads a row back: the fork verb, for one, gates on the state. A ledger
+  from before it is migrated on open: each accepted PR without a state gets
+  one from its unread round or its stored row's exact note, else `idle`.
+  The daily cap and the breaker are not stored: a PR they hold back shows
+  "paused" for that tick only.
+- **Bury**: a PR elly reports buried gets no rounds. elly unburies it when
+  someone else updates it, a re-request included, and rounds resume. Bury
+  replaced the Ignore link (2026-11-16); an old Ignore link says so.
 - **Rounds**: each round is recorded once its worker is listed in Claude
   Code's roster (PR, head, trigger), never before: a launch that failed
   leaves no round to be settled from the previous round's message. Clicks
@@ -705,7 +716,9 @@ claude-review alone. It holds:
    one included.
 3. Pick candidates: the repo is in `review_repos` in claude-review's config
    (`owner/*` for a whole owner, `owner/repo` for one repo), the user did not
-   author the PR, it is accepted and not ignored, and
+   author the PR, it is accepted and not buried in elly, its state lets an
+   owed round move it (`stuck` only on a review re-request, never on a push
+   alone), and
    it is the user's turn: review requested, re-review requested,
    `ThreadsActionable` above zero, or a new head commit since the last round.
    Changes made by the user's own account trigger nothing, so a round's own
@@ -762,8 +775,8 @@ claude-review alone. It holds:
      unless ticks stopped. A failed send is logged and the round runs on;
      an elly from before `running` refuses it with a 400 the same way, as
      one from before `stuck` refuses that state, so the nix pin moves elly
-     and claude-review together. A
-     launch that fails clears a `running` row left by the PR's last round;
+     and claude-review together. A PR shows `running` only once its round
+     is recorded, and a retry that cannot start shows "nothing started";
    - a live session for the round session's id that is no worker's (a
      window someone opened on it with `claude --resume`) starts nothing and
      marks the PR `needs_you` "review window open; close it to let rounds
@@ -772,8 +785,10 @@ claude-review alone. It holds:
      different id, and no longer hold rounds back.
 7. A round whose job is `blocked` (waiting on the user, in practice a
    question its job's `needs` names) gets the question line's row: Answer,
-   Fork with prod data and Ignore, the job's words as the question, and no
-   retry, which would resume on top of the waiting worker. When the PR's
+   Fork with prod data, the job's words as the question, and no
+   retry, which would resume on top of the waiting worker. The round stays
+   unread, so a worker the user answered in the session shows `running`
+   again and is settled when it ends. When the PR's
    head has moved since the round started, a push overtook the question:
    the worker is stopped and the round read, so the new head gets a round
    of its own, which asks again if the question still holds. Left alone,
@@ -781,16 +796,16 @@ claude-review alone. It holds:
 8. For every other round the ledger started and has not marked read, decide the
    outcome from GitHub and the ledger, never from the session's text alone
    (next section). Mark it read.
-9. Re-send every live annotation with a fresh expiry, except `running`,
-   which keeps its own and is dropped once that has passed. Delete one only on
-   positive evidence: the user's own approval stands at the current head,
+9. Re-render every PR's row from its state with a fresh expiry, except
+   `running`, which keeps its own and is dropped once that has passed. Move
+   a state only on positive evidence: the user's own approval stands at the current head,
    GitHub reports the PR merged or closed, or, on a question row, the user's
    account reviewed or commented on the PR after the round was settled (the
    answer lives on GitHub, where the author sees it too). A PR missing from one elly read is
    not evidence; its annotation expires instead.
 10. Offer Start on elly's row for a review asked of the user by name (or a
    re-review) in `review_repos` that only a click would start: not accepted,
-   not ignored, not the user's own, with no row claude-review already shows.
+   not buried, not the user's own, with no state claude-review already holds.
    The offer is an `info` annotation whose one primary link,
    `claude-review://owner/repo/number?from=elly`, elly shows as the row's
    verb. It lives 11 minutes, so it lapses within two ticks once it no longer
@@ -802,7 +817,8 @@ claude-review alone. It holds:
 Each tick writes one journal line per PR in `review_repos` that it leaves
 alone, "leave <url>: <reason>", and "hold <url>: <note>" for a gate that
 needs the user (the daily cap, a force-push under the first look). The
-reasons: never clicked, ignored, nothing owed, a round already saw this
+reasons: never clicked, buried in elly, nothing owed, a state no owed round
+moves, a round already saw this
 update, merged or closed since elly's poll, a click holds it, its window or
 session is open, a round still runs in its worker, no free slot, or the
 needs-you note a failed launch wrote. A started round logs "start a round
@@ -850,8 +866,8 @@ outstanding" without an approval as unclear.
   approve it if you agree": approving stays the user's click on the link,
   which elly shows as the row's Approve button.
 - **Question line**: `needs_you` with Answer and Fork links. Answer opens
-  the session (attach) and comes first, since elly makes a needs_you row's
-  first link its button under that link's label. The note
+  the session (attach) and is the row's Primary link, which elly makes its
+  button under that link's label. The note
   carries the question: "the round has a question for you: <text>", where
   the text is the last paragraph before the question line, on one line,
   control characters dropped, cut at 200 characters with "…". It is the
@@ -1018,18 +1034,18 @@ org named like a verb cannot collide.
   clone. `mb-sql` and `claude-review post` are on no list, so each call
   asks with the SQL or the comment body in view. The link is not the gate:
   under the PR's lock the verb opens nothing unless the PR is in
-  `review_repos`, its row holds the Fork link tick wrote for a question, and
+  `review_repos`, its state is a question awaiting the user, and
   the round's job is not working. The fork gets its own session id, so the
   round session and its saved policy are untouched.
-- `claude-review://<owner>/<repo>/<n>/ignore` sets the sticky ignore. A
-  forged one only stops automation on that PR.
+- `claude-review://<owner>/<repo>/<n>/ignore` is gone and says so: bury the
+  PR in elly instead.
 
 The bare link carries no token, and that is an accepted risk: anyone who gets
 the user to open one (a web page past the browser's "open this link?"
 prompt, a link in Slack or mail) starts a round on a review_repos PR, enrols
-it for unattended rounds, adds the user as a reviewer and lifts an ignore.
+it for unattended rounds, adds the user as a reviewer and lifts a stuck PR.
 The worst case is review comments under the user's name, up to the post
-caps, until the user ignores the PR. It cannot approve (the token above),
+caps, until the user buries the PR. It cannot approve (the token above),
 merge, or send anything off the machine (the round's tool policy).
 
 The Thunderbird native host passes only `claude-review://[\w.-]+/[\w.-]+/\d+`
@@ -1076,10 +1092,10 @@ The links claude-review writes:
 | --- | --- | --- |
 | Approve | the checks under "Reading a round's outcome" pass | `claude-review://<owner>/<repo>/<n>/approve?at=<sha>&token=<t>` |
 | Answer | question line, blocked round; elly's row button | `claude-review://<owner>/<repo>/<n>/attach` |
-| Open session | failed round, dismissed approval | `claude-review://<owner>/<repo>/<n>/attach` |
+| Open session | failed round, dismissed approval, unsent drafts, open window, paused | `claude-review://<owner>/<repo>/<n>/attach` |
+| Start again / Look again | post refused, nothing started, changed under the first look | `claude-review://<owner>/<repo>/<n>?from=elly` |
 | Fork with prod data | question line | `claude-review://<owner>/<repo>/<n>/fork` |
 | Attach | every `running` row | `claude-review://<owner>/<repo>/<n>/attach` |
-| Ignore | every `needs_you` row | `claude-review://<owner>/<repo>/<n>/ignore` |
 | Round summary | every finished round | `https://github.com/<owner>/<repo>/pull/<n>#pullrequestreview-<id>` |
 | Session | any listed PR a session acted on (source `claude-session`, state `info`) | `claude-resume://<session id>` |
 

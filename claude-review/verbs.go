@@ -38,20 +38,8 @@ func runVerb(d Deps, cfg Config, pr PR, verb string, q url.Values) int {
 	case "approve":
 		return approveWithToken(d, pr, q.Get("at"), q.Get("token"))
 	case "ignore":
-		l, err := OpenLedger(LedgerPath(d.StateDir))
-		if err != nil {
-			return fail(d, err)
-		}
-		defer func() { _ = l.Close() }()
-		if err := l.Ignore(pr); err != nil {
-			return fail(d, err)
-		}
-		if err := l.ClearAnnotation(pr); err != nil {
-			return fail(d, err)
-		}
-		_ = Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile(d.RuntimeDir)}.Delete(pr.URL())
-		tell(d, fmt.Sprintf("%s ignored: no more unattended rounds until you click claude review on it again", pr.URL()))
-		return 0
+		// Old rows carried an Ignore link until their next refresh.
+		return fail(d, fmt.Errorf("claude-review: Ignore is gone; bury %s in elly to stop its rounds", pr.URL()))
 	case "fork":
 		return fork(d, cfg, pr)
 	default: // attach

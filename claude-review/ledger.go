@@ -23,7 +23,7 @@ type Ledger struct{ db *sql.DB }
 
 const ledgerSchema = `
 create table if not exists acceptance (pr text primary key, head text not null, base text not null, at integer not null);
-create table if not exists ignored (pr text primary key);
+drop table if exists ignored;
 create table if not exists rounds (
 	id integer primary key, pr text not null, head text not null, trigger text not null,
 	started_at integer not null, read_at integer, retries integer not null default 0);
@@ -76,14 +76,12 @@ type Acceptance struct {
 	Base string
 }
 
-// Accept records a click on pr, which also clears an ignore: clicking a PR
-// again is taking it back.
+// Accept records a click on pr: the head and base the user looked at.
 func (l *Ledger) Accept(pr PR, head, base string, at time.Time) error {
 	if _, err := l.db.Exec(`replace into acceptance (pr, head, base, at) values (?, ?, ?, ?)`, pr.URL(), head, base, at.Unix()); err != nil {
 		return fmt.Errorf("accept: %w", err)
 	}
-	_, err := l.db.Exec(`delete from ignored where pr = ?`, pr.URL())
-	return err
+	return nil
 }
 
 func (l *Ledger) Acceptance(pr PR) (Acceptance, bool, error) {
@@ -93,17 +91,6 @@ func (l *Ledger) Acceptance(pr PR) (Acceptance, bool, error) {
 		return Acceptance{}, false, nil
 	}
 	return a, err == nil, err
-}
-
-func (l *Ledger) Ignore(pr PR) error {
-	_, err := l.db.Exec(`insert or ignore into ignored (pr) values (?)`, pr.URL())
-	return err
-}
-
-func (l *Ledger) Ignored(pr PR) (bool, error) {
-	var n int
-	err := l.db.QueryRow(`select count(*) from ignored where pr = ?`, pr.URL()).Scan(&n)
-	return n > 0, err
 }
 
 // Round is one review round, recorded once its worker is running: tick's,
@@ -274,6 +261,29 @@ func (l *Ledger) MintToken(pr PR, sha string) (ids.Token, error) {
 	}
 	_, err = l.db.Exec(`insert into tokens (token, pr, sha) values (?, ?, ?)`, tok, pr.URL(), sha)
 	return tok, err
+}
+
+// TokenFor is pr's newest unused token at sha, for re-rendering its
+// Approve link; ok is false when none is left.
+func (l *Ledger) TokenFor(pr PR, sha string) (ids.Token, bool, error) {
+	var tok ids.Token
+	err := l.db.QueryRow(`select token from tokens where pr = ? and sha = ? and used = 0 order by rowid desc limit 1`, pr.URL(), sha).Scan(&tok)
+	if errors.Is(err, sql.ErrNoRows) {
+		return tok, false, nil
+	}
+	return tok, err == nil, err
+}
+
+// RevokeTokens spends every token minted for pr.
+func (l *Ledger) RevokeTokens(pr PR) error {
+	_, err := l.db.Exec(`update tokens set used = 1 where pr = ?`, pr.URL())
+	return err
+}
+
+// MarkPRRead marks every unread round of pr read.
+func (l *Ledger) MarkPRRead(pr PR, at time.Time) error {
+	_, err := l.db.Exec(`update rounds set read_at = ? where pr = ? and read_at is null`, at.Unix(), pr.URL())
+	return err
 }
 
 // UseToken spends tok if it was minted for pr at sha and never used.

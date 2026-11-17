@@ -102,12 +102,12 @@ func fork(d Deps, cfg Config, pr PR) int {
 	if err != nil {
 		return fail(d, err)
 	}
-	a, ok, err := l.Annotation(pr)
+	st, _, err := l.PRState(pr)
 	_ = l.Close()
 	if err != nil {
 		return fail(d, err)
 	}
-	if !ok || !slices.Contains(a.Links, forkLink(pr)) {
+	if st.State != stAwaiting || st.Kind != kindQuestion {
 		return fail(d, fmt.Errorf("claude-review: no question from a round is waiting on %s", pr.URL()))
 	}
 	if d.Sessions.JobState(pr.RoundSessionID()) == "working" {

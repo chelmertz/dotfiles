@@ -376,7 +376,7 @@ func TestTickFindingsAfterApprovalDismiss(t *testing.T) {
 func TestTickRefreshDropsOnlyOnEvidence(t *testing.T) {
 	w := newTickWorld(t)
 	pr := w.accept(t, 42)
-	if err := w.h.ledger.SetAnnotation(pr, Annotation{State: stateNeedsYou, Note: "look"}); err != nil {
+	if err := w.h.ledger.SetPRState(pr, PRState{State: stAwaiting, Kind: kindDismiss}); err != nil {
 		t.Fatal(err)
 	}
 	// elly does not list the PR this time: not evidence.
@@ -463,7 +463,7 @@ func TestTickOneEllyFailureDoesNotStopTheRest(t *testing.T) {
 	w := newTickWorld(t)
 	for n := 1; n <= 2; n++ {
 		pr := w.accept(t, n)
-		if err := w.h.ledger.SetAnnotation(pr, Annotation{State: stateNeedsYou, Note: "look"}); err != nil {
+		if err := w.h.ledger.SetPRState(pr, PRState{State: stAwaiting, Kind: kindDismiss}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -482,7 +482,7 @@ func TestTickOneEllyFailureDoesNotStopTheRest(t *testing.T) {
 func TestLaunchRefusesInADryRun(t *testing.T) {
 	w := newTickWorld(t)
 	w.h.dry = true
-	if _, err := w.h.launch(widgetsPR, nil, func(time.Time) error { return nil }); err == nil || len(w.started) != 0 {
+	if _, err := w.h.launch(widgetsPR, nil, func(time.Time) error { return nil }, nil); err == nil || len(w.started) != 0 {
 		t.Errorf("launch in a dry run: err %v, started %q", err, w.started)
 	}
 }
@@ -511,8 +511,8 @@ func TestTickABlockedRoundNeedsTheUser(t *testing.T) {
 		all, _ := w.h.ledger.Annotations()
 		a := all[pr.URL()]
 		// The same row as a round that ended on the question line: elly's
-		// button is the first link, so it reads Answer and opens the session.
-		if a.State != stateNeedsYou || a.Note != want || len(a.Links) == 0 || a.Links[0] != answerLink(pr) || !slices.Contains(a.Links, forkLink(pr)) {
+		// button is the Primary link, so it reads Answer and opens the session.
+		if a.State != stateNeedsYou || a.Note != want || len(a.Links) == 0 || a.Links[0] != primary(answerLink(pr)) || !slices.Contains(a.Links, forkLink(pr)) {
 			t.Errorf("blocked on %q: annotation %+v", why, a)
 		}
 	}
@@ -612,7 +612,7 @@ func TestTickBreakerCountsRetries(t *testing.T) {
 func TestLaunchWithoutACapStartsNothing(t *testing.T) {
 	w := newTickWorld(t)
 	w.h.tcfg.TotalDailyCap = 0
-	if _, err := w.h.launch(widgetsPR, nil, func(time.Time) error { return nil }); err == nil || len(w.started) != 0 {
+	if _, err := w.h.launch(widgetsPR, nil, func(time.Time) error { return nil }, nil); err == nil || len(w.started) != 0 {
 		t.Errorf("launch with no cap: err %v, started %q", err, w.started)
 	}
 }
@@ -625,7 +625,7 @@ func TestLaunchRefusesWhileTripped(t *testing.T) {
 		t.Fatal(err)
 	}
 	recorded := false
-	if _, err := w.h.launch(widgetsPR, nil, func(time.Time) error { recorded = true; return nil }); err == nil || recorded || len(w.started) != 0 {
+	if _, err := w.h.launch(widgetsPR, nil, func(time.Time) error { recorded = true; return nil }, nil); err == nil || recorded || len(w.started) != 0 {
 		t.Errorf("launch while tripped: err %v, recorded %v, started %q", err, recorded, w.started)
 	}
 }
@@ -666,8 +666,8 @@ func TestTickARoundOverItsPostLimitStopsThatPR(t *testing.T) {
 	if len(w.started) != 1 {
 		t.Errorf("rounds after the limit: %q", w.started)
 	}
-	if ignored, _ := w.h.ledger.Ignored(pr); !ignored {
-		t.Error("the PR is not held back until the next click")
+	if st, _ := w.h.stateOf(pr); st.State != stStuck || st.Kind != kindRefused {
+		t.Errorf("the PR is not held back until the next click: %+v", st)
 	}
 }
 
@@ -1089,10 +1089,8 @@ func TestTickOffersStartWhereAClickIsWhatIsMissing(t *testing.T) {
 	elsewhere.Url = "https://github.com/other/x/pull/3"
 	w.elly.prs = []EllyPR{requestedPR(1), unasked, elsewhere, mine, requestedPR(5), requestedPR(6), requestedPR(7), rereview}
 	w.accept(t, 5)
-	if err := w.h.ledger.Ignore(PR{Owner: "acme", Repo: "widgets", Number: 6}); err != nil {
-		t.Fatal(err)
-	}
-	if err := w.h.ledger.SetAnnotation(PR{Owner: "acme", Repo: "widgets", Number: 7}, Annotation{State: stateNeedsYou, Note: "a question"}); err != nil {
+	w.elly.prs[5].Buried = true
+	if err := w.h.ledger.SetPRState(PR{Owner: "acme", Repo: "widgets", Number: 7}, PRState{State: stAwaiting, Kind: kindQuestion, Detail: "a question"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := w.h.tick(); err != nil {
