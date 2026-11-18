@@ -77,12 +77,15 @@ i3-msg -q reload || echo "i3 reload failed; i3 keeps its previous scheme" >&2
 # never the -ansi variants. Light is plain "light", not "light-ansi": ghostty's
 # Catppuccin Latte inverts the palette (0 is light grey, 7 dark), so light-ansi
 # drew dim text in #acb0be on #eff1f5 (1.9:1) and question chips grey on blue.
+# Plain light's grey text (`subtle`, rgb(175,175,175)) is still 2.1:1 on Latte,
+# so it and `inactive` take Latte's subtext1, 5.5:1 (WCAG AA wants 4.5:1).
 case "$new_color_scheme" in
-	prefer-dark) claude_base="dark-ansi" ;;
-	*)           claude_base="light" ;;
+	prefer-dark) claude_base="dark-ansi"; claude_overrides='{}' ;;
+	*)           claude_base="light"
+	             claude_overrides='{"subtle": "rgb(92,95,119)", "inactive": "rgb(92,95,119)"}' ;;
 esac
 mkdir -p "$HOME/.claude/themes"
-printf '{"name": "Color scheme", "base": "%s"}\n' "$claude_base" \
-	> "$HOME/.claude/themes/scheme.json"
+printf '{"name": "Color scheme", "base": "%s", "overrides": %s}\n' \
+	"$claude_base" "$claude_overrides" > "$HOME/.claude/themes/scheme.json"
 
 "$HOME/.local/bin/set-wallpaper"

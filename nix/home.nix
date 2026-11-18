@@ -952,6 +952,9 @@ in
     };
     settings = {
       theme = "dark:Moonfly,light:Catppuccin Latte";
+      # Faint (SGR 2) text is the foreground at this opacity. The default 0.5
+      # put Claude's recap at 2.4:1 on Latte; 0.85 clears WCAG AA's 4.5:1.
+      faint-opacity = 0.85;
       font-family = "Go Mono";
       # Go Mono lacks the ballot boxes; Ballot Nerd is built in fonts.nix.
       # `ghostty +show-face --cp=0x2612` names the face a glyph comes from.
