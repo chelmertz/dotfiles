@@ -92,18 +92,7 @@ func TestOpenClaudeForksAnEndedReview(t *testing.T) {
 			if code := run([]string{link}, h.d); code != 0 || len(h.scripts) != 0 || !strings.Contains(notified(h), "has not looked at") {
 				t.Fatalf("no review yet: exit %d, scripts %q, notified %q", code, h.scripts, notified(h))
 			}
-			l, err := OpenLedger(LedgerPath(h.d.StateDir))
-			if err != nil {
-				t.Fatal(err)
-			}
-			id, err := l.StartRound(widgetsPR, sha, "test", time.Now().Add(-time.Hour))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := l.MarkRead(id); err != nil {
-				t.Fatal(err)
-			}
-			_ = l.Close()
+			endedReview(t, h, &PRState{State: stIdle}, false)
 			fs.states[widgetsPR.RoundSessionID()] = "working"
 			if code := run([]string{link}, h.d); code != 1 || len(h.scripts) != 0 {
 				t.Fatalf("something working: exit %d, scripts %q", code, h.scripts)
@@ -203,6 +192,74 @@ func TestMetabaseReadRulesAllowEveryHop(t *testing.T) {
 	for _, want := range []string{"Read(~/.claude/skills/metabase-sql/**)", "Read(/" + hop1 + "/**)", "Read(/" + hop2 + "/**)", "Read(/" + clone + "/**)"} {
 		if !slices.Contains(got, want) {
 			t.Errorf("%q lacks %s", got, want)
+		}
+	}
+}
+
+// Open Claude opens a fork only from a stored state with no worker that
+// may still be alive and no live Approve token beside it.
+func TestOpenClaudeGateByState(t *testing.T) {
+	cases := []struct {
+		st     PRState
+		token  bool
+		opens  bool
+		reason string
+	}{
+		{PRState{State: stIdle}, false, true, ""},
+		{PRState{State: stHandled, Kind: kindPosted}, false, true, ""},
+		{PRState{State: stStuck, Kind: kindFailed}, false, true, ""},
+		{PRState{State: stHeld, Kind: kindFresh}, false, true, ""},
+		{PRState{State: stAwaiting, Kind: kindDrafts}, false, true, ""},
+		{PRState{State: stAwaiting, Kind: kindDismiss}, false, true, ""},
+		{PRState{State: stHandled, Kind: kindNothing}, true, false, "Approve"},
+		{PRState{State: stHeld, Kind: kindWindow}, false, false, "already open in a window"},
+		{PRState{State: stRunning}, false, false, ""},
+		{PRState{State: stStarting}, false, false, ""},
+		{PRState{State: stAwaiting, Kind: kindQuestion}, false, false, ""},
+		{PRState{State: stAwaiting, Kind: kindApprove}, true, false, ""},
+	}
+	for _, c := range cases {
+		t.Run(string(c.st.State)+"/"+c.st.Kind, func(t *testing.T) {
+			h, _ := clickHost(t, true)
+			endedReview(t, h, &c.st, c.token)
+			code := run([]string{"claude-review://acme/widgets/42/attach"}, h.d)
+			opened := len(h.scripts) > 0
+			if opened != c.opens {
+				t.Fatalf("opened %v, want %v (exit %d): %s", opened, c.opens, code, h.stderr)
+			}
+			if !c.opens && (code != 1 || !strings.Contains(h.stderr.String(), c.reason)) {
+				t.Errorf("refusal: exit %d, %q lacks %q", code, h.stderr, c.reason)
+			}
+		})
+	}
+}
+
+func endedReview(t *testing.T, h *fakeHost, st *PRState, token bool) {
+	t.Helper()
+	l, err := OpenLedger(LedgerPath(h.d.StateDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	if err := l.Accept(widgetsPR, sha, "base", time.Now().Add(-2*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	id, err := l.StartRound(widgetsPR, sha, "test", time.Now().Add(-time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.MarkRead(id); err != nil {
+		t.Fatal(err)
+	}
+	if st != nil {
+		st.Head = sha
+		if err := l.SetPRState(widgetsPR, *st); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if token {
+		if _, err := l.MintToken(widgetsPR, sha); err != nil {
+			t.Fatal(err)
 		}
 	}
 }

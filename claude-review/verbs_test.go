@@ -153,3 +153,17 @@ func TestParseVerbRefusesALeadingDash(t *testing.T) {
 		}
 	}
 }
+
+// A verb the parser does not know is refused, never treated as attach.
+func TestUnknownVerbIsRefused(t *testing.T) {
+	h, fs := clickHost(t, true)
+	fs.workers = []Worker{workerFor(widgetsPR.RoundSessionID(), 500)}
+	if code := runVerb(h.d, Config{ReviewRepos: []string{"acme/widgets"}}, widgetsPR, "bogus", nil); code != 1 || len(h.scripts) != 0 {
+		t.Fatalf("unknown verb: exit %d, scripts %q", code, h.scripts)
+	}
+	for _, v := range []string{"approve", "attach", "fork", "ignore", "states"} {
+		if _, got, _, ok := ParseVerb("claude-review://acme/widgets/42/" + v); !ok || got != v || !slices.Contains(knownVerbs, v) {
+			t.Errorf("%s: parsed %q ok %v, known %v", v, got, ok, knownVerbs)
+		}
+	}
+}

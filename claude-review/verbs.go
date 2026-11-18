@@ -12,7 +12,18 @@ import (
 
 // verbLink is a claude-review:// link with a verb, as tick writes them into
 // elly. The plain link without a verb stays the click it always was.
-var verbLink = regexp.MustCompile(`^claude-review://([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/([1-9][0-9]*)/(approve|attach|fork|ignore|states)(?:\?([^#]*))?$`)
+const (
+	verbApprove = "approve"
+	verbAttach  = "attach"
+	verbFork    = "fork"
+	verbIgnore  = "ignore"
+	verbStates  = "states"
+)
+
+// knownVerbs are the verbs verbLink accepts; runVerb refuses any other.
+var knownVerbs = []string{verbApprove, verbAttach, verbFork, verbIgnore, verbStates}
+
+var verbLink = regexp.MustCompile(`^claude-review://([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/([1-9][0-9]*)/(` + strings.Join(knownVerbs, "|") + `)(?:\?([^#]*))?$`)
 
 // ParseVerb reads a verb link.
 func ParseVerb(s string) (PR, string, url.Values, bool) {
@@ -35,17 +46,19 @@ func ParseVerb(s string) (PR, string, url.Values, bool) {
 // approve acts only on a token tick minted for this PR and commit.
 func runVerb(d Deps, cfg Config, pr PR, verb string, q url.Values) int {
 	switch verb {
-	case "approve":
+	case verbApprove:
 		return approveWithToken(d, pr, q.Get("at"), q.Get("token"))
-	case "ignore":
+	case verbIgnore:
 		// Old rows carried an Ignore link until their next refresh.
 		return fail(d, fmt.Errorf("claude-review: Ignore is gone; bury %s in elly to stop its rounds", pr.URL()))
-	case "fork":
+	case verbFork:
 		return fork(d, cfg, pr)
-	case "states":
+	case verbStates:
 		return runStates([]string{pr.URL()}, d, true)
-	default: // attach
+	case verbAttach:
 		return attach(d, cfg, pr)
+	default:
+		return fail(d, fmt.Errorf("claude-review: unknown link verb %q for %s", verb, pr.URL()))
 	}
 }
 

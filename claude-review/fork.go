@@ -110,7 +110,7 @@ func openFork(d Deps, cfg Config, pr PR) int {
 	if err != nil {
 		return fail(d, err)
 	}
-	_, _, ended, err := l.LastSettled(pr)
+	ended, err := forkGate(l, pr)
 	_ = l.Close()
 	if err != nil {
 		return fail(d, err)
@@ -130,4 +130,48 @@ func openFork(d Deps, cfg Config, pr PR) int {
 		return fail(d, err)
 	}
 	return 0
+}
+
+// forkOpenStates are the stored states Open Claude may fork from: no
+// worker that may still be alive (running, starting, a blocked question)
+// and no Approve the fork would run beside.
+var forkOpenStates = map[stateKey]bool{
+	{stIdle, ""}: true, {stHandled, ""}: true, {stStuck, ""}: true,
+	{stHeld, kindFresh}: true, {stAwaiting, kindDrafts}: true, {stAwaiting, kindDismiss}: true,
+}
+
+// forkGate decides from the ledger, never the link, whether pr may be
+// forked. ended is false when no review of it has ended, so its session
+// may not exist; err refuses.
+func forkGate(l *Ledger, pr PR) (ended bool, err error) {
+	if _, ok, err := l.Acceptance(pr); err != nil || !ok {
+		return false, err
+	}
+	if _, _, ok, err := l.LastSettled(pr); err != nil || !ok {
+		return false, err
+	}
+	s, ok, err := l.PRState(pr)
+	if err != nil || !ok {
+		return false, err
+	}
+	switch {
+	case s.State == stHeld && s.Kind == kindWindow:
+		return true, fmt.Errorf("claude-review: %s is already open in a window", pr.URL())
+	case !forkOpenStates[stateKey{s.State, ""}] && !forkOpenStates[stateKey{s.State, s.Kind}]:
+		return true, fmt.Errorf("claude-review: %s is %s; Open Claude waits until it settles", pr.URL(), stateName(s))
+	}
+	if live, err := l.HasLiveToken(pr); err != nil || live {
+		if err == nil {
+			err = fmt.Errorf("claude-review: %s has a live Approve link; approve or let it lapse before opening Claude", pr.URL())
+		}
+		return true, err
+	}
+	return true, nil
+}
+
+func stateName(s PRState) string {
+	if s.Kind == "" {
+		return string(s.State)
+	}
+	return string(s.State) + "{" + s.Kind + "}"
 }

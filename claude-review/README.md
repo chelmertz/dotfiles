@@ -1023,8 +1023,12 @@ org named like a verb cannot collide.
 - `claude-review://<owner>/<repo>/<n>/attach` (Open Claude) opens a
   terminal running `claude attach` on the PR's live background worker,
   under the PR's lock. With no worker, it opens the fork below once a
-  review of the PR has ended, and otherwise notifies that Claude has not
-  looked at the PR yet. It never resumes the session itself, which would be
+  review of the PR has ended and its stored state is settled (idle,
+  handled, stuck, held{fresh_look}, awaiting{drafts} or
+  awaiting{dismissed}) with no live Approve link; held{window} is refused
+  as already open, and a running, starting, question or approve state is
+  refused until it settles. With no ended review it notifies that Claude
+  has not looked at the PR yet. Any other verb is refused. It never resumes the session itself, which would be
   a window under the user's own settings and hold every round back.
 - `claude-review://<owner>/<repo>/<n>/fork` (old rows only; Open Claude
   replaced the link) and attach without a worker open a terminal running an

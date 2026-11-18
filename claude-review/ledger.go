@@ -276,6 +276,13 @@ func (l *Ledger) TokenFor(pr PR, sha string) (ids.Token, bool, error) {
 	return tok, err == nil, err
 }
 
+// HasLiveToken says whether any Approve token for pr is unused.
+func (l *Ledger) HasLiveToken(pr PR) (bool, error) {
+	var n int
+	err := l.db.QueryRow(`select count(*) from tokens where pr = ? and used = 0`, pr.URL()).Scan(&n)
+	return n > 0, err
+}
+
 // RevokeTokens spends every token minted for pr.
 func (l *Ledger) RevokeTokens(pr PR) error {
 	_, err := l.db.Exec(`update tokens set used = 1 where pr = ?`, pr.URL())
