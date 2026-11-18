@@ -86,6 +86,9 @@ case "$new_color_scheme" in
 esac
 mkdir -p "$HOME/.claude/themes"
 printf '{"name": "Color scheme", "base": "%s", "overrides": %s}\n' \
-	"$claude_base" "$claude_overrides" > "$HOME/.claude/themes/scheme.json"
+	"$claude_base" "$claude_overrides" > "$HOME/.claude/themes/.scheme.json.tmp"
+# Renamed into place: a session reading a half-written file finds no
+# custom:scheme and falls back to the dark theme on a light terminal.
+command mv -f "$HOME/.claude/themes/.scheme.json.tmp" "$HOME/.claude/themes/scheme.json"
 
 "$HOME/.local/bin/set-wallpaper"
