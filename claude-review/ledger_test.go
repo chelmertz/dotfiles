@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"maps"
 	"path/filepath"
 	"strings"
@@ -277,5 +278,37 @@ func TestRoundSources(t *testing.T) {
 	want := map[string]int{"elly": 2, "thunderbird": 1, "unknown": 1, "tick": 2}
 	if !maps.Equal(got, want) {
 		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+// A ledger from before rounds stored their session opens, and its unread
+// round falls back to the current round session.
+func TestLedgerAddsTheRoundSessionColumn(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ledger.db")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`create table rounds (id integer primary key, pr text not null, head text not null, trigger text not null,
+		started_at integer not null, read_at integer, retries integer not null default 0);
+		insert into rounds (pr, head, trigger, started_at) values ('` + widgetsPR.URL() + `', 'h1', 'test', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+	l, err := OpenLedger(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	rs, err := l.UnreadRounds()
+	if err != nil || len(rs) != 1 || rs[0].SessionFor(widgetsPR) != widgetsPR.RoundSessionID() {
+		t.Fatalf("rounds %+v, err %v", rs, err)
+	}
+	if _, err := l.StartRound(widgetsPR, "h2", "test", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	rs, _ = l.UnreadRounds()
+	if len(rs) != 2 || rs[1].Session != widgetsPR.RoundSessionID() {
+		t.Errorf("a new round did not store its session: %+v", rs)
 	}
 }

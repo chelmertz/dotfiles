@@ -1243,3 +1243,29 @@ func TestTickAnswerGetsAFollowUpRound(t *testing.T) {
 		t.Errorf("the answer got %d rounds, want 1", len(w.started))
 	}
 }
+
+// A round is settled under the session it started in: a policyVersion bump
+// names a new session for the next round, not for one still running.
+func TestTickSettlesARoundUnderItsOwnSession(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	old := ids.SessionFor(pr.URL() + " round-policy old")
+	id, err := w.h.ledger.StartRound(pr, "h1", "test", time.Now().Add(-time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.h.ledger.db.Exec(`update rounds set session = ? where id = ?`, old.String(), id); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.h.ledger.SetPRState(pr, PRState{State: stRunning, Kind: kindTick, Head: "h1"}); err != nil {
+		t.Fatal(err)
+	}
+	w.h.running = func(s ids.SessionID) bool { return s == old }
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	unread, _ := w.h.ledger.UnreadRounds()
+	if s, _, _ := w.h.ledger.PRState(pr); len(unread) != 1 || s.State != stRunning {
+		t.Errorf("a running round under the old policy's session looked ended: unread %d, state %+v", len(unread), s)
+	}
+}

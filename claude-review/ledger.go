@@ -26,7 +26,8 @@ create table if not exists acceptance (pr text primary key, head text not null, 
 drop table if exists ignored;
 create table if not exists rounds (
 	id integer primary key, pr text not null, head text not null, trigger text not null,
-	started_at integer not null, read_at integer, retries integer not null default 0);
+	started_at integer not null, read_at integer, retries integer not null default 0,
+	session text not null default '');
 create table if not exists tokens (token text primary key, pr text not null, sha text not null, used integer not null default 0);
 create table if not exists annotations (pr text primary key, state text not null, note text not null, links text not null, expires integer not null default 0);
 create table if not exists posts (pr text not null, head text not null, slot text not null, n integer not null, primary key (pr, head, slot));
@@ -56,9 +57,14 @@ func OpenLedger(path string) (*Ledger, error) {
 	}
 	// "create table if not exists" adds no column to a ledger from before
 	// it; on every later open the duplicate is the expected no-op.
-	if _, err := db.Exec(`alter table annotations add column expires integer not null default 0`); err != nil && !strings.Contains(err.Error(), "duplicate column") {
-		_ = db.Close()
-		return nil, fmt.Errorf("ledger schema: %w", err)
+	for _, alter := range []string{
+		`alter table annotations add column expires integer not null default 0`,
+		`alter table rounds add column session text not null default ''`,
+	} {
+		if _, err := db.Exec(alter); err != nil && !strings.Contains(err.Error(), "duplicate column") {
+			_ = db.Close()
+			return nil, fmt.Errorf("ledger schema: %w", err)
+		}
 	}
 	l := &Ledger{db: db}
 	if err := l.migratePRState(); err != nil {
@@ -105,12 +111,25 @@ type Round struct {
 	// PostRefused: a post on the PR was refused over its limit since the
 	// round started.
 	PostRefused bool
+	// Session is the session the round started in, empty for one recorded
+	// before rounds stored it.
+	Session ids.SessionID
+}
+
+// SessionFor is the session r runs in: the one it started in, which a
+// policyVersion bump since does not change. A round from before rounds
+// stored it falls back to the current round session.
+func (r Round) SessionFor(pr PR) ids.SessionID {
+	if r.Session.IsZero() {
+		return pr.RoundSessionID()
+	}
+	return r.Session
 }
 
 func (l *Ledger) StartRound(pr PR, head, trigger string, at time.Time) (ids.RoundID, error) {
 	var id ids.RoundID
-	if err := l.db.QueryRow(`insert into rounds (pr, head, trigger, started_at) values (?, ?, ?, ?) returning id`,
-		pr.URL(), head, trigger, at.Unix()).Scan(&id); err != nil {
+	if err := l.db.QueryRow(`insert into rounds (pr, head, trigger, started_at, session) values (?, ?, ?, ?, ?) returning id`,
+		pr.URL(), head, trigger, at.Unix(), pr.RoundSessionID().String()).Scan(&id); err != nil {
 		return id, fmt.Errorf("start round: %w", err)
 	}
 	return id, nil
@@ -214,7 +233,7 @@ func (l *Ledger) PRs() ([]string, error) {
 
 // UnreadRounds are rounds whose outcome has not been processed yet.
 func (l *Ledger) UnreadRounds() ([]Round, error) {
-	rows, err := l.db.Query(`select id, pr, head, trigger, started_at, retries,
+	rows, err := l.db.Query(`select id, pr, head, trigger, started_at, retries, session,
 		exists (select 1 from post_refusals f where f.pr = rounds.pr and f.at >= rounds.started_at)
 		from rounds where read_at is null order by id`)
 	if err != nil {
@@ -225,8 +244,16 @@ func (l *Ledger) UnreadRounds() ([]Round, error) {
 	for rows.Next() {
 		var r Round
 		var started int64
-		if err := rows.Scan(&r.ID, &r.PR, &r.Head, &r.Trigger, &started, &r.Retries, &r.PostRefused); err != nil {
+		var session string
+		if err := rows.Scan(&r.ID, &r.PR, &r.Head, &r.Trigger, &started, &r.Retries, &session, &r.PostRefused); err != nil {
 			return nil, err
+		}
+		if session != "" {
+			s, err := ids.ParseSession(session)
+			if err != nil {
+				return nil, fmt.Errorf("round %s: %w", r.ID, err)
+			}
+			r.Session = s
 		}
 		r.StartedAt = time.Unix(started, 0).UTC()
 		out = append(out, r)

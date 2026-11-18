@@ -982,7 +982,9 @@ to the launch arguments needs a new version: `TestUnattendedArgsArePinned`
 fails until the version's pinned fingerprint matches the new flags. **A
 policy change starts a fresh session for every PR; the review history up to
 then stays in the old session**, which no round resumes again (`claude
---resume <old id>` still opens it by hand). Every session from before version 2 has saved, or would be given, older
+--resume <old id>` still opens it by hand). A round running across the bump is settled under
+the session it started in, which the ledger records on the round, so it is
+not read as ended. Every session from before version 2 has saved, or would be given, older
 flags, and is left as it is; version 3 added the persona reads, and version 4 put `-R owner/repo` on
 the `gh pr` rules. The window path outside
 `review_repos` keeps the PR's own session id.

@@ -323,14 +323,15 @@ func (h tickHost) settle() (int, error) {
 // be retried, or waits on the user, is read instead: the caller is about to
 // start a new one.
 func (h tickHost) settleRound(pr PR, r Round, retry bool) (busy bool, err error) {
-	if h.running(pr.RoundSessionID()) {
+	sid := r.SessionFor(pr)
+	if h.running(sid) {
 		_, err := h.move(pr, Event{Kind: evResumed})
 		return true, err
 	}
-	if why, ok := h.blocked(pr.RoundSessionID()); ok {
+	if why, ok := h.blocked(sid); ok {
 		return false, h.settleBlocked(pr, r, why, retry)
 	}
-	msg, err := h.lastMessage(pr.RoundSessionID())
+	msg, err := h.lastMessage(sid)
 	if err != nil {
 		return false, fmt.Errorf("reading the round: %w", err)
 	}
