@@ -67,8 +67,6 @@ func TestTransition(t *testing.T) {
 		{"ended without a decision", running, Event{Kind: evEnded}, stRunning, kindTick, nil, false},
 		{"ended when idle", idle, Event{Kind: evEnded, Next: &posted}, stHandled, kindPosted, []Effect{efRoundsRead}, true},
 		{"ended when handled", posted, Event{Kind: evEnded, Next: &retry}, stHandled, kindPosted, nil, false},
-		{"answered", question, Event{Kind: evAnswered}, stIdle, "", nil, true},
-		{"answered without a question", st(stAwaiting, kindApprove), Event{Kind: evAnswered}, stAwaiting, kindApprove, nil, false},
 		{"window opened", question, Event{Kind: evWindowOpened}, stHeld, kindWindow, nil, true},
 		{"window opened twice", window, Event{Kind: evWindowOpened}, stHeld, kindWindow, nil, false},
 		{"window closed restores prev", window, Event{Kind: evWindowClosed}, stAwaiting, kindQuestion, nil, true},

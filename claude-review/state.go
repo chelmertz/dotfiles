@@ -114,7 +114,6 @@ const (
 	evBlocked      EventKind = "blocked"
 	evResumed      EventKind = "resumed"
 	evEnded        EventKind = "ended"
-	evAnswered     EventKind = "answered"
 	evWindowOpened EventKind = "window_opened"
 	evWindowClosed EventKind = "window_closed"
 )
@@ -218,7 +217,6 @@ var rules = []rule{
 	{from: inKind(stAwaiting, kindQuestion), event: evEnded, when: decided, to: toDecided, effects: []Effect{efRoundsRead}},
 	// A round recorded without its move (a crash between the two writes).
 	{from: in(stIdle), event: evEnded, when: decided, to: toDecided, effects: []Effect{efRoundsRead}},
-	{from: inKind(stAwaiting, kindQuestion), event: evAnswered, to: to(stIdle, "")},
 	{from: notIn(inKind(stHeld, kindWindow)), event: evWindowOpened, to: to(stHeld, kindWindow), remember: true},
 	{from: inKind(stHeld, kindWindow), event: evWindowClosed, to: toPrev},
 }

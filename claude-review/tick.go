@@ -526,6 +526,10 @@ func (h tickHost) startOwed(prs []EllyPR, running int) (held map[string]string, 
 	}
 	held = map[string]string{}
 	for _, p := range plans {
+		if p, err = h.answerOwes(p); err != nil {
+			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", p.PR.URL(), err)
+			continue
+		}
 		if p.Skip != "" {
 			h.leave(p.PR, p.Skip)
 			continue
@@ -747,6 +751,36 @@ func (h tickHost) afterRelaunch(pr PR, res RelaunchResult, stopErr error, record
 // on the PR (a review of someone else's thread, a PR comment) leaves it.
 // The signal lives on GitHub, where the author sees it too; tick only reads
 // it.
+// answerOwes turns a question the user answered on GitHub into an owed
+// round. elly cannot report it: rounds post as the user, so a reply in the
+// round's thread leaves no thread someone else answered last.
+func (h tickHost) answerOwes(p Planned) (Planned, error) {
+	if p.Skip != skipNothingOwed {
+		return p, nil
+	}
+	s, err := h.stateOf(p.PR)
+	if err != nil || s.State != stAwaiting || s.Kind != kindQuestion {
+		return p, err
+	}
+	answered, err := h.answered(p.PR)
+	if err != nil || !answered {
+		return p, err
+	}
+	acc, _, err := h.ledger.Acceptance(p.PR)
+	if err != nil {
+		return p, err
+	}
+	open, gate, err := gateFor(p.PR, acc, p.Head, h.tcfg, h.ledger, h.gh, h.now())
+	if err != nil {
+		return p, err
+	}
+	p.Skip, p.Trigger, p.Gate = "", "answered@"+h.now().UTC().Format(time.RFC3339), gate
+	if !open {
+		p.Skip = skipClosed
+	}
+	return p, nil
+}
+
 func (h tickHost) answered(pr PR) (bool, error) {
 	started, settled, ok, err := h.ledger.LastSettled(pr)
 	if err != nil || !ok {
@@ -772,7 +806,8 @@ func (h tickHost) refreshedExpiry(a Annotation) (expires time.Time, send bool) {
 
 // refresh re-renders every PR's row with a fresh expiry, and moves a state
 // only on positive evidence: the PR is closed, the user's own approval
-// stands at its head, the user answered a question, a window closed. A PR
+// stands at its head, a window closed. An answered question moves only
+// by the round answerOwes starts, so a held launch keeps the question. A PR
 // missing from elly is not evidence. held is startOwed's paused rows.
 func (h tickHost) refresh(held map[string]string) error {
 	states, err := h.ledger.PRStates()
@@ -845,12 +880,6 @@ func (h tickHost) onGitHub(pr PR, s PRState) (*Event, error) {
 		return &Event{Kind: evClosed}, nil
 	case user != nil && user.State == reviewApproved && user.CommitID == head:
 		return &Event{Kind: evUserApproved, Head: head}, nil
-	case s.State == stAwaiting && s.Kind == kindQuestion:
-		answered, err := h.answered(pr)
-		if err != nil || !answered {
-			return nil, err
-		}
-		return &Event{Kind: evAnswered}, nil
 	}
 	return nil, nil
 }

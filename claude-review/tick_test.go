@@ -1200,3 +1200,46 @@ func TestTickSeesAForkWindow(t *testing.T) {
 		t.Errorf("held{window} outlived the fork: %+v", s)
 	}
 }
+
+// The user's answer to a question is a reply to that round: Claude goes on
+// with a round, not a cleared row nobody follows up.
+func TestTickAnswerGetsAFollowUpRound(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	id, err := w.h.ledger.StartRound(pr, "h1", "test", time.Now().Add(-time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.h.ledger.MarkRead(id); err != nil {
+		t.Fatal(err)
+	}
+	q := decide(Round{Head: "h1"}, Outcome{Kind: OutcomeQuestion}, RoundFacts{State: prOpen, Head: "h1"}, pr)
+	if err := w.h.ledger.SetPRState(pr, *q.Next); err != nil {
+		t.Fatal(err)
+	}
+	w.elly.prs = []EllyPR{ellyPR(func(p *EllyPR) { p.Url = pr.URL() })}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if s, _, _ := w.h.ledger.PRState(pr); len(w.started) != 0 || s.Kind != kindQuestion {
+		t.Fatalf("before the answer: started %d, state %+v", len(w.started), s)
+	}
+	w.gh.posted = true
+	// Under the daily cap the question stays, and the answer is seen again.
+	w.h.tcfg.DailyCap = 1
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if s, _, _ := w.h.ledger.PRState(pr); len(w.started) != 0 || s.State != stAwaiting || s.Kind != kindQuestion {
+		t.Fatalf("under the cap: started %d, state %+v", len(w.started), s)
+	}
+	w.h.tcfg.DailyCap = 6
+	for range 2 {
+		if err := w.h.tick(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(w.started) != 1 {
+		t.Errorf("the answer got %d rounds, want 1", len(w.started))
+	}
+}

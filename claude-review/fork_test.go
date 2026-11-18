@@ -120,36 +120,6 @@ func TestOpenClaudeForksAnEndedReview(t *testing.T) {
 }
 
 // The question row is the user's until the user replies in the round's
-// thread after it settled; the signal lives on GitHub.
-func TestTickQuestionClearsOnceTheUserPosts(t *testing.T) {
-	w := newTickWorld(t)
-	pr := w.accept(t, 42)
-	id, err := w.h.ledger.StartRound(pr, "h1", "test", time.Now().Add(-time.Hour))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := w.h.ledger.MarkRead(id); err != nil {
-		t.Fatal(err)
-	}
-	q := decide(Round{Head: "h1"}, Outcome{Kind: OutcomeQuestion}, RoundFacts{State: prOpen, Head: "h1"}, pr)
-	if err := w.h.ledger.SetPRState(pr, *q.Next); err != nil {
-		t.Fatal(err)
-	}
-	if err := w.h.tick(); err != nil {
-		t.Fatal(err)
-	}
-	if len(w.elly.deleted) != 0 {
-		t.Fatalf("cleared before the user posted: %v", w.elly.deleted)
-	}
-	w.gh.posted = true
-	if err := w.h.tick(); err != nil {
-		t.Fatal(err)
-	}
-	if len(w.elly.deleted) != 1 {
-		t.Errorf("the user's post did not clear the question: %v", w.elly.deleted)
-	}
-}
-
 // The skill's files are symlinks; the folder they resolve to needs its own
 // Read rule, found at launch.
 func TestMetabaseReadRulesFollowTheSymlink(t *testing.T) {
