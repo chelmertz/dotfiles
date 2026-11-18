@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // forkPrompt is what the fork is asked once it opens: Open Claude on a PR
@@ -67,9 +69,9 @@ func metabaseReadRules(home string) []string {
 // ForkArgs opens an interactive fork of pr's round session, locked down: no
 // settings source, so the user's broad allow list does not apply; no MCP
 // servers; default mode, so mb-sql and claude-review post ask every time.
-func ForkArgs(pr PR, remote string, skillRules []string) []string {
+func ForkArgs(pr PR, forkID ids.SessionID, remote string, skillRules []string) []string {
 	n := itoaPR(pr)
-	args := []string{claudeCmd, flagResume, pr.RoundSessionID().String(), "--fork-session",
+	args := []string{claudeCmd, flagResume, pr.RoundSessionID().String(), "--fork-session", flagSessionID, forkID.String(),
 		flagSettings, "", flagStrictMCP, flagMode, "default",
 		fill(pr, remote, forkPrompt), flagAllowed,
 		"Read(./**)", "Grep(./**)", "Glob(./**)",
@@ -110,14 +112,17 @@ func openFork(d Deps, cfg Config, pr PR) int {
 	if err != nil {
 		return fail(d, err)
 	}
+	defer l.Close()
 	ended, err := forkGate(l, pr)
-	_ = l.Close()
 	if err != nil {
 		return fail(d, err)
 	}
 	if !ended {
 		tell(d, "Claude has not looked at "+pr.URL()+" yet; start a review first")
 		return 0
+	}
+	if windowOpen(d.Sessions, l, pr) {
+		return fail(d, fmt.Errorf("claude-review: %s is already open in a window", pr.URL()))
 	}
 	if d.Sessions.JobState(pr.RoundSessionID()) == "working" {
 		return fail(d, fmt.Errorf("claude-review: a round is working on %s; fork it when it ends", pr.URL()))
@@ -126,7 +131,13 @@ func openFork(d Deps, cfg Config, pr PR) int {
 	if err != nil {
 		return fail(d, err)
 	}
-	if err := openTerminal(d, cfg, dir, [][]string{ForkArgs(pr, remote, metabaseReadRules(d.Home))}, pr); err != nil {
+	// Each fork gets a fresh id, recorded before launch: a window under it
+	// holds no session with the round's id, so only this record finds it.
+	forkID := ids.NewSession()
+	if err := l.SetForkSession(pr, forkID); err != nil {
+		return fail(d, err)
+	}
+	if err := openTerminal(d, cfg, dir, [][]string{ForkArgs(pr, forkID, remote, metabaseReadRules(d.Home))}, pr); err != nil {
 		return fail(d, err)
 	}
 	return 0
@@ -174,4 +185,17 @@ func stateName(s PRState) string {
 		return string(s.State)
 	}
 	return string(s.State) + "{" + s.Kind + "}"
+}
+
+// windowOpen is a window on pr: the round's id held by a non-worker
+// session, or the last fork's recorded id held by any live session.
+func windowOpen(s Sessions, l *Ledger, pr PR) bool {
+	if s.WindowOpen(pr.RoundSessionID()) {
+		return true
+	}
+	fid, ok, err := l.ForkSession(pr)
+	if err != nil {
+		return true // an unreadable record cannot rule a window out
+	}
+	return ok && s.Window(fid) > 0
 }

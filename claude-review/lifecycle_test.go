@@ -22,6 +22,7 @@ type fakeSessions struct {
 	states     map[ids.SessionID]string
 	dead       map[int]bool
 	window     int
+	windowID   ids.SessionID // when set, the window holds only this id
 	stopErr    error
 	pidLinger  int // polls a stopped worker's pid stays alive
 	lingering  map[int]int
@@ -48,7 +49,12 @@ func (f *fakeSessions) sessions() Sessions {
 			return slices.Clone(f.workers), nil
 		},
 		JobState: func(id ids.SessionID) string { return f.states[id] },
-		Window:   func(ids.SessionID) int { return f.window },
+		Window: func(id ids.SessionID) int {
+			if !f.windowID.IsZero() && id != f.windowID {
+				return 0
+			}
+			return f.window
+		},
 		Alive: func(pid int) bool {
 			if n, ok := f.lingering[pid]; ok {
 				if n <= 0 {

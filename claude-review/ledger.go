@@ -276,6 +276,23 @@ func (l *Ledger) TokenFor(pr PR, sha string) (ids.Token, bool, error) {
 	return tok, err == nil, err
 }
 
+// SetForkSession records the session id the last fork of pr runs under.
+func (l *Ledger) SetForkSession(pr PR, id ids.SessionID) error {
+	return l.SetMeta(metaForkPrefix+pr.URL(), id.String())
+}
+
+// ForkSession is the id SetForkSession recorded for pr.
+func (l *Ledger) ForkSession(pr PR) (ids.SessionID, bool, error) {
+	v, err := l.Meta(metaForkPrefix + pr.URL())
+	if err != nil || v == "" {
+		return ids.SessionID{}, false, err
+	}
+	id, err := ids.ParseSession(v)
+	return id, err == nil, err
+}
+
+const metaForkPrefix = "fork-session "
+
 // HasLiveToken says whether any Approve token for pr is unused.
 func (l *Ledger) HasLiveToken(pr PR) (bool, error) {
 	var n int

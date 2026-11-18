@@ -602,7 +602,7 @@ func (h tickHost) startOne(p Planned, running int) (skip, error) {
 		return "", err
 	}
 	defer unlock()
-	if h.sess.WindowOpen(p.PR.RoundSessionID()) {
+	if windowOpen(h.sess, h.ledger, p.PR) {
 		_, err := h.move(p.PR, Event{Kind: evWindowOpened})
 		return skipWindowOpen, err
 	}
@@ -817,7 +817,7 @@ func (h tickHost) refresh(held map[string]string) error {
 // evidence moves s on what GitHub and the desktop say, and returns the
 // state after. An idle PR is not asked about: it has no row.
 func (h tickHost) evidence(pr PR, s PRState) (PRState, error) {
-	if s.State == stHeld && s.Kind == kindWindow && !h.sess.WindowOpen(pr.RoundSessionID()) {
+	if s.State == stHeld && s.Kind == kindWindow && !windowOpen(h.sess, h.ledger, pr) {
 		next, err := h.move(pr, Event{Kind: evWindowClosed})
 		if err != nil {
 			return s, err

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 	"os"
 	"path/filepath"
 	"slices"
@@ -14,9 +15,10 @@ import (
 // git push), no MCP servers, default mode, and the exfiltration channels
 // denied outright. mb-sql and claude-review post are on no list: they ask.
 func TestForkArgsAreLocked(t *testing.T) {
-	args := ForkArgs(widgetsPR, "upstream", metabaseReadRules(t.TempDir()))
+	fid := ids.NewSession()
+	args := ForkArgs(widgetsPR, fid, "upstream", metabaseReadRules(t.TempDir()))
 	id := widgetsPR.RoundSessionID().String()
-	head := []string{claudeCmd, "--resume", id, "--fork-session",
+	head := []string{claudeCmd, "--resume", id, "--fork-session", "--session-id", fid.String(),
 		"--setting-sources", "", "--strict-mcp-config", "--permission-mode", "default"}
 	if !slices.Equal(args[:len(head)], head) {
 		t.Fatalf("head %q", args[:len(head)])
@@ -261,5 +263,38 @@ func endedReview(t *testing.T, h *fakeHost, st *PRState, token bool) {
 		if _, err := l.MintToken(widgetsPR, sha); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// A fork runs under its own session id, recorded at launch, so tick and a
+// click see its window although no session holds the round's id.
+func TestForkWindowIsSeen(t *testing.T) {
+	h, fs := clickHost(t, true)
+	endedReview(t, h, &PRState{State: stIdle}, false)
+	if code := run([]string{"claude-review://acme/widgets/42/attach"}, h.d); code != 0 {
+		t.Fatalf("exit %d: %s", code, h.stderr)
+	}
+	l, err := OpenLedger(LedgerPath(h.d.StateDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fid, ok, err := l.ForkSession(widgetsPR)
+	_ = l.Close()
+	if err != nil || !ok || fid == widgetsPR.RoundSessionID() {
+		t.Fatalf("fork id %v ok %v err %v", fid, ok, err)
+	}
+	if script := strings.Join(mapValues(h.scripts), "\n"); !strings.Contains(script, "--session-id'\\'' '\\''"+fid.String()) {
+		t.Errorf("fork not launched under its recorded id: %q", script)
+	}
+	fs.window, fs.windowID = 4242, fid
+	l, _ = OpenLedger(LedgerPath(h.d.StateDir))
+	open := windowOpen(h.d.Sessions, l, widgetsPR)
+	_ = l.Close()
+	if !open {
+		t.Error("the fork's window was not seen")
+	}
+	h.scripts = map[string]string{}
+	if code := run([]string{"claude-review://acme/widgets/42/attach"}, h.d); code != 1 || len(h.scripts) != 0 || !strings.Contains(h.stderr.String(), "already open in a window") {
+		t.Errorf("a second Open Claude beside the fork: exit %d, scripts %q, %s", code, h.scripts, h.stderr)
 	}
 }

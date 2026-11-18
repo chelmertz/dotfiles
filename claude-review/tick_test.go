@@ -1171,3 +1171,32 @@ func TestTickLogsWhyItLeavesEachPR(t *testing.T) {
 		}
 	}
 }
+
+// tick holds rounds while a fork is open under its recorded id, and lets
+// them go once it closes.
+func TestTickSeesAForkWindow(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	w.elly.prs = []EllyPR{requestedPR(42)}
+	fid := ids.NewSession()
+	if err := w.h.ledger.SetForkSession(pr, fid); err != nil {
+		t.Fatal(err)
+	}
+	w.fs.window, w.fs.windowID = 4242, fid
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.started) != 0 {
+		t.Errorf("started beside the fork: %q", w.started)
+	}
+	if s, _, _ := w.h.ledger.PRState(pr); s.State != stHeld || s.Kind != kindWindow {
+		t.Errorf("state %+v, want held{window}", s)
+	}
+	w.fs.window = 0
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if s, _, _ := w.h.ledger.PRState(pr); s.State == stHeld && s.Kind == kindWindow {
+		t.Errorf("held{window} outlived the fork: %+v", s)
+	}
+}

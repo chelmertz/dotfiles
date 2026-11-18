@@ -1032,7 +1032,9 @@ org named like a verb cannot collide.
   a window under the user's own settings and hold every round back.
 - `claude-review://<owner>/<repo>/<n>/fork` (old rows only; Open Claude
   replaced the link) and attach without a worker open a terminal running an
-  interactive fork of the round session (`--resume <id> --fork-session`),
+  interactive fork of the round session (`--resume <id> --fork-session
+  --session-id <new id>`, the new id recorded in the ledger so tick and a
+  later click see the fork's window and hold rounds while it is open),
   so a round's question can be answered with prod data through the
   `metabase-sql` skill. Unattended rounds never get prod access: they read
   text the PR author controls and post without asking, and a read-only key
