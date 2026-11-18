@@ -73,6 +73,12 @@ project is a note the next project pays for again.
   compilations, and a single large crate is one job whose rustc still fans out
   to 18-23 threads. `nice` lowers priority, not utilisation. Measured on
   a Rust API build 2026-09-24, after the fans gave it away twice.
+- **Gradle and other JVM builds go through `capped` too, with `--no-daemon`:**
+  `capped ./gradlew --no-daemon build`. Without `--no-daemon`, `./gradlew`
+  hands the build to whatever daemon is already running, and one started
+  outside `capped` stays uncapped for its 3-hour idle life. On 2026-11-18 an
+  uncapped Gradle daemon held 2.5-3 cores and 5.4 GB and made typing in
+  ghostty lag.
 - **`capped` capped only CPU until 2026-09-27, and CPU was never what froze the
   machine.** A `gremlins unleash --workers=3` mutation run *under `capped`*
   drove tau into a thrash livelock: journald logging "Under memory pressure,
