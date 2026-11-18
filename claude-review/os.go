@@ -39,12 +39,21 @@ var sessionMarkers = map[string]bool{
 	"CLAUDE_CODE_MESSAGING_SOCKET": true, "CLAUDE_CODE_MESSAGING_TOKEN": true,
 }
 
-// cleanEnv is environ without sessionMarkers.
+// githubTokenVars are the GitHub tokens a shell may hold, elly's GITHUB_PAT
+// among them. Named one by one: a *_TOKEN pattern would also strip the
+// Claude CLI's own CLAUDE_CODE_OAUTH_TOKEN.
+var githubTokenVars = map[string]bool{
+	"GH_TOKEN": true, "GITHUB_TOKEN": true, "GH_ENTERPRISE_TOKEN": true,
+	"GITHUB_ENTERPRISE_TOKEN": true, "GITHUB_PAT": true,
+}
+
+// cleanEnv is environ without sessionMarkers or GitHub tokens: what a
+// launched session gets. claude-review's own gh calls keep the full one.
 func cleanEnv(environ []string) []string {
 	out := make([]string, 0, len(environ))
 	for _, kv := range environ {
 		k, _, _ := strings.Cut(kv, "=")
-		if !sessionMarkers[k] {
+		if !sessionMarkers[k] && !githubTokenVars[k] {
 			out = append(out, kv)
 		}
 	}

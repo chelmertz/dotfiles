@@ -2,6 +2,7 @@ package main
 
 import (
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -198,5 +199,18 @@ func TestNotifyArgv(t *testing.T) {
 	want := []string{"osascript", "-e", `display notification "say \"hi\" \\ there" with title "t\"1"`}
 	if strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("darwin: %q", got)
+	}
+}
+
+// No GitHub token reaches a launched session: a round or fork could print
+// it. Each literal is named, not a *_TOKEN pattern, which would also strip
+// the Claude CLI's own login.
+func TestCleanEnvStripsGitHubTokens(t *testing.T) {
+	env := []string{"PATH=/bin", "GH_TOKEN=a", "GITHUB_TOKEN=b", "GH_ENTERPRISE_TOKEN=c",
+		"GITHUB_ENTERPRISE_TOKEN=d", "GITHUB_PAT=e", "CLAUDE_CODE_OAUTH_TOKEN=f", "GOPATH=/go"}
+	got := cleanEnv(env)
+	want := []string{"PATH=/bin", "CLAUDE_CODE_OAUTH_TOKEN=f", "GOPATH=/go"}
+	if !slices.Equal(got, want) {
+		t.Errorf("cleanEnv = %q, want %q", got, want)
 	}
 }

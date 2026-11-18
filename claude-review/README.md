@@ -325,7 +325,11 @@ budget lives in the runner's ledger, and a post that cannot read it is
 refused. A post whose body holds the value of a secret-shaped environment
 variable (a name with token, key, secret, pass, auth or cred) is refused
 too: the shell expands a bare `$NAME` in a command that matches the post
-rule, and no permission rule stops it (checked live on 2026-11-02).
+rule, and no permission rule stops it (checked live on 2026-11-02). A launched
+session (a round, the fork, a terminal attach) never gets a GitHub token in
+its environment: `GH_TOKEN`, `GITHUB_TOKEN`, `GH_ENTERPRISE_TOKEN`,
+`GITHUB_ENTERPRISE_TOKEN` and elly's `GITHUB_PAT` are stripped at launch;
+claude-review's own `gh` calls keep them.
 
 Every kind of post (comment, inline, reply, review, resolve) is refused on a PR
 GitHub reports merged or closed, read from the PR in the same call that
