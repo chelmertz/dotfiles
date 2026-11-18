@@ -74,9 +74,15 @@ i3-msg -q reload || echo "i3 reload failed; i3 keeps its previous scheme" >&2
 # Claude Code's theme is "custom:scheme" (claude/settings.json), whose base is
 # this file. Every running session watches ~/.claude/themes and repaints on a
 # write. Its "auto" theme follows ghostty too, but only picks plain dark/light,
-# never the -ansi variants.
+# never the -ansi variants. Light is plain "light", not "light-ansi": ghostty's
+# Catppuccin Latte inverts the palette (0 is light grey, 7 dark), so light-ansi
+# drew dim text in #acb0be on #eff1f5 (1.9:1) and question chips grey on blue.
+case "$new_color_scheme" in
+	prefer-dark) claude_base="dark-ansi" ;;
+	*)           claude_base="light" ;;
+esac
 mkdir -p "$HOME/.claude/themes"
-printf '{"name": "Color scheme (ANSI)", "base": "%s-ansi"}\n' "${rofi_theme#cards-}" \
+printf '{"name": "Color scheme", "base": "%s"}\n' "$claude_base" \
 	> "$HOME/.claude/themes/scheme.json"
 
 "$HOME/.local/bin/set-wallpaper"
