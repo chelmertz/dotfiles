@@ -955,6 +955,9 @@ in
       # Faint (SGR 2) text is the foreground at this opacity. The default 0.5
       # put Claude's recap at 2.4:1 on Latte; 0.85 clears WCAG AA's 4.5:1.
       faint-opacity = 0.85;
+      # Lifts any foreground/background pair below WCAG AA's 4.5:1, so each new
+      # low-contrast pairing in either theme no longer needs its own fix.
+      minimum-contrast = 4.5;
       font-family = "Go Mono";
       # Go Mono lacks the ballot boxes; Ballot Nerd is built in fonts.nix.
       # `ghostty +show-face --cp=0x2612` names the face a glyph comes from.
@@ -993,6 +996,9 @@ in
       # Silences the "Copied to clipboard" toast that fires on every selection
       # under copy-on-select. Keeps config-reload notifications.
       app-notifications = "no-clipboard-copy";
+      # The default minus ":", so a double-click takes an IPv6 or MAC address,
+      # host:path or file.go:12 whole instead of stopping at each colon.
+      selection-word-chars = ''"\t '\"│`|;,()[]{}<>$"'';
       # OSC 52 from nvim/tmux/ssh works without a per-yank prompt.
       clipboard-read = "allow";
       clipboard-write = "allow";
@@ -1007,7 +1013,13 @@ in
       # kitty-protocol sequence into the input. Remap it to ESC+CR, which is
       # exactly what Alt+Enter sends, so weechat's meta-ret binding (newline in
       # the wee input) catches it and Slack's Shift+Enter muscle memory works.
-      keybind = [ "ctrl+enter=unbind" "shift+enter=text:\\x1b\\r" ];
+      # ctrl+shift+h opens the whole scrollback as a file in the text/plain
+      # handler (gvim), the closest ghostty gets to a vim copy mode.
+      keybind = [
+        "ctrl+enter=unbind"
+        "shift+enter=text:\\x1b\\r"
+        "ctrl+shift+h=write_scrollback_file:open"
+      ];
     };
   };
 
