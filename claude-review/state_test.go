@@ -33,28 +33,28 @@ func TestTransition(t *testing.T) {
 		effects []Effect
 		ok      bool
 	}{
-		{"closed from anything", question, Event{Kind: evClosed}, stGone, "", []Effect{efStopWorkers, efRoundsRead, efDelete}, true},
+		{"closed from anything", question, Event{Kind: evClosed}, stGone, "", []Effect{efStopWorkers, efRoundsRead}, true},
 		{"user approved", question, Event{Kind: evUserApproved, Head: "bbb"}, stIdle, "", []Effect{efRevokeTokens}, true},
 		{"user approved mid-round", running, Event{Kind: evUserApproved}, stRunning, kindTick, nil, false},
 		{"tick launch failed", posted, Event{Kind: evNotStarted, Detail: "no clone"}, stHeld, kindLaunch, nil, true},
 		{"read before a new round", running, Event{Kind: evEnded, Next: &PRState{State: stIdle}}, stIdle, "", []Effect{efRoundsRead}, true},
-		{"click from idle", idle, Event{Kind: evClick, Detail: "elly"}, stStarting, kindClick, []Effect{efReaccept, efLaunch}, true},
-		{"click from stuck", stuck, Event{Kind: evClick}, stStarting, kindClick, []Effect{efReaccept, efLaunch}, true},
+		{"click from idle", idle, Event{Kind: evClick, Detail: "elly"}, stStarting, kindClick, nil, true},
+		{"click from stuck", stuck, Event{Kind: evClick}, stStarting, kindClick, nil, true},
 		{"click while running", running, Event{Kind: evClick}, stRunning, kindTick, nil, false},
 		{"click while starting", starting, Event{Kind: evClick}, stStarting, kindClick, nil, false},
 		{"launched", starting, Event{Kind: evLaunched}, stRunning, kindClick, nil, true},
 		{"not started restores prev", starting, Event{Kind: evNotStarted}, stAwaiting, kindQuestion, nil, true},
 		{"launch failed", starting, Event{Kind: evNotStarted, Detail: "no clone"}, stHeld, kindLaunch, nil, true},
-		{"owed from idle", idle, Event{Kind: evOwed, Head: "bbb"}, stRunning, kindTick, []Effect{efLaunch}, true},
-		{"owed from handled", posted, Event{Kind: evOwed}, stRunning, kindTick, []Effect{efLaunch}, true},
-		{"owed from launch failed", st(stHeld, kindLaunch), Event{Kind: evOwed}, stRunning, kindTick, []Effect{efLaunch}, true},
+		{"owed from idle", idle, Event{Kind: evOwed, Head: "bbb"}, stRunning, kindTick, nil, true},
+		{"owed from handled", posted, Event{Kind: evOwed}, stRunning, kindTick, nil, true},
+		{"owed from launch failed", st(stHeld, kindLaunch), Event{Kind: evOwed}, stRunning, kindTick, nil, true},
 		{"owed under a first look", posted, Event{Kind: evOwed, FreshLook: true}, stHeld, kindFresh, nil, true},
-		{"click looks again", st(stHeld, kindFresh), Event{Kind: evClick}, stStarting, kindClick, []Effect{efReaccept, efLaunch}, true},
+		{"click looks again", st(stHeld, kindFresh), Event{Kind: evClick}, stStarting, kindClick, nil, true},
 		{"owed while running", running, Event{Kind: evOwed}, stRunning, kindTick, nil, false},
 		{"owed on fresh look", st(stHeld, kindFresh), Event{Kind: evOwed}, stHeld, kindFresh, nil, false},
 		{"owed under a window", window, Event{Kind: evOwed}, stHeld, kindWindow, nil, false},
 		{"a push does not lift stuck", stuck, Event{Kind: evOwed}, stStuck, kindFailed, nil, false},
-		{"a re-request lifts stuck", stuck, Event{Kind: evOwed, Rerequest: true}, stRunning, kindTick, []Effect{efLaunch}, true},
+		{"a re-request lifts stuck", stuck, Event{Kind: evOwed, Rerequest: true}, stRunning, kindTick, nil, true},
 		{"push drops a question", question, Event{Kind: evPush, Head: "bbb"}, stIdle, "", []Effect{efStopWorkers, efRevokeTokens}, true},
 		{"push drops an approve", st(stAwaiting, kindApprove), Event{Kind: evPush, Head: "bbb"}, stIdle, "", []Effect{efStopWorkers, efRevokeTokens}, true},
 		{"push while running", running, Event{Kind: evPush}, stRunning, kindTick, nil, false},
@@ -63,7 +63,7 @@ func TestTransition(t *testing.T) {
 		{"resumed without a worker", PRState{State: stAwaiting, Kind: kindQuestion}, Event{Kind: evResumed}, stAwaiting, kindQuestion, nil, false},
 		{"ended", running, Event{Kind: evEnded, Next: &posted}, stHandled, kindPosted, []Effect{efRoundsRead}, true},
 		{"ended while blocked", question, Event{Kind: evEnded, Next: &posted}, stHandled, kindPosted, []Effect{efRoundsRead}, true},
-		{"ended needing retry", running, Event{Kind: evEnded, Next: &retry}, stRunning, kindRetry, []Effect{efLaunch}, true},
+		{"ended needing retry", running, Event{Kind: evEnded, Next: &retry}, stRunning, kindRetry, nil, true},
 		{"ended without a decision", running, Event{Kind: evEnded}, stRunning, kindTick, nil, false},
 		{"ended when idle", idle, Event{Kind: evEnded, Next: &posted}, stHandled, kindPosted, []Effect{efRoundsRead}, true},
 		{"ended when handled", posted, Event{Kind: evEnded, Next: &retry}, stHandled, kindPosted, nil, false},
@@ -170,5 +170,26 @@ func TestRenderPaused(t *testing.T) {
 	}
 	if a := render(pr, PRState{State: stAwaiting, Kind: kindQuestion}, v); a.Note == v.Paused {
 		t.Errorf("paused hid a question: %+v", a)
+	}
+}
+
+// A rule may list only effects move performs: a listed effect nobody runs
+// reads as done in the table and the diagram, and is not.
+func TestRulesListOnlyPerformedEffects(t *testing.T) {
+	w := newTickWorld(t)
+	for i, r := range rules {
+		for _, ef := range r.effects {
+			if !slices.Contains(performedEffects, ef) {
+				t.Errorf("rule %d (%s) lists %q, which move does not perform", i, r.event, ef)
+			}
+		}
+	}
+	for _, ef := range performedEffects {
+		if err := w.h.effect(widgetsPR, ef); err != nil {
+			t.Errorf("effect %q: %v", ef, err)
+		}
+	}
+	if err := w.h.effect(widgetsPR, Effect("launch")); err == nil {
+		t.Error("an effect move does not know was accepted")
 	}
 }

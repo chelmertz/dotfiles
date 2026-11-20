@@ -125,10 +125,7 @@ type Effect string
 const (
 	efStopWorkers  Effect = "stop_workers"
 	efRevokeTokens Effect = "revoke_tokens"
-	efReaccept     Effect = "reaccept"
-	efLaunch       Effect = "launch"
 	efRoundsRead   Effect = "rounds_read"
-	efDelete       Effect = "delete" // the PR's state and its elly row
 )
 
 // match picks the states a rule applies in. An empty kinds matches any kind;
@@ -196,23 +193,23 @@ var (
 
 // rules is the whole state machine; the first rule that applies wins.
 var rules = []rule{
-	{from: anyState, event: evClosed, to: to(stGone, ""), effects: []Effect{efStopWorkers, efRoundsRead, efDelete}},
+	{from: anyState, event: evClosed, to: to(stGone, ""), effects: []Effect{efStopWorkers, efRoundsRead}},
 	// The user's approval at the head leaves nothing to show.
 	{from: notIn(in(stRunning, stStarting)), event: evUserApproved, to: to(stIdle, ""), effects: []Effect{efRevokeTokens}},
-	{from: notIn(in(stRunning, stStarting)), event: evClick, to: to(stStarting, kindClick), effects: []Effect{efReaccept, efLaunch}, remember: true},
+	{from: notIn(in(stRunning, stStarting)), event: evClick, to: to(stStarting, kindClick), remember: true},
 	{from: in(stStarting), event: evLaunched, to: to(stRunning, kindClick)},
 	{from: notIn(in(stRunning)), event: evNotStarted, when: withReason, to: to(stHeld, kindLaunch)},
 	{from: in(stStarting), event: evNotStarted, to: toPrev},
-	{from: in(stStuck), event: evOwed, when: rerequested, to: to(stRunning, kindTick), effects: []Effect{efLaunch}},
+	{from: in(stStuck), event: evOwed, when: rerequested, to: to(stRunning, kindTick)},
 	{from: in(stIdle, stHandled, stAwaiting), event: evOwed, when: freshLook, to: to(stHeld, kindFresh)},
-	{from: in(stIdle, stHandled, stAwaiting), event: evOwed, to: to(stRunning, kindTick), effects: []Effect{efLaunch}},
-	{from: inKind(stHeld, kindLaunch), event: evOwed, to: to(stRunning, kindTick), effects: []Effect{efLaunch}},
+	{from: in(stIdle, stHandled, stAwaiting), event: evOwed, to: to(stRunning, kindTick)},
+	{from: inKind(stHeld, kindLaunch), event: evOwed, to: to(stRunning, kindTick)},
 	{from: in(stAwaiting), event: evPush, to: to(stIdle, ""), effects: []Effect{efStopWorkers, efRevokeTokens}},
 	{from: in(stRunning), event: evBlocked, to: to(stAwaiting, kindQuestion), remember: true},
 	// A round recorded without its move (a crash between the two writes).
 	{from: in(stIdle), event: evBlocked, to: to(stAwaiting, kindQuestion)},
 	{from: inKind(stAwaiting, kindQuestion), event: evResumed, when: workerBack, to: toPrev},
-	{from: in(stRunning), event: evEnded, when: decidedRetry, to: toDecided, effects: []Effect{efLaunch}},
+	{from: in(stRunning), event: evEnded, when: decidedRetry, to: toDecided},
 	{from: in(stRunning), event: evEnded, when: decided, to: toDecided, effects: []Effect{efRoundsRead}},
 	{from: inKind(stAwaiting, kindQuestion), event: evEnded, when: decided, to: toDecided, effects: []Effect{efRoundsRead}},
 	// A round recorded without its move (a crash between the two writes).

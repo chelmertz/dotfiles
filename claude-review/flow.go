@@ -66,6 +66,9 @@ func (h tickHost) mintFor(pr PR, s PRState) error {
 	return err
 }
 
+// performedEffects are the effects effect runs; a rule lists no other.
+var performedEffects = []Effect{efStopWorkers, efRevokeTokens, efRoundsRead}
+
 func (h tickHost) effect(pr PR, ef Effect) error {
 	switch ef {
 	case efStopWorkers:
@@ -85,6 +88,8 @@ func (h tickHost) effect(pr PR, ef Effect) error {
 		return h.ledger.RevokeTokens(pr)
 	case efRoundsRead:
 		return h.ledger.MarkPRRead(pr, h.now())
+	default:
+		return fmt.Errorf("effect %s is not one move performs", ef)
 	}
 	return nil
 }
