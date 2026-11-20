@@ -519,8 +519,8 @@ func firstNonEmpty(a, b string) string {
 // minted for an awaiting{approve} head, and why an owed round is held back
 // this tick (the daily cap, the breaker), which is never stored.
 type View struct {
-	Token  ids.Token
-	Paused string
+	Token ids.Token
+	Hold  Hold
 	// Dismissing: a dismissal of the user's approval is recorded, not seen.
 	Dismissing bool
 }
@@ -542,8 +542,8 @@ func statesLink(pr PR) Link { return Link{Label: "?", URL: verbURL(pr, "states")
 
 func renderRow(pr PR, s PRState, v View) Annotation {
 	t := typed(s)
-	if k := t.V.key(); v.Paused != "" && (k.State == stIdle || k.State == stHandled) {
-		return Annotation{State: stateNeedsYou, Note: capRunes(v.Paused, ellyMaxNote), Links: []Link{primary(attachLink(pr))}}
+	if k := t.V.key(); v.Hold.note() != "" && (k.State == stIdle || k.State == stHandled) {
+		return Annotation{State: stateNeedsYou, Note: capRunes(v.Hold.note(), ellyMaxNote), Links: []Link{primary(attachLink(pr))}}
 	}
 	a := t.V.row(pr, t, v)
 	a.Note = capRunes(a.Note, ellyMaxNote)

@@ -79,7 +79,7 @@ func TestNotesNeverCarryStoredText(t *testing.T) {
 		}
 	}
 	for _, kind := range []string{breakerCap, breakerDuplicate, breakerSelfCheck, ""} {
-		if w := breakerWords(kind + leak); strings.Contains(w, liveToken) || strings.Contains(w, "3f2a") {
+		if w := holdFor(false, kind+leak).note(); strings.Contains(w, liveToken) || strings.Contains(w, "3f2a") {
 			t.Errorf("breaker %q words %q carry stored text", kind, w)
 		}
 	}

@@ -84,7 +84,7 @@ func (h tickHost) reshow(pr PR) error {
 	if err != nil || !ok {
 		return err
 	}
-	return h.show(pr, s, "")
+	return h.show(pr, s, Hold{})
 }
 
 // beingDismissed: review is the one a pending dismissal on pr targets.

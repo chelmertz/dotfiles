@@ -59,7 +59,7 @@ func (h tickHost) moved(pr PR, e Event) (PRState, bool, error) {
 		}
 		// The state is stored; elly refusing the row is said, never the
 		// move's failure, and the next refresh sends it again.
-		h.warn(pr, h.show(pr, next, ""))
+		h.warn(pr, h.show(pr, next, Hold{}))
 		return nil
 	})
 	return next, true, err
@@ -109,10 +109,10 @@ func (h tickHost) effect(pr PR, ef Effect) error {
 	return nil
 }
 
-// show sends pr's row for s to elly, paused naming why an owed round is held
-// back this tick. A state without a row deletes it.
-func (h tickHost) show(pr PR, s PRState, paused string) error {
-	v := View{Paused: paused}
+// show sends pr's row for s to elly, hold naming why an owed round waits
+// this pass. A state without a row deletes it.
+func (h tickHost) show(pr PR, s PRState, hold Hold) error {
+	v := View{Hold: hold}
 	dismissing, err := h.ledger.DismissalPending(pr)
 	if err != nil {
 		return err

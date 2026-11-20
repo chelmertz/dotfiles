@@ -1,7 +1,10 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -166,5 +169,29 @@ func TestSetPRStateRefusesADeletion(t *testing.T) {
 	l := openTestLedger(t)
 	if err := l.SetPRState(widgetsPR, PRState{}); err == nil {
 		t.Error("the deletion outcome was stored")
+	}
+}
+
+// States are written only through prstate.go (SetPRState, DeletePRState,
+// the migration and its rewrite), which move and the converter use; a
+// statement elsewhere that writes pr_state bypasses the rules. The scan
+// reads SQL, not callers, so a new raw statement fails here too.
+func TestOnlyPRStateWritesThePRStateTable(t *testing.T) {
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	write := regexp.MustCompile("(?i)(insert|replace|update|delete)[^`]*pr_state")
+	for _, f := range files {
+		if f == "prstate.go" || strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if m := write.Find(b); m != nil {
+			t.Errorf("%s writes pr_state outside prstate.go: %q", f, m)
+		}
 	}
 }

@@ -35,5 +35,5 @@ func (h tickHost) move2(pr PR, s PRState) error {
 	if err := h.ledger.SetPRState(pr, s); err != nil {
 		return err
 	}
-	return h.show(pr, s, "")
+	return h.show(pr, s, Hold{})
 }

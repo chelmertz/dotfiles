@@ -158,18 +158,26 @@ func TestRenderPrimaryLinks(t *testing.T) {
 }
 
 // A held-back owed round shows as paused on a row that would otherwise not
-// need the user, and never hides one that does.
+// need the user (idle, handled), and never replaces any other: an Approve
+// stays visible under the daily cap. Every state crossed with every hold.
 func TestRenderPaused(t *testing.T) {
 	pr := PR{Owner: "o", Repo: "r", Number: 1}
-	v := View{Paused: "paused: the daily round limit for this PR is reached"}
-	for _, s := range []PRState{{State: stIdle}, {State: stHandled, Kind: kindPosted}} {
-		a := render(pr, s, v)
-		if a.State != stateNeedsYou || a.Note != v.Paused || len(a.Links) != 2 || !a.Links[0].Primary || a.Links[1] != statesLink(pr) {
-			t.Errorf("%s: %+v", s.State, a)
+	holds := []Hold{holdFor(true, ""), holdFor(false, breakerDuplicate+"x"), holdFor(true, breakerCap+"x"), holdFor(false, "old text")}
+	for _, k := range allStates {
+		s := PRState{State: k.State, Kind: k.Kind, Head: "h1"}
+		bare := render(pr, s, View{})
+		for _, h := range holds {
+			a := render(pr, s, View{Hold: h})
+			if k.State == stIdle || k.State == stHandled {
+				if a.State != stateNeedsYou || a.Note != h.note() || len(a.Links) != 2 || !a.Links[0].Primary || a.Links[1] != statesLink(pr) {
+					t.Errorf("%s{%s} under %+v: %+v", k.State, k.Kind, h, a)
+				}
+				continue
+			}
+			if a.Note != bare.Note || a.State != bare.State {
+				t.Errorf("%s{%s}: a hold replaced its row: %+v", k.State, k.Kind, a)
+			}
 		}
-	}
-	if a := render(pr, PRState{State: stAwaiting, Kind: kindQuestion}, v); a.Note == v.Paused {
-		t.Errorf("paused hid a question: %+v", a)
 	}
 }
 

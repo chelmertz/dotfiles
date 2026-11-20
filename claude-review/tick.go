@@ -154,7 +154,7 @@ func (h tickHost) plan(prs []EllyPR, running int) error {
 	if err != nil {
 		return err
 	}
-	held := map[string]string{}
+	held := map[string]Hold{}
 	if readable {
 		if held, err = h.startOwed(prs, running); err != nil {
 			return err
@@ -249,7 +249,7 @@ func breakerError(reason string) error {
 	if reason == "" {
 		return nil
 	}
-	if healable(reason) {
+	if causeOf(reason) == causeTotalCap {
 		return fmt.Errorf("no round starts: %s; it clears itself once fewer than the limit started in the last 24 hours", reason)
 	}
 	return fmt.Errorf("no round starts: %s; `claude-review tick --reset` lets them start again", reason)
@@ -619,12 +619,12 @@ func (h tickHost) clear(pr PR) error {
 // and says in the journal why it leaves each other PR. held maps each PR
 // whose owed round the daily cap or the breaker holds back to the note its
 // row shows this tick; that is never stored.
-func (h tickHost) startOwed(prs []EllyPR, running int) (held map[string]string, err error) {
+func (h tickHost) startOwed(prs []EllyPR, running int) (held map[string]Hold, err error) {
 	plans, err := planTick(prs, h.tcfg, h.ledger, h.gh, h.now())
 	if err != nil {
 		return nil, err
 	}
-	held = map[string]string{}
+	held = map[string]Hold{}
 	for _, p := range plans {
 		if p, err = h.answerOwes(p); err != nil {
 			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", p.PR.URL(), err)
@@ -670,18 +670,19 @@ func (h tickHost) leave(pr PR, s skip) {
 
 // hold keeps p's owed round back when the PR changed under its first look,
 // the daily cap or the breaker says so, and reports whether it did.
-func (h tickHost) hold(p Planned, held map[string]string) (bool, error) {
-	note, err := h.pausedNote(p)
+func (h tickHost) hold(p Planned, held map[string]Hold) (bool, error) {
+	hold, err := h.holdOf(p)
 	if err != nil {
 		return false, err
 	}
+	note := hold.note()
 	if p.Gate == gateFreshLook {
 		note = "the PR changed under its first look"
 		if _, err := h.move(p.PR, Event{Kind: evChangedUnderFirstLook, Head: p.Head}); err != nil {
 			return false, err
 		}
 	} else if note != "" {
-		held[p.PR.URL()] = note
+		held[p.PR.URL()] = hold
 	}
 	if note != "" && h.out != nil {
 		fmt.Fprintf(h.out, "hold %s: %s\n", p.PR.URL(), note)
@@ -785,20 +786,13 @@ func (h tickHost) setRow(pr PR, a Annotation) error {
 	return nil
 }
 
-// pausedNote is the row of a PR whose owed round the daily cap or the
-// breaker holds back, "" when neither does.
-func (h tickHost) pausedNote(p Planned) (string, error) {
-	if p.Gate == gatePaused {
-		return "paused: the daily review limit for this PR is reached", nil
-	}
+// holdOf is p's hold this pass: its daily cap, or the breaker, which wins.
+func (h tickHost) holdOf(p Planned) (Hold, error) {
 	reason, err := h.ledger.Tripped()
-	if err != nil || reason == "" {
-		return "", err
+	if err != nil {
+		return Hold{}, err
 	}
-	if healable(reason) {
-		return "paused: " + breakerWords(reason) + "; claude-review starts again once fewer than the limit started in the last 24 hours", nil
-	}
-	return "paused: " + breakerWords(reason) + "; claude-review starts no round until it is reset", nil
+	return holdFor(p.Gate == gatePaused, reason), nil
 }
 
 // errRosterUnknown marks a launch whose session list could not be read.
@@ -814,12 +808,6 @@ const (
 	breakerLoop      = "loop: "
 )
 
-// healable: a cap trip, which clears itself (healBreaker). A duplicate, a
-// failed self-check or a cap tripped twice in a week waits for a reset.
-func healable(reason string) bool {
-	return strings.HasPrefix(reason, breakerCap) || strings.HasSuffix(reason, "the limit across all PRs") && !strings.HasPrefix(reason, breakerLoop)
-}
-
 // metaBreakerHealed is when healBreaker last cleared a cap trip.
 const metaBreakerHealed = "breaker-healed-at"
 
@@ -832,7 +820,7 @@ const healLatchWindow = 7 * 24 * time.Hour
 // once, so a loop does not spend the cap every day unseen.
 func (h tickHost) healBreaker() error {
 	reason, err := h.ledger.Tripped()
-	if err != nil || !healable(reason) {
+	if err != nil || causeOf(reason) != causeTotalCap {
 		return err
 	}
 	n, err := h.ledger.Launches(h.now().Add(-24 * time.Hour))
@@ -854,21 +842,6 @@ func (h tickHost) healBreaker() error {
 	return h.do("clear the breaker: fewer than the limit started in the last 24 hours", func() error {
 		return errors.Join(h.ledger.Reset(h.now()), h.ledger.SetMeta(metaBreakerHealed, h.now().UTC().Format(time.RFC3339)))
 	})
-}
-
-// A reason stored before the kinds existed is matched by its old cap text.
-func breakerWords(reason string) string {
-	switch {
-	case strings.HasPrefix(reason, breakerCap), strings.HasSuffix(reason, "the limit across all PRs"):
-		return "too many rounds started in 24 hours, the limit across all PRs"
-	case strings.HasPrefix(reason, breakerDuplicate):
-		return "two workers held one session"
-	case strings.HasPrefix(reason, breakerLoop):
-		return "the limit across all PRs was reached twice in a week"
-	case strings.HasPrefix(reason, breakerSelfCheck):
-		return "the self-check on a new Claude Code failed"
-	}
-	return "the breaker tripped"
 }
 
 // launch starts a round on pr in its clone and then records it with
@@ -1024,7 +997,7 @@ func (h tickHost) refreshedExpiry(a Annotation) (expires time.Time, send bool) {
 // stands at its head, a window closed. An answered question moves only
 // by the round answerOwes starts, so a held launch keeps the question. A PR
 // missing from elly is not evidence. held is startOwed's paused rows.
-func (h tickHost) refresh(held map[string]string, prs []EllyPR) error {
+func (h tickHost) refresh(held map[string]Hold, prs []EllyPR) error {
 	updated := map[string]time.Time{}
 	for _, p := range prs {
 		updated[p.Url] = p.LastUpdated
@@ -1072,7 +1045,7 @@ func (h tickHost) refresh(held map[string]string, prs []EllyPR) error {
 
 // refreshOne moves pr's state s on evidence and sends its row; the caller
 // holds the PR's lock.
-func (h tickHost) refreshOne(pr PR, s PRState, paused string, updated time.Time) {
+func (h tickHost) refreshOne(pr PR, s PRState, hold Hold, updated time.Time) {
 	s, err := h.evidence(pr, s, updated)
 	if err != nil {
 		fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
@@ -1081,7 +1054,7 @@ func (h tickHost) refreshOne(pr PR, s PRState, paused string, updated time.Time)
 	if deleted(s) {
 		return
 	}
-	if err := h.quiet("send "+pr.URL()+" to elly", func() error { return h.show(pr, s, paused) }); err != nil {
+	if err := h.quiet("send "+pr.URL()+" to elly", func() error { return h.show(pr, s, hold) }); err != nil {
 		fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 	}
 }
