@@ -476,3 +476,53 @@ func writeJobBody(t *testing.T, dir, body string) {
 		t.Fatal(err)
 	}
 }
+
+// Every launch result lands the same way whether tick launched (from idle)
+// or a click did (from its starting state): one table, afterRelaunch.
+func TestEveryLaunchResultLandsTheSameOnBothPaths(t *testing.T) {
+	type want struct {
+		state    stateKey
+		class    string
+		recorded bool
+		skip     skip
+		err      bool
+	}
+	for kind, wnt := range map[RelaunchKind]want{
+		relaunched:        {recorded: true},
+		relaunchWindow:    {state: stateKey{stHeld, kindWindow}, skip: skipWindowOpen},
+		relaunchDuplicate: {state: stateKey{stHeld, kindLaunch}, class: launchDuplicate, skip: "x; rounds are paused for every PR", err: true},
+		relaunchNotListed: {state: stateKey{stHeld, kindLaunch}, class: launchUnlisted, skip: "the round was launched but x; nothing was recorded"},
+		relaunchPolicy:    {state: stateKey{stHeld, kindLaunch}, class: launchNotStarted, skip: "nothing started: x"},
+		relaunchBusy:      {skip: skipBusy},
+		relaunchUnknown:   {err: true},
+	} {
+		for _, from := range []PRState{{State: stIdle, Head: "h1"}, {State: stStarting, Kind: kindClick, Head: "h1", Prev: &PRState{State: stHandled, Kind: kindPosted, Head: "h1"}}} {
+			w := newTickWorld(t)
+			pr := w.accept(t, 42)
+			if err := w.h.ledger.SetPRState(pr, from); err != nil {
+				t.Fatal(err)
+			}
+			recorded := false
+			not, err := w.h.afterRelaunch(pr, RelaunchResult{Kind: kind, Detail: "x"}, nil, func() error { recorded = true; return nil }, func(detail string) error {
+				_, err := w.h.move(pr, Event{Kind: evNotStarted, Detail: detail})
+				return err
+			})
+			got, _, _ := w.h.ledger.PRState(pr)
+			if (err != nil) != wnt.err || not != wnt.skip || recorded != wnt.recorded {
+				t.Errorf("kind %d from %s: skip %q err %v recorded %v", kind, from.State, not, err, recorded)
+			}
+			if wnt.state == (stateKey{}) {
+				if got.State != from.State {
+					t.Errorf("kind %d from %s moved to %s", kind, from.State, got.State)
+				}
+				continue
+			}
+			if (stateKey{got.State, got.Kind}) != wnt.state || got.Detail != wnt.class && wnt.class != "" {
+				t.Errorf("kind %d from %s: landed on %s{%s} %q, want %v %q", kind, from.State, got.State, got.Kind, got.Detail, wnt.state, wnt.class)
+			}
+		}
+	}
+	if _, err := newTickWorld(t).h.afterRelaunch(widgetsPR, RelaunchResult{}, nil, nil, nil); err == nil {
+		t.Error("a launch with no outcome read as busy")
+	}
+}

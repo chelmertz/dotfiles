@@ -35,7 +35,12 @@ linters:
     - forbidigo
     # A switch over a sealed type (//sumtype:decl) names every variant.
     - gochecksumtype
+    # A switch over an enum (RelaunchKind's launch results, say) names
+    # every value or has a default.
+    - exhaustive
   settings:
+    exhaustive:
+      default-signifies-exhaustive: true
     gochecksumtype:
       default-signifies-exhaustive: false
     forbidigo:

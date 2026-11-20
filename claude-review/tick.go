@@ -830,10 +830,13 @@ func (h tickHost) starter() roundStarter {
 	return roundStarter{sess: h.sess, exists: h.exists, run: h.start, wrapper: h.tcfg.Wrapper}
 }
 
-// afterRelaunch turns Relaunch's outcome into ledger writes: the round is
-// recorded only once its worker is listed and alone; failed records why
-// none started. notStarted names why no round started; "" with no error is
-// a start.
+// afterRelaunch is the one table from a launch's result to the PR's state,
+// for the click and tick alike: the round is recorded only once its worker
+// is listed and alone; failed records why none started. notStarted names
+// why no round started; "" with no error is a start. Every result has its
+// row, and the exhaustive linter fails a switch that misses one. Results
+// where nothing was touched (busy, roster unreadable before any launch)
+// move nothing: the PR is tried again next pass.
 func (h tickHost) afterRelaunch(pr PR, res RelaunchResult, stopErr error, record func() error, failed func(detail string) error) (notStarted skip, err error) {
 	switch res.Kind {
 	case relaunched:
@@ -853,8 +856,10 @@ func (h tickHost) afterRelaunch(pr PR, res RelaunchResult, stopErr error, record
 	case relaunchPolicy:
 		err := failed(launchNotStarted)
 		return skip("nothing started: " + res.Detail), err
+	case relaunchBusy:
+		return skipBusy, nil
 	}
-	return skipBusy, nil
+	return "", fmt.Errorf("launch ended with no outcome (kind %d)", res.Kind)
 }
 
 // answered: a round's question is the user's until the user replies, after
