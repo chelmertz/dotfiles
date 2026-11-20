@@ -26,6 +26,12 @@ Then propose where the answer belongs on {url}: an inline comment on the line th
 
 // forkDenyRules close the ways out of a session that may hold prod rows.
 // Everything not listed anywhere asks, since the fork loads no settings.
+// forkEnvUnset runs the fork without the SSH agent: it never fetches, and
+// without the socket a git push that slips past forkDenyRules cannot
+// authenticate. Set at the command, so a shell rc that exports the socket
+// again does not undo it.
+var forkEnvUnset = []string{"env", "-u", "SSH_AUTH_SOCK"}
+
 var forkDenyRules = []string{
 	"Bash(curl *)", "Bash(wget *)", "WebFetch", "WebSearch",
 	"Bash(git push *)", "Bash(gh gist *)", "Bash(op *)", "Bash(printenv *)", "Bash(env *)",
@@ -125,7 +131,7 @@ func openFork(d Deps, cfg Config, pr PR) int {
 	if err := l.SetForkSession(pr, forkID); err != nil {
 		return fail(d, err)
 	}
-	if err := openTerminal(d, cfg, dir, [][]string{ForkArgs(pr, session, forkID, remote, metabaseReadRules(d.Home))}, pr); err != nil {
+	if err := openTerminal(d, cfg, dir, [][]string{append(append([]string{}, forkEnvUnset...), ForkArgs(pr, session, forkID, remote, metabaseReadRules(d.Home))...)}, pr); err != nil {
 		return fail(d, err)
 	}
 	return 0

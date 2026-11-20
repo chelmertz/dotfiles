@@ -112,6 +112,11 @@ func TestOpenClaudeForksAnEndedReview(t *testing.T) {
 			if !strings.Contains(script, "--fork-session") || !strings.Contains(script, widgetsPR.RoundSessionID().String()) || !strings.Contains(script, flagSettings) || !strings.Contains(script, flagStrictMCP) {
 				t.Errorf("no locked-down fork of the PR's session: %q", script)
 			}
+			// The fork never fetches; without the agent socket a push that
+			// slips past its best-effort denial cannot authenticate.
+			if !strings.Contains(script, "SSH_AUTH_SOCK") {
+				t.Errorf("the fork keeps the SSH agent: %q", script)
+			}
 			if code := run([]string{"claude-review://other/repo/1/" + verb}, h.d); code != 1 {
 				t.Errorf("a PR outside the review repos: exit %d", code)
 			}
