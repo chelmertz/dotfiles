@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // A launch whose worker may be alive (launched but not listed, or the
@@ -237,5 +238,47 @@ func TestTickClosingAWindowAfterAPushDropsTheOldApprove(t *testing.T) {
 	}
 	if s, _, _ := w.h.ledger.PRState(pr); s.State != stIdle {
 		t.Errorf("an Approve judged before the push came back: %+v", s)
+	}
+}
+
+// GitHub is asked about a PR with a row only when elly saw it change since
+// the last answer that moved nothing; a PR elly does not list is asked
+// every pass, since missing from elly is not evidence either way.
+func TestRefreshAsksGitHubOnlyAfterAChange(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	if err := w.h.ledger.SetPRState(pr, PRState{State: stHandled, Kind: kindPosted, Head: "h1"}); err != nil {
+		t.Fatal(err)
+	}
+	listed := EllyPR{Url: pr.URL(), RepoOwner: "acme", RepoName: "widgets", Author: "a", HeadRefOid: "h1", LastUpdated: t0, Buried: true}
+	w.elly.prs = []EllyPR{listed}
+	w.gh.state, w.gh.head = "open", "h1"
+	for range 3 {
+		if err := w.h.tick(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if w.gh.standings != 1 {
+		t.Errorf("asked GitHub %d times about an unchanged PR, want 1", w.gh.standings)
+	}
+	// The user approves: the PR's update time moves, and the approval lands.
+	w.elly.prs[0].LastUpdated = t0.Add(time.Minute)
+	w.gh.user = &Review{ID: reviewID(3), State: "APPROVED", CommitID: "h1"}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if s, _, _ := w.h.ledger.PRState(pr); s.State != stIdle {
+		t.Errorf("an approval after a change was missed: %+v\n%s", s, w.out)
+	}
+	if err := w.h.ledger.SetPRState(pr, PRState{State: stHandled, Kind: kindPosted, Head: "h1"}); err != nil {
+		t.Fatal(err)
+	}
+	w.elly.prs, w.gh.user = nil, nil
+	before := w.gh.standings
+	for range 2 {
+		_ = w.h.tick()
+	}
+	if w.gh.standings-before != 2 {
+		t.Errorf("a PR elly does not list was asked %d times in 2 passes", w.gh.standings-before)
 	}
 }

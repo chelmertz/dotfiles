@@ -147,7 +147,7 @@ func (h tickHost) tick() error {
 	if err != nil {
 		return err
 	}
-	if err := h.refresh(held); err != nil {
+	if err := h.refresh(held, prs); err != nil {
 		return err
 	}
 	h.offerStarts(prs)
@@ -922,7 +922,11 @@ func (h tickHost) refreshedExpiry(a Annotation) (expires time.Time, send bool) {
 // stands at its head, a window closed. An answered question moves only
 // by the round answerOwes starts, so a held launch keeps the question. A PR
 // missing from elly is not evidence. held is startOwed's paused rows.
-func (h tickHost) refresh(held map[string]string) error {
+func (h tickHost) refresh(held map[string]string, prs []EllyPR) error {
+	updated := map[string]time.Time{}
+	for _, p := range prs {
+		updated[p.Url] = p.LastUpdated
+	}
 	states, err := h.ledger.PRStates()
 	if err != nil {
 		return err
@@ -958,7 +962,7 @@ func (h tickHost) refresh(held map[string]string) error {
 			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 			continue
 		}
-		h.refreshOne(pr, s, held[url])
+		h.refreshOne(pr, s, held[url], updated[url])
 		unlock()
 	}
 	return nil
@@ -966,8 +970,8 @@ func (h tickHost) refresh(held map[string]string) error {
 
 // refreshOne moves pr's state s on evidence and sends its row; the caller
 // holds the PR's lock.
-func (h tickHost) refreshOne(pr PR, s PRState, paused string) {
-	s, err := h.evidence(pr, s)
+func (h tickHost) refreshOne(pr PR, s PRState, paused string, updated time.Time) {
+	s, err := h.evidence(pr, s, updated)
 	if err != nil {
 		fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 		return
@@ -982,7 +986,9 @@ func (h tickHost) refreshOne(pr PR, s PRState, paused string) {
 
 // evidence moves s on what GitHub and the desktop say, and returns the
 // state after. An idle PR is not asked about: it has no row.
-func (h tickHost) evidence(pr PR, s PRState) (PRState, error) {
+// updated is the PR's last update as elly saw it, zero when elly does not
+// list it.
+func (h tickHost) evidence(pr PR, s PRState, updated time.Time) (PRState, error) {
 	if (s.State == stHeld && s.Kind == kindWindow || windowBelow(s)) && !windowOpen(h.sess, h.ledger, pr) {
 		// The head, so the restore drops what was judged at an older one;
 		// unreadable, the restore stands as before.
@@ -996,12 +1002,32 @@ func (h tickHost) evidence(pr PR, s PRState) (PRState, error) {
 	if s.State == stIdle {
 		return s, nil
 	}
+	// A close or an approval updates the PR, so GitHub has nothing new to
+	// say about one elly saw unchanged since its last quiet answer. Each
+	// ask is two gh calls, for every PR with a row, every tick.
+	key, seen := metaStandingPrefix+pr.URL(), ""
+	if !updated.IsZero() {
+		seen = updated.UTC().Format(time.RFC3339Nano)
+		if last, err := h.ledger.Meta(key); err == nil && last == seen {
+			return s, nil
+		}
+	}
 	e, err := h.onGitHub(pr)
-	if err != nil || e == nil {
+	if err != nil {
 		return s, err
+	}
+	if e == nil {
+		if seen != "" && !h.dry {
+			h.warn(pr, h.ledger.SetMeta(key, seen))
+		}
+		return s, nil
 	}
 	return h.move(pr, *e)
 }
+
+// metaStandingPrefix keys the PR update time GitHub last had nothing new
+// for.
+const metaStandingPrefix = "standing-seen "
 
 // onGitHub is the event GitHub holds for pr, nil for none.
 func (h tickHost) onGitHub(pr PR) (*Event, error) {
