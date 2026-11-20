@@ -13,12 +13,13 @@ func TestParseVerb(t *testing.T) {
 	cases := map[string]string{
 		"claude-review://acme/widgets/42/approve?at=" + sha + "&token=ab12": "approve",
 		"claude-review://acme/widgets/42/attach":                            "attach",
-		"claude-review://acme/widgets/42/ignore":                            "ignore",
-		"claude-review://acme/widgets/42/fork":                              "fork",
-		"claude-review://acme/widgets/42":                                   "",
-		"claude-review://acme/widgets/42/merge":                             "",
-		"claude-review://../widgets/42/ignore":                              "",
-		"https://github.com/acme/widgets/pull/42/approve":                   "",
+		// Gone: no row has written either for days, and each is refused.
+		"claude-review://acme/widgets/42/ignore":          "",
+		"claude-review://acme/widgets/42/fork":            "",
+		"claude-review://acme/widgets/42":                 "",
+		"claude-review://acme/widgets/42/merge":           "",
+		"claude-review://../widgets/42/ignore":            "",
+		"https://github.com/acme/widgets/pull/42/approve": "",
 	}
 	for in, want := range cases {
 		pr, verb, _, ok := ParseVerb(in)
@@ -71,15 +72,6 @@ func TestApproveVerbNeedsAMintedToken(t *testing.T) {
 	}
 	if code := run([]string{"claude-review://acme/widgets/42/approve?at=" + sha + "&token=" + tok.String()}, h.d); code == 0 || approvals() != 1 {
 		t.Errorf("reused token: exit %d, approvals %d", code, approvals())
-	}
-}
-
-// Rows sent before Ignore went carry its link until their next refresh; a
-// click on one says what replaced it.
-func TestIgnoreVerbIsGone(t *testing.T) {
-	h := verbHost(t)
-	if code := run([]string{"claude-review://acme/widgets/42/ignore"}, h.d); code == 0 || !strings.Contains(h.stderr.String(), "bury") {
-		t.Fatalf("exit %d: %s", code, h.stderr)
 	}
 }
 
@@ -147,7 +139,7 @@ func TestThunderbirdHostPassesNoVerbs(t *testing.T) {
 
 // A flag-shaped owner never names a PR, verb or not.
 func TestParseVerbRefusesALeadingDash(t *testing.T) {
-	for _, in := range []string{"claude-review://-u/x/1/ignore", "claude-review://o/-t1/1/approve"} {
+	for _, in := range []string{"claude-review://-u/x/1/attach", "claude-review://o/-t1/1/approve"} {
 		if _, _, _, ok := ParseVerb(in); ok {
 			t.Errorf("%q parsed", in)
 		}
@@ -161,9 +153,14 @@ func TestUnknownVerbIsRefused(t *testing.T) {
 	if code := runVerb(h.d, Config{ReviewRepos: []string{"acme/widgets"}}, widgetsPR, "bogus", nil); code != 1 || len(h.scripts) != 0 {
 		t.Fatalf("unknown verb: exit %d, scripts %q", code, h.scripts)
 	}
-	for _, v := range []string{"approve", "attach", "fork", "ignore", "states"} {
+	for _, v := range []string{"approve", "attach", "states"} {
 		if _, got, _, ok := ParseVerb("claude-review://acme/widgets/42/" + v); !ok || got != v || !slices.Contains(knownVerbs, v) {
 			t.Errorf("%s: parsed %q ok %v, known %v", v, got, ok, knownVerbs)
+		}
+	}
+	for _, gone := range []string{"fork", "ignore"} {
+		if code := run([]string{"claude-review://acme/widgets/42/" + gone}, h.d); code != 1 || len(h.scripts) != 0 {
+			t.Errorf("the %s link: exit %d, scripts %q", gone, code, h.scripts)
 		}
 	}
 }

@@ -15,13 +15,11 @@ import (
 const (
 	verbApprove = "approve"
 	verbAttach  = "attach"
-	verbFork    = "fork"
-	verbIgnore  = "ignore"
 	verbStates  = "states"
 )
 
 // knownVerbs are the verbs verbLink accepts; runVerb refuses any other.
-var knownVerbs = []string{verbApprove, verbAttach, verbFork, verbIgnore, verbStates}
+var knownVerbs = []string{verbApprove, verbAttach, verbStates}
 
 var verbLink = regexp.MustCompile(`^claude-review://([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/([1-9][0-9]*)/(` + strings.Join(knownVerbs, "|") + `)(?:\?([^#]*))?$`)
 
@@ -48,11 +46,6 @@ func runVerb(d Deps, cfg Config, pr PR, verb string, q url.Values) int {
 	switch verb {
 	case verbApprove:
 		return approveWithToken(d, pr, q.Get("at"), q.Get("token"))
-	case verbIgnore:
-		// Old rows carried an Ignore link until their next refresh.
-		return fail(d, fmt.Errorf("claude-review: Ignore is gone; bury %s in elly to stop its rounds", pr.URL()))
-	case verbFork:
-		return fork(d, cfg, pr)
 	case verbStates:
 		return runStates([]string{pr.URL()}, d, true)
 	case verbAttach:

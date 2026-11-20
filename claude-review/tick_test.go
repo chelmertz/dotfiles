@@ -524,7 +524,7 @@ func TestTickABlockedRoundNeedsTheUser(t *testing.T) {
 		a := all[pr.URL()]
 		// The same row as a round that ended on the question line: elly's
 		// button is the Primary link, so it reads Answer and opens the session.
-		if a.State != stateNeedsYou || a.Note != want || len(a.Links) == 0 || a.Links[0] != primary(answerLink(pr)) || slices.Contains(a.Links, forkLink(pr)) {
+		if a.State != stateNeedsYou || a.Note != want || len(a.Links) == 0 || a.Links[0] != primary(answerLink(pr)) || hasLink(&a, verbURL(pr, "fork")) {
 			t.Errorf("blocked on %q: annotation %+v", why, a)
 		}
 	}

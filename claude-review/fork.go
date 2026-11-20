@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -82,22 +81,6 @@ func ForkArgs(pr PR, session, forkID ids.SessionID, remote string, skillRules []
 	args = append(append(args, flagDenied), denyRules...)
 	args = append(args, "Bash(git show *)", "Bash(git diff *)", "Bash(git log *)", "Bash(git grep *)")
 	return append(append(args, secretReadRules...), forkDenyRules...)
-}
-
-func forkLink(pr PR) Link { return Link{Label: "Fork with prod data", URL: verbURL(pr, "fork")} }
-
-// fork is the old Fork with prod data link, now Open Claude: rows written
-// before the change still carry it until their next refresh.
-func fork(d Deps, cfg Config, pr PR) int {
-	unlock, err := d.Lock(pr.SessionID().String())
-	if errors.Is(err, errLocked) {
-		return fail(d, fmt.Errorf("claude-review: %s is being started; try again in a moment", pr.URL()))
-	}
-	if err != nil {
-		return fail(d, fmt.Errorf("claude-review: locking %s: %w", pr.URL(), err))
-	}
-	defer unlock()
-	return openFork(d, cfg, pr)
 }
 
 // openFork opens the fork, under the PR's lock the caller holds. A link can

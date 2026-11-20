@@ -87,7 +87,7 @@ func TestDecideOffersOpenClaudeOnEveryRow(t *testing.T) {
 // Claude never looked at gets a notice instead. The old fork link does the
 // same.
 func TestOpenClaudeForksAnEndedReview(t *testing.T) {
-	for _, verb := range []string{"attach", "fork"} {
+	for _, verb := range []string{"attach"} {
 		t.Run(verb, func(t *testing.T) {
 			h, fs := clickHost(t, true)
 			link := "claude-review://acme/widgets/42/" + verb
