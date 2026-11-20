@@ -819,7 +819,11 @@ claude-review alone. It holds:
    head has moved since the round started, a push overtook the question:
    the worker is stopped and the round read, so the new head gets a round
    of its own, which asks again if the question still holds. Left alone,
-   the waiting worker held the PR with no round on the new commits.
+   the waiting worker held the PR with no round on the new commits. Any
+   launch that replaces the question at the same head (a re-request, new
+   replies, a click) does the same: the question's round is read and its
+   worker stopped before the new one starts. Before, the waiting worker
+   made the launch read as busy, so a re-request waited for the answer.
 8. For every other round the ledger started and has not marked read, decide the
    outcome from GitHub and the ledger, never from the session's text alone
    (next section). Mark it read.

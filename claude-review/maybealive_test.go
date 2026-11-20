@@ -290,3 +290,39 @@ func TestAHostWithoutSessionsCannotStopWorkers(t *testing.T) {
 		t.Error("stopping workers without a session list succeeded")
 	}
 }
+
+// A re-request on a question row at the same head launches a new round; the
+// question's worker is stopped and its round read first, so neither a live
+// worker nor an unread round is left behind.
+func TestAReRequestOnAQuestionStopsItsWorker(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 1)
+	if _, err := w.h.ledger.StartRound(pr, "h1", NewHead{Head: "h1"}, t0.Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	w.gh.facts = RoundFacts{State: "open", Head: "h1"}
+	w.gh.state, w.gh.head = prOpen, "h1"
+	w.fs.workers = append(w.fs.workers, workerFor(pr.RoundSessionID(), 601))
+	w.fs.states[pr.RoundSessionID()] = "blocked"
+	w.blocked[pr.RoundSessionID()] = "which table?"
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := w.h.stateOf(pr); s.Kind != kindQuestion {
+		t.Fatalf("setup: %+v", s)
+	}
+	re := requestedPR(1)
+	re.HeadRefOid, re.LastUpdated = "h1", t0.Add(time.Minute)
+	w.elly.prs = []EllyPR{re}
+	w.h.now = func() time.Time { return t0.Add(2 * time.Minute) }
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(w.fs.events, "stop "+pr.RoundSessionID().Key().String()) {
+		t.Errorf("the question's worker was not stopped: %q\n%s", w.fs.events, w.out)
+	}
+	unread, _ := w.h.ledger.UnreadRounds()
+	if len(unread) != 1 || unread[0].Trigger.Kind() != trigRequested {
+		t.Errorf("unread %+v, want only the new round", unread)
+	}
+}

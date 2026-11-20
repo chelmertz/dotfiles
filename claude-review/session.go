@@ -156,7 +156,7 @@ func JobState(claudeDir string, id ids.SessionID) string {
 // it lacks reads "needs Bash permission" there). Observed on 2.1.314.
 func BlockedOn(claudeDir string, id ids.SessionID) (string, bool) {
 	j := readJob(claudeDir, id)
-	if j.State != "blocked" {
+	if j.State != jobBlocked {
 		return "", false
 	}
 	if j.Needs != "" {
@@ -199,7 +199,7 @@ func RoundRunning(claudeDir string, id ids.SessionID) bool {
 		return live.PID > 0
 	}
 	switch JobState(claudeDir, id) {
-	case jobDone, "blocked", "stopped":
+	case jobDone, jobBlocked, "stopped":
 		return false
 	}
 	return true

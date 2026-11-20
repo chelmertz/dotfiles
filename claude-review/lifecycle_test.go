@@ -182,10 +182,16 @@ func TestRelaunchUnreadableRosterLaunchesNothing(t *testing.T) {
 	}
 }
 
-// Only an explicit done is stopped: any other state, or none, is a round
-// that may still be going.
+// Only an explicit done, or a question waiting on the user, is stopped: any
+// other state, or none, is a round that may still be going.
 func TestRelaunchStopsAWorkerOnlyOnDone(t *testing.T) {
-	for _, state := range []string{"working", "blocked", "", "stopped", "something new"} {
+	f := newFakeSessions()
+	f.workers = []Worker{workerFor(sid, 100)}
+	f.states[sid] = jobBlocked
+	if res, err := f.sessions().Relaunch(sid, f.settle, f.launch); err != nil || !slices.Equal(f.events[:2], []string{"settle", "stop " + sid.Key().String()}) {
+		t.Errorf("a question's worker: got %+v %v, events %q", res, err, f.events)
+	}
+	for _, state := range []string{"working", "", "stopped", "something new"} {
 		f := newFakeSessions()
 		f.workers = []Worker{workerFor(sid, 100)}
 		f.states[sid] = state

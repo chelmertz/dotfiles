@@ -244,6 +244,10 @@ type RelaunchResult struct {
 // jobDone is the one job state that lets a worker be stopped.
 const jobDone = "done"
 
+// jobBlocked: the worker waits on the user (a question). A launch replaces
+// it as it replaces a done one: its round is read, then it is stopped.
+const jobBlocked = "blocked"
+
 // Polls bound the waits. A stopped worker's pid ended about 0.75 s after
 // `claude stop` returned (2.1.314); a fresh worker was listed before
 // `claude --bg` returned.
@@ -305,7 +309,7 @@ func (s Sessions) clear(id ids.SessionID, settle func() error) (RelaunchResult, 
 	if len(mine) == 0 {
 		return RelaunchResult{}, nil
 	}
-	if state := s.JobState(id); state != jobDone {
+	if state := s.JobState(id); state != jobDone && state != jobBlocked {
 		return RelaunchResult{Kind: relaunchBusy, Detail: fmt.Sprintf("job state %q", state)}, nil
 	}
 	if settle != nil {
