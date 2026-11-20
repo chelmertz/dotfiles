@@ -413,34 +413,38 @@ func (h tickHost) settleUnread(pr PR) error {
 // apply carries out one decision; it reports whether a retry started.
 // Without retry, a retry decision only reads the round.
 func (h tickHost) apply(pr PR, r Round, d Decision, retry bool) (bool, error) {
-	if d.Clear {
-		if _, err := h.move(pr, Event{Kind: evClosed}); err != nil {
-			return false, err
-		}
-		return false, h.do("mark round "+pr.URL()+" read", func() error { return h.ledger.MarkRead(r.ID) })
-	}
-	if d.Retry && retry {
-		return h.retry(pr, r, d)
-	}
-	if d.Retry {
-		d.Next = &PRState{State: stIdle}
-	}
-	if !d.DismissReviewID.IsZero() {
-		// The record first: a crash or a refusal from here on leaves it for
-		// the next tick, which settles it only on reading the dismissal back.
-		if err := h.do(fmt.Sprintf("record the dismissal of review %s on %s", d.DismissReviewID, pr.URL()), func() error {
-			return errors.Join(h.ledger.AddDismissal(pr, d.DismissReviewID, h.now()), h.ledger.RevokeTokens(pr))
-		}); err != nil {
-			return false, err
-		}
-		h.sendDismissal(Dismissal{PR: pr.URL(), Review: d.DismissReviewID})
-	}
 	s, err := h.stateOf(pr)
 	if err != nil {
 		return false, err
 	}
+	var next PRState
+	switch d := d.(type) {
+	case Closed:
+		if _, err := h.move(pr, Event{Kind: evClosed}); err != nil {
+			return false, err
+		}
+		return false, h.do("mark round "+pr.URL()+" read", func() error { return h.ledger.MarkRead(r.ID) })
+	case Retry:
+		// No retry resumes into a session the user has open in a window.
+		if retry && !windowInChain(s) {
+			return h.retry(pr, r)
+		}
+		next = PRState{State: stIdle}
+	case Dismiss:
+		// The record first: a crash or a refusal from here on leaves it for
+		// the next tick, which settles it only on reading the dismissal back.
+		if err := h.do(fmt.Sprintf("record the dismissal of review %s on %s", d.Review, pr.URL()), func() error {
+			return errors.Join(h.ledger.AddDismissal(pr, d.Review, h.now()), h.ledger.RevokeTokens(pr))
+		}); err != nil {
+			return false, err
+		}
+		h.sendDismissal(Dismissal{PR: pr.URL(), Review: d.Review})
+		next = d.State
+	case Next:
+		next = d.State
+	}
 	if namesRound(s, r.ID) {
-		_, ok, err := h.moved(pr, Event{Kind: evEnded, Next: d.Next, Round: r.ID})
+		_, ok, err := h.moved(pr, Event{Kind: evEnded, Next: &next, Round: r.ID})
 		if err != nil || !ok {
 			// No rule for it where it sits: the round stays unread and is
 			// read again next pass, when the chain may have moved.
@@ -451,9 +455,19 @@ func (h tickHost) apply(pr PR, r Round, d Decision, retry bool) (bool, error) {
 	return false, h.do("mark round "+pr.URL()+" read", func() error { return h.ledger.MarkRead(r.ID) })
 }
 
+// windowInChain: a window is open somewhere in s's chain.
+func windowInChain(s PRState) bool {
+	for e := &s; e != nil; e = e.Prev {
+		if e.State == stHeld && e.Kind == kindWindow {
+			return true
+		}
+	}
+	return false
+}
+
 // retry resumes r's session for a round cut off before its summary, and
 // reports whether it started.
-func (h tickHost) retry(pr PR, r Round, d Decision) (bool, error) {
+func (h tickHost) retry(pr PR, r Round) (bool, error) {
 	var not skip
 	failed := func(detail string) error {
 		_, err := h.move(pr, Event{Kind: evEnded, Next: &PRState{State: stHeld, Kind: kindLaunch, Detail: detail}, Round: r.ID})
@@ -465,7 +479,7 @@ func (h tickHost) retry(pr PR, r Round, d Decision) (bool, error) {
 			if err := h.ledger.MarkRetried(r.ID); err != nil {
 				return err
 			}
-			_, err := h.move(pr, Event{Kind: evEnded, Next: d.Next, Round: r.ID})
+			_, err := h.move(pr, Event{Kind: evEnded, Next: &PRState{State: stRunning, Kind: kindRetry, Head: r.Head}, Round: r.ID})
 			return err
 		}, failed)
 		return err

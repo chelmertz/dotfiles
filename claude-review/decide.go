@@ -261,14 +261,32 @@ type RoundFacts struct {
 	DismissalPending bool
 }
 
-// Decision is what tick does with one finished round.
-type Decision struct {
-	Clear bool
-	// Next is the PR's state after the round; nil with Clear.
-	Next            *PRState
-	DismissReviewID ids.ReviewID
-	Retry           bool
-}
+// Decision is what tick does with one finished round: one of Closed,
+// Next, Dismiss or Retry, so no decision can both dismiss and offer
+// Approve, or retry and settle.
+//
+//sumtype:decl
+type Decision interface{ decision() }
+
+type (
+	// Closed: the PR is merged or closed; its state is deleted.
+	Closed struct{}
+	// Next: the state the round leaves, judged at its head, never running.
+	Next struct{ State PRState }
+	// Dismiss: new findings after the user's approval; the approval is
+	// dismissed and the PR waits on awaiting{dismissed}.
+	Dismiss struct {
+		Review ids.ReviewID
+		State  PRState
+	}
+	// Retry: cut off before its summary; the same session resumes.
+	Retry struct{}
+)
+
+func (Closed) decision()  {}
+func (Next) decision()    {}
+func (Dismiss) decision() {}
+func (Retry) decision()   {}
 
 // decide reads one finished round against GitHub. stuck marks the outcomes
 // nothing but the user moves: a refused post holds the PR back until a click
@@ -277,12 +295,13 @@ type Decision struct {
 // a quiet round at the head tick recorded, and "handled" needs the round's
 // review.
 func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
-	next := func(st State, kind, detail string) Decision {
-		return Decision{Next: &PRState{State: st, Kind: kind, Detail: detail, Head: r.Head, Review: f.RoundReviewURL}}
+	judged := func(st State, kind, detail string) PRState {
+		return PRState{State: st, Kind: kind, Detail: detail, Head: r.Head, Review: f.RoundReviewURL}
 	}
+	next := func(st State, kind, detail string) Decision { return Next{State: judged(st, kind, detail)} }
 	switch {
 	case f.State != prOpen:
-		return Decision{Clear: true}
+		return Closed{}
 	// Before any reading of the round's words or findings: a round pushed
 	// over its post limit is suspect whatever it says, and never earns an
 	// Approve link or a retry. The limit already stopped the extra posts, so
@@ -294,9 +313,7 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 	case o.Kind == OutcomeQuestion:
 		return next(stAwaiting, kindQuestion, o.Question)
 	case f.NewThreads > 0 && approvedBefore(r, f):
-		d := next(stAwaiting, kindDismiss, "")
-		d.DismissReviewID = f.UserReview.ID
-		return d
+		return Dismiss{Review: f.UserReview.ID, State: judged(stAwaiting, kindDismiss, "")}
 	case quietApprove(r, o, f, pr):
 		st, kind := quiet(f)
 		return next(st, kind, "")
@@ -311,9 +328,7 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 	// same session, which knows what it posted, and the post budget caps what
 	// it can add at that commit.
 	case r.Retries == 0:
-		d := next(stRunning, kindRetry, "")
-		d.Retry = true
-		return d
+		return Retry{}
 	// Cut off twice with comments in the draft: nothing sends them but the
 	// user, who decides what an unfinished round's comments are worth.
 	case f.UnsentDrafts > 0:

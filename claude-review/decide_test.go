@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/chelmertz/dotfiles/claude-review/ids"
+
 	"strings"
 	"testing"
 	"time"
@@ -180,7 +182,7 @@ func TestDecide(t *testing.T) {
 		explain string
 	}{
 		{"closed PR clears", round, approveLine, RoundFacts{State: "closed", Head: head},
-			func(d Decision) bool { return d.Clear }, "clear"},
+			func(d Decision) bool { return isClosed(d) }, "clear"},
 		{"clean round, no approval: Approve link", round, approveLine, open,
 			func(d Decision) bool { return isK(d, kindApprove) }, "needs_you + token"},
 		{"clean round on the user's own PR: no Approve link", round, approveLine, RoundFacts{State: "open", Head: head, Own: true},
@@ -188,7 +190,7 @@ func TestDecide(t *testing.T) {
 		{"clean round under a standing approval", round, approveLine, RoundFacts{State: "open", Head: head, UserReview: approved("old")},
 			func(d Decision) bool { return isK(d, kindApproved) }, "handled"},
 		{"approve line for another sha", round, Outcome{Kind: OutcomeApprove, PrURL: widgetsPR.URL(), SHA: strings.Repeat("f", 40)}, RoundFacts{State: "open", Head: head, RoundReviewURL: roundReview},
-			func(d Decision) bool { return d.Next.State == stHandled }, "no Approve link"},
+			func(d Decision) bool { return nextOf(d).State == stHandled }, "no Approve link"},
 		{"approve line for another PR", round, Outcome{Kind: OutcomeApprove, PrURL: "https://github.com/acme/widgets/pull/43", SHA: head}, open,
 			func(d Decision) bool { return !isK(d, kindApprove) }, "no Approve link"},
 		{"approve line but the round posted findings", round, approveLine, RoundFacts{State: "open", Head: head, NewThreads: 2, RoundReviewURL: roundReview},
@@ -201,32 +203,32 @@ func TestDecide(t *testing.T) {
 		{"approve line but the head moved", round, approveLine, RoundFacts{State: "open", Head: "moved"},
 			func(d Decision) bool { return !isK(d, kindApprove) }, "no Approve link"},
 		{"findings after the user's approval dismiss it", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 1, UserReview: approved("old"), RoundReviewURL: roundReview},
-			func(d Decision) bool { return d.DismissReviewID == reviewID(9) && isK(d, kindDismiss) }, "dismiss + needs_you"},
+			func(d Decision) bool { return dismissOf(d) == reviewID(9) && isK(d, kindDismiss) }, "dismiss + needs_you"},
 		{"replies after the user's approval do not dismiss it", round, Outcome{}, RoundFacts{State: "open", Head: head, NewReplies: 2, UserReview: approved("old"), RoundReviewURL: roundReview},
-			func(d Decision) bool { return d.DismissReviewID.IsZero() && d.Next.State == stHandled }, "no dismissal, handled"},
+			func(d Decision) bool { return dismissOf(d).IsZero() && nextOf(d).State == stHandled }, "no dismissal, handled"},
 		// The user read the findings and approved anyway, before tick settled the round.
 		{"an approval given after the round started is not dismissed", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 1, UserReview: &Review{ID: reviewID(9), State: "APPROVED", CommitID: "old", SubmittedAt: t0.Add(time.Minute)}, RoundReviewURL: roundReview},
-			func(d Decision) bool { return d.DismissReviewID.IsZero() && d.Next.State == stHandled }, "no dismissal, handled"},
+			func(d Decision) bool { return dismissOf(d).IsZero() && nextOf(d).State == stHandled }, "no dismissal, handled"},
 		// The summary is posted last: without it the round was cut off
 		// (a shutdown, a crash) partway through posting, and resumes.
 		{"findings without a summary: interrupted, resumed", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 2},
-			func(d Decision) bool { return d.Retry && isK(d, kindRetry) }, "retry"},
+			func(d Decision) bool { return isRetry(d) && isK(d, kindRetry) }, "retry"},
 		{"replies without a summary: interrupted, resumed", round, Outcome{}, RoundFacts{State: "open", Head: head, NewReplies: 1},
-			func(d Decision) bool { return d.Retry && isK(d, kindRetry) }, "retry"},
+			func(d Decision) bool { return isRetry(d) && isK(d, kindRetry) }, "retry"},
 		// Inline comments and replies wait in a draft that the summary sends.
 		{"drafts without a summary: interrupted, resumed", round, Outcome{}, RoundFacts{State: "open", Head: head, UnsentDrafts: 2},
-			func(d Decision) bool { return d.Retry && isK(d, kindRetry) }, "retry"},
+			func(d Decision) bool { return isRetry(d) && isK(d, kindRetry) }, "retry"},
 		{"drafts cut off again: the user decides on them", Round{PR: round.PR, Head: head, Retries: 1}, Outcome{}, RoundFacts{State: "open", Head: head, UnsentDrafts: 2},
 			func(d Decision) bool {
-				return !d.Retry && isK(d, kindDrafts) && strings.Contains(note(d), "2 unsent comments")
+				return !isRetry(d) && isK(d, kindDrafts) && strings.Contains(note(d), "2 unsent comments")
 			}, "needs_you naming the draft"},
 		{"nothing to post, but a draft holds comments: resumed", round, Outcome{Kind: OutcomeNothing}, RoundFacts{State: "open", Head: head, UnsentDrafts: 1},
-			func(d Decision) bool { return d.Retry }, "retry"},
+			func(d Decision) bool { return isRetry(d) }, "retry"},
 		{"approve line with comments in the draft: no Approve link", round, approveLine, RoundFacts{State: "open", Head: head, UnsentDrafts: 1},
 			func(d Decision) bool { return !isK(d, kindApprove) }, "no Approve link"},
 		{"cut off again: stuck", Round{PR: round.PR, Head: head, Retries: 1}, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 2},
 			func(d Decision) bool {
-				return !d.Retry && isK(d, kindFailed) && strings.Contains(note(d), "summary")
+				return !isRetry(d) && isK(d, kindFailed) && strings.Contains(note(d), "summary")
 			}, "stuck, names the missing summary"},
 		{"a refused post: stuck, held back", Round{PR: round.PR, Head: head, PostRefused: true}, approveLine, open,
 			func(d Decision) bool {
@@ -234,10 +236,10 @@ func TestDecide(t *testing.T) {
 			}, "stuck, refused"},
 		{"a refused post, summary posted: handled", Round{PR: round.PR, Head: head, PostRefused: true}, approveLine, RoundFacts{State: "open", Head: head, RoundReviewURL: roundReview},
 			func(d Decision) bool {
-				return isK(d, kindPosted) && d.Next.State == stHandled && strings.Contains(note(d), "limit") && !d.Retry
+				return isK(d, kindPosted) && nextOf(d).State == stHandled && strings.Contains(note(d), "limit") && !isRetry(d)
 			}, "handled at the limit"},
 		{"findings with the approval at the current head do not dismiss", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 1, UserReview: approved(head), RoundReviewURL: roundReview},
-			func(d Decision) bool { return d.DismissReviewID.IsZero() }, "no dismissal"},
+			func(d Decision) bool { return dismissOf(d).IsZero() }, "no dismissal"},
 		{"question", round, Outcome{Kind: OutcomeQuestion}, open,
 			func(d Decision) bool {
 				return isK(d, kindQuestion) && hasLink(row(d), "attach") && note(d) == "Claude has a question for you"
@@ -248,35 +250,35 @@ func TestDecide(t *testing.T) {
 			}, "needs_you with the question"},
 		{"findings posted: handled", round, Outcome{}, RoundFacts{State: "open", Head: head, NewThreads: 3, RoundReviewURL: roundReview},
 			func(d Decision) bool {
-				return isK(d, kindPosted) && d.Next.Review == roundReview && hasLink(row(d), "attach") && !hasLink(row(d), "pullrequestreview-5")
+				return isK(d, kindPosted) && nextOf(d).Review == roundReview && hasLink(row(d), "attach") && !hasLink(row(d), "pullrequestreview-5")
 			}, "handled, Open Claude, summary kept in state not on the row"},
 		{"nothing to post, said so: handled, not retried", round, Outcome{Kind: OutcomeNothing}, open,
-			func(d Decision) bool { return !d.Retry && isK(d, kindNothing) }, "handled"},
+			func(d Decision) bool { return !isRetry(d) && isK(d, kindNothing) }, "handled"},
 		{"nothing to show for it: retry once", round, Outcome{}, open,
-			func(d Decision) bool { return d.Retry && isK(d, kindRetry) }, "retry"},
+			func(d Decision) bool { return isRetry(d) && isK(d, kindRetry) }, "retry"},
 		{"nothing again: round failed", Round{PR: round.PR, Head: head, Retries: 1}, Outcome{}, open,
 			func(d Decision) bool {
-				return !d.Retry && isK(d, kindFailed) && strings.Contains(note(d), "failed")
+				return !isRetry(d) && isK(d, kindFailed) && strings.Contains(note(d), "failed")
 			}, "stuck failed"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			d := decide(c.r, c.o, c.f, widgetsPR)
 			if !c.check(d) {
-				t.Errorf("got %+v (next %+v), want %s", d, d.Next, c.explain)
+				t.Errorf("got %+v (next %+v), want %s", d, nextOf(d), c.explain)
 			}
 		})
 	}
 }
 
-func isK(d Decision, kind string) bool { return d.Next != nil && d.Next.Kind == kind }
+func isK(d Decision, kind string) bool { return nextOf(d) != nil && nextOf(d).Kind == kind }
 
 // row is the row a decision's state renders to.
 func row(d Decision) *Annotation {
-	if d.Next == nil {
+	if nextOf(d) == nil {
 		return nil
 	}
-	a := render(widgetsPR, *d.Next, View{})
+	a := render(widgetsPR, *nextOf(d), View{})
 	return &a
 }
 
@@ -361,4 +363,29 @@ func TestDecideAPostRefusedRowStartsAgain(t *testing.T) {
 	if a := row(d); a == nil || len(a.Links) < 2 || a.Links[0] != primary(startAgainLink(widgetsPR)) || a.Links[1] != attachLink(widgetsPR) {
 		t.Errorf("links %+v", a)
 	}
+}
+
+// nextOf is the state d leaves the PR in: Next's and Dismiss's own, a
+// retry's running state, nil for a closed PR.
+func nextOf(d Decision) *PRState {
+	switch d := d.(type) {
+	case Next:
+		return &d.State
+	case Dismiss:
+		return &d.State
+	case Retry:
+		return &PRState{State: stRunning, Kind: kindRetry}
+	case Closed:
+	}
+	return nil
+}
+
+func isClosed(d Decision) bool { _, ok := d.(Closed); return ok }
+func isRetry(d Decision) bool  { _, ok := d.(Retry); return ok }
+
+func dismissOf(d Decision) ids.ReviewID {
+	if d, ok := d.(Dismiss); ok {
+		return d.Review
+	}
+	return ids.ReviewID{}
 }

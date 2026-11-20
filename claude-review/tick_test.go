@@ -1264,7 +1264,7 @@ func TestTickAnswerGetsAFollowUpRound(t *testing.T) {
 		t.Fatal(err)
 	}
 	q := decide(Round{Head: "h1"}, Outcome{Kind: OutcomeQuestion}, RoundFacts{State: prOpen, Head: "h1"}, pr)
-	if err := w.h.ledger.SetPRState(pr, *q.Next); err != nil {
+	if err := w.h.ledger.SetPRState(pr, *nextOf(q)); err != nil {
 		t.Fatal(err)
 	}
 	w.elly.prs = []EllyPR{ellyPR(func(p *EllyPR) { p.Url = pr.URL() })}

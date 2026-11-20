@@ -101,7 +101,7 @@ func TestARoundEndingUnderAWindowSettlesBelowIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	posted := PRState{State: stHandled, Kind: kindPosted, Head: "h1"}
-	if _, err := w.h.apply(pr, Round{ID: r, PR: pr.URL(), Head: "h1"}, Decision{Next: &posted}, true); err != nil {
+	if _, err := w.h.apply(pr, Round{ID: r, PR: pr.URL(), Head: "h1"}, Next{State: posted}, true); err != nil {
 		t.Fatal(err)
 	}
 	s, _, _ := w.h.ledger.PRState(pr)
@@ -123,7 +123,7 @@ func TestARoundEndingUnderAWindowSettlesBelowIt(t *testing.T) {
 	if err := w.h.ledger.SetPRState(pr, PRState{State: stRunning, Kind: kindTick, Head: "h1", Round: newer}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := w.h.apply(pr, Round{ID: older, PR: pr.URL(), Head: "h1"}, Decision{Next: &posted}, true); err != nil {
+	if _, err := w.h.apply(pr, Round{ID: older, PR: pr.URL(), Head: "h1"}, Next{State: posted}, true); err != nil {
 		t.Fatal(err)
 	}
 	if s, _, _ := w.h.ledger.PRState(pr); s.State != stRunning || s.Round != newer {
@@ -163,5 +163,34 @@ func TestAnAnswerIsLookedForInTheQuestionsOwnRound(t *testing.T) {
 	}
 	if !w.gh.repliedSince.Equal(askedAt) {
 		t.Errorf("looked for the answer since %s, want the asking round's start %s", w.gh.repliedSince, askedAt)
+	}
+}
+
+// No retry resumes into a session the user has open: with a window in the
+// chain, a round cut off before its summary is read, and the running
+// state under the window becomes idle rather than outliving its round.
+func TestNoRetryLaunchesUnderAWindow(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	r, err := w.h.ledger.StartRound(pr, "h1", Requested{At: t0}, t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	running := PRState{State: stRunning, Kind: kindTick, Head: "h1", Round: r}
+	if err := w.h.ledger.SetPRState(pr, PRState{State: stHeld, Kind: kindWindow, Head: "h1", Prev: &running}); err != nil {
+		t.Fatal(err)
+	}
+	if started, err := w.h.apply(pr, Round{ID: r, PR: pr.URL(), Head: "h1"}, Retry{}, true); err != nil || started {
+		t.Fatalf("retry under a window: started %v err %v", started, err)
+	}
+	if len(w.started) != 0 {
+		t.Errorf("a retry launched under the window: %d", len(w.started))
+	}
+	s, _, _ := w.h.ledger.PRState(pr)
+	if s.Kind != kindWindow || s.Prev == nil || s.Prev.State != stIdle {
+		t.Errorf("after the retry under the window: %s, prev %+v", describe(s), s.Prev)
+	}
+	if unread, _ := w.h.ledger.UnreadRounds(); len(unread) != 0 {
+		t.Errorf("the cut-off round is unread: %+v", unread)
 	}
 }
