@@ -854,11 +854,13 @@ on <url>". `journalctl --user -u claude-review-tick -g pull/42` answers
 Every round start and retry goes through one function, and that function
 counts. At `total_daily_cap` (24) starts and retries in 24 hours, across all
 PRs, it trips: it starts nothing, writes the reason to the ledger, and every
-later tick exits non-zero, so the timer's journal shows a failed run. It
-stays tripped after the 24 hours have passed; a loop that tripped it once
-would trip it again. `claude-review tick --reset` closes it and counts afresh
-from that moment. A cap of 0 starts nothing. A failed self-check and a
-forked or second worker trip it too. While it is tripped, clicks on PRs in
+later tick exits non-zero, so the timer's journal shows a failed run. A cap
+trip clears itself on the first tick at which fewer than the cap's starts
+fall in the last 24 hours, so a loop is still held to the cap per day; a
+second cap trip within a week of such a clear latches, with one
+notification. A latched trip, a failed self-check and a forked or second
+worker wait for `claude-review tick --reset`, which closes it and counts
+afresh from that moment. A cap of 0 starts nothing. While it is tripped, clicks on PRs in
 `review_repos` start nothing either.
 
 #### Reading a round's outcome

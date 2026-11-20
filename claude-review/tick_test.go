@@ -538,13 +538,14 @@ func TestTickABlockedRoundOvertakenByAPushIsStopped(t *testing.T) {
 	}
 }
 
-// A loop that keeps starting rounds stops at the cap across all PRs, and
-// stays stopped after the 24 hours have passed: only a reset reopens it.
-func TestTickBreakerStopsARunawayLoopUntilReset(t *testing.T) {
+// A cap trip clears itself once the last 24 hours hold fewer starts than
+// the cap; a second cap trip within a week of that latches, since a loop
+// would trip it every day, and only a reset reopens it.
+func TestTickBreakerHealsOnceThenLatches(t *testing.T) {
 	w := newTickWorld(t)
 	w.h.tcfg.TotalDailyCap = 2
 	w.h.tcfg.MaxRunning = 10
-	for n := 1; n <= 3; n++ {
+	for n := 1; n <= 5; n++ {
 		w.accept(t, n)
 		w.elly.prs = append(w.elly.prs, requestedPR(n))
 	}
@@ -557,19 +558,41 @@ func TestTickBreakerStopsARunawayLoopUntilReset(t *testing.T) {
 	if rounds, _ := w.h.ledger.UnreadRounds(); len(rounds) != 2 {
 		t.Errorf("the refused start left a round in the ledger: %+v", rounds)
 	}
-
-	w.h.now = func() time.Time { return t0.Add(25 * time.Hour) }
-	for n := 1; n <= 2; n++ {
-		w.live[PR{Owner: "acme", Repo: "widgets", Number: n}.RoundSessionID()] = true
+	keepLive := func(upTo int) {
+		for n := 1; n <= upTo; n++ {
+			w.live[PR{Owner: "acme", Repo: "widgets", Number: n}.RoundSessionID()] = true
+		}
 	}
+	keepLive(2)
+	// Still inside the 24 hours: tripped, and the owed PR says why.
+	w.h.now = func() time.Time { return t0.Add(time.Hour) }
 	if err := w.h.tick(); err == nil {
-		t.Error("the breaker closed on its own")
+		t.Error("the breaker closed inside the window")
 	}
-	if len(w.started) != 2 {
-		t.Errorf("a round started while tripped: %d", len(w.started))
-	}
-	if a, _ := w.h.ledger.Annotations(); a[PR{Owner: "acme", Repo: "widgets", Number: 3}.URL()].Note != "paused: too many rounds started in 24 hours, the limit across all PRs; claude-review starts no round until it is reset" {
+	if a, _ := w.h.ledger.Annotations(); a[PR{Owner: "acme", Repo: "widgets", Number: 3}.URL()].Note != "paused: too many rounds started in 24 hours, the limit across all PRs; claude-review starts again once fewer than the limit started in the last 24 hours" {
 		t.Errorf("an owed PR does not say why it waits: %+v", a)
+	}
+
+	// The window moved on: the cap trip clears itself and rounds start.
+	w.h.now = func() time.Time { return t0.Add(25 * time.Hour) }
+	_ = w.h.tick()
+	if len(w.started) != 4 {
+		t.Fatalf("after the window: started %d, want 4\n%s", len(w.started), w.out)
+	}
+	keepLive(4)
+	// It tripped again within a week of healing: latched.
+	w.h.now = func() time.Time { return t0.Add(50 * time.Hour) }
+	if err := w.h.tick(); err == nil {
+		t.Error("a second cap trip within a week healed")
+	}
+	if len(w.started) != 4 {
+		t.Errorf("a round started while latched: %d", len(w.started))
+	}
+	if !slices.ContainsFunc(w.notified, func(m string) bool { return strings.Contains(m, "twice in a week") }) {
+		t.Errorf("the latch was not notified: %q", w.notified)
+	}
+	if a, _ := w.h.ledger.Annotations(); !strings.Contains(a[PR{Owner: "acme", Repo: "widgets", Number: 5}.URL()].Note, "until it is reset") {
+		t.Errorf("a latched breaker does not ask for the reset: %+v", a)
 	}
 
 	if err := w.h.ledger.Reset(w.h.now()); err != nil {
@@ -578,8 +601,24 @@ func TestTickBreakerStopsARunawayLoopUntilReset(t *testing.T) {
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if len(w.started) != 3 {
+	if len(w.started) != 5 {
 		t.Errorf("after a reset: started %d", len(w.started))
+	}
+}
+
+// Faults other than the cap never clear themselves.
+func TestTickBreakerFaultsStayLatched(t *testing.T) {
+	for _, reason := range []string{breakerDuplicate + "two workers", breakerSelfCheck + "it forked"} {
+		w := newTickWorld(t)
+		w.accept(t, 1)
+		w.elly.prs = []EllyPR{requestedPR(1)}
+		if err := w.h.ledger.Trip(reason); err != nil {
+			t.Fatal(err)
+		}
+		w.h.now = func() time.Time { return t0.Add(48 * time.Hour) }
+		if err := w.h.tick(); err == nil || len(w.started) != 0 {
+			t.Errorf("%s: err %v, started %d", reason, err, len(w.started))
+		}
 	}
 }
 

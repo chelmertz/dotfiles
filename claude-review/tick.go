@@ -120,6 +120,9 @@ func (h tickHost) tick() error {
 	if err := h.settleDismissals(); err != nil {
 		return err
 	}
+	if err := h.healBreaker(); err != nil {
+		return err
+	}
 	if n := h.ledger.Unparsed; n > 0 && h.out != nil {
 		fmt.Fprintf(h.out, "claude-review tick: %d recorded rounds have a trigger no parser reads; they count toward the caps\n", n)
 	}
@@ -198,6 +201,9 @@ func (h tickHost) runSelfCheck(v string) error {
 func breakerError(reason string) error {
 	if reason == "" {
 		return nil
+	}
+	if healable(reason) {
+		return fmt.Errorf("no round starts: %s; it clears itself once fewer than the limit started in the last 24 hours", reason)
 	}
 	return fmt.Errorf("no round starts: %s; `claude-review tick --reset` lets them start again", reason)
 }
@@ -691,6 +697,9 @@ func (h tickHost) pausedNote(p Planned) (string, error) {
 	if err != nil || reason == "" {
 		return "", err
 	}
+	if healable(reason) {
+		return "paused: " + breakerWords(reason) + "; claude-review starts again once fewer than the limit started in the last 24 hours", nil
+	}
 	return "paused: " + breakerWords(reason) + "; claude-review starts no round until it is reset", nil
 }
 
@@ -704,7 +713,50 @@ const (
 	breakerCap       = "cap: "
 	breakerDuplicate = "duplicate: "
 	breakerSelfCheck = "self-check: "
+	breakerLoop      = "loop: "
 )
+
+// healable: a cap trip, which clears itself (healBreaker). A duplicate, a
+// failed self-check or a cap tripped twice in a week waits for a reset.
+func healable(reason string) bool {
+	return strings.HasPrefix(reason, breakerCap) || strings.HasSuffix(reason, "the limit across all PRs") && !strings.HasPrefix(reason, breakerLoop)
+}
+
+// metaBreakerHealed is when healBreaker last cleared a cap trip.
+const metaBreakerHealed = "breaker-healed-at"
+
+// healLatchWindow: a cap trip this soon after a self-clear latches.
+const healLatchWindow = 7 * 24 * time.Hour
+
+// healBreaker clears a cap trip once fewer than the cap's rounds started in
+// the last 24 hours. The cap still bounds a loop to TotalDailyCap rounds a
+// day; a second trip within healLatchWindow of a clear latches it, said
+// once, so a loop does not spend the cap every day unseen.
+func (h tickHost) healBreaker() error {
+	reason, err := h.ledger.Tripped()
+	if err != nil || !healable(reason) {
+		return err
+	}
+	n, err := h.ledger.Launches(h.now().Add(-24 * time.Hour))
+	if err != nil || n >= h.tcfg.TotalDailyCap {
+		return err
+	}
+	last, err := h.ledger.Meta(metaBreakerHealed)
+	if err != nil {
+		return err
+	}
+	if at, perr := time.Parse(time.RFC3339, last); perr == nil && h.now().Sub(at) < healLatchWindow {
+		return h.do("latch the breaker: the cap tripped twice in a week", func() error {
+			if h.notify != nil {
+				h.notify("claude-review: the round limit across all PRs tripped twice in a week; rounds stay paused until `claude-review tick --reset`")
+			}
+			return h.ledger.Trip(breakerLoop + strings.TrimPrefix(reason, breakerCap))
+		})
+	}
+	return h.do("clear the breaker: fewer than the limit started in the last 24 hours", func() error {
+		return errors.Join(h.ledger.Reset(h.now()), h.ledger.SetMeta(metaBreakerHealed, h.now().UTC().Format(time.RFC3339)))
+	})
+}
 
 // A reason stored before the kinds existed is matched by its old cap text.
 func breakerWords(reason string) string {
@@ -713,6 +765,8 @@ func breakerWords(reason string) string {
 		return "too many rounds started in 24 hours, the limit across all PRs"
 	case strings.HasPrefix(reason, breakerDuplicate):
 		return "two workers held one session"
+	case strings.HasPrefix(reason, breakerLoop):
+		return "the limit across all PRs was reached twice in a week"
 	case strings.HasPrefix(reason, breakerSelfCheck):
 		return "the self-check on a new Claude Code failed"
 	}
@@ -723,8 +777,8 @@ func breakerWords(reason string) string {
 // record, given the time taken before the launch. It is the only way tick
 // starts a round, so both failsafes live here. Every caller runs it through
 // do; the dry-run check makes a caller that forgets fail loudly instead of
-// posting. The breaker trips at TotalDailyCap starts in 24 hours and stays
-// tripped until the user resets it, so a loop that keeps starting rounds
+// posting. The breaker trips at TotalDailyCap starts in 24 hours; healBreaker
+// clears a cap trip once, and a second one latches, so a loop that keeps starting rounds
 // stops at the cap even after the window moves on. settle reads the PR's
 // last round before its idle worker is stopped. The caller holds the lock.
 func (h tickHost) launch(pr PR, settle func() error, record func(at time.Time) error, failed func(detail string) error) (notStarted skip, err error) {
