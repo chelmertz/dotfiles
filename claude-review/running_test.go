@@ -118,7 +118,7 @@ func TestTickAFailedLaunchLeavesNoRunning(t *testing.T) {
 		}
 	}
 	// The retry that could not start says so, and offers a new round.
-	if a := w.elly.put[pr.URL()]; a.State != stateNeedsYou || !strings.Contains(a.Note, "claude: not found") || a.Links[0] != primary(startAgainLink(pr)) {
+	if a := w.elly.put[pr.URL()]; a.State != stateNeedsYou || a.Note != launchNotes[launchNotStarted] || strings.Contains(a.Note, "claude: not found") || a.Links[0] != primary(startAgainLink(pr)) {
 		t.Errorf("the failed retry shows %+v", a)
 	}
 }

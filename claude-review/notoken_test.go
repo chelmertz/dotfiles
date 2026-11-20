@@ -65,3 +65,75 @@ func TestTokenAlphabetIsHex(t *testing.T) {
 		t.Errorf("token %q is not lowercase hex", tok)
 	}
 }
+
+// Notes are fixed words per class: stored error text never reaches elly.
+func TestNotesNeverCarryStoredText(t *testing.T) {
+	pr := PR{Owner: "o", Repo: "r", Number: 1}
+	leak := "session 3f2a argv token=" + liveToken
+	for _, s := range []PRState{
+		{State: stHeld, Kind: kindLaunch, Detail: leak},
+		{State: stStuck, Kind: kindFailed, Detail: leak},
+	} {
+		if a := renderRow(pr, s, View{}); strings.Contains(a.Note, liveToken) || strings.Contains(a.Note, "3f2a") {
+			t.Errorf("%s{%s} note %q carries stored text", s.State, s.Kind, a.Note)
+		}
+	}
+	for _, kind := range []string{breakerCap, breakerDuplicate, breakerSelfCheck, ""} {
+		if w := breakerWords(kind + leak); strings.Contains(w, liveToken) || strings.Contains(w, "3f2a") {
+			t.Errorf("breaker %q words %q carry stored text", kind, w)
+		}
+	}
+}
+
+// Every token minted before C7 may sit in an old log line; the first open
+// after it spends them all, once.
+func TestOpeningSpendsPreC7TokensOnce(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ledger.db")
+	l, err := OpenLedger(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pr := PR{Owner: "o", Repo: "r", Number: 1}
+	if err := l.SetMeta(metaTokensRevoked, ""); err != nil { // a pre-C7 ledger
+		t.Fatal(err)
+	}
+	if _, err := l.MintToken(pr, "h1"); err != nil {
+		t.Fatal(err)
+	}
+	_ = l.Close()
+	if l, err = OpenLedger(path); err != nil {
+		t.Fatal(err)
+	}
+	if _, has, _ := l.TokenFor(pr, "h1"); has {
+		t.Error("a pre-C7 token survived the open")
+	}
+	fresh, err := l.MintToken(pr, "h1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = l.Close()
+	if l, err = OpenLedger(path); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = l.Close() }()
+	if tok, has, _ := l.TokenFor(pr, "h1"); !has || tok != fresh {
+		t.Error("a later open spent a fresh token")
+	}
+}
+
+// An Approve row whose token was spent by the one-time revocation gets a
+// fresh one when next shown, never a link without a token.
+func TestShowingAnApproveRowWithoutATokenMintsOne(t *testing.T) {
+	w := newTickWorld(t)
+	s := PRState{State: stAwaiting, Kind: kindApprove, Head: "h1"}
+	if err := w.h.move2(widgetsPR, s); err != nil {
+		t.Fatal(err)
+	}
+	tok, has, err := w.h.ledger.TokenFor(widgetsPR, "h1")
+	if err != nil || !has {
+		t.Fatalf("no token after showing the row: %v", err)
+	}
+	if a := w.elly.put[widgetsPR.URL()]; !strings.Contains(a.Links[0].URL, "token="+tok.String()) {
+		t.Errorf("Approve link %q lacks the fresh token", a.Links[0].URL)
+	}
+}

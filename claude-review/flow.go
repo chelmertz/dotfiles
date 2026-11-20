@@ -94,7 +94,12 @@ func (h tickHost) effect(pr PR, ef Effect) error {
 func (h tickHost) show(pr PR, s PRState, paused string) error {
 	v := View{Paused: paused}
 	if s.State == stAwaiting && s.Kind == kindApprove {
-		tok, _, err := h.ledger.TokenFor(pr, s.Head)
+		// A row whose tokens were all spent (revokePreC7Tokens) gets a
+		// fresh one rather than a link nothing accepts.
+		tok, has, err := h.ledger.TokenFor(pr, s.Head)
+		if err == nil && !has {
+			tok, err = h.ledger.MintToken(pr, s.Head)
+		}
 		if err != nil {
 			return err
 		}

@@ -580,7 +580,7 @@ func TestTickBreakerStopsARunawayLoopUntilReset(t *testing.T) {
 	if len(w.started) != 2 {
 		t.Errorf("a round started while tripped: %d", len(w.started))
 	}
-	if a, _ := w.h.ledger.Annotations(); !strings.HasPrefix(a[PR{Owner: "acme", Repo: "widgets", Number: 3}.URL()].Note, "paused: 2 rounds started") {
+	if a, _ := w.h.ledger.Annotations(); a[PR{Owner: "acme", Repo: "widgets", Number: 3}.URL()].Note != "paused: too many rounds started in 24 hours, the limit across all PRs; claude-review starts no round until it is reset" {
 		t.Errorf("an owed PR does not say why it waits: %+v", a)
 	}
 
@@ -703,7 +703,7 @@ func TestTickAWorkerThatNeverAppearsNeedsTheUser(t *testing.T) {
 	if rounds, _ := w.h.ledger.UnreadRounds(); len(rounds) != 0 {
 		t.Errorf("an unlisted launch left a round: %+v", rounds)
 	}
-	if a := w.elly.put[pr.URL()]; a.State != stateNeedsYou || !strings.Contains(a.Note, "no worker was listed") {
+	if a := w.elly.put[pr.URL()]; a.State != stateNeedsYou || a.Note != launchNotes[launchUnlisted] || strings.Contains(a.Note, "no worker was listed") {
 		t.Errorf("elly got %+v", a)
 	}
 }
@@ -926,7 +926,7 @@ func TestTickResumesFlaglessUnderTheSavedPolicy(t *testing.T) {
 	if len(w.started) != 0 {
 		t.Errorf("started %d commands on a session saved under other options", len(w.started))
 	}
-	if a, _ := w.h.ledger.Annotations(); a[pr.URL()].State != stateNeedsYou || !strings.Contains(a[pr.URL()].Note, "other options") {
+	if a, _ := w.h.ledger.Annotations(); a[pr.URL()].State != stateNeedsYou || a[pr.URL()].Note != launchNotes[launchNotStarted] {
 		t.Errorf("annotations %+v", a)
 	}
 	if rounds, _ := w.h.ledger.UnreadRounds(); len(rounds) != 0 {

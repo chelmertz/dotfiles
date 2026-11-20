@@ -67,6 +67,10 @@ func OpenLedger(path string) (*Ledger, error) {
 		}
 	}
 	l := &Ledger{db: db}
+	if err := l.revokePreC7Tokens(); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("ledger tokens: %w", err)
+	}
 	if err := l.migratePRState(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("ledger pr_state: %w", err)
@@ -325,6 +329,23 @@ func (l *Ledger) HasLiveToken(pr PR) (bool, error) {
 	var n int
 	err := l.db.QueryRow(`select count(*) from tokens where pr = ? and used = 0`, pr.URL()).Scan(&n)
 	return n > 0, err
+}
+
+// metaTokensRevoked is set once every token minted before errors and notes
+// stopped carrying them has been spent.
+const metaTokensRevoked = "tokens-revoked-c7"
+
+// revokePreC7Tokens spends every unspent token once: one may sit in an old
+// log line or journal. An Approve row gets a fresh token when next shown.
+func (l *Ledger) revokePreC7Tokens() error {
+	done, err := l.Meta(metaTokensRevoked)
+	if err != nil || done != "" {
+		return err
+	}
+	if _, err := l.db.Exec(`update tokens set used = 1 where used = 0`); err != nil {
+		return err
+	}
+	return l.SetMeta(metaTokensRevoked, "1")
 }
 
 // RevokeTokens spends every token minted for pr.

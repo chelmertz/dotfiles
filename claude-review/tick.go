@@ -183,7 +183,7 @@ func (h tickHost) runSelfCheck(v string) error {
 	if err := h.selfCheck(); err != nil {
 		reason := fmt.Sprintf("the self-check on %s failed: %v", v, err)
 		h.notify(reason)
-		return errors.Join(h.ledger.Trip(reason), breakerError(reason))
+		return errors.Join(h.ledger.Trip(breakerSelfCheck+reason), breakerError(reason))
 	}
 	return h.ledger.SetMeta(metaClaudeVersion, v)
 }
@@ -436,7 +436,11 @@ func (h tickHost) retry(pr PR, r Round, d Decision) (bool, error) {
 	})
 	if err != nil && !h.dry {
 		// the round it retried is over and none replaced it
-		err = errors.Join(err, failed("nothing started: "+err.Error()))
+		class := launchNotStarted
+		if errors.Is(err, errRosterUnknown) {
+			class = launchUnknown
+		}
+		err = errors.Join(err, failed(class))
 	}
 	if not != "" {
 		h.leave(pr, not)
@@ -674,7 +678,32 @@ func (h tickHost) pausedNote(p Planned) (string, error) {
 	if err != nil || reason == "" {
 		return "", err
 	}
-	return "paused: " + reason + "; claude-review starts no round until it is reset", nil
+	return "paused: " + breakerWords(reason) + "; claude-review starts no round until it is reset", nil
+}
+
+// errRosterUnknown marks a launch whose session list could not be read.
+var errRosterUnknown = errors.New("the session list could not be read")
+
+// Breaker reasons start with their kind, so a note can name the kind in
+// fixed words and never carry the stored text (session ids, a self-check's
+// output). The full reason stays in the ledger and in tick's own output.
+const (
+	breakerCap       = "cap: "
+	breakerDuplicate = "duplicate: "
+	breakerSelfCheck = "self-check: "
+)
+
+// A reason stored before the kinds existed is matched by its old cap text.
+func breakerWords(reason string) string {
+	switch {
+	case strings.HasPrefix(reason, breakerCap), strings.HasSuffix(reason, "the limit across all PRs"):
+		return "too many rounds started in 24 hours, the limit across all PRs"
+	case strings.HasPrefix(reason, breakerDuplicate):
+		return "two workers held one session"
+	case strings.HasPrefix(reason, breakerSelfCheck):
+		return "the self-check on a new Claude Code failed"
+	}
+	return "the breaker tripped"
 }
 
 // launch starts a round on pr in its clone and then records it with
@@ -699,7 +728,7 @@ func (h tickHost) launch(pr PR, settle func() error, record func(at time.Time) e
 	}
 	if n >= h.tcfg.TotalDailyCap {
 		reason = fmt.Sprintf("%d rounds started in 24 hours, the limit across all PRs", n)
-		return "", errors.Join(h.ledger.Trip(reason), breakerError(reason))
+		return "", errors.Join(h.ledger.Trip(breakerCap+reason), breakerError(reason))
 	}
 	dir, remote, err := h.findRepo(pr)
 	if err != nil {
@@ -726,7 +755,6 @@ func (h tickHost) starter() roundStarter {
 // none started. notStarted names why no round started; "" with no error is
 // a start.
 func (h tickHost) afterRelaunch(pr PR, res RelaunchResult, stopErr error, record func() error, failed func(detail string) error) (notStarted skip, err error) {
-	needsYou := func(note string) (skip, error) { return skip(note), failed(note) }
 	switch res.Kind {
 	case relaunched:
 		return "", record()
@@ -734,15 +762,17 @@ func (h tickHost) afterRelaunch(pr PR, res RelaunchResult, stopErr error, record
 		_, err := h.move(pr, Event{Kind: evWindowOpened})
 		return skipWindowOpen, err
 	case relaunchUnknown:
-		return "", fmt.Errorf("nothing started: %s", res.Detail)
+		return "", fmt.Errorf("nothing started: %s: %w", res.Detail, errRosterUnknown)
 	case relaunchDuplicate:
 		reason := pr.URL() + ": " + res.Detail
-		s, err := needsYou(res.Detail + "; rounds are paused for every PR")
-		return s, errors.Join(stopErr, err, h.ledger.Trip(reason), breakerError(reason))
+		err := failed(launchDuplicate)
+		return skip(res.Detail + "; rounds are paused for every PR"), errors.Join(stopErr, err, h.ledger.Trip(breakerDuplicate+reason), breakerError(reason))
 	case relaunchNotListed:
-		return needsYou("the round was launched but " + res.Detail + "; nothing was recorded")
+		err := failed(launchUnlisted)
+		return skip("the round was launched but " + res.Detail + "; nothing was recorded"), err
 	case relaunchPolicy:
-		return needsYou("nothing started: " + res.Detail)
+		err := failed(launchNotStarted)
+		return skip("nothing started: " + res.Detail), err
 	}
 	return skipBusy, nil
 }

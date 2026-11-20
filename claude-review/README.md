@@ -687,6 +687,11 @@ claude-review alone. It holds:
   result is processed.
 - **Claude Code version** the last passing self-check ran on.
 - **Approve tokens**: one-time, minted by `tick` for one PR at one head.
+  No error, log line or elly note carries one: errors never quote a link
+  or elly's response body, and notes are fixed words per launch class and
+  breaker kind (the stored detail stays in the ledger and tick's output).
+  Every token minted before that rule was spent once on upgrade; an
+  Approve row gets a fresh one when next shown.
 - **Daily round count** per PR.
 
 #### Each tick
@@ -782,7 +787,7 @@ claude-review alone. It holds:
      an elly from before `running` refuses it with a 400 the same way, as
      one from before `stuck` refuses that state, so the nix pin moves elly
      and claude-review together. A PR shows `running` only once its round
-     is recorded, and a retry that cannot start shows "nothing started";
+     is recorded, and a retry that cannot start shows "nothing started; start it again";
    - a live session for the round session's id that is no worker's (a
      window someone opened on it with `claude --resume`) starts nothing and
      marks the PR `needs_you` "Claude window open; close it to let reviews

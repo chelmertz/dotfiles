@@ -309,7 +309,7 @@ func renderRow(pr PR, s PRState, v View) Annotation {
 		if s.Kind == kindRefused {
 			a.Note, a.Links = "a post was refused over the limit; no more reviews on this PR until you start one again", []Link{primary(startAgainLink(pr)), attachLink(pr)}
 		} else {
-			a.Note, a.Links = firstNonEmpty(s.Detail, "Claude failed twice"), []Link{primary(attachLink(pr))}
+			a.Note, a.Links = failedTwiceNote(s.Detail), []Link{primary(attachLink(pr))}
 		}
 	case stHandled, stIdle:
 		if v.Paused != "" {
@@ -365,7 +365,7 @@ func renderNeedsYou(pr PR, s PRState, v View) Annotation {
 	case kindWindow:
 		a.Note, a.Links = windowNote, []Link{primary(attachLink(pr))}
 	case kindLaunch:
-		a.Note, a.Links = firstNonEmpty(s.Detail, "nothing started"), []Link{primary(startAgainLink(pr))}
+		a.Note, a.Links = launchNote(s.Detail), []Link{primary(startAgainLink(pr))}
 	}
 	return a
 }
@@ -376,3 +376,44 @@ func shortSHA(sha string) string {
 	}
 	return sha
 }
+
+// Launch classes: the Detail a held{launch_failed} row stores. The note is
+// read from launchNotes and never from the error that caused it, which can
+// hold session ids, argv or a response body. C1's LaunchError reads the
+// same table.
+const (
+	launchNotStarted = "not_started"
+	launchUnlisted   = "unlisted"
+	launchUnknown    = "unknown_roster"
+	launchDuplicate  = "duplicate"
+)
+
+var launchNotes = map[string]string{
+	launchNotStarted: "nothing started; start it again",
+	launchUnlisted:   "the round was launched but its worker was not listed; a review may be running, check before starting again",
+	launchUnknown:    "the session list could not be read; a review may be running, check before starting again",
+	launchDuplicate:  "two workers held one session; rounds are paused for every PR",
+}
+
+// launchNote is a held{launch_failed} row's note. A Detail stored before
+// the classes existed is old error text and gets the not-started words.
+func launchNote(detail string) string {
+	if n, ok := launchNotes[detail]; ok {
+		return n
+	}
+	return launchNotes[launchNotStarted]
+}
+
+// failedTwiceNote is a stuck{failed_twice} row's note; the stored Detail is
+// one of failedTwice's two texts or, from a migrated row, anything.
+func failedTwiceNote(detail string) string {
+	if detail == noteStoppedTwice {
+		return noteStoppedTwice
+	}
+	return noteFailedTwice
+}
+
+const (
+	noteFailedTwice  = "Claude failed twice"
+	noteStoppedTwice = "Claude stopped twice before posting its summary"
+)

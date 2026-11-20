@@ -347,9 +347,9 @@ func questionNote(o Outcome) string {
 // failedTwice names how a round that never finished failed.
 func failedTwice(f RoundFacts) string {
 	if postedInline(f) {
-		return "Claude stopped twice before posting its summary"
+		return noteStoppedTwice
 	}
-	return "Claude failed twice"
+	return noteFailedTwice
 }
 
 // postedInline: inline comments (threads or replies) the round made.
