@@ -1,0 +1,48 @@
+{
+  "handled": {
+    "primary": [],
+    "offered": [
+      "help",
+      "open"
+    ]
+  },
+  "info": {
+    "primary": [
+      "start"
+    ],
+    "offered": [
+      "start"
+    ]
+  },
+  "needs_you": {
+    "primary": [
+      "approve",
+      "open",
+      "start"
+    ],
+    "offered": [
+      "approve",
+      "help",
+      "open",
+      "start"
+    ]
+  },
+  "running": {
+    "primary": [],
+    "offered": [
+      "help",
+      "open"
+    ]
+  },
+  "stuck": {
+    "primary": [
+      "open",
+      "start"
+    ],
+    "offered": [
+      "help",
+      "open",
+      "start"
+    ]
+  }
+}
