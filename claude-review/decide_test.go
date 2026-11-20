@@ -400,3 +400,33 @@ func TestAskedLiterals(t *testing.T) {
 		t.Error("a missing or unknown Asked read as readable, or a known one as not")
 	}
 }
+
+// With auto_start on, a review asked of the user in the review repos needs
+// no first click: tick accepts the PR at its current head and base, and the
+// request is owed. Off, nothing changes; the user's own PRs and buried ones
+// are never accepted this way.
+func TestAutoStartAcceptsAnAskedPR(t *testing.T) {
+	asked := func(p *EllyPR) { p.Asked = askedAs(askedRequested) }
+	for name, c := range map[string]struct {
+		auto bool
+		mod  func(*EllyPR)
+		want bool
+	}{
+		"off":           {false, asked, false},
+		"on, asked":     {true, asked, true},
+		"on, not asked": {true, nil, false},
+		"on, buried":    {true, func(p *EllyPR) { asked(p); p.Buried = true }, false},
+	} {
+		l := openTestLedger(t)
+		cfg := TickConfig{ReviewRepos: []string{"acme/widgets"}, User: "me", DailyCap: 6, AutoStart: c.auto}
+		got, err := planTick([]EllyPR{ellyPR(c.mod)}, cfg, l, fakeGate{descends: true, base: "main"}, t0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, accepted, _ := l.Acceptance(widgetsPR)
+		started := len(got) == 1 && got[0].Skip == "" && got[0].Gate == ""
+		if accepted != c.want || started != c.want {
+			t.Errorf("%s: accepted %v, planned to start %v; got %+v", name, accepted, started, got)
+		}
+	}
+}

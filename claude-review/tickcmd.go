@@ -84,7 +84,7 @@ func githubUser(d Deps, cfg Config) (string, error) {
 func newTickHost(d Deps, cfg Config, l *Ledger, user string) tickHost {
 	return tickHost{
 		cfg:         cfg,
-		tcfg:        TickConfig{ReviewRepos: cfg.ReviewRepos, User: user, DailyCap: cfg.DailyCap, MaxRunning: cfg.MaxRunning, TotalDailyCap: cfg.TotalDailyCap, Wrapper: cfg.RoundWrapper},
+		tcfg:        TickConfig{ReviewRepos: cfg.ReviewRepos, User: user, DailyCap: cfg.DailyCap, AutoStart: cfg.AutoStart, MaxRunning: cfg.MaxRunning, TotalDailyCap: cfg.TotalDailyCap, Wrapper: cfg.RoundWrapper},
 		ledger:      l,
 		elly:        Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile(d.RuntimeDir)},
 		gh:          GitHub{Gh: d.Gh, User: user},

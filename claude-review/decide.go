@@ -56,6 +56,8 @@ type TickConfig struct {
 	// DailyCap is how many rounds one PR may start in 24 hours; 0 is no
 	// cap (LoadConfig makes an unset one 6).
 	DailyCap int
+	// AutoStart accepts a PR the user was asked on without a click.
+	AutoStart bool
 	// MaxRunning is how many rounds may run at once.
 	MaxRunning int
 	// TotalDailyCap is how many rounds, retries included, may start in 24
@@ -169,11 +171,23 @@ func planOne(p EllyPR, cfg TickConfig, l *Ledger, g Gate, now time.Time) (Planne
 	if err != nil {
 		return Planned{}, false, err
 	}
-	if !accepted {
-		return left(skipNotAccepted)
-	}
 	if p.Buried {
 		return left(skipBuried)
+	}
+	if !accepted && cfg.AutoStart && p.requested() && p.HeadRefOid != "" {
+		// What a first click records: the head and base the first look
+		// starts from, which the changed-under-first-look check compares to.
+		base, open, err := g.Base(pr)
+		if err != nil || !open {
+			return Planned{}, false, err
+		}
+		if err := l.Accept(pr, p.HeadRefOid, base, now); err != nil {
+			return Planned{}, false, err
+		}
+		acc, accepted = Acceptance{Head: p.HeadRefOid, Base: base}, true
+	}
+	if !accepted {
+		return left(skipNotAccepted)
 	}
 	lastHead, err := l.LastHead(pr)
 	if err != nil {

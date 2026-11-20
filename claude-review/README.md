@@ -543,7 +543,8 @@ The timer runs since 2026-11-02, after one round watched by hand.
    `owner/repo`), or one per line in a `review-repos` file beside it, for
    names that should stay out of a shared config. Optional: `daily_cap` (6), `max_running` (3), `total_daily_cap` (24),
    `round_wrapper` (a command prefix such as `["capped"]`), `elly_url`
-   (`http://localhost:9876`), `github_user` (asked of gh when empty).
+   (`http://localhost:9876`), `github_user` (asked of gh when empty),
+   `auto_start` (false: a review asked of you starts without a first click).
 2. Start elly with `-annotation-schemes=claude-review`, so its page renders
    the links.
 3. Click claude review on a PR as usual: in a listed repo, that click is the

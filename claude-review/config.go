@@ -40,6 +40,9 @@ type Config struct {
 	ReviewRepos []string `json:"review_repos"`
 	// DailyCap is how many rounds one PR may start in 24 hours (default 6).
 	DailyCap int `json:"daily_cap"`
+	// AutoStart: a review asked of the user in ReviewRepos starts without a
+	// first click; tick accepts the PR at its current head. Off by default.
+	AutoStart bool `json:"auto_start"`
 	// MaxRunning is how many unattended rounds may run at once (default 3).
 	MaxRunning int `json:"max_running"`
 	// TotalDailyCap is how many unattended rounds may start in 24 hours
