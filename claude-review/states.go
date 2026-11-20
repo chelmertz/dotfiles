@@ -363,7 +363,7 @@ func runStates(args []string, d Deps, open bool) int {
 			return 2
 		}
 		pr = &p
-		l, err := OpenLedger(LedgerPath(d.StateDir))
+		l, err := OpenLedgerReadOnly(LedgerPath(d.StateDir))
 		if err != nil {
 			return fail(d, err)
 		}

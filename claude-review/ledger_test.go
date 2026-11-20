@@ -312,3 +312,39 @@ func TestLedgerAddsTheRoundSessionColumn(t *testing.T) {
 		t.Errorf("a new round did not store its session: %+v", rs)
 	}
 }
+
+// What sessions and pages reach (diff's base, the states page) opens the
+// ledger read-only: no migration, backfill or token spend runs on their
+// open, and no write gets through.
+func TestTheReadOnlyLedgerWritesNothing(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ledger.db")
+	l, err := OpenLedger(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Accept(widgetsPR, "h0", "main", t0); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.DeletePRState(widgetsPR); err != nil { // a state the next writable open migrates
+		t.Fatal(err)
+	}
+	_ = l.Close()
+
+	ro, err := OpenLedgerReadOnly(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, has, err := ro.PRState(widgetsPR); err != nil || has {
+		t.Errorf("the read-only open migrated: has %v err %v", has, err)
+	}
+	if _, _, err := ro.DiffBase(widgetsPR); err != nil {
+		t.Errorf("diff base: %v", err)
+	}
+	if err := ro.Accept(widgetsPR, "h1", "main", t0); err == nil {
+		t.Error("a write went through the read-only ledger")
+	}
+	_ = ro.Close()
+	if _, err := OpenLedgerReadOnly(filepath.Join(t.TempDir(), "none.db")); err == nil {
+		t.Error("a missing ledger opened read-only")
+	}
+}

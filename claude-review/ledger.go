@@ -92,6 +92,25 @@ func OpenLedger(path string) (*Ledger, error) {
 	return l, nil
 }
 
+// OpenLedgerReadOnly opens an existing ledger for reading only, as what a
+// session or a page reaches does (diff's base, the states page): no schema,
+// migration, backfill or token spend runs, and SQLite refuses any write. A
+// missing ledger is an error, never created.
+func OpenLedgerReadOnly(path string) (*Ledger, error) {
+	if _, err := os.Stat(path); err != nil {
+		return nil, fmt.Errorf("open ledger: %w", err)
+	}
+	db, err := sql.Open("sqlite", "file:"+path+"?mode=ro&_pragma=busy_timeout(5000)")
+	if err != nil {
+		return nil, fmt.Errorf("open ledger: %w", err)
+	}
+	if err := db.Ping(); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("open ledger: %w", err)
+	}
+	return &Ledger{db: db}, nil
+}
+
 func (l *Ledger) Close() error { return l.db.Close() }
 
 // Acceptance is the user's first-look click: the head and base it saw.

@@ -44,7 +44,7 @@ func newPRReader(d Deps) prReader {
 			return parseRemotes(out), nil
 		},
 		diffBase: func(pr PR) (string, bool, error) {
-			l, err := OpenLedger(LedgerPath(d.StateDir))
+			l, err := OpenLedgerReadOnly(LedgerPath(d.StateDir))
 			if err != nil {
 				return "", false, err
 			}
