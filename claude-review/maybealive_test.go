@@ -400,3 +400,57 @@ func TestTickRecoveringStartingKeepsAQuestionsWorker(t *testing.T) {
 		t.Errorf("got %+v, want the question back", s)
 	}
 }
+
+// Starting is never remembered: the click that owned it aborts on seeing
+// the window, so the window keeps what the click replaced.
+func TestAWindowOverStartingForgetsTheStarting(t *testing.T) {
+	approve := PRState{State: stAwaiting, Kind: kindApprove, Head: "h1"}
+	starting := PRState{State: stStarting, Kind: kindClick, Head: "h1", Prev: &approve}
+	next, _, ok := transition(starting, Event{Kind: evWindowOpened}, t0)
+	if !ok || next.Kind != kindWindow || next.Prev == nil || next.Prev.Kind != kindApprove {
+		t.Errorf("got %+v", next)
+	}
+}
+
+// The deepest chain the rules can build, walked over every event with
+// sample payloads; a rule that deepens it fails here.
+func TestTheChainDepthIsPinned(t *testing.T) {
+	posted := PRState{State: stHandled, Kind: kindPosted}
+	events := []Event{
+		{Kind: evClick}, {Kind: evLaunched}, {Kind: evNotStarted}, {Kind: evNotStarted, Detail: launchNotStarted},
+		{Kind: evOwed}, {Kind: evOwed, Trigger: Requested{At: t0}}, {Kind: evPush, Head: "x"},
+		{Kind: evBlocked, Detail: "q"}, {Kind: evResumed}, {Kind: evEnded, Next: &posted},
+		{Kind: evWindowOpened}, {Kind: evWindowClosed}, {Kind: evUserApproved}, {Kind: evLaunchCleared, Detail: launchNotStarted},
+	}
+	depth := func(s PRState) int {
+		n := 0
+		for e := &s; e != nil; e = e.Prev {
+			n++
+		}
+		return n
+	}
+	deepest, deepestChain := 0, ""
+	var walk func(s PRState, steps int)
+	walk = func(s PRState, steps int) {
+		if d := depth(s); d > deepest {
+			deepest = d
+			var names []string
+			for e := &s; e != nil; e = e.Prev {
+				names = append(names, describe(*e))
+			}
+			deepestChain = strings.Join(names, " < ")
+		}
+		if steps == 0 {
+			return
+		}
+		for _, e := range events {
+			if next, _, ok := transition(s, e, t0); ok {
+				walk(next, steps-1)
+			}
+		}
+	}
+	walk(PRState{State: stIdle}, 9)
+	if deepest != 4 {
+		t.Errorf("deepest chain %d, pinned 4: %s", deepest, deepestChain)
+	}
+}

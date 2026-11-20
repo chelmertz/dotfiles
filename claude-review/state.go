@@ -208,6 +208,22 @@ func (t ruleTarget) apply(s PRState, e Event, at time.Time) PRState {
 	return PRState{State: t.to.State, Kind: t.to.Kind, Detail: e.Detail, Head: firstNonEmpty(e.Head, s.Head), Since: at}
 }
 
+// remembered is what a remembering rule keeps under its new state. A
+// starting is never kept: its click aborts on what replaced it. A window
+// opening also drops an older window off the top: one window stands for the
+// user's session at a time.
+func remembered(s PRState, e Event) *PRState {
+	top := &s
+	for top != nil && (top.State == stStarting || (e.Kind == evWindowOpened && top.State == stHeld && top.Kind == kindWindow)) {
+		top = top.Prev
+	}
+	if top == nil {
+		return nil
+	}
+	kept := *top
+	return &kept
+}
+
 // windowBelow: a window sits in s's chain under its top.
 func windowBelow(s PRState) bool {
 	for e := s.Prev; e != nil; e = e.Prev {
@@ -318,8 +334,7 @@ func transition(s PRState, e Event, at time.Time) (next PRState, effects []Effec
 		}
 		next = r.to.apply(s, e, at)
 		if r.remember {
-			prev := s
-			next.Prev = &prev
+			next.Prev = remembered(s, e)
 		}
 		if (r.to.prev || r.to.dropWindow) && e.Kind != evResumed && staleAt(next, e.Head) {
 			// Judged at an older head: dropped as a push drops it.
