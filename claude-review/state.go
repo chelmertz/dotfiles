@@ -431,15 +431,18 @@ func launchNote(detail string) string {
 }
 
 // failedTwiceNote is a stuck{failed_twice} row's note; the stored Detail is
-// one of failedTwice's two texts or, from a migrated row, anything.
+// one of failedTwice's two texts or, from a migrated row, anything, which
+// says nothing about why Claude stopped.
 func failedTwiceNote(detail string) string {
-	if detail == noteStoppedTwice {
-		return noteStoppedTwice
+	switch detail {
+	case noteStoppedTwice, noteFailedTwice:
+		return detail
 	}
-	return noteFailedTwice
+	return noteStoppedUnknown
 }
 
 const (
-	noteFailedTwice  = "Claude failed twice"
-	noteStoppedTwice = "Claude stopped twice before posting its summary"
+	noteFailedTwice    = "Claude failed twice"
+	noteStoppedTwice   = "Claude stopped twice before posting its summary"
+	noteStoppedUnknown = "Claude stopped; open it to see why"
 )

@@ -90,3 +90,18 @@ func TestClickOnAMaybeAliveLaunchStartsNothing(t *testing.T) {
 		t.Errorf("state %+v", s)
 	}
 }
+
+// A stuck row knows two facts; anything else stored (a migrated row's old
+// text) is unknown and gets neutral words, never "failed twice".
+func TestStuckFailedWordsOnlyWhatItKnows(t *testing.T) {
+	for detail, want := range map[string]string{
+		noteFailedTwice:  noteFailedTwice,
+		noteStoppedTwice: noteStoppedTwice,
+		"exit status 3":  noteStoppedUnknown,
+		"":               noteStoppedUnknown,
+	} {
+		if got := renderRow(widgetsPR, PRState{State: stStuck, Kind: kindFailed, Detail: detail}, View{}).Note; got != want {
+			t.Errorf("%q: %q, want %q", detail, got, want)
+		}
+	}
+}
