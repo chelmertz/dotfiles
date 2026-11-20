@@ -863,15 +863,15 @@ func (h tickHost) evidence(pr PR, s PRState) (PRState, error) {
 	if s.State == stIdle {
 		return s, nil
 	}
-	e, err := h.onGitHub(pr, s)
+	e, err := h.onGitHub(pr)
 	if err != nil || e == nil {
 		return s, err
 	}
 	return h.move(pr, *e)
 }
 
-// onGitHub is the event GitHub holds for pr in s, nil for none.
-func (h tickHost) onGitHub(pr PR, s PRState) (*Event, error) {
+// onGitHub is the event GitHub holds for pr, nil for none.
+func (h tickHost) onGitHub(pr PR) (*Event, error) {
 	state, head, user, err := h.gh.Standing(pr)
 	if err != nil {
 		return nil, err
