@@ -133,3 +133,28 @@ func TestAWindowOverApproveRevokesItsToken(t *testing.T) {
 		t.Errorf("row %+v lacks the fresh token", a.Links)
 	}
 }
+
+// refresh moves a state only under the PR's lock: a click holding it may
+// be about to write its own state.
+func TestRefreshSkipsALockedPR(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	if err := w.h.ledger.SetPRState(pr, PRState{State: stAwaiting, Kind: kindDismiss, Head: "h1"}); err != nil {
+		t.Fatal(err)
+	}
+	w.gh.user = &Review{State: "APPROVED", CommitID: "h1"}
+	w.locked[pr.SessionID().String()] = true
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if s, ok, _ := w.h.ledger.PRState(pr); !ok || s.Kind != kindDismiss {
+		t.Errorf("a locked PR moved to %+v", s)
+	}
+	delete(w.locked, pr.SessionID().String())
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if s, _, _ := w.h.ledger.PRState(pr); s.State != stIdle {
+		t.Errorf("the approval at the head did not clear the PR once unlocked: %+v", s)
+	}
+}

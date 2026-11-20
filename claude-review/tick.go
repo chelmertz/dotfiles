@@ -936,18 +936,36 @@ func (h tickHost) refresh(held map[string]string) error {
 		if err != nil {
 			continue
 		}
-		if s, err = h.evidence(pr, s); err != nil {
+		// Every move runs under the PR's lock; a click holding it is about
+		// to write its own state, and the row is refreshed next pass.
+		unlock, err := h.lock(pr.SessionID().String())
+		if errors.Is(err, errLocked) {
+			continue
+		}
+		if err != nil {
 			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 			continue
 		}
-		if s.State == stGone {
-			continue
-		}
-		if err := h.do("send "+pr.URL()+" to elly", func() error { return h.show(pr, s, held[url]) }); err != nil {
-			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
-		}
+		h.refreshOne(pr, s, held[url])
+		unlock()
 	}
 	return nil
+}
+
+// refreshOne moves pr's state s on evidence and sends its row; the caller
+// holds the PR's lock.
+func (h tickHost) refreshOne(pr PR, s PRState, paused string) {
+	s, err := h.evidence(pr, s)
+	if err != nil {
+		fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
+		return
+	}
+	if s.State == stGone {
+		return
+	}
+	if err := h.do("send "+pr.URL()+" to elly", func() error { return h.show(pr, s, paused) }); err != nil {
+		fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
+	}
 }
 
 // evidence moves s on what GitHub and the desktop say, and returns the
