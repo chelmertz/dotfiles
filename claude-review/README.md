@@ -792,7 +792,12 @@ claude-review alone. It holds:
      an elly from before `running` refuses it with a 400 the same way, as
      one from before `stuck` refuses that state, so the nix pin moves elly
      and claude-review together. A PR shows `running` only once its round
-     is recorded, and a retry that cannot start shows "nothing started; start it again";
+     is recorded, and a retry that cannot start shows "nothing started; start it again".
+     A launch that may have left a worker alive (launched but never listed,
+     or the roster unreadable) offers Open Claude, not Start: no owed review
+     and no click launches beside it, and each tick clears it to "nothing
+     started" once the roster lists no worker for the PR and no round of it
+     is unread; a review that finished meanwhile still settles;
    - a live session for the round session's id that is no worker's (a
      window someone opened on it with `claude --resume`) starts nothing and
      marks the PR `needs_you` "Claude window open; close it to let reviews

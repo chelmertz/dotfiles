@@ -283,9 +283,13 @@ func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
 		return fail(d, err)
 	}
 	// The "starting" row; a click on a running round leaves its row be.
-	_, err = h.move(pr, Event{Kind: evClick, Detail: from})
+	s, err := h.move(pr, Event{Kind: evClick, Detail: from})
 	if err != nil {
 		return fail(d, err)
+	}
+	if maybeAlive(s) {
+		// A second worker would review beside one that may be running.
+		return fail(d, fmt.Errorf("claude-review: a review may be running on %s; open it with Open Claude, tick clears this once no worker is left", pr.URL()))
 	}
 	started := false
 	defer func() {

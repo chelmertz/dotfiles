@@ -116,6 +116,9 @@ const (
 	evEnded        EventKind = "ended"
 	evWindowOpened EventKind = "window_opened"
 	evWindowClosed EventKind = "window_closed"
+	// evLaunchCleared: tick found no worker and no unread round for a launch
+	// whose worker may have been alive.
+	evLaunchCleared EventKind = "launch_cleared"
 )
 
 // Effect is work a transition asks the caller to do, in order, before it
@@ -189,21 +192,35 @@ var (
 		return e.Next != nil && e.Next.State == stRunning && e.Next.Kind == kindRetry
 	}}
 	decided = guard{"decide", func(_ PRState, e Event) bool { return e.Next != nil }}
+	// A launch that may have left a worker alive starts nothing until the
+	// roster says otherwise.
+	notMaybeAlive = guard{"no worker may be alive", func(s PRState, _ Event) bool { return !maybeAlive(s) }}
+	deadLaunch    = guard{"nothing started", func(s PRState, _ Event) bool { return !maybeAlive(s) }}
+	aliveCleared  = guard{"a worker may have been alive", func(s PRState, _ Event) bool { return maybeAlive(s) }}
+	aliveDecided  = guard{"a worker may be alive; decide", func(s PRState, e Event) bool { return maybeAlive(s) && e.Next != nil }}
 )
+
+// maybeAlive: a held launch whose worker may be running: launched but not
+// listed, or the roster unreadable.
+func maybeAlive(s PRState) bool {
+	return s.State == stHeld && s.Kind == kindLaunch && (s.Detail == launchUnlisted || s.Detail == launchUnknown)
+}
 
 // rules is the whole state machine; the first rule that applies wins.
 var rules = []rule{
 	{from: anyState, event: evClosed, to: to(stGone, ""), effects: []Effect{efStopWorkers, efRoundsRead}},
 	// The user's approval at the head leaves nothing to show.
 	{from: notIn(in(stRunning, stStarting)), event: evUserApproved, to: to(stIdle, ""), effects: []Effect{efRevokeTokens}},
-	{from: notIn(in(stRunning, stStarting)), event: evClick, to: to(stStarting, kindClick), remember: true},
+	{from: notIn(in(stRunning, stStarting)), event: evClick, when: notMaybeAlive, to: to(stStarting, kindClick), remember: true},
 	{from: in(stStarting), event: evLaunched, to: to(stRunning, kindClick)},
 	{from: notIn(in(stRunning)), event: evNotStarted, when: withReason, to: to(stHeld, kindLaunch)},
 	{from: in(stStarting), event: evNotStarted, to: toPrev},
 	{from: in(stStuck), event: evOwed, when: rerequested, to: to(stRunning, kindTick)},
 	{from: in(stIdle, stHandled, stAwaiting), event: evOwed, when: freshLook, to: to(stHeld, kindFresh)},
 	{from: in(stIdle, stHandled, stAwaiting), event: evOwed, to: to(stRunning, kindTick)},
-	{from: inKind(stHeld, kindLaunch), event: evOwed, to: to(stRunning, kindTick)},
+	{from: inKind(stHeld, kindLaunch), event: evOwed, when: deadLaunch, to: to(stRunning, kindTick)},
+	{from: inKind(stHeld, kindLaunch), event: evEnded, when: aliveDecided, to: toDecided, effects: []Effect{efRoundsRead}},
+	{from: inKind(stHeld, kindLaunch), event: evLaunchCleared, when: aliveCleared, to: to(stHeld, kindLaunch)},
 	{from: in(stAwaiting), event: evPush, to: to(stIdle, ""), effects: []Effect{efStopWorkers, efRevokeTokens}},
 	{from: in(stRunning), event: evBlocked, to: to(stAwaiting, kindQuestion), remember: true},
 	// A round recorded without its move (a crash between the two writes).
@@ -371,6 +388,10 @@ func renderNeedsYou(pr PR, s PRState, v View) Annotation {
 		a.Note, a.Links = windowNote, []Link{primary(attachLink(pr))}
 	case kindLaunch:
 		a.Note, a.Links = launchNote(s.Detail), []Link{primary(startAgainLink(pr))}
+		if maybeAlive(s) {
+			// No Start: a second worker would review beside the first.
+			a.Links = []Link{primary(attachLink(pr))}
+		}
 	}
 	return a
 }
