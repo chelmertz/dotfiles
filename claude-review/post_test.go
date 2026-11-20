@@ -483,3 +483,51 @@ func TestPost_ReplyBudgetIsPerAuthorComment(t *testing.T) {
 		})
 	}
 }
+
+// A body that looks like it carries a token is refused without the token in
+// hand: an Approve link or token= query, a GitHub token's prefix, or 48 or
+// more hex characters (an Approve token's length; elly's annotation token
+// is 64). Single spaces or dashes join only hex groups shorter than a sha,
+// so two full shas side by side still pass. What is refused is named by
+// shape, never quoted.
+func TestSecretShapeRefusesTokenShapedText(t *testing.T) {
+	tok := strings.Repeat("3f2a9c", 8) // 48 hex
+	sha := "0123456789abcdef0123456789abcdef01234567"
+	for body, refused := range map[string]bool{
+		"see " + tok:                                          true,
+		"see " + strings.ToUpper(tok):                         true,
+		"see " + tok[:24] + " " + tok[24:]:                    true,
+		"see " + tok[:16] + "-" + tok[16:32] + "-" + tok[32:]: true,
+		"open claude-review://o/r/1/approve?at=x":             true,
+		"https://example.com/?a=1&token=" + tok[:16]:          true,
+		"the handler reads `?token=${t}` unescaped":           false,
+		"leaked ghp_" + strings.Repeat("A", 36):               true,
+		"leaked github_pat_" + strings.Repeat("a", 40):        true,
+		"fixed in " + sha + " and " + sha:                     false,
+		sha + " " + sha:                                       false,
+		"fixed in " + sha + " a bad":                          false,
+		"ids 123e4567-e89b-12d3-a456-426614174000, 123e4567-e89b-12d3-a456-426614174001": false,
+		"short shas: abc1234, def5678, 0a1b2c3, 9f8e7d6, 1234567, 89abcde, fedcba9":      false,
+		"a bad cafe face, nothing to see":                                                false,
+	} {
+		got := secretShape(body)
+		if (got != "") != refused {
+			t.Errorf("%q: shape %q, refused %v", body, got, refused)
+		}
+		if got != "" && (strings.Contains(got, tok[:12]) || strings.Contains(got, "AAAA")) {
+			t.Errorf("the refusal quotes the text: %q", got)
+		}
+	}
+	if len(strings.Repeat("ab", tokenHexLen/2)) != 48 {
+		t.Errorf("token hex length %d, an Approve token is 48", tokenHexLen)
+	}
+}
+
+// GITHUB_PAT is caught by name; PATH and GOPATH are not secrets.
+func TestSecretNameCatchesAPat(t *testing.T) {
+	for name, want := range map[string]bool{"GITHUB_PAT": true, "PATH": false, "GOPATH": false} {
+		if secretName.MatchString(name) != want {
+			t.Errorf("%s: secret %v", name, !want)
+		}
+	}
+}

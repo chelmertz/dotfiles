@@ -122,8 +122,8 @@ func runPostText(args []string, gh Gh, spend spendFunc, environ []string, stdout
 		fs.Usage()
 		return 2
 	}
-	if name := secretIn(*body, environ); name != "" {
-		fmt.Fprintf(stderr, "claude-review post: the body holds the value of $%s; not posted\n", name)
+	if why := secretHeld(*body, environ); why != "" {
+		fmt.Fprintf(stderr, "claude-review post: the body holds %s; not posted\n", why)
 		return 1
 	}
 	in := postInput{pr: pr, kind: kind, body: sign(*body), path: *path, line: *line, side: *side, to: to, at: *at}
@@ -346,7 +346,65 @@ func (in postInput) send(gh Gh) (string, error) {
 }
 
 // secretName is an environment variable whose value must never be posted.
-var secretName = regexp.MustCompile(`(?i)token|key|secret|pass|auth|cred`)
+var secretName = regexp.MustCompile(`(?i)token|key|secret|pass|auth|cred|_pat$`)
+
+// tokenHexLen is an Approve token's length in hex (ids.tokenBytes is 24);
+// elly's annotation token is longer, 64.
+const tokenHexLen = 48
+
+var (
+	// A token= query with a hex value: an Approve link's. A bare token= in
+	// a review of auth code (?token=${t}) is code, not a leak.
+	approveShape = regexp.MustCompile(`(?i)claude-review://|[?&]token=[0-9a-f]{16,}`)
+	githubToken  = regexp.MustCompile(`\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})`)
+	// hexRun is hex groups joined by single spaces or dashes; hexRunLength
+	// decides which joins count.
+	hexRun = regexp.MustCompile(`[0-9A-Fa-f]+(?:[ -][0-9A-Fa-f]+)*`)
+)
+
+// secretHeld names the secret body holds, by variable or by shape, or "".
+func secretHeld(body string, environ []string) string {
+	if name := secretIn(body, environ); name != "" {
+		return "the value of $" + name
+	}
+	return secretShape(body)
+}
+
+// secretShape names what in body looks like a token, or "": an Approve link
+// or token= query, a GitHub token, or a hex run of an Approve token's length
+// or more. It needs no secret in hand, so it also stops what the session's
+// environment never held. The name is a shape, never the text.
+func secretShape(body string) string {
+	switch {
+	case approveShape.MatchString(body):
+		return "an Approve link or token= query"
+	case githubToken.MatchString(body):
+		return "a GitHub token"
+	}
+	for _, run := range hexRun.FindAllString(body, -1) {
+		if hexRunLength(run) >= tokenHexLen {
+			return fmt.Sprintf("%d or more hex characters in a row", tokenHexLen)
+		}
+	}
+	return ""
+}
+
+// hexRunLength is the longest stretch of run once the single spaces or
+// dashes between hex groups each shorter than a sha (40) are dropped: a
+// token split for reading still counts whole, while two full shas side by
+// side stay two.
+func hexRunLength(run string) int {
+	longest, joined := 0, 0
+	for _, g := range strings.FieldsFunc(run, func(r rune) bool { return r == ' ' || r == '-' }) {
+		if len(g) >= 40 {
+			longest, joined = max(longest, len(g)), 0
+			continue
+		}
+		joined += len(g)
+		longest = max(longest, joined)
+	}
+	return longest
+}
 
 // secretIn names the secret-shaped variable in environ whose value body
 // contains, or returns "". The shell expands a bare $NAME inside a command
