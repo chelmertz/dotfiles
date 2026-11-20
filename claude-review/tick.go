@@ -11,11 +11,6 @@ import (
 	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
-// annotationTTL is how long elly shows an annotation tick wrote. Every tick
-// re-sends the live ones, so a runner that stops shows its PRs as needing
-// the user again within this time.
-const annotationTTL = 30 * time.Minute
-
 // roundLifetime is how long after its launch elly shows a round as
 // running. Settling the round replaces the row long before this; it only
 // matters when nothing settles it, a tick that stopped running. The
@@ -902,13 +897,13 @@ func (h tickHost) answered(pr PR) (bool, error) {
 	return h.gh.RepliedInRoundThread(pr, started, settled)
 }
 
-// refreshedExpiry is when a re-sent a expires: annotationTTL from now, or
+// refreshedExpiry is when a re-sent a expires: rowTTL from now, or
 // its own expiry, never extended, so a round nothing settles stops showing
 // as running. Zero means that has passed; send is false while too little of
 // it is left for elly to accept, and elly's copy ends then anyway.
 func (h tickHost) refreshedExpiry(a Annotation) (expires time.Time, send bool) {
 	if a.Expires.IsZero() {
-		return h.now().Add(annotationTTL), true
+		return h.now().Add(rowTTL(h.now())), true
 	}
 	left := a.Expires.Sub(h.now())
 	if left <= 0 {

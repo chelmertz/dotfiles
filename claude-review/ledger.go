@@ -459,7 +459,7 @@ type Annotation struct {
 	Note  string
 	Links []Link
 	// Expires is when elly stops showing it. Zero means refresh keeps it
-	// alive: every tick re-sends it for another annotationTTL.
+	// alive: every tick re-sends it for another rowTTL.
 	Expires time.Time
 }
 

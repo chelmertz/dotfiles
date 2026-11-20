@@ -1061,8 +1061,8 @@ in
     mimeType = [ "x-scheme-handler/claude-review" ];
   };
 
-  # `claude-review tick`, the unattended runner, every 5 minutes since the
-  # first watched round on 2026-11-02. `claude-review tick --dry-run` shows
+  # `claude-review tick`, the unattended runner: every 5 minutes on weekdays
+  # 08:00-22:59, every 2 hours otherwise. `claude-review tick --dry-run` shows
   # what the next tick would do; `systemctl --user stop
   # claude-review-tick.timer` pauses it until the next login.
   systemd.user.services.claude-review-tick = {
@@ -1082,9 +1082,13 @@ in
     };
   };
   systemd.user.timers.claude-review-tick = {
-    Unit.Description = "claude-review: tick every 5 minutes";
+    Unit.Description = "claude-review: tick every 5 minutes on weekdays, 2 hours otherwise";
     Timer = {
-      OnCalendar = "*:0/5";
+      # One schedule with nextTick in claude-review/schedule.go, which sets
+      # each row's expiry past the next tick; a test there pins these
+      # literals. Of 195 rounds to 2026-11-20, 3 started on a weekend and
+      # none between 02:00 and 09:00.
+      OnCalendar = [ "Mon..Fri *-*-* 08..22:00/5:00" "*-*-* 00/2:00:00" ];
       # A tick missed during suspend runs on wake.
       Persistent = true;
     };

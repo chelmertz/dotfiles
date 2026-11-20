@@ -565,7 +565,10 @@ The timer runs since 2026-11-02, after one round watched by hand.
    (`--setting-sources ""`). If the write does not hold, nothing starts and
    the error says why.
 7. In these dotfiles the `claude-review-tick` timer in `nix/home.nix` runs
-   a tick every 5 minutes; `systemctl --user start claude-review-tick` runs
+   a tick every 5 minutes on weekdays 08:00-22:59 and every 2 hours on the
+   even hour otherwise (`nextTick` in `schedule.go` is the same schedule; a
+   row lasts until 30 minutes past the next tick, so it never lapses between
+   ticks); `systemctl --user start claude-review-tick` runs
    one by hand, and `systemctl --user stop claude-review-tick.timer` pauses
    the timer until the next login.
 
