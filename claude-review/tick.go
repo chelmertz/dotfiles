@@ -998,6 +998,10 @@ func (h tickHost) onGitHub(pr PR) (*Event, error) {
 	case state != prOpen:
 		return &Event{Kind: evClosed}, nil
 	case user != nil && user.State == reviewApproved && user.CommitID == head:
+		if being, err := h.beingDismissed(pr, user.ID); err != nil || being {
+			// Still on GitHub only because its dismissal has not landed.
+			return nil, err
+		}
 		return &Event{Kind: evUserApproved, Head: head}, nil
 	}
 	return nil, nil

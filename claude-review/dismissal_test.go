@@ -284,3 +284,34 @@ func TestApproveRefusesBesideAPendingDismissal(t *testing.T) {
 		t.Error("the refused click spent its token")
 	}
 }
+
+// The approval a pending dismissal targets is still on GitHub until the
+// dismissal lands; it must not clear the row that says tick is retrying.
+// A later approval of the user's own still acts.
+func TestTheApprovalBeingDismissedDoesNotClearTheRow(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	if err := w.h.ledger.SetPRState(pr, PRState{State: stAwaiting, Kind: kindDismiss, Head: "h1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.h.ledger.AddDismissal(pr, reviewID(7), t0); err != nil {
+		t.Fatal(err)
+	}
+	w.gh.dismissErr = errors.New("403")
+	w.gh.user = &Review{ID: reviewID(7), State: "APPROVED", CommitID: "h1"}
+	for range 2 {
+		if err := w.h.tick(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if s, _, _ := w.h.ledger.PRState(pr); s.Kind != kindDismiss {
+		t.Errorf("the approval being dismissed cleared the row: %+v", s)
+	}
+	w.gh.user = &Review{ID: reviewID(8), State: "APPROVED", CommitID: "h1"}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if s, _, _ := w.h.ledger.PRState(pr); s.State != stIdle {
+		t.Errorf("a later approval did not act: %+v", s)
+	}
+}

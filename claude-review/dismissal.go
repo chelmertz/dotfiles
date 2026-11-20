@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 	"fmt"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // dismissalMessage is the reason posted with a dismissal.
@@ -83,4 +85,18 @@ func (h tickHost) reshow(pr PR) error {
 		return err
 	}
 	return h.show(pr, s, "")
+}
+
+// beingDismissed: review is the one a pending dismissal on pr targets.
+func (h tickHost) beingDismissed(pr PR, review ids.ReviewID) (bool, error) {
+	all, err := h.ledger.PendingDismissals()
+	if err != nil {
+		return false, err
+	}
+	for _, d := range all {
+		if d.PR == pr.URL() && d.Review == review {
+			return true, nil
+		}
+	}
+	return false, nil
 }
