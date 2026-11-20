@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
@@ -131,5 +132,36 @@ func TestARoundEndingUnderAWindowSettlesBelowIt(t *testing.T) {
 	unread, _ := w.h.ledger.UnreadRounds()
 	if len(unread) != 1 || unread[0].ID != newer {
 		t.Errorf("unread %+v, want only the running round", unread)
+	}
+}
+
+// The answer to a question is a reply in a thread of the round that asked
+// it, not of whichever round settled last: with a later round blocked on
+// its question, a reply in an earlier round's thread answers nothing.
+func TestAnAnswerIsLookedForInTheQuestionsOwnRound(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	earlier, err := w.h.ledger.StartRound(pr, "h1", NewHead{}, time.Now().Add(-2*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.h.ledger.MarkRead(earlier); err != nil {
+		t.Fatal(err)
+	}
+	askedAt := time.Now().Add(-time.Hour).Truncate(time.Second)
+	asking, err := w.h.ledger.StartRound(pr, "h1", Requested{At: askedAt}, askedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	running := PRState{State: stRunning, Kind: kindTick, Head: "h1", Round: asking}
+	if err := w.h.ledger.SetPRState(pr, PRState{State: stAwaiting, Kind: kindQuestion, Detail: "q", Head: "h1", Round: asking, Prev: &running}); err != nil {
+		t.Fatal(err)
+	}
+	s, _, _ := w.h.ledger.PRState(pr)
+	if _, err := w.h.answered(pr, s); err != nil {
+		t.Fatal(err)
+	}
+	if !w.gh.repliedSince.Equal(askedAt) {
+		t.Errorf("looked for the answer since %s, want the asking round's start %s", w.gh.repliedSince, askedAt)
 	}
 }

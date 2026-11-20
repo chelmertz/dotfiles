@@ -72,7 +72,10 @@ type fakeTickGitHub struct {
 	dismissed  []ids.ReviewID
 	dismissErr error
 	posted     bool
-	standings  int // Standing calls
+	// repliedSince is the start of the last window RepliedInRoundThread
+	// was asked about.
+	repliedSince time.Time
+	standings    int // Standing calls
 	// status answers DismissalStatus; statusErr fails it.
 	status    DismissalStatus
 	statusErr error
@@ -82,7 +85,8 @@ func (g *fakeTickGitHub) DismissalStatus(PR, ids.ReviewID) (DismissalStatus, err
 	return g.status, g.statusErr
 }
 
-func (g *fakeTickGitHub) RepliedInRoundThread(PR, time.Time, time.Time) (bool, error) {
+func (g *fakeTickGitHub) RepliedInRoundThread(_ PR, since, _ time.Time) (bool, error) {
+	g.repliedSince = since
 	return g.posted, nil
 }
 

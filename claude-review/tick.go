@@ -909,7 +909,7 @@ func (h tickHost) answerOwes(p Planned) (Planned, error) {
 	if err != nil || s.State != stAwaiting || s.Kind != kindQuestion {
 		return p, err
 	}
-	answered, err := h.answered(p.PR)
+	answered, err := h.answered(p.PR, s)
 	if err != nil || !answered {
 		return p, err
 	}
@@ -928,7 +928,21 @@ func (h tickHost) answerOwes(p Planned) (Planned, error) {
 	return p, nil
 }
 
-func (h tickHost) answered(pr PR) (bool, error) {
+// answered: the user replied in a thread of the round that asked q, from
+// its start until it settled, or until now while its worker waits. A
+// question stored before rounds were named looks in the last settled
+// round, as before.
+func (h tickHost) answered(pr PR, q PRState) (bool, error) {
+	if !q.Round.IsZero() {
+		started, settled, read, err := h.ledger.RoundWindow(q.Round)
+		if err != nil {
+			return false, err
+		}
+		if !read {
+			settled = h.now()
+		}
+		return h.gh.RepliedInRoundThread(pr, started, settled)
+	}
 	started, settled, ok, err := h.ledger.LastSettled(pr)
 	if err != nil || !ok {
 		return false, err

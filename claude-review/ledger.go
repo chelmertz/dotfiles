@@ -682,3 +682,17 @@ func (l *Ledger) RoundSession(pr PR) (ids.SessionID, error) {
 	}
 	return ids.ParseSession(s)
 }
+
+// RoundWindow is when round id started and, if read, when it was read.
+func (l *Ledger) RoundWindow(id ids.RoundID) (started, read time.Time, wasRead bool, err error) {
+	var s int64
+	var r sql.NullInt64
+	if err := l.db.QueryRow(`select started_at, read_at from rounds where id = ?`, id).Scan(&s, &r); err != nil {
+		return time.Time{}, time.Time{}, false, fmt.Errorf("round %s: %w", id, err)
+	}
+	started = time.Unix(s, 0).UTC()
+	if r.Valid {
+		read, wasRead = time.Unix(r.Int64, 0).UTC(), true
+	}
+	return started, read, wasRead, nil
+}
