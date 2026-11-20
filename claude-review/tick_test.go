@@ -1400,3 +1400,56 @@ func TestARowEllyRefusesTakesTheOldOneDownAndSaysSoOnce(t *testing.T) {
 		}
 	}
 }
+
+// Opening and closing Open Claude's window on an unanswered question tells
+// the user nothing new: the window keeps the identity of the question it
+// stands over. The same question asked again after an answer notifies.
+func TestAWindowOverAQuestionDoesNotNotifyAgain(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	question := PRState{State: stAwaiting, Kind: kindQuestion, Detail: "which table?", Head: "h1"}
+	if err := w.h.move2(pr, question); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.notified) != 1 {
+		t.Fatalf("the question notified %d times", len(w.notified))
+	}
+	if _, err := w.h.move(pr, Event{Kind: evWindowOpened}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.h.move(pr, Event{Kind: evWindowClosed, Head: "h1"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.notified) != 1 {
+		t.Errorf("a window over the question notified again: %q", w.notified)
+	}
+	if err := w.h.move2(pr, PRState{State: stHandled, Kind: kindPosted, Head: "h1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.h.move2(pr, question); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.notified) != 2 {
+		t.Errorf("the question asked again after it left: notified %q", w.notified)
+	}
+}
+
+// Rows up before the identity was stored are seeded from the copy, so the
+// deploy that brings it notifies nothing already shown.
+func TestTheNotifyIdentityIsSeededFromRowsAlreadyUp(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	s := PRState{State: stAwaiting, Kind: kindDrafts, Detail: "2", Head: "h1"}
+	if err := w.h.ledger.SetPRState(pr, s); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.h.ledger.SetAnnotation(pr, render(pr, s, View{})); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.h.show(pr, s, Hold{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.notified) != 0 {
+		t.Errorf("a row already up notified on rollout: %q", w.notified)
+	}
+}

@@ -53,7 +53,7 @@ func (l *Ledger) DeletePRState(pr PR) error {
 	if _, err := tx.Exec(`delete from pr_state where pr = ?`, pr.URL()); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`delete from meta where key in (?, ?, ?)`, metaForkPrefix+pr.URL(), metaStandingPrefix+pr.URL(), metaHiddenPrefix+pr.URL()); err != nil {
+	if _, err := tx.Exec(`delete from meta where key in (?, ?, ?, ?)`, metaForkPrefix+pr.URL(), metaStandingPrefix+pr.URL(), metaHiddenPrefix+pr.URL(), metaNotifiedPrefix+pr.URL()); err != nil {
 		return err
 	}
 	return tx.Commit()

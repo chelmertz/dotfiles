@@ -771,7 +771,7 @@ const startingLifetime = 2 * time.Minute
 // user: a state elly shows only to someone already looking is no signal.
 // An unchanged state and note stay quiet, so a row seen every tick
 // notifies once; an Approve link's fresh token does not count as a change.
-func (h tickHost) setRow(pr PR, a Annotation) error {
+func (h tickHost) setRow(pr PR, a Annotation, identity string) error {
 	was, had, err := h.ledger.Annotation(pr)
 	if err != nil {
 		return err
@@ -779,12 +779,28 @@ func (h tickHost) setRow(pr PR, a Annotation) error {
 	if err := h.ledger.SetAnnotation(pr, a); err != nil {
 		return err
 	}
+	key := metaNotifiedPrefix + pr.URL()
+	if !needsUser(a.State) {
+		// Leaving a needs-the-user state: the same one again notifies.
+		return h.ledger.DeleteMeta(key)
+	}
+	last, err := h.ledger.Meta(key)
+	if err != nil || last == identity {
+		return err
+	}
+	// A row up before identities were stored is seeded, not notified.
+	seeded := last == "" && had && was.State == a.State && was.Note == a.Note
 	// A click builds its host without one: it tells the desktop itself.
-	if h.notify != nil && needsUser(a.State) && (!had || was.State != a.State || was.Note != a.Note) {
+	if h.notify != nil && !seeded {
 		h.notify(pr.URL() + " needs you: " + a.Note)
 	}
-	return nil
+	return h.ledger.SetMeta(key, identity)
 }
+
+// metaNotifiedPrefix keys the identity of the last needs-the-user row the
+// user was told about, apart from the row's copy, so neither the copy's
+// expiry nor an elly restart notifies again.
+const metaNotifiedPrefix = "notified "
 
 // holdOf is p's hold this pass: its daily cap, or the breaker, which wins.
 func (h tickHost) holdOf(p Planned) (Hold, error) {

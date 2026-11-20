@@ -136,7 +136,26 @@ func (h tickHost) show(pr PR, s PRState, hold Hold) error {
 			return err
 		}
 	}
-	return h.setRow(pr, a)
+	return h.setRow(pr, a, notifyIdentity(pr, s, a))
+}
+
+// notifyIdentity is what a notification is about: the state and a hash of
+// its row's note. A window keeps the identity of the needs-the-user state
+// it stands over, so opening and closing it on an unanswered question
+// notifies nothing new.
+func notifyIdentity(pr PR, s PRState, a Annotation) string {
+	if s.State == stHeld && s.Kind == kindWindow {
+		under := s.Prev
+		for under != nil && under.State == stHeld && under.Kind == kindWindow {
+			under = under.Prev
+		}
+		if under != nil {
+			if ua := renderRow(pr, *under, View{}); needsUser(ua.State) {
+				return notifyIdentity(pr, *under, ua)
+			}
+		}
+	}
+	return describe(s) + " " + hashOf(a.Note)
 }
 
 // viewFor is what render needs beyond s: the hold, whether a dismissal is
