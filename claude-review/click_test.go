@@ -407,3 +407,26 @@ func TestClickMidRoundKeepsTheRunningRow(t *testing.T) {
 		}
 	}
 }
+
+// No launch while a window is open: Open Claude's fork runs under its own
+// session, which the launch's own check does not see, so a click on the
+// PR's row is refused, whether tick has seen the window yet or not.
+func TestClickUnderAnOpenWindowStartsNothing(t *testing.T) {
+	h, fs := clickHost(t, true)
+	l := h.ledger(t)
+	if err := l.Accept(testPR, "h1", "main", t0); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.SetPRState(testPR, PRState{State: stHeld, Kind: kindWindow, Head: "h1"}); err != nil {
+		t.Fatal(err)
+	}
+	if code := run([]string{target}, h.d); code != 1 {
+		t.Errorf("click under a recorded window: exit %d", code)
+	}
+	if slices.Contains(fs.events, "launch") {
+		t.Errorf("launched beside the window: %q", fs.events)
+	}
+	if s, _, _ := l.PRState(testPR); s.Kind != kindWindow {
+		t.Errorf("the click moved the window: %s", describe(s))
+	}
+}

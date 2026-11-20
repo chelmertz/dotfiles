@@ -323,10 +323,18 @@ var (
 	decided = guard{"decide", func(_ PRState, e Event) bool { return e.Next != nil }}
 	// A launch that may have left a worker alive starts nothing until the
 	// roster says otherwise.
-	notMaybeAlive = guard{"no worker may be alive", func(s PRState, _ Event) bool { return !maybeAlive(s) }}
-	deadLaunch    = guard{"nothing started", func(s PRState, _ Event) bool { return !maybeAlive(s) }}
-	aliveCleared  = guard{"a worker may have been alive", func(s PRState, _ Event) bool { return maybeAlive(s) }}
-	aliveDecided  = guard{"a worker may be alive; decide", func(s PRState, e Event) bool { return maybeAlive(s) && e.Next != nil }}
+	clickable   = guard{"no worker may be alive, no window open", func(s PRState, _ Event) bool { return !maybeAlive(s) && !windowInChain(s) }}
+	nothingLive = guard{"no window, worker or unclear launch in the chain", func(s PRState, _ Event) bool { return !liveInChain(s) }}
+	// A click over a question (or the running it resumed into) whose launch
+	// failed may have failed before it stopped that worker (a policy
+	// refusal): it stops now.
+	questionBelowLaunch = guard{"a worker below, a launch class", func(s PRState, e Event) bool {
+		return s.Prev != nil && (s.Prev.State == stRunning || s.Prev.State == stAwaiting && s.Prev.Kind == kindQuestion) && launchClass.ok(s, e)
+	}}
+	launchFrom   = guard{"nothing started, a launch class", func(s PRState, e Event) bool { return !maybeAlive(s) && launchClass.ok(s, e) }}
+	deadLaunch   = guard{"nothing started", func(s PRState, _ Event) bool { return !maybeAlive(s) }}
+	aliveCleared = guard{"a worker may have been alive", func(s PRState, _ Event) bool { return maybeAlive(s) }}
+	aliveDecided = guard{"a worker may be alive; decide", func(s PRState, e Event) bool { return maybeAlive(s) && e.Next != nil }}
 )
 
 // maybeAlive: a held launch whose worker may be running: launched but not
@@ -336,17 +344,44 @@ func maybeAlive(s PRState) bool {
 	return ok
 }
 
+// liveInChain: s's chain holds a window, a running worker or a launch whose
+// worker may be alive, which an event that does not concern them keeps.
+// The running state a question remembers is the question's own worker, not
+// another live element.
+func liveInChain(s PRState) bool {
+	underQuestion := false
+	for e := &s; e != nil; e = e.Prev {
+		if e.State == stRunning && !underQuestion || e.State == stHeld && e.Kind == kindWindow || maybeAlive(*e) {
+			return true
+		}
+		underQuestion = e.State == stAwaiting && e.Kind == kindQuestion
+	}
+	return false
+}
+
 // rules is the whole state machine; the first rule that applies wins.
 var rules = []rule{
 	{from: anyState, event: evClosed, to: toDeleted, effects: []Effect{efStopWorkers, efRoundsRead}},
 	// The user's approval at the head leaves nothing to show.
-	{from: notIn(in(stRunning, stStarting)), event: evUserApproved, to: to(stIdle, ""), effects: []Effect{efRevokeTokens}},
-	{from: notIn(in(stRunning, stStarting)), event: evClick, when: notMaybeAlive, to: to(stStarting, kindClick), remember: true},
+	// A question's worker waits on the user, who has now approved: it stops.
+	{from: inKind(stAwaiting, kindQuestion), event: evUserApproved, when: nothingLive, to: to(stIdle, ""), effects: []Effect{efStopWorkers, efRevokeTokens, efRoundsRead}},
+	// A window, a running worker or a launch that may have one stays: the
+	// approval changes nothing about them.
+	{from: notIn(in(stRunning, stStarting)), event: evUserApproved, when: nothingLive, to: to(stIdle, ""), effects: []Effect{efRevokeTokens}},
+	// No launch while a window is open: the fork runs under its own
+	// session, which a launch's own check does not see.
+	{from: notIn(in(stRunning, stStarting)), event: evClick, when: clickable, to: to(stStarting, kindClick), remember: true},
 	{from: in(stStarting), event: evLaunched, to: to(stRunning, kindClick)},
-	{from: notIn(in(stRunning)), event: evFailedToStart, when: launchClass, to: to(stHeld, kindLaunch)},
+	// From the states a launch starts from: a click's starting, and every
+	// state an owed review launches from. A question's worker is stopped.
+	{from: inKind(stAwaiting, kindQuestion), event: evFailedToStart, when: launchClass, to: to(stHeld, kindLaunch), effects: []Effect{efStopWorkers, efRoundsRead}},
+	{from: in(stStarting), event: evFailedToStart, when: questionBelowLaunch, to: to(stHeld, kindLaunch), effects: []Effect{efStopWorkers, efRoundsRead}},
+	{from: in(stStarting, stIdle, stHandled, stAwaiting, stStuck), event: evFailedToStart, when: launchClass, to: to(stHeld, kindLaunch)},
+	{from: inKind(stHeld, kindLaunch), event: evFailedToStart, when: launchFrom, to: to(stHeld, kindLaunch)},
 	{from: in(stStarting), event: evAbandoned, to: toPrev},
 	{from: in(stStuck), event: evOwed, when: rerequested, to: to(stRunning, kindTick)},
 	// Its own event, so no owed launch depends on rule order to not fire.
+	{from: inKind(stAwaiting, kindQuestion), event: evChangedUnderFirstLook, to: to(stHeld, kindFresh), effects: []Effect{efStopWorkers, efRoundsRead}},
 	{from: in(stIdle, stHandled, stAwaiting), event: evChangedUnderFirstLook, to: to(stHeld, kindFresh)},
 	{from: in(stIdle, stHandled, stAwaiting), event: evOwed, to: to(stRunning, kindTick)},
 	{from: inKind(stHeld, kindLaunch), event: evOwed, when: deadLaunch, to: to(stRunning, kindTick)},

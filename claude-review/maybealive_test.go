@@ -476,7 +476,8 @@ func TestTheChainDepthIsPinned(t *testing.T) {
 		}
 	}
 	walk(PRState{State: stIdle}, 14)
-	if deepest != 4 {
-		t.Errorf("deepest chain %d, pinned 4: %s", deepest, deepestChain)
+	// 3 since a click cannot start under an open window.
+	if deepest != 3 {
+		t.Errorf("deepest chain %d, pinned 3: %s", deepest, deepestChain)
 	}
 }

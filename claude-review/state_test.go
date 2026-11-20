@@ -34,7 +34,8 @@ func TestTransition(t *testing.T) {
 		ok      bool
 	}{
 		{"closed from anything", question, Event{Kind: evClosed}, "", "", []Effect{efStopWorkers, efRoundsRead}, true},
-		{"user approved", question, Event{Kind: evUserApproved, Head: "bbb"}, stIdle, "", []Effect{efRevokeTokens}, true},
+		// The question's worker waits on a user who has approved: it stops.
+		{"user approved", question, Event{Kind: evUserApproved, Head: "bbb"}, stIdle, "", []Effect{efStopWorkers, efRevokeTokens, efRoundsRead}, true},
 		{"user approved mid-round", running, Event{Kind: evUserApproved}, stRunning, kindTick, nil, false},
 		{"tick launch failed", posted, Event{Kind: evFailedToStart, Class: launchNotStarted}, stHeld, kindLaunch, nil, true},
 		{"read before a new round", running, Event{Kind: evEnded, Next: &PRState{State: stIdle}}, stIdle, "", []Effect{efRoundsRead}, true},
@@ -44,7 +45,9 @@ func TestTransition(t *testing.T) {
 		{"click while starting", starting, Event{Kind: evClick}, stStarting, kindClick, nil, false},
 		{"launched", starting, Event{Kind: evLaunched}, stRunning, kindClick, nil, true},
 		{"abandoned restores prev", starting, Event{Kind: evAbandoned}, stAwaiting, kindQuestion, nil, true},
-		{"launch failed", starting, Event{Kind: evFailedToStart, Class: launchNotStarted}, stHeld, kindLaunch, nil, true},
+		// starting is over a question: a launch that failed before stopping
+		// its worker leaves none behind.
+		{"launch failed", starting, Event{Kind: evFailedToStart, Class: launchNotStarted}, stHeld, kindLaunch, []Effect{efStopWorkers, efRoundsRead}, true},
 		{"owed from idle", idle, Event{Kind: evOwed, Head: "bbb"}, stRunning, kindTick, nil, true},
 		{"owed from handled", posted, Event{Kind: evOwed}, stRunning, kindTick, nil, true},
 		{"owed from launch failed", PRState{State: stHeld, Kind: kindLaunch, Detail: launchNotStarted}, Event{Kind: evOwed}, stRunning, kindTick, nil, true},

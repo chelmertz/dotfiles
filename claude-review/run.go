@@ -282,6 +282,9 @@ func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
 	if err != nil {
 		return fail(d, err)
 	}
+	if err := h.refuseUnderWindow(pr); err != nil {
+		return fail(d, err)
+	}
 	// The "starting" row; a click on a running round leaves its row be.
 	s, err := h.move(pr, Event{Kind: evClick, From: from})
 	if err != nil {
@@ -325,6 +328,24 @@ func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
 	})
 	started = not == "" && err == nil
 	return clickOutcome(d, pr, res, started, err, before)
+}
+
+// refuseUnderWindow refuses a click while a window is open on pr, recorded
+// or not yet seen by tick: a fork runs under its own session, which the
+// launch's own check misses. A window tick has not seen is recorded.
+func (h tickHost) refuseUnderWindow(pr PR) error {
+	cur, err := h.stateOf(pr)
+	if err != nil {
+		return err
+	}
+	if windowInChain(cur) {
+		return fmt.Errorf("claude-review: %s: %s", pr.URL(), windowNote)
+	}
+	if !windowOpen(h.sess, h.ledger, pr) {
+		return nil
+	}
+	_, err = h.move(pr, Event{Kind: evWindowOpened})
+	return errors.Join(err, fmt.Errorf("claude-review: %s: %s", pr.URL(), windowNote))
 }
 
 // recordClick records a click's round once its worker is listed, and moves
