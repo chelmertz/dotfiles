@@ -326,3 +326,77 @@ func TestAReRequestOnAQuestionStopsItsWorker(t *testing.T) {
 		t.Errorf("unread %+v, want only the new round", unread)
 	}
 }
+
+// A click that died after "starting" and before its launch leaves the PR
+// unstartable: owed rounds and clicks both refuse starting. Tick recovers
+// it after startingLifetime, under the PR's lock.
+func TestTickRecoversAStartingAClickLeftBehind(t *testing.T) {
+	posted := PRState{State: stHandled, Kind: kindPosted, Head: "h1"}
+	starting := PRState{State: stStarting, Kind: kindClick, Head: "h1", Since: t0, Prev: &posted}
+	for _, c := range []struct {
+		name   string
+		setup  func(w *tickWorld, pr PR)
+		state  State
+		detail string
+	}{
+		{"nothing launched", func(*tickWorld, PR) {}, stHandled, ""},
+		{"a worker but no round", func(w *tickWorld, pr PR) {
+			w.fs.workers = append(w.fs.workers, workerFor(pr.RoundSessionID(), 700))
+			w.live[pr.RoundSessionID()] = true
+		}, stHeld, launchUnlisted},
+		{"the roster unreadable", func(w *tickWorld, _ PR) { w.fs.unreadable = true }, stHeld, launchUnknown},
+		{"a round recorded", func(w *tickWorld, pr PR) {
+			if _, err := w.h.ledger.StartRound(pr, "h1", Click{At: t0.Add(time.Second)}, t0.Add(time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			w.live[pr.RoundSessionID()] = true
+		}, stRunning, ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			w := newTickWorld(t)
+			pr := w.accept(t, 42)
+			if err := w.h.ledger.SetPRState(pr, starting); err != nil {
+				t.Fatal(err)
+			}
+			c.setup(w, pr)
+			w.h.now = func() time.Time { return t0.Add(time.Minute) }
+			_ = w.h.tick()
+			if s, _ := w.h.stateOf(pr); s.State != stStarting {
+				t.Fatalf("recovered inside startingLifetime: %+v", s)
+			}
+			w.h.now = func() time.Time { return t0.Add(5 * time.Minute) }
+			_ = w.h.tick()
+			if s, _ := w.h.stateOf(pr); s.State != c.state || s.Detail != c.detail {
+				t.Errorf("got %s{%s} %q, want %s %q", s.State, s.Kind, s.Detail, c.state, c.detail)
+			}
+		})
+	}
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	if err := w.h.ledger.SetPRState(pr, starting); err != nil {
+		t.Fatal(err)
+	}
+	w.locked[pr.SessionID().String()] = true
+	w.h.now = func() time.Time { return t0.Add(5 * time.Minute) }
+	_ = w.h.tick()
+	if s, _ := w.h.stateOf(pr); s.State != stStarting {
+		t.Errorf("a click holding the lock lost its starting: %+v", s)
+	}
+}
+
+// The question remembered under the click has its own waiting worker; it
+// is not the click's launch, so the question comes back.
+func TestTickRecoveringStartingKeepsAQuestionsWorker(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	question := PRState{State: stAwaiting, Kind: kindQuestion, Detail: "which?", Head: "h1"}
+	if err := w.h.ledger.SetPRState(pr, PRState{State: stStarting, Kind: kindClick, Head: "h1", Since: t0, Prev: &question}); err != nil {
+		t.Fatal(err)
+	}
+	w.fs.workers = append(w.fs.workers, workerFor(pr.RoundSessionID(), 700))
+	w.h.now = func() time.Time { return t0.Add(5 * time.Minute) }
+	_ = w.h.tick()
+	if s, _ := w.h.stateOf(pr); s.Kind != kindQuestion {
+		t.Errorf("got %+v, want the question back", s)
+	}
+}

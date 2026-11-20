@@ -135,6 +135,9 @@ func (h tickHost) tick() error {
 	if err != nil {
 		return err
 	}
+	if err := h.recoverStarting(); err != nil {
+		return err
+	}
 	if err := h.recheckLaunches(); err != nil {
 		return err
 	}
