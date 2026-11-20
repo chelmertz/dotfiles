@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
@@ -309,5 +310,54 @@ func TestBlockedOn(t *testing.T) {
 	writeJob(t, dir, "working")
 	if why, ok := BlockedOn(dir, sid); ok {
 		t.Errorf("a working job read as blocked on %q", why)
+	}
+}
+
+// Seen 2026-11-20 on 2.1.325: a worker that had posted its review moved to
+// a bg-spare process the roster no longer listed, and its job stayed at
+// working, tempo idle, with no update since. Tick read that as a window
+// and the round as running for good, so the PR showed running for 20
+// minutes after the review was posted.
+func TestRoundRunningIdleBackgroundOutsideTheRoster(t *testing.T) {
+	dir := t.TempDir()
+	oldAlive, oldNow := processAlive, jobNow
+	defer func() { processAlive, jobNow = oldAlive, oldNow }()
+	processAlive = func(pid int) bool { return pid == 100 }
+	writeRoster(t, dir, `{"workers":{}}`)
+	if err := os.MkdirAll(filepath.Join(dir, "sessions"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sessions", "100.json"), []byte(fmt.Sprintf(`{"pid":100,"sessionId":%q,"kind":"bg"}`, sid)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	d := filepath.Join(dir, "jobs", sid.Key().String())
+	if err := os.MkdirAll(d, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(d, "state.json"), []byte(`{"state":"working","tempo":"idle","updatedAt":"2026-11-20T13:16:31.185Z"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	jobNow = func() time.Time { return time.Date(2026, 11, 20, 13, 20, 0, 0, time.UTC) }
+	if !RoundRunning(dir, sid) {
+		t.Error("idle for 4 minutes: may be between steps, must count as running")
+	}
+	jobNow = func() time.Time { return time.Date(2026, 11, 20, 13, 30, 0, 0, time.UTC) }
+	if RoundRunning(dir, sid) {
+		t.Error("an unlisted bg session idle at working for 14 minutes read as running")
+	}
+	if err := os.WriteFile(filepath.Join(d, "state.json"), []byte(`{"state":"working","tempo":"active","updatedAt":"2026-11-20T13:16:31.185Z"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !RoundRunning(dir, sid) {
+		t.Error("a job not idle must count as running however old")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sessions", "100.json"), []byte(fmt.Sprintf(`{"pid":100,"sessionId":%q}`, sid)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(d, "state.json"), []byte(`{"state":"done"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !RoundRunning(dir, sid) {
+		t.Error("a window on the session must count as running whatever its old job says")
 	}
 }

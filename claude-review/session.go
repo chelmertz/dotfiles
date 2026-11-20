@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
@@ -80,11 +81,19 @@ type liveSession struct {
 	PID       int           `json:"pid"`
 	SessionID ids.SessionID `json:"sessionId"`
 	ProcStart string        `json:"procStart"`
+	Kind      string        `json:"kind"`
 }
 
 // sessionPID is the live process sessions/ lists for id, or 0. Like the
 // roster, anything unreadable counts as not running.
 func sessionPID(claudeDir string, id ids.SessionID) int {
+	pid, _ := liveSessionOf(claudeDir, id)
+	return pid
+}
+
+// liveSessionOf is sessionPID with the session's kind: "bg" for a
+// background worker, whether or not the roster lists it.
+func liveSessionOf(claudeDir string, id ids.SessionID) (int, string) {
 	files, _ := filepath.Glob(filepath.Join(claudeDir, "sessions", "*.json"))
 	for _, f := range files {
 		b, err := os.ReadFile(f) //nolint:gosec // path under the user's own config dir
@@ -98,10 +107,10 @@ func sessionPID(claudeDir string, id ids.SessionID) int {
 		// Claude Code's own rule: no recorded start time, or none readable
 		// now, trusts the live pid.
 		if now := procStart(s.PID); s.ProcStart == "" || now == "" || now == s.ProcStart {
-			return s.PID
+			return s.PID, s.Kind
 		}
 	}
-	return 0
+	return 0, ""
 }
 
 // procStart is the start time Claude Code records as procStart for pid, so a
@@ -140,6 +149,9 @@ func psLstart(pid int) (string, error) {
 
 // processAlive is signal 0 on the pid; it is a variable so tests can run
 // without live processes.
+// jobNow is the clock for a job's age; a variable for tests.
+var jobNow = time.Now
+
 var processAlive = func(pid int) bool {
 	return syscall.Kill(pid, 0) == nil
 }
@@ -166,9 +178,21 @@ func BlockedOn(claudeDir string, id ids.SessionID) (string, bool) {
 }
 
 type job struct {
-	State  string `json:"state"`
-	Detail string `json:"detail"`
-	Needs  string `json:"needs"`
+	State     string    `json:"state"`
+	Detail    string    `json:"detail"`
+	Needs     string    `json:"needs"`
+	Tempo     string    `json:"tempo"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// idleEnded is how long a job may sit at working, idle and unchanged before
+// its turn counts as over. Seen 2026-11-20 on 2.1.325: a worker handed to a
+// bg-spare process kept working/idle for good after its last message.
+const idleEnded = 10 * time.Minute
+
+// stale is a job left at working that has done nothing for idleEnded.
+func (j job) stale() bool {
+	return j.State == "working" && j.Tempo == "idle" && !j.UpdatedAt.IsZero() && jobNow().Sub(j.UpdatedAt) >= idleEnded
 }
 
 // readJob is the zero job when there is none or it cannot be read.
@@ -186,8 +210,10 @@ func readJob(claudeDir string, id ids.SessionID) job {
 
 // RoundRunning reports whether a round may still be in progress in id. A
 // background worker stays alive and idle after its round ends, so for one
-// the job state decides: only done, blocked (settle handles it) and stopped
-// are not running; no readable state, or one never seen, counts as running.
+// the job state decides: done, blocked (settle handles it), stopped and a
+// stale working job are not running; no readable state, or one never seen,
+// counts as running. A background session is one the roster lists or whose
+// session file says bg: the roster can drop a worker Claude Code keeps alive.
 // An unreadable roster counts as running too. Any other live session, a
 // window or a `claude -p`, is running.
 func RoundRunning(claudeDir string, id ids.SessionID) bool {
@@ -195,12 +221,18 @@ func RoundRunning(claudeDir string, id ids.SessionID) bool {
 		return true
 	}
 	live := SessionRunning(claudeDir, id)
-	if !live.Background {
-		return live.PID > 0
+	if live.PID == 0 {
+		return false
 	}
-	switch JobState(claudeDir, id) {
+	if !live.Background {
+		if _, kind := liveSessionOf(claudeDir, id); kind != "bg" {
+			return true
+		}
+	}
+	j := readJob(claudeDir, id)
+	switch j.State {
 	case jobDone, jobBlocked, "stopped":
 		return false
 	}
-	return true
+	return !j.stale()
 }
