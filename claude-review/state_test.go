@@ -211,3 +211,33 @@ func TestEventPayloadsLandOnlyWhereTheyMeanSomething(t *testing.T) {
 		t.Errorf("starting stored %q", next.Detail)
 	}
 }
+
+// Tokens follow the chain: a move that leaves no Approve at the head
+// spends the PR's tokens, so an earlier tab's Approve cannot approve while
+// a new review of the same commit runs.
+func TestAMoveLeavingNoApproveRevokesTokens(t *testing.T) {
+	approve := PRState{State: stAwaiting, Kind: kindApprove, Head: "h1"}
+	revokes := func(effects []Effect) bool { return slices.Contains(effects, efRevokeTokens) }
+	for name, e := range map[string]Event{
+		"re-request":    {Kind: evOwed, Head: "h1", Trigger: Requested{At: t0}},
+		"first look":    {Kind: evChangedUnderFirstLook, Head: "h1"},
+		"failed launch": {Kind: evFailedToStart, Class: launchNotStarted},
+		"closed":        {Kind: evClosed},
+	} {
+		if _, effects, ok := transition(approve, e, t0); !ok || !revokes(effects) {
+			t.Errorf("%s from awaiting{approve}: effects %v ok %v, want tokens revoked", name, effects, ok)
+		}
+	}
+	// A click keeps the Approve under its starting: abandoned, it comes back.
+	if _, effects, _ := transition(approve, Event{Kind: evClick}, t0); revokes(effects) {
+		t.Error("a click over an Approve spent its token")
+	}
+	if _, effects, _ := transition(approve, Event{Kind: evUserApproved, Head: "h1"}, t0); len(slices.DeleteFunc(slices.Clone(effects), func(e Effect) bool { return e != efRevokeTokens })) != 1 {
+		t.Errorf("revoke listed twice: %v", effects)
+	}
+	before := slices.Clone(rules[0].effects)
+	transition(approve, Event{Kind: evClosed}, t0)
+	if !slices.Equal(rules[0].effects, before) {
+		t.Error("the rule table's effects were changed in place")
+	}
+}

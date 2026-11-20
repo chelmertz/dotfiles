@@ -377,9 +377,33 @@ func transition(s PRState, e Event, at time.Time) (next PRState, effects []Effec
 			// Judged at an older head: dropped as a push drops it.
 			return PRState{State: stIdle, Head: e.Head, Since: at}, []Effect{efStopWorkers, efRevokeTokens, efRoundsRead}, true
 		}
-		return next, r.effects, true
+		return next, withTokenRule(s, next, r.effects), true
 	}
 	return s, nil, false
+}
+
+// withTokenRule adds the revoke to effects when s's chain held an Approve
+// and next's holds none at its head: tokens follow the chain, not the
+// rule, so no move leaves an Approve link live that the row no longer
+// offers. Tokens are minted only for an Approve, so a chain that held none
+// has none to spend. A window revokes on its own rule though it keeps the
+// Approve below it. effects is the rule table's own slice and is never
+// changed in place.
+func withTokenRule(s, next PRState, effects []Effect) []Effect {
+	if slices.Contains(effects, efRevokeTokens) || !holdsApprove(s, "") || holdsApprove(next, next.Head) {
+		return effects
+	}
+	return append(slices.Clone(effects), efRevokeTokens)
+}
+
+// holdsApprove: s's chain has an Approve, at head unless head is "".
+func holdsApprove(s PRState, head string) bool {
+	for e := &s; e != nil; e = e.Prev {
+		if e.State == stAwaiting && e.Kind == kindApprove && (head == "" || e.Head == head) {
+			return true
+		}
+	}
+	return false
 }
 
 func firstNonEmpty(a, b string) string {
