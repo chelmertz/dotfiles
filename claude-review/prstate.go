@@ -23,7 +23,10 @@ func (l *Ledger) PRState(pr PR) (PRState, bool, error) {
 		return PRState{}, false, err
 	}
 	var s PRState
-	return s, true, json.Unmarshal([]byte(raw), &s)
+	if err := json.Unmarshal([]byte(raw), &s); err != nil {
+		return s, true, err
+	}
+	return normalized(s), true, nil
 }
 
 func (l *Ledger) SetPRState(pr PR, s PRState) error {
@@ -226,7 +229,7 @@ func (l *Ledger) PRStates() (map[string]PRState, error) {
 		if err := json.Unmarshal([]byte(raw), &s); err != nil {
 			return nil, err
 		}
-		out[url] = s
+		out[url] = normalized(s)
 	}
 	return out, rows.Err()
 }

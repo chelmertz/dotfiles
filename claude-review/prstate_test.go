@@ -18,7 +18,7 @@ func TestLedgerPRStateRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, ok, err := l.PRState(pr)
-	if err != nil || !ok || got.State != stHeld || got.Kind != kindWindow || got.Detail != "d" || got.Head != "aaa" || got.Review != s.Review ||
+	if err != nil || !ok || got.State != stHeld || got.Kind != kindWindow || got.Detail != "" || got.Head != "aaa" || got.Review != s.Review ||
 		!got.Since.Equal(t0) || got.Prev == nil || got.Prev.Detail != "why?" || got.Prev.Prev == nil || got.Prev.Prev.Kind != kindTick {
 		t.Fatalf("got %+v ok=%v err=%v", got, ok, err)
 	}
@@ -51,7 +51,7 @@ func TestMigratePRState(t *testing.T) {
 		{"window", Annotation{State: stateNeedsYou, Note: legacyWindowNote}, false, stHeld, kindWindow, ""},
 		{"paused", Annotation{State: stateNeedsYou, Note: "paused: the daily round limit for this PR is reached"}, false, stIdle, "", ""},
 		{"refused, summary posted", Annotation{State: stateStuck, Note: "a post was refused over the limit; no more rounds on this PR until you start one again"}, false, stHandled, kindPosted, detailCapped},
-		{"failed", Annotation{State: stateStuck, Note: "round stopped twice before posting its summary"}, false, stStuck, kindFailed, "round stopped twice before posting its summary"},
+		{"failed", Annotation{State: stateStuck, Note: "round stopped twice before posting its summary"}, false, stStuck, kindFailed, ""}, // an old sentence: reason unknown
 		{"posted", Annotation{State: stateHandled, Note: "round posted its review"}, false, stHandled, kindPosted, ""},
 		{"nothing", Annotation{State: stateHandled, Note: "round found nothing to post"}, false, stHandled, kindNothing, ""},
 		{"approval stands", Annotation{State: stateHandled, Note: "clean round; your approval stands"}, false, stHandled, kindApproved, ""},

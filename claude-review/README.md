@@ -694,6 +694,12 @@ claude-review alone. It holds:
   with only that text are backfilled on every open; one no parser reads
   counts toward the caps and tick says so.
 - **Claude Code version** the last passing self-check ran on.
+- **PR state**: stored as JSON in the old (state, kind, detail) shape and
+  read through one converter (`typed.go`) into a variant per state that
+  holds only its own data. What the shape can hold but no variant means is
+  made safe, never parsed: free text in a launch failure or an unknown pair
+  is a launch whose worker may be alive, a drafts count that is not a
+  number or an unknown stuck reason is a stop whose reason is unknown.
 - **Approve tokens**: one-time, minted by `tick` for one PR at one head.
   No error, log line or elly note carries one: errors never quote a link
   or elly's response body, and notes are fixed words per launch class and
