@@ -72,7 +72,7 @@ func TestMigratePRState(t *testing.T) {
 			if err := l.SetAnnotation(pr, c.a); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := l.StartRound(pr, "bbb", "tick", t0); err != nil {
+			if _, err := l.StartRound(pr, "bbb", NewHead{}, t0); err != nil {
 				t.Fatal(err)
 			}
 			if !c.unread {

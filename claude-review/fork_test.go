@@ -216,7 +216,7 @@ func endedReview(t *testing.T, h *fakeHost, st *PRState, token bool) {
 	if err := l.Accept(widgetsPR, sha, "base", time.Now().Add(-2*time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	id, err := l.StartRound(widgetsPR, sha, "test", time.Now().Add(-time.Hour))
+	id, err := l.StartRound(widgetsPR, sha, NewHead{}, time.Now().Add(-time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}

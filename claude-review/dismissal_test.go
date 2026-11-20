@@ -68,7 +68,7 @@ func TestGitHubDismissalStatus(t *testing.T) {
 func approvalRound(t *testing.T, w *tickWorld) PR {
 	t.Helper()
 	pr := w.accept(t, 42)
-	if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0); err != nil {
+	if _, err := w.h.ledger.StartRound(pr, "h1", NewHead{}, t0); err != nil {
 		t.Fatal(err)
 	}
 	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewThreads: 2, UserReview: &Review{ID: reviewID(7), State: "APPROVED", CommitID: "h0"}}
@@ -225,7 +225,7 @@ func TestAPendingDismissalOffersNoApprove(t *testing.T) {
 	}
 	w.gh.statusErr = errors.New("HTTP 502")
 	full := strings.Repeat("a", 40)
-	if _, err := w.h.ledger.StartRound(pr, full, "new_head", t0); err != nil {
+	if _, err := w.h.ledger.StartRound(pr, full, NewHead{}, t0); err != nil {
 		t.Fatal(err)
 	}
 	// A clean round that would offer Approve.

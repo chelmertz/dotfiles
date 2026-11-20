@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,7 +20,12 @@ import (
 // Ledger is the runner's own state, apart from Claude Code's session store
 // and from GitHub: which PRs the user accepted, which are ignored, which
 // rounds ran, the approve tokens, and the annotation each PR currently has.
-type Ledger struct{ db *sql.DB }
+type Ledger struct {
+	db *sql.DB
+	// Unparsed counts rounds whose old trigger text no parser reads; tick
+	// says so. They count toward the cap.
+	Unparsed int
+}
 
 const ledgerSchema = `
 create table if not exists acceptance (pr text primary key, head text not null, base text not null, at integer not null);
@@ -61,6 +67,9 @@ func OpenLedger(path string) (*Ledger, error) {
 	for _, alter := range []string{
 		`alter table annotations add column expires integer not null default 0`,
 		`alter table rounds add column session text not null default ''`,
+		`alter table rounds add column trigger_kind text not null default ''`,
+		`alter table rounds add column trigger_key text not null default ''`,
+		`alter table rounds add column trigger_from text`,
 	} {
 		if _, err := db.Exec(alter); err != nil && !strings.Contains(err.Error(), "duplicate column") {
 			_ = db.Close()
@@ -68,6 +77,10 @@ func OpenLedger(path string) (*Ledger, error) {
 		}
 	}
 	l := &Ledger{db: db}
+	if l.Unparsed, err = l.backfillTriggers(); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("ledger triggers: %w", err)
+	}
 	if err := l.revokePreC7Tokens(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("ledger tokens: %w", err)
@@ -105,12 +118,12 @@ func (l *Ledger) Acceptance(pr PR) (Acceptance, bool, error) {
 }
 
 // Round is one review round, recorded once its worker is running: tick's,
-// or a click's (trigger clickTrigger).
+// or a click's.
 type Round struct {
 	ID        ids.RoundID
 	PR        string
 	Head      string
-	Trigger   string
+	Trigger   Trigger // nil for a row whose old text no parser reads
 	StartedAt time.Time
 	Retries   int
 	// PostRefused: a post on the PR was refused over its limit since the
@@ -131,20 +144,24 @@ func (r Round) SessionFor(pr PR) ids.SessionID {
 	return r.Session
 }
 
-func (l *Ledger) StartRound(pr PR, head, trigger string, at time.Time) (ids.RoundID, error) {
+// StartRound records a round. The old trigger text is still written, for
+// an older binary's counts and RanAt.
+func (l *Ledger) StartRound(pr PR, head string, trigger Trigger, at time.Time) (ids.RoundID, error) {
 	var id ids.RoundID
-	if err := l.db.QueryRow(`insert into rounds (pr, head, trigger, started_at, session) values (?, ?, ?, ?, ?) returning id`,
-		pr.URL(), head, trigger, at.Unix(), pr.RoundSessionID().String()).Scan(&id); err != nil {
+	if err := l.db.QueryRow(`insert into rounds (pr, head, trigger, trigger_kind, trigger_key, trigger_from, started_at, session)
+		values (?, ?, ?, ?, ?, nullif(?, ''), ?, ?) returning id`,
+		pr.URL(), head, trigger.Text(), trigger.Kind(), trigger.DedupeKey(), triggerFrom(trigger), at.Unix(), pr.RoundSessionID().String()).Scan(&id); err != nil {
 		return id, fmt.Errorf("start round: %w", err)
 	}
 	return id, nil
 }
 
-// RanAt reports whether a round already started for pr at head for trigger.
-func (l *Ledger) RanAt(pr PR, head, trigger string, since time.Time) (bool, error) {
+// RanAt reports whether a round already started for pr at head for
+// trigger, or any round at head since since.
+func (l *Ledger) RanAt(pr PR, head string, trigger Trigger, since time.Time) (bool, error) {
 	var n int
-	err := l.db.QueryRow(`select count(*) from rounds where pr = ? and head = ? and (trigger = ? or started_at >= ?)`,
-		pr.URL(), head, trigger, since.Unix()).Scan(&n)
+	err := l.db.QueryRow(`select count(*) from rounds where pr = ? and head = ? and ((trigger_kind = ? and trigger_key = ?) or started_at >= ?)`,
+		pr.URL(), head, trigger.Kind(), trigger.DedupeKey(), since.Unix()).Scan(&n)
 	return n > 0, err
 }
 
@@ -152,7 +169,7 @@ func (l *Ledger) RanAt(pr PR, head, trigger string, since time.Time) (bool, erro
 // daily cap. A click's round is the user's own and does not count.
 func (l *Ledger) RoundsSince(pr PR, since time.Time) (int, error) {
 	var n int
-	err := l.db.QueryRow(`select count(*) from rounds where pr = ? and started_at >= ? and trigger not like 'click@%'`, pr.URL(), since.Unix()).Scan(&n)
+	err := l.db.QueryRow(`select count(*) from rounds where pr = ? and started_at >= ? and trigger_kind not in (`+freeKindsSQL()+`)`, pr.URL(), since.Unix()).Scan(&n)
 	return n, err
 }
 
@@ -191,7 +208,7 @@ func (l *Ledger) DiffBase(pr PR) (string, bool, error) {
 // click's round counts only through its retries, which tick starts.
 func (l *Ledger) Launches(since time.Time) (int, error) {
 	var n int
-	err := l.db.QueryRow(`select coalesce(sum(retries + (trigger not like 'click@%')), 0) from rounds
+	err := l.db.QueryRow(`select coalesce(sum(retries + (trigger_kind not in (`+freeKindsSQL()+`))), 0) from rounds
 		where started_at >= max(?, coalesce((select reset_at from breaker), 0))`, since.Unix()).Scan(&n)
 	return n, err
 }
@@ -238,7 +255,7 @@ func (l *Ledger) PRs() ([]string, error) {
 
 // UnreadRounds are rounds whose outcome has not been processed yet.
 func (l *Ledger) UnreadRounds() ([]Round, error) {
-	rows, err := l.db.Query(`select id, pr, head, trigger, started_at, retries, session,
+	rows, err := l.db.Query(`select id, pr, head, trigger_kind, trigger_key, coalesce(trigger_from, ''), started_at, retries, session,
 		exists (select 1 from post_refusals f where f.pr = rounds.pr and f.at >= rounds.started_at)
 		from rounds where read_at is null order by id`)
 	if err != nil {
@@ -249,10 +266,11 @@ func (l *Ledger) UnreadRounds() ([]Round, error) {
 	for rows.Next() {
 		var r Round
 		var started int64
-		var session string
-		if err := rows.Scan(&r.ID, &r.PR, &r.Head, &r.Trigger, &started, &r.Retries, &session, &r.PostRefused); err != nil {
+		var session, kind, key, from string
+		if err := rows.Scan(&r.ID, &r.PR, &r.Head, &kind, &key, &from, &started, &r.Retries, &session, &r.PostRefused); err != nil {
 			return nil, err
 		}
+		r.Trigger = triggerOf(kind, key, from)
 		if session != "" {
 			s, err := ids.ParseSession(session)
 			if err != nil {
@@ -561,37 +579,73 @@ func (l *Ledger) LastHead(pr PR) (string, error) {
 // from: a click by its link's ?from= ("unknown" for an older click or an
 // untagged link), every other round as "tick". For `claude-review stats`.
 func (l *Ledger) RoundSources(since time.Time) (map[string]int, error) {
-	rows, err := l.db.Query(`select trigger from rounds where started_at >= ?`, since.Unix())
+	rows, err := l.db.Query(`select trigger_kind, coalesce(trigger_from, '') from rounds where started_at >= ?`, since.Unix())
 	if err != nil {
 		return nil, fmt.Errorf("round sources: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	out := map[string]int{}
 	for rows.Next() {
-		var trigger string
-		if err := rows.Scan(&trigger); err != nil {
+		var kind, from string
+		if err := rows.Scan(&kind, &from); err != nil {
 			return nil, fmt.Errorf("round sources: %w", err)
 		}
-		out[triggerSource(trigger)]++
+		out[triggerSource(kind, from)]++
 	}
 	return out, rows.Err()
 }
 
-// triggerSource is the source clickTrigger wrote into trigger.
-func triggerSource(trigger string) string {
-	if !strings.HasPrefix(trigger, "click@") {
+// triggerSource is where a round came from: a click's link tag, "unknown"
+// for an untagged click, "tick" for any other.
+func triggerSource(kind, from string) string {
+	switch {
+	case kind != trigClick:
 		return "tick"
-	}
-	if _, from, ok := strings.Cut(trigger, "?from="); ok && from != "" {
+	case from != "":
 		return from
 	}
 	return "unknown"
 }
 
-// clickTrigger is the trigger a click's round is recorded under, with where
-// the link was clicked (EntrySource) for `claude-review stats`.
-func clickTrigger(at time.Time, from string) string {
-	return "click@" + at.UTC().Format(time.RFC3339) + "?from=" + from
+// backfillTriggers fills the typed columns of rows that have only the old
+// text: from before them, or written by a rolled-back binary. It runs on
+// every open; a row no parser reads gets kind trigUnparsed (counted toward
+// the cap, never deduplicated) and is counted.
+func (l *Ledger) backfillTriggers() (int, error) {
+	rows, err := l.db.Query(`select id, trigger, head from rounds where trigger_kind = ''`)
+	if err != nil {
+		return 0, err
+	}
+	type fill struct {
+		id              int64
+		kind, key, from string
+	}
+	var fills []fill
+	unparsed := 0
+	for rows.Next() {
+		var id int64
+		var text, head string
+		if err := rows.Scan(&id, &text, &head); err != nil {
+			_ = rows.Close()
+			return 0, err
+		}
+		t, err := parseTrigger(text, head)
+		if err != nil {
+			unparsed++
+			fills = append(fills, fill{id, trigUnparsed, strconv.FormatInt(id, 10), ""})
+			continue
+		}
+		fills = append(fills, fill{id, t.Kind(), t.DedupeKey(), triggerFrom(t)})
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return 0, err
+	}
+	for _, f := range fills {
+		if _, err := l.db.Exec(`update rounds set trigger_kind = ?, trigger_key = ?, trigger_from = nullif(?, '') where id = ?`, f.kind, f.key, f.from, f.id); err != nil {
+			return 0, err
+		}
+	}
+	return unparsed, nil
 }
 
 // metaClaudeVersion is the Claude Code version the last passing self-check ran on.

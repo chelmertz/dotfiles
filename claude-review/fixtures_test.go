@@ -83,7 +83,7 @@ func TestRecordedRounds(t *testing.T) {
 			if err := l.Accept(pr, rr.Round.Head, "main", rr.Round.StartedAt.Add(-time.Hour)); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := l.StartRound(pr, rr.Round.Head, "recorded", rr.Round.StartedAt); err != nil {
+			if _, err := l.StartRound(pr, rr.Round.Head, NewHead{}, rr.Round.StartedAt); err != nil {
 				t.Fatal(err)
 			}
 			var started [][]string

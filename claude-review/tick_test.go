@@ -284,7 +284,7 @@ func TestTickDryRunNamesAnOpenSession(t *testing.T) {
 func TestTickDryRunRetriesNothing(t *testing.T) {
 	w := newTickWorld(t)
 	failed := w.accept(t, 1)
-	if _, err := w.h.ledger.StartRound(failed, "h1", "new_head", t0); err != nil {
+	if _, err := w.h.ledger.StartRound(failed, "h1", NewHead{}, t0); err != nil {
 		t.Fatal(err)
 	}
 	w.gh.facts = RoundFacts{State: "open", Head: "h1"}
@@ -367,7 +367,7 @@ func TestTickCleanRoundGetsAWorkingApproveLink(t *testing.T) {
 func TestTickFindingsAfterApprovalDismiss(t *testing.T) {
 	w := newTickWorld(t)
 	pr := w.accept(t, 42)
-	if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0); err != nil {
+	if _, err := w.h.ledger.StartRound(pr, "h1", NewHead{}, t0); err != nil {
 		t.Fatal(err)
 	}
 	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewThreads: 2, UserReview: &Review{ID: reviewID(7), State: "APPROVED", CommitID: "h0"}}
@@ -433,7 +433,7 @@ func TestTickFreshLookGateStartsNothing(t *testing.T) {
 func TestTickARetryCountsAsRunning(t *testing.T) {
 	w := newTickWorld(t)
 	failed := w.accept(t, 1)
-	if _, err := w.h.ledger.StartRound(failed, "h1", "new_head", t0); err != nil {
+	if _, err := w.h.ledger.StartRound(failed, "h1", NewHead{}, t0); err != nil {
 		t.Fatal(err)
 	}
 	// The round ended with nothing to show: tick retries it.
@@ -487,7 +487,7 @@ func TestTickABlockedRoundNeedsTheUser(t *testing.T) {
 	} {
 		w := newTickWorld(t)
 		pr := w.accept(t, 1)
-		if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0); err != nil {
+		if _, err := w.h.ledger.StartRound(pr, "h1", NewHead{}, t0); err != nil {
 			t.Fatal(err)
 		}
 		w.gh.facts = RoundFacts{State: "open", Head: "h1"}
@@ -515,7 +515,7 @@ func TestTickABlockedRoundNeedsTheUser(t *testing.T) {
 func TestTickABlockedRoundOvertakenByAPushIsStopped(t *testing.T) {
 	w := newTickWorld(t)
 	pr := w.accept(t, 1)
-	if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0); err != nil {
+	if _, err := w.h.ledger.StartRound(pr, "h1", NewHead{}, t0); err != nil {
 		t.Fatal(err)
 	}
 	w.gh.facts = RoundFacts{State: "open", Head: "h2"}
@@ -586,7 +586,7 @@ func TestTickBreakerStopsARunawayLoopUntilReset(t *testing.T) {
 func TestTickBreakerCountsRetries(t *testing.T) {
 	w := newTickWorld(t)
 	failed := w.accept(t, 1)
-	if _, err := w.h.ledger.StartRound(failed, "h1", "new_head", t0); err != nil {
+	if _, err := w.h.ledger.StartRound(failed, "h1", NewHead{}, t0); err != nil {
 		t.Fatal(err)
 	}
 	w.gh.facts = RoundFacts{State: "open", Head: "h1"}
@@ -730,7 +730,7 @@ func TestTickLeavesALockedPRAlone(t *testing.T) {
 	w := newTickWorld(t)
 	pr := w.accept(t, 42)
 	other := w.accept(t, 43)
-	if _, err := w.h.ledger.StartRound(other, "h1", "new_head", t0); err != nil {
+	if _, err := w.h.ledger.StartRound(other, "h1", NewHead{}, t0); err != nil {
 		t.Fatal(err)
 	}
 	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewThreads: 1}
@@ -754,7 +754,7 @@ func TestTickLeavesALockedPRAlone(t *testing.T) {
 func TestTickSettlesTheLastRoundBeforeStoppingItsWorker(t *testing.T) {
 	w := newTickWorld(t)
 	pr := w.accept(t, 42)
-	if _, err := w.h.ledger.StartRound(pr, "h0", "click@x", t0); err != nil {
+	if _, err := w.h.ledger.StartRound(pr, "h0", Click{At: t0}, t0); err != nil {
 		t.Fatal(err)
 	}
 	w.fs.workers = []Worker{workerFor(pr.RoundSessionID(), 500)}
@@ -770,7 +770,7 @@ func TestTickSettlesTheLastRoundBeforeStoppingItsWorker(t *testing.T) {
 		t.Errorf("events %s", got)
 	}
 	rounds, _ := w.h.ledger.UnreadRounds()
-	if len(w.started) != 1 || len(rounds) != 1 || rounds[0].Trigger == "click@x" {
+	if len(w.started) != 1 || len(rounds) != 1 || rounds[0].Trigger.Kind() == trigClick {
 		t.Errorf("started %d, unread %+v", len(w.started), rounds)
 	}
 }
@@ -926,7 +926,7 @@ func TestTickResumesFlaglessUnderTheSavedPolicy(t *testing.T) {
 // its worker still working on it: the merge came mid-round.
 func (w *tickWorld) closedWithWorker(t *testing.T, n, pid int) PR {
 	pr := w.accept(t, n)
-	if _, err := w.h.ledger.StartRound(pr, "h1", clickTrigger(t0, "elly"), t0); err != nil {
+	if _, err := w.h.ledger.StartRound(pr, "h1", Click{At: t0, From: "elly"}, t0); err != nil {
 		t.Fatal(err)
 	}
 	w.fs.workers = append(w.fs.workers, workerFor(pr.RoundSessionID(), pid))
@@ -945,7 +945,7 @@ func TestTickStopsWorkersOnClosedPRs(t *testing.T) {
 	w.gh.closedPRs, w.gh.asked = map[int]bool{}, map[int]int{}
 	w.gh.facts = RoundFacts{State: "open", Head: "h1"}
 	merged := w.closedWithWorker(t, 42, 501)
-	if _, err := w.h.ledger.StartRound(merged, "h0", "new_head", t0); err != nil {
+	if _, err := w.h.ledger.StartRound(merged, "h0", NewHead{}, t0); err != nil {
 		t.Fatal(err)
 	}
 	open := w.accept(t, 43)
@@ -1027,7 +1027,7 @@ func TestTickSweepLeavesWhatItCannotRead(t *testing.T) {
 func TestTickNotifiesEachNewNeedsYouOnce(t *testing.T) {
 	w := newTickWorld(t)
 	asked := w.accept(t, 1)
-	if _, err := w.h.ledger.StartRound(asked, "h1", "new_head", t0); err != nil {
+	if _, err := w.h.ledger.StartRound(asked, "h1", NewHead{}, t0); err != nil {
 		t.Fatal(err)
 	}
 	w.msgs[asked.RoundSessionID()] = "Which one?\nclaude-review: question for the user"
@@ -1194,7 +1194,7 @@ func TestTickSeesAForkWindow(t *testing.T) {
 func TestTickAnswerGetsAFollowUpRound(t *testing.T) {
 	w := newTickWorld(t)
 	pr := w.accept(t, 42)
-	id, err := w.h.ledger.StartRound(pr, "h1", "test", time.Now().Add(-time.Hour))
+	id, err := w.h.ledger.StartRound(pr, "h1", NewHead{}, time.Now().Add(-time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1238,7 +1238,7 @@ func TestTickSettlesARoundUnderItsOwnSession(t *testing.T) {
 	w := newTickWorld(t)
 	pr := w.accept(t, 42)
 	old := ids.SessionFor(pr.URL() + " round-policy old")
-	id, err := w.h.ledger.StartRound(pr, "h1", "test", time.Now().Add(-time.Minute))
+	id, err := w.h.ledger.StartRound(pr, "h1", NewHead{}, time.Now().Add(-time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}

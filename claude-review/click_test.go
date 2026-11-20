@@ -100,7 +100,7 @@ func TestClickOnAReviewRepoRunsInTheBackground(t *testing.T) {
 			t.Errorf("exists=%v: notified %q", exists, n)
 		}
 		rounds, _ := h.ledger(t).UnreadRounds()
-		if len(rounds) != 1 || rounds[0].Head != "h7" || !strings.HasPrefix(rounds[0].Trigger, "click@") {
+		if len(rounds) != 1 || rounds[0].Head != "h7" || rounds[0].Trigger == nil || rounds[0].Trigger.Kind() != trigClick {
 			t.Errorf("exists=%v: rounds %+v", exists, rounds)
 		}
 	}
@@ -148,7 +148,7 @@ func TestClickMidRoundStartsNothing(t *testing.T) {
 // after that round was settled.
 func TestClickSettlesTheLastRoundBeforeStoppingItsWorker(t *testing.T) {
 	h, fs := clickHost(t, true)
-	if _, err := h.ledger(t).StartRound(testPR, "h6", "new_head", t0); err != nil {
+	if _, err := h.ledger(t).StartRound(testPR, "h6", NewHead{}, t0); err != nil {
 		t.Fatal(err)
 	}
 	fs.workers = []Worker{workerFor(testPR.RoundSessionID(), 500)}
@@ -166,7 +166,7 @@ func TestClickSettlesTheLastRoundBeforeStoppingItsWorker(t *testing.T) {
 
 	// GitHub down: the round cannot be read, so its worker stays.
 	h, fs = clickHost(t, true)
-	if _, err := h.ledger(t).StartRound(testPR, "h6", "new_head", t0); err != nil {
+	if _, err := h.ledger(t).StartRound(testPR, "h6", NewHead{}, t0); err != nil {
 		t.Fatal(err)
 	}
 	fs.workers = []Worker{workerFor(testPR.RoundSessionID(), 500)}
@@ -257,7 +257,7 @@ func TestClickNotificationStatesTheHandoverHistory(t *testing.T) {
 	h, _ := clickHost(t, true)
 	l := h.ledger(t)
 	for i, at := range []time.Time{t0, t0.Add(26 * time.Hour)} {
-		id, err := l.StartRound(testPR, "h"+strconv.Itoa(i), "new_head", at)
+		id, err := l.StartRound(testPR, "h"+strconv.Itoa(i), NewHead{}, at)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -356,7 +356,7 @@ func TestClickShowsStartingFirstAndRecordsWhereItCameFrom(t *testing.T) {
 		t.Errorf("events\n%s, want\n%s", got, want)
 	}
 	rounds, _ := h.ledger(t).UnreadRounds()
-	if len(rounds) != 1 || !strings.HasSuffix(rounds[0].Trigger, "?from=elly") {
+	if len(rounds) != 1 || triggerFrom(rounds[0].Trigger) != "elly" {
 		t.Errorf("rounds %+v", rounds)
 	}
 	if !strings.Contains(h.stderr.String(), "click from elly, timing:") {

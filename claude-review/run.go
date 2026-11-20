@@ -330,7 +330,7 @@ func (h tickHost) recordClick(c clickTarget, at time.Time) error {
 	if c.head == "" {
 		return nil
 	}
-	if _, err := h.ledger.StartRound(c.pr, c.head, clickTrigger(at, c.from), at); err != nil {
+	if _, err := h.ledger.StartRound(c.pr, c.head, Click{At: at.UTC(), From: c.from}, at); err != nil {
 		return err
 	}
 	// settleUnread may have moved the state on since the click

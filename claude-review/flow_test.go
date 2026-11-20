@@ -10,7 +10,7 @@ import (
 func TestTickAResumedWorkerRunsAgain(t *testing.T) {
 	w := newTickWorld(t)
 	pr := w.accept(t, 1)
-	if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0); err != nil {
+	if _, err := w.h.ledger.StartRound(pr, "h1", NewHead{}, t0); err != nil {
 		t.Fatal(err)
 	}
 	if err := w.h.ledger.SetPRState(pr, PRState{State: stRunning, Kind: kindTick, Head: "h1", Since: t0}); err != nil {

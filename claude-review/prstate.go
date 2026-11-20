@@ -121,7 +121,7 @@ func (l *Ledger) acceptedURLs() ([]string, error) {
 
 func (l *Ledger) migratedFor(url string, a Annotation) (PRState, error) {
 	var head, accepted string
-	var trigger sql.NullString
+	var kind sql.NullString
 	var started sql.NullInt64
 	if err := l.db.QueryRow(`select head from acceptance where pr = ?`, url).Scan(&accepted); err != nil {
 		return PRState{}, err
@@ -133,15 +133,15 @@ func (l *Ledger) migratedFor(url string, a Annotation) (PRState, error) {
 	if err != nil {
 		return PRState{}, err
 	}
-	err = l.db.QueryRow(`select trigger, started_at from rounds where pr = ? and read_at is null order by id desc limit 1`, url).Scan(&trigger, &started)
+	err = l.db.QueryRow(`select trigger_kind, started_at from rounds where pr = ? and read_at is null order by id desc limit 1`, url).Scan(&kind, &started)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return PRState{}, err
 	}
 	var s PRState
 	switch {
-	case trigger.Valid && strings.HasPrefix(trigger.String, "click"):
+	case kind.Valid && kind.String == trigClick:
 		s = PRState{State: stRunning, Kind: kindClick}
-	case trigger.Valid:
+	case kind.Valid:
 		s = PRState{State: stRunning, Kind: kindTick}
 	default:
 		s = migratedState(a)

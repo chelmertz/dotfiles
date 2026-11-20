@@ -54,7 +54,7 @@ func TestTickMarksAStartedRoundRunning(t *testing.T) {
 func TestTickMarksARetryRunning(t *testing.T) {
 	w := newTickWorld(t)
 	pr := w.accept(t, 1)
-	if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0.Add(-time.Hour)); err != nil {
+	if _, err := w.h.ledger.StartRound(pr, "h1", NewHead{}, t0.Add(-time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	w.gh.facts = RoundFacts{State: "open", Head: "h1"} // nothing to show: retried
@@ -95,7 +95,7 @@ func TestTickSettleReplacesRunning(t *testing.T) {
 func TestTickAFailedLaunchLeavesNoRunning(t *testing.T) {
 	w := newTickWorld(t)
 	pr := w.accept(t, 1)
-	if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0.Add(-time.Hour)); err != nil {
+	if _, err := w.h.ledger.StartRound(pr, "h1", NewHead{}, t0.Add(-time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	if err := w.h.move2(pr, PRState{State: stRunning, Kind: kindTick, Since: t0.Add(-time.Hour)}); err != nil {

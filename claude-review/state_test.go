@@ -54,7 +54,7 @@ func TestTransition(t *testing.T) {
 		{"owed on fresh look", st(stHeld, kindFresh), Event{Kind: evOwed}, stHeld, kindFresh, nil, false},
 		{"owed under a window", window, Event{Kind: evOwed}, stHeld, kindWindow, nil, false},
 		{"a push does not lift stuck", stuck, Event{Kind: evOwed}, stStuck, kindFailed, nil, false},
-		{"a re-request lifts stuck", stuck, Event{Kind: evOwed, Rerequest: true}, stRunning, kindTick, nil, true},
+		{"a re-request lifts stuck", stuck, Event{Kind: evOwed, Trigger: Requested{At: t0}}, stRunning, kindTick, nil, true},
 		{"push drops a question", question, Event{Kind: evPush, Head: "bbb"}, stIdle, "", []Effect{efStopWorkers, efRevokeTokens}, true},
 		{"push drops an approve", st(stAwaiting, kindApprove), Event{Kind: evPush, Head: "bbb"}, stIdle, "", []Effect{efStopWorkers, efRevokeTokens}, true},
 		{"push while running", running, Event{Kind: evPush}, stRunning, kindTick, nil, false},

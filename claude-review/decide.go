@@ -70,19 +70,16 @@ func repoAllowed(owner, repo string, allow []string) bool {
 // and replies are keyed by the PR's last update, so the same request does not
 // run twice while a new reply at the same head still does. lastHead is the
 // head of the last round, or the accepted head before any.
-func roundTrigger(p EllyPR, user, lastHead string) string {
-	at := "@" + p.LastUpdated.UTC().Format(time.RFC3339)
+func roundTrigger(p EllyPR, user, lastHead string) Trigger {
 	switch {
-	case p.ReviewRequestedOfUser || slices.Contains(p.ReviewRequestedFromUsers, user):
-		return "review_requested" + at
-	case slices.Contains(p.RereviewFrom, user):
-		return "rereview_requested" + at
+	case p.ReviewRequestedOfUser || slices.Contains(p.ReviewRequestedFromUsers, user), slices.Contains(p.RereviewFrom, user):
+		return Requested{At: p.LastUpdated.UTC()}
 	case p.ThreadsActionable > 0:
-		return "replies" + at
+		return Replies{At: p.LastUpdated.UTC()}
 	case p.HeadRefOid != "" && p.HeadRefOid != lastHead:
-		return "new_head"
+		return NewHead{Head: p.HeadRefOid}
 	}
-	return ""
+	return nil
 }
 
 // Gate is what tick asks GitHub before running a PR again.
@@ -116,7 +113,7 @@ const (
 type Planned struct {
 	PR      PR
 	Head    string
-	Trigger string
+	Trigger Trigger
 	Gate    string
 	Skip    skip
 }
@@ -165,7 +162,7 @@ func planOne(p EllyPR, cfg TickConfig, l *Ledger, g Gate, now time.Time) (Planne
 		lastHead = acc.Head
 	}
 	out.Trigger = roundTrigger(p, cfg.User, lastHead)
-	if out.Trigger == "" {
+	if out.Trigger == nil {
 		return left(skipNothingOwed)
 	}
 	// A round at this head that started after the PR last changed already

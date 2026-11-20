@@ -39,10 +39,10 @@ func TestPlanTickDailyCapWindow(t *testing.T) {
 	if err := l.Accept(widgetsPR, "h0", "main", t0); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := l.StartRound(widgetsPR, "hx", "x", t0.Add(-25*time.Hour)); err != nil {
+	if _, err := l.StartRound(widgetsPR, "hx", NewHead{}, t0.Add(-25*time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := l.StartRound(widgetsPR, "hx", "x", t0.Add(-time.Hour)); err != nil {
+	if _, err := l.StartRound(widgetsPR, "hx", NewHead{}, t0.Add(-time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	gate := func(dailyCap int) string {
@@ -232,7 +232,7 @@ func TestTickFailsOnAnUnreadableBreaker(t *testing.T) {
 func TestTickALockedPRTakesASlot(t *testing.T) {
 	w := newTickWorld(t)
 	busy := w.accept(t, 1)
-	if _, err := w.h.ledger.StartRound(busy, "h1", "new_head", t0); err != nil {
+	if _, err := w.h.ledger.StartRound(busy, "h1", NewHead{}, t0); err != nil {
 		t.Fatal(err)
 	}
 	w.locked[busy.SessionID().String()] = true
@@ -251,7 +251,7 @@ func TestTickALockedPRTakesASlot(t *testing.T) {
 func TestTickMarksASettledRoundRead(t *testing.T) {
 	w := newTickWorld(t)
 	pr := w.accept(t, 42)
-	if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0); err != nil {
+	if _, err := w.h.ledger.StartRound(pr, "h1", NewHead{}, t0); err != nil {
 		t.Fatal(err)
 	}
 	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewThreads: 1, RoundReviewURL: "r"}
@@ -272,7 +272,7 @@ func TestTickAGatedPRDoesNotStopTheNext(t *testing.T) {
 	w := newTickWorld(t)
 	w.h.tcfg.DailyCap = 1
 	gated := w.accept(t, 1)
-	id, err := w.h.ledger.StartRound(gated, "h1", "x", t0.Add(-time.Minute))
+	id, err := w.h.ledger.StartRound(gated, "h1", NewHead{}, t0.Add(-time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,7 +298,7 @@ func TestTickAGatedPRDoesNotStopTheNext(t *testing.T) {
 func TestLaunchCapCountsTheLastDay(t *testing.T) {
 	w := newTickWorld(t)
 	w.h.tcfg.TotalDailyCap = 1
-	if _, err := w.h.ledger.StartRound(widgetsPR, "h1", "new_head", t0.Add(-time.Hour)); err != nil {
+	if _, err := w.h.ledger.StartRound(widgetsPR, "h1", NewHead{}, t0.Add(-time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := w.h.launch(widgetsPR, nil, func(time.Time) error { return nil }, nil); err == nil || len(w.started) != 0 {
@@ -391,7 +391,7 @@ func TestPlanTickARoundAfterTheLastUpdateCoversIt(t *testing.T) {
 		if err := l.Accept(widgetsPR, "h1", "main", t0); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := l.StartRound(widgetsPR, "h1", "click@x", c.started); err != nil {
+		if _, err := l.StartRound(widgetsPR, "h1", Click{At: t0}, c.started); err != nil {
 			t.Fatal(err)
 		}
 		got, err := planTick([]EllyPR{asked}, cfg, l, fakeGate{descends: true, base: "main"}, t0.Add(time.Hour))

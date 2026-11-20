@@ -682,9 +682,14 @@ claude-review alone. It holds:
 - **Rounds**: each round is recorded once its worker is listed in Claude
   Code's roster (PR, head, trigger), never before: a launch that failed
   leaves no round to be settled from the previous round's message. Clicks
-  on a PR in `review_repos` record theirs too (trigger `click@<time>`), so
-  tick settles them; those count toward neither cap. Marked read when its
-  result is processed.
+  on a PR in `review_repos` record theirs too, so tick settles them; those
+  count toward neither cap. Marked read when its result is processed. A
+  trigger is one of requested (a request or re-request), replies, answered,
+  new head or click, stored as kind, dedupe key (the PR's last update, the
+  head, or the click time) and a click's `?from=`. The old text column
+  (`click@<time>` and so on) is still written for an older binary, and rows
+  with only that text are backfilled on every open; one no parser reads
+  counts toward the caps and tick says so.
 - **Claude Code version** the last passing self-check ran on.
 - **Approve tokens**: one-time, minted by `tick` for one PR at one head.
   No error, log line or elly note carries one: errors never quote a link

@@ -10,7 +10,7 @@ func TestStatsPrintsRoundsPerSource(t *testing.T) {
 	h, _ := clickHost(t, true)
 	l := h.ledger(t)
 	now := time.Now()
-	for _, tr := range []string{clickTrigger(now, "thunderbird"), clickTrigger(now, "thunderbird"), clickTrigger(now, "elly"), "new_head"} {
+	for _, tr := range []Trigger{Click{At: now, From: "thunderbird"}, Click{At: now, From: "thunderbird"}, Click{At: now, From: "elly"}, NewHead{}} {
 		if _, err := l.StartRound(testPR, "h", tr, now); err != nil {
 			t.Fatal(err)
 		}

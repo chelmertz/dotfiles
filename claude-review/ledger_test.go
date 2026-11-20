@@ -46,14 +46,14 @@ func TestLedgerRounds(t *testing.T) {
 	l := openTestLedger(t)
 	pr := widgetsPR
 
-	id, err := l.StartRound(pr, "head1", "review_requested", t0)
+	id, err := l.StartRound(pr, "head1", Requested{At: t0}, t0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ran, _ := l.RanAt(pr, "head1", "review_requested", t0.Add(time.Hour)); !ran {
+	if ran, _ := l.RanAt(pr, "head1", Requested{At: t0}, t0.Add(time.Hour)); !ran {
 		t.Error("a started round is not recorded")
 	}
-	if ran, _ := l.RanAt(pr, "head1", "new_head", t0.Add(time.Hour)); ran {
+	if ran, _ := l.RanAt(pr, "head1", NewHead{Head: "head1"}, t0.Add(time.Hour)); ran {
 		t.Error("another trigger at the same head counts as run")
 	}
 	if n, _ := l.RoundsSince(pr, t0.Add(-time.Hour)); n != 1 {
@@ -126,17 +126,17 @@ func TestLedgerAnnotations(t *testing.T) {
 func TestLedgerBreaker(t *testing.T) {
 	l := openTestLedger(t)
 	other := PR{Owner: owner, Repo: repoName, Number: 43}
-	id, err := l.StartRound(widgetsPR, "h1", "new_head", t0)
+	id, err := l.StartRound(widgetsPR, "h1", NewHead{}, t0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := l.MarkRetried(id); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := l.StartRound(other, "h1", "new_head", t0); err != nil {
+	if _, err := l.StartRound(other, "h1", NewHead{}, t0); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := l.StartRound(other, "h0", "new_head", t0.Add(-25*time.Hour)); err != nil {
+	if _, err := l.StartRound(other, "h0", NewHead{}, t0.Add(-25*time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	if n, err := l.Launches(t0.Add(-24 * time.Hour)); err != nil || n != 3 {
@@ -181,10 +181,10 @@ func TestLedgerPostBudget(t *testing.T) {
 	if !spend("h1", "thread 7") || !spend("h2", "new") {
 		t.Error("another slot or another head has its own budget")
 	}
-	if _, err := l.StartRound(widgetsPR, "h1", "new_head", t0.Add(-time.Minute)); err != nil {
+	if _, err := l.StartRound(widgetsPR, "h1", NewHead{}, t0.Add(-time.Minute)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := l.StartRound(PR{Owner: owner, Repo: repoName, Number: 43}, "h1", "new_head", t0); err != nil {
+	if _, err := l.StartRound(PR{Owner: owner, Repo: repoName, Number: 43}, "h1", NewHead{}, t0); err != nil {
 		t.Fatal(err)
 	}
 	rounds, _ := l.UnreadRounds()
@@ -204,14 +204,14 @@ func TestLedgerDiffBase(t *testing.T) {
 	if base, ok, _ := l.DiffBase(widgetsPR); !ok || base != "acc" {
 		t.Errorf("before any round: %q %v", base, ok)
 	}
-	id, _ := l.StartRound(widgetsPR, "h1", "x", t0)
+	id, _ := l.StartRound(widgetsPR, "h1", NewHead{}, t0)
 	if base, _, _ := l.DiffBase(widgetsPR); base != "acc" {
 		t.Errorf("an unread round is the one running, not the last: %q", base)
 	}
 	if err := l.MarkRead(id); err != nil {
 		t.Fatal(err)
 	}
-	id2, err := l.StartRound(widgetsPR, "h2", "x", t0)
+	id2, err := l.StartRound(widgetsPR, "h2", NewHead{}, t0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +230,7 @@ func TestLedgerDiffBase(t *testing.T) {
 // counts toward neither the per-PR daily cap nor the breaker.
 func TestClickRoundsCountTowardNoCap(t *testing.T) {
 	l := openTestLedger(t)
-	if _, err := l.StartRound(widgetsPR, "h1", clickTrigger(t0, "elly"), t0); err != nil {
+	if _, err := l.StartRound(widgetsPR, "h1", Click{At: t0, From: "elly"}, t0); err != nil {
 		t.Fatal(err)
 	}
 	if n, _ := l.RoundsSince(widgetsPR, t0.Add(-time.Hour)); n != 0 {
@@ -242,7 +242,7 @@ func TestClickRoundsCountTowardNoCap(t *testing.T) {
 	if rounds, _ := l.UnreadRounds(); len(rounds) != 1 {
 		t.Errorf("a click round is not settled: %+v", rounds)
 	}
-	if _, err := l.StartRound(widgetsPR, "h1", "new_head", t0); err != nil {
+	if _, err := l.StartRound(widgetsPR, "h1", NewHead{}, t0); err != nil {
 		t.Fatal(err)
 	}
 	if n, _ := l.Launches(t0.Add(-time.Hour)); n != 1 {
@@ -256,16 +256,16 @@ func TestClickRoundsCountTowardNoCap(t *testing.T) {
 func TestRoundSources(t *testing.T) {
 	l := openTestLedger(t)
 	for _, r := range []struct {
-		trigger string
+		trigger Trigger
 		at      time.Time
 	}{
-		{clickTrigger(t0, "elly"), t0},
-		{clickTrigger(t0, "elly"), t0},
-		{clickTrigger(t0, "thunderbird"), t0},
-		{"click@" + t0.UTC().Format(time.RFC3339), t0},
-		{"review_requested@x", t0},
-		{"new_head", t0},
-		{clickTrigger(t0, "slack"), t0.Add(-48 * time.Hour)},
+		{Click{At: t0, From: "elly"}, t0},
+		{Click{At: t0, From: "elly"}, t0},
+		{Click{At: t0, From: "thunderbird"}, t0},
+		{Click{At: t0}, t0},
+		{Requested{At: t0}, t0},
+		{NewHead{}, t0},
+		{Click{At: t0, From: "slack"}, t0.Add(-48 * time.Hour)},
 	} {
 		if _, err := l.StartRound(widgetsPR, "h", r.trigger, r.at); err != nil {
 			t.Fatal(err)
@@ -304,7 +304,7 @@ func TestLedgerAddsTheRoundSessionColumn(t *testing.T) {
 	if err != nil || len(rs) != 1 || rs[0].SessionFor(widgetsPR) != widgetsPR.RoundSessionID() {
 		t.Fatalf("rounds %+v, err %v", rs, err)
 	}
-	if _, err := l.StartRound(widgetsPR, "h2", "test", time.Now()); err != nil {
+	if _, err := l.StartRound(widgetsPR, "h2", NewHead{}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	rs, _ = l.UnreadRounds()

@@ -120,6 +120,9 @@ func (h tickHost) tick() error {
 	if err := h.settleDismissals(); err != nil {
 		return err
 	}
+	if n := h.ledger.Unparsed; n > 0 && h.out != nil {
+		fmt.Fprintf(h.out, "claude-review tick: %d recorded rounds have a trigger no parser reads; they count toward the caps\n", n)
+	}
 	running, err := h.settle()
 	if err != nil {
 		return err
@@ -603,10 +606,9 @@ func (h tickHost) hold(p Planned, held map[string]string) (bool, error) {
 	return note != "", nil
 }
 
-// owedEvent is the event p's round reports: a re-request lifts stuck.
+// owedEvent is the event p's round reports; a request lifts stuck.
 func owedEvent(p Planned) Event {
-	re := strings.HasPrefix(p.Trigger, "review_requested") || strings.HasPrefix(p.Trigger, "rereview_requested")
-	return Event{Kind: evOwed, Head: p.Head, Rerequest: re}
+	return Event{Kind: evOwed, Head: p.Head, Trigger: p.Trigger}
 }
 
 // startOne starts p's round under the PR's lock, or names what holds it
@@ -640,7 +642,7 @@ func (h tickHost) startOne(p Planned, running int) (skip, error) {
 		return skipNoSlot, nil
 	}
 	var not skip
-	err = h.do(fmt.Sprintf("start a round on %s at %.9s (%s)", p.PR.URL(), p.Head, p.Trigger), func() error {
+	err = h.do(fmt.Sprintf("start a round on %s at %.9s (%s)", p.PR.URL(), p.Head, p.Trigger.Text()), func() error {
 		var err error
 		not, err = h.launch(p.PR, func() error { return h.settleUnread(p.PR) }, func(at time.Time) error {
 			if _, err := h.ledger.StartRound(p.PR, p.Head, p.Trigger, at); err != nil {
@@ -816,7 +818,7 @@ func (h tickHost) answerOwes(p Planned) (Planned, error) {
 	if err != nil {
 		return p, err
 	}
-	p.Skip, p.Trigger, p.Gate = "", "answered@"+h.now().UTC().Format(time.RFC3339), gate
+	p.Skip, p.Trigger, p.Gate = "", Answered{At: h.now().UTC()}, gate
 	if !open {
 		p.Skip = skipClosed
 	}

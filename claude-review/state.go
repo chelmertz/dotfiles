@@ -94,8 +94,8 @@ type Event struct {
 	Detail string
 	// Next is the state decide chose for an ended round.
 	Next *PRState
-	// Rerequest: the owed round is a review (re-)request, which lifts stuck.
-	Rerequest bool
+	// Trigger is why an owed round is owed; a request lifts stuck.
+	Trigger Trigger
 	// FreshLook: the PR changed under its first look (force-push, new base).
 	FreshLook bool
 }
@@ -182,7 +182,7 @@ type rule struct {
 
 var (
 	withReason   = guard{"with a reason", func(_ PRState, e Event) bool { return e.Detail != "" }}
-	rerequested  = guard{"a re-request", func(_ PRState, e Event) bool { return e.Rerequest }}
+	rerequested  = guard{"a request", func(_ PRState, e Event) bool { _, ok := e.Trigger.(Requested); return ok }}
 	freshLook    = guard{"under its first look", func(_ PRState, e Event) bool { return e.FreshLook }}
 	workerBack   = guard{"the worker works again", func(s PRState, _ Event) bool { return s.Prev != nil && s.Prev.State == stRunning }}
 	decidedRetry = guard{"decide: retry", func(_ PRState, e Event) bool {

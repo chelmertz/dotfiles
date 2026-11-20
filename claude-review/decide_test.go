@@ -37,21 +37,21 @@ func TestRoundTrigger(t *testing.T) {
 		name     string
 		pr       EllyPR
 		lastHead string
-		want     string
+		want     Trigger
 	}{
-		{"nothing owed", ellyPR(nil), "h1", ""},
-		{"review requested", ellyPR(func(p *EllyPR) { p.ReviewRequestedFromUsers = []string{"me"} }), "h1", "review_requested@" + t0.Format(time.RFC3339)},
-		{"asked through a team", ellyPR(func(p *EllyPR) { p.ReviewRequestedFromUsers, p.ReviewRequestedOfUser = []string{"@hidden"}, true }), "h1", "review_requested@" + t0.Format(time.RFC3339)},
-		{"someone else's request", ellyPR(func(p *EllyPR) { p.ReviewRequestedFromUsers = []string{"bob"} }), "h1", ""},
-		{"re-review", ellyPR(func(p *EllyPR) { p.RereviewFrom = []string{"me"} }), "h1", "rereview_requested@" + t0.Format(time.RFC3339)},
-		{"replies", ellyPR(func(p *EllyPR) { p.ThreadsActionable = 2 }), "h1", "replies@" + t0.Format(time.RFC3339)},
-		{"new head", ellyPR(func(p *EllyPR) { p.HeadRefOid = "h2" }), "h1", "new_head"},
-		{"no head known", ellyPR(func(p *EllyPR) { p.HeadRefOid = "" }), "h1", ""},
+		{"nothing owed", ellyPR(nil), "h1", nil},
+		{"review requested", ellyPR(func(p *EllyPR) { p.ReviewRequestedFromUsers = []string{"me"} }), "h1", Requested{At: t0.UTC()}},
+		{"asked through a team", ellyPR(func(p *EllyPR) { p.ReviewRequestedFromUsers, p.ReviewRequestedOfUser = []string{"@hidden"}, true }), "h1", Requested{At: t0.UTC()}},
+		{"someone else's request", ellyPR(func(p *EllyPR) { p.ReviewRequestedFromUsers = []string{"bob"} }), "h1", nil},
+		{"re-review", ellyPR(func(p *EllyPR) { p.RereviewFrom = []string{"me"} }), "h1", Requested{At: t0.UTC()}},
+		{"replies", ellyPR(func(p *EllyPR) { p.ThreadsActionable = 2 }), "h1", Replies{At: t0.UTC()}},
+		{"new head", ellyPR(func(p *EllyPR) { p.HeadRefOid = "h2" }), "h1", NewHead{Head: "h2"}},
+		{"no head known", ellyPR(func(p *EllyPR) { p.HeadRefOid = "" }), "h1", nil},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			if got := roundTrigger(c.pr, "me", c.lastHead); got != c.want {
-				t.Errorf("got %q, want %q", got, c.want)
+				t.Errorf("got %#v, want %#v", got, c.want)
 			}
 		})
 	}
@@ -109,7 +109,7 @@ func TestPlanTick(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := plan(l, ok, ellyPR(requested))
-	if len(got) != 1 || got[0].Gate != "" || got[0].Head != "h1" || !strings.HasPrefix(got[0].Trigger, "review_requested@") {
+	if len(got) != 1 || got[0].Gate != "" || got[0].Head != "h1" || got[0].Trigger.Kind() != trigRequested {
 		t.Fatalf("accepted, requested: %+v", got)
 	}
 
@@ -143,12 +143,12 @@ func TestPlanTick(t *testing.T) {
 	if got := plan(l, ok, ellyPR(requested)); len(got) != 0 {
 		t.Errorf("same head and trigger ran twice: %+v", got)
 	}
-	if got := plan(l, ok, ellyPR(func(p *EllyPR) { p.HeadRefOid = "h2" })); len(got) != 1 || got[0].Trigger != "new_head" {
+	if got := plan(l, ok, ellyPR(func(p *EllyPR) { p.HeadRefOid = "h2" })); len(got) != 1 || got[0].Trigger != Trigger(NewHead{Head: "h2"}) {
 		t.Errorf("a push after the last round: %+v", got)
 	}
 
 	for range 2 {
-		if _, err := l.StartRound(widgetsPR, "hx", "x", t0); err != nil {
+		if _, err := l.StartRound(widgetsPR, "hx", NewHead{}, t0); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -329,7 +329,7 @@ func TestPlanTickNamesWhyItLeavesAPR(t *testing.T) {
 	if s := skipOf(l, ok, asked); s != "" {
 		t.Errorf("owed: %q", s)
 	}
-	if _, err := l.StartRound(widgetsPR, "h1", "click@x", t0.Add(time.Second)); err != nil {
+	if _, err := l.StartRound(widgetsPR, "h1", Click{At: t0}, t0.Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
 	if s := skipOf(l, ok, asked); s != skipAlreadyRan {
