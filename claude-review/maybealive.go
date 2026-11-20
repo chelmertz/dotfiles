@@ -49,7 +49,7 @@ func (h tickHost) recheckLaunches() error {
 		if err != nil {
 			return err
 		}
-		_, err = h.move(pr, Event{Kind: evLaunchCleared, Detail: launchNotStarted})
+		_, err = h.move(pr, Event{Kind: evLaunchCleared, Class: launchNotStarted})
 		unlock()
 		if err != nil {
 			h.warn(pr, err)
@@ -110,16 +110,16 @@ func (h tickHost) startingOutcome(pr PR, s PRState) (Event, error) {
 	for e := s.Prev; e != nil; e = e.Prev {
 		if e.State == stAwaiting && e.Kind == kindQuestion {
 			// A worker now is the question's own, waiting on the user.
-			return Event{Kind: evNotStarted}, nil
+			return Event{Kind: evAbandoned}, nil
 		}
 	}
 	all, err := h.sess.Roster()
 	if err != nil {
 		// Unknown is an outcome: the roster re-check resolves it later.
-		return Event{Kind: evNotStarted, Detail: launchUnknown}, nil //nolint:nilerr // see above
+		return Event{Kind: evFailedToStart, Class: launchUnknown}, nil //nolint:nilerr // see above
 	}
 	if len(h.workersOf(pr, all)) > 0 {
-		return Event{Kind: evNotStarted, Detail: launchUnlisted}, nil
+		return Event{Kind: evFailedToStart, Class: launchUnlisted}, nil
 	}
-	return Event{Kind: evNotStarted}, nil
+	return Event{Kind: evAbandoned}, nil
 }

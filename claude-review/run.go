@@ -283,7 +283,7 @@ func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
 		return fail(d, err)
 	}
 	// The "starting" row; a click on a running round leaves its row be.
-	s, err := h.move(pr, Event{Kind: evClick, Detail: from})
+	s, err := h.move(pr, Event{Kind: evClick, From: from})
 	if err != nil {
 		return fail(d, err)
 	}
@@ -295,7 +295,7 @@ func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
 	defer func() {
 		if !started {
 			// back to what the click replaced, unless an outcome moved it on
-			_, err := h.move(pr, Event{Kind: evNotStarted})
+			_, err := h.move(pr, Event{Kind: evAbandoned})
 			say(err)
 		}
 	}()
@@ -320,7 +320,7 @@ func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
 		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), err))
 	}
 	not, err := h.afterRelaunch(pr, res, err, func() error { return h.recordClick(c, at) }, func(detail string) error {
-		_, err := h.move(pr, Event{Kind: evNotStarted, Detail: detail})
+		_, err := h.move(pr, Event{Kind: evFailedToStart, Class: detail})
 		return err
 	})
 	started = not == "" && err == nil
@@ -339,7 +339,7 @@ func (h tickHost) recordClick(c clickTarget, at time.Time) error {
 	}
 	// settleUnread may have moved the state on since the click
 	if s, err := h.stateOf(c.pr); err == nil && s.State != stStarting {
-		_, err = h.move(c.pr, Event{Kind: evClick, Detail: c.from})
+		_, err = h.move(c.pr, Event{Kind: evClick, From: c.from})
 		h.warn(c.pr, err)
 	}
 	_, err := h.move(c.pr, Event{Kind: evLaunched})

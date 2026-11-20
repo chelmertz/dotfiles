@@ -375,7 +375,7 @@ func (h tickHost) settleBlocked(pr PR, r Round, why string, retry bool) error {
 	if err != nil {
 		return err // GitHub unreachable: read it next tick
 	}
-	if _, err := h.move(pr, Event{Kind: evBlocked, Detail: capRunes(why, maxQuestionNote)}); err != nil {
+	if _, err := h.move(pr, Event{Kind: evBlocked, Question: capRunes(why, maxQuestionNote)}); err != nil {
 		return err
 	}
 	switch {
@@ -670,7 +670,7 @@ func (h tickHost) startOne(p Planned, running int) (skip, error) {
 			_, err := h.move(p.PR, owedEvent(p))
 			return err
 		}, func(detail string) error {
-			_, err := h.move(p.PR, Event{Kind: evNotStarted, Detail: detail})
+			_, err := h.move(p.PR, Event{Kind: evFailedToStart, Class: detail})
 			return err
 		})
 		return err

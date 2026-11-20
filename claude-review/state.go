@@ -90,9 +90,15 @@ type PRState struct {
 
 // Event is something tick, a click or a verb observed.
 type Event struct {
-	Kind   EventKind
-	Head   string
-	Detail string
+	Kind EventKind
+	Head string
+	// From: where a click came from (Click).
+	From string
+	// Question: what the worker asks the user (Blocked).
+	Question string
+	// Class: why no worker started, one of the launch classes
+	// (FailedToStart, LaunchCleared).
+	Class string
 	// Next is the state decide chose for an ended round.
 	Next *PRState
 	// Trigger is why an owed round is owed; a request lifts stuck.
@@ -109,7 +115,11 @@ const (
 	evUserApproved EventKind = "user_approved"
 	evClick        EventKind = "click"
 	evLaunched     EventKind = "launched"
-	evNotStarted   EventKind = "not_started"
+	// evFailedToStart: a launch left no round; Class says why.
+	evFailedToStart EventKind = "failed_to_start"
+	// evAbandoned: a click gave up before any launch; back to the state
+	// before.
+	evAbandoned    EventKind = "abandoned"
 	evOwed         EventKind = "owed"
 	evPush         EventKind = "push"
 	evBlocked      EventKind = "blocked"
@@ -215,7 +225,22 @@ func (t ruleTarget) apply(s PRState, e Event, at time.Time) PRState {
 		next.Head, next.Since, next.Prev = firstNonEmpty(next.Head, firstNonEmpty(e.Head, s.Head)), at, nil
 		return next
 	}
-	return PRState{State: t.to.State, Kind: t.to.Kind, Detail: e.Detail, Head: firstNonEmpty(e.Head, s.Head), Since: at}
+	return PRState{State: t.to.State, Kind: t.to.Kind, Detail: detailFrom(t.to, e), Head: firstNonEmpty(e.Head, s.Head), Since: at}
+}
+
+// detailFrom is the stored detail a rule's target takes from its event:
+// each target reads the one payload field its state owns, so no event's
+// text lands in a state that does not mean it.
+func detailFrom(k stateKey, e Event) string {
+	switch k {
+	case stateKey{stStarting, kindClick}:
+		return e.From
+	case stateKey{stAwaiting, kindQuestion}:
+		return e.Question
+	case stateKey{stHeld, kindLaunch}:
+		return e.Class
+	}
+	return ""
 }
 
 // remembered is what a remembering rule keeps under its new state. A
@@ -269,7 +294,7 @@ type rule struct {
 }
 
 var (
-	withReason   = guard{"with a reason", func(_ PRState, e Event) bool { return e.Detail != "" }}
+	launchClass  = guard{"a launch class", func(_ PRState, e Event) bool { _, ok := launchNotes[e.Class]; return ok }}
 	rerequested  = guard{"a request", func(_ PRState, e Event) bool { _, ok := e.Trigger.(Requested); return ok }}
 	freshLook    = guard{"under its first look", func(_ PRState, e Event) bool { return e.FreshLook }}
 	workerBack   = guard{"the worker works again", func(s PRState, _ Event) bool { return s.Prev != nil && s.Prev.State == stRunning }}
@@ -299,8 +324,8 @@ var rules = []rule{
 	{from: notIn(in(stRunning, stStarting)), event: evUserApproved, to: to(stIdle, ""), effects: []Effect{efRevokeTokens}},
 	{from: notIn(in(stRunning, stStarting)), event: evClick, when: notMaybeAlive, to: to(stStarting, kindClick), remember: true},
 	{from: in(stStarting), event: evLaunched, to: to(stRunning, kindClick)},
-	{from: notIn(in(stRunning)), event: evNotStarted, when: withReason, to: to(stHeld, kindLaunch)},
-	{from: in(stStarting), event: evNotStarted, to: toPrev},
+	{from: notIn(in(stRunning)), event: evFailedToStart, when: launchClass, to: to(stHeld, kindLaunch)},
+	{from: in(stStarting), event: evAbandoned, to: toPrev},
 	{from: in(stStuck), event: evOwed, when: rerequested, to: to(stRunning, kindTick)},
 	{from: in(stIdle, stHandled, stAwaiting), event: evOwed, when: freshLook, to: to(stHeld, kindFresh)},
 	{from: in(stIdle, stHandled, stAwaiting), event: evOwed, to: to(stRunning, kindTick)},

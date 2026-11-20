@@ -29,7 +29,7 @@ func TestAMaybeAliveLaunchStartsNothing(t *testing.T) {
 			t.Errorf("ended from held{%s}: %s{%s} %v %v", class, next.State, next.Kind, effects, ok)
 		}
 		// Only the roster re-check leaves it: nothing alive, nothing unread.
-		next, _, ok = transition(alive(class), Event{Kind: evLaunchCleared, Detail: launchNotStarted}, t0)
+		next, _, ok = transition(alive(class), Event{Kind: evLaunchCleared, Class: launchNotStarted}, t0)
 		if !ok || next.State != stHeld || next.Kind != kindLaunch || next.Detail != launchNotStarted {
 			t.Errorf("cleared from held{%s}: %+v %v", class, next, ok)
 		}
@@ -47,7 +47,7 @@ func TestAMaybeAliveLaunchStartsNothing(t *testing.T) {
 		if next, _, ok := transition(alive(class), Event{Kind: evOwed}, t0); !ok || next.State != stRunning {
 			t.Errorf("owed from held{%s}: %+v %v", class, next, ok)
 		}
-		if next, _, ok := transition(alive(class), Event{Kind: evLaunchCleared, Detail: launchNotStarted}, t0); ok {
+		if next, _, ok := transition(alive(class), Event{Kind: evLaunchCleared, Class: launchNotStarted}, t0); ok {
 			t.Errorf("cleared from a dead held{%s}: %+v", class, next)
 		}
 	}
@@ -216,7 +216,7 @@ func TestARestoreChecksTheHeadOverTheChain(t *testing.T) {
 	question := PRState{State: stAwaiting, Kind: kindQuestion, Head: "old"}
 	posted := PRState{State: stHandled, Kind: kindPosted, Head: "new", Prev: &question}
 	starting := PRState{State: stStarting, Kind: kindClick, Head: "new", Prev: &posted}
-	if next, _, _ = transition(starting, Event{Kind: evNotStarted, Head: "new"}, t0); next.State != stIdle {
+	if next, _, _ = transition(starting, Event{Kind: evAbandoned, Head: "new"}, t0); next.State != stIdle {
 		t.Errorf("an old question deep in the chain survived: %+v", next)
 	}
 	// Held states keep their head across a push, as today.
@@ -419,10 +419,10 @@ func TestAWindowOverStartingForgetsTheStarting(t *testing.T) {
 func TestTheChainDepthIsPinned(t *testing.T) {
 	posted := PRState{State: stHandled, Kind: kindPosted}
 	events := []Event{
-		{Kind: evClick}, {Kind: evLaunched}, {Kind: evNotStarted}, {Kind: evNotStarted, Detail: launchNotStarted},
+		{Kind: evClick}, {Kind: evLaunched}, {Kind: evAbandoned}, {Kind: evFailedToStart, Class: launchNotStarted},
 		{Kind: evOwed}, {Kind: evOwed, Trigger: Requested{At: t0}}, {Kind: evPush, Head: "x"},
-		{Kind: evBlocked, Detail: "q"}, {Kind: evResumed}, {Kind: evEnded, Next: &posted},
-		{Kind: evWindowOpened}, {Kind: evWindowClosed}, {Kind: evUserApproved}, {Kind: evLaunchCleared, Detail: launchNotStarted},
+		{Kind: evBlocked, Question: "q"}, {Kind: evResumed}, {Kind: evEnded, Next: &posted},
+		{Kind: evWindowOpened}, {Kind: evWindowClosed}, {Kind: evUserApproved}, {Kind: evLaunchCleared, Class: launchNotStarted},
 	}
 	depth := func(s PRState) int {
 		n := 0

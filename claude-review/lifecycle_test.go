@@ -504,7 +504,7 @@ func TestEveryLaunchResultLandsTheSameOnBothPaths(t *testing.T) {
 			}
 			recorded := false
 			not, err := w.h.afterRelaunch(pr, RelaunchResult{Kind: kind, Detail: "x"}, nil, func() error { recorded = true; return nil }, func(detail string) error {
-				_, err := w.h.move(pr, Event{Kind: evNotStarted, Detail: detail})
+				_, err := w.h.move(pr, Event{Kind: evFailedToStart, Class: detail})
 				return err
 			})
 			got, _, _ := w.h.ledger.PRState(pr)

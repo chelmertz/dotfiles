@@ -36,15 +36,15 @@ func TestTransition(t *testing.T) {
 		{"closed from anything", question, Event{Kind: evClosed}, "", "", []Effect{efStopWorkers, efRoundsRead}, true},
 		{"user approved", question, Event{Kind: evUserApproved, Head: "bbb"}, stIdle, "", []Effect{efRevokeTokens}, true},
 		{"user approved mid-round", running, Event{Kind: evUserApproved}, stRunning, kindTick, nil, false},
-		{"tick launch failed", posted, Event{Kind: evNotStarted, Detail: "no clone"}, stHeld, kindLaunch, nil, true},
+		{"tick launch failed", posted, Event{Kind: evFailedToStart, Class: launchNotStarted}, stHeld, kindLaunch, nil, true},
 		{"read before a new round", running, Event{Kind: evEnded, Next: &PRState{State: stIdle}}, stIdle, "", []Effect{efRoundsRead}, true},
-		{"click from idle", idle, Event{Kind: evClick, Detail: "elly"}, stStarting, kindClick, nil, true},
+		{"click from idle", idle, Event{Kind: evClick, From: "elly"}, stStarting, kindClick, nil, true},
 		{"click from stuck", stuck, Event{Kind: evClick}, stStarting, kindClick, nil, true},
 		{"click while running", running, Event{Kind: evClick}, stRunning, kindTick, nil, false},
 		{"click while starting", starting, Event{Kind: evClick}, stStarting, kindClick, nil, false},
 		{"launched", starting, Event{Kind: evLaunched}, stRunning, kindClick, nil, true},
-		{"not started restores prev", starting, Event{Kind: evNotStarted}, stAwaiting, kindQuestion, nil, true},
-		{"launch failed", starting, Event{Kind: evNotStarted, Detail: "no clone"}, stHeld, kindLaunch, nil, true},
+		{"abandoned restores prev", starting, Event{Kind: evAbandoned}, stAwaiting, kindQuestion, nil, true},
+		{"launch failed", starting, Event{Kind: evFailedToStart, Class: launchNotStarted}, stHeld, kindLaunch, nil, true},
 		{"owed from idle", idle, Event{Kind: evOwed, Head: "bbb"}, stRunning, kindTick, nil, true},
 		{"owed from handled", posted, Event{Kind: evOwed}, stRunning, kindTick, nil, true},
 		{"owed from launch failed", PRState{State: stHeld, Kind: kindLaunch, Detail: launchNotStarted}, Event{Kind: evOwed}, stRunning, kindTick, nil, true},
@@ -58,7 +58,7 @@ func TestTransition(t *testing.T) {
 		{"push drops a question", question, Event{Kind: evPush, Head: "bbb"}, stIdle, "", []Effect{efStopWorkers, efRevokeTokens}, true},
 		{"push drops an approve", st(stAwaiting, kindApprove), Event{Kind: evPush, Head: "bbb"}, stIdle, "", []Effect{efStopWorkers, efRevokeTokens}, true},
 		{"push while running", running, Event{Kind: evPush}, stRunning, kindTick, nil, false},
-		{"blocked", running, Event{Kind: evBlocked, Detail: "why?"}, stAwaiting, kindQuestion, nil, true},
+		{"blocked", running, Event{Kind: evBlocked, Question: "why?"}, stAwaiting, kindQuestion, nil, true},
 		{"resumed", question, Event{Kind: evResumed}, stRunning, kindTick, nil, true},
 		{"resumed without a worker", PRState{State: stAwaiting, Kind: kindQuestion}, Event{Kind: evResumed}, stAwaiting, kindQuestion, nil, false},
 		{"ended", running, Event{Kind: evEnded, Next: &posted}, stHandled, kindPosted, []Effect{efRoundsRead}, true},
@@ -85,7 +85,7 @@ func TestTransition(t *testing.T) {
 func TestTransitionKeepsWhatItShould(t *testing.T) {
 	at := time.Date(2026, 11, 17, 10, 0, 0, 0, time.UTC)
 	running := PRState{State: stRunning, Kind: kindTick, Head: "aaa"}
-	got, _, _ := transition(running, Event{Kind: evBlocked, Detail: "why?"}, at)
+	got, _, _ := transition(running, Event{Kind: evBlocked, Question: "why?"}, at)
 	if got.Detail != "why?" || got.Head != "aaa" || !got.Since.Equal(at) || got.Prev == nil || got.Prev.State != stRunning {
 		t.Fatalf("blocked: %+v", got)
 	}
@@ -93,7 +93,7 @@ func TestTransitionKeepsWhatItShould(t *testing.T) {
 	if got.Head != "bbb" || got.Detail != "" || got.Prev != nil {
 		t.Fatalf("push: %+v", got)
 	}
-	got, _, _ = transition(PRState{State: stIdle}, Event{Kind: evClick, Detail: "thunderbird"}, at)
+	got, _, _ = transition(PRState{State: stIdle}, Event{Kind: evClick, From: "thunderbird"}, at)
 	if got.Detail != "thunderbird" || got.Prev == nil || got.Prev.State != stIdle {
 		t.Fatalf("click: %+v", got)
 	}
@@ -191,5 +191,23 @@ func TestRulesListOnlyPerformedEffects(t *testing.T) {
 	}
 	if err := w.h.effect(widgetsPR, Effect("launch")); err == nil {
 		t.Error("an effect move does not know was accepted")
+	}
+}
+
+// A launch failure stores a class, never the error that caused it: a
+// reason no class names moves nothing, and each target keeps only the
+// payload field its state owns.
+func TestEventPayloadsLandOnlyWhereTheyMeanSomething(t *testing.T) {
+	posted := PRState{State: stHandled, Kind: kindPosted, Head: "h1"}
+	if next, _, ok := transition(posted, Event{Kind: evFailedToStart, Class: "exec: claude: token=abc"}, t0); ok {
+		t.Errorf("free text reached a state: %+v", next)
+	}
+	next, _, _ := transition(posted, Event{Kind: evFailedToStart, Class: launchDuplicate, From: "elly", Question: "q"}, t0)
+	if next.Detail != launchDuplicate {
+		t.Errorf("held launch stored %q", next.Detail)
+	}
+	next, _, _ = transition(PRState{State: stIdle}, Event{Kind: evClick, From: "elly", Class: launchDuplicate}, t0)
+	if next.Detail != "elly" {
+		t.Errorf("starting stored %q", next.Detail)
 	}
 }
