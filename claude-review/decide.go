@@ -398,16 +398,20 @@ func approvedBefore(r Round, f RoundFacts) bool {
 
 // attachLink opens Claude on the PR: the working session, or a locked-down
 // fork of the last one (verbs.go attach).
-func attachLink(pr PR) Link { return Link{Label: "Open Claude", URL: verbURL(pr, "attach")} }
+func attachLink(pr PR) Link {
+	return Link{Label: "Open Claude", URL: verbURL(pr, "attach"), Action: actionOpen}
+}
 
 // answerLink is attach on a row that asks the user something. elly makes a
 // needs_you row's primary link its button under the link's own label, so
 // the button says what to do.
-func answerLink(pr PR) Link { return Link{Label: "Answer", URL: verbURL(pr, "attach")} }
+func answerLink(pr PR) Link {
+	return Link{Label: "Answer", URL: verbURL(pr, "attach"), Action: actionOpen}
+}
 
 // startAgainLink is a click from elly: a new round, re-accepting the PR.
 func startAgainLink(pr PR) Link {
-	return Link{Label: "Start again", URL: fmt.Sprintf("claude-review://%s/%s/%d?from=elly", pr.Owner, pr.Repo, pr.Number)}
+	return Link{Label: "Start again", URL: fmt.Sprintf("claude-review://%s/%s/%d?from=elly", pr.Owner, pr.Repo, pr.Number), Action: actionStart}
 }
 
 // quietApprove: the session's approve line names this PR at the head tick

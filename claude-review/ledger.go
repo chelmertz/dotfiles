@@ -469,7 +469,22 @@ type Link struct {
 	// Primary makes elly show the link as the row's action (the Start
 	// offer); elly honours it only on an info annotation naming the PR.
 	Primary bool `json:"primary,omitempty"`
+	// Action is what the link does, one of actionVerbs' keys; elly reads it
+	// and never the label.
+	Action string `json:"action,omitempty"`
 }
+
+// actionVerbs is the action table: each action and the link verb it names,
+// "" for the bare PR link. elly's types.ActionVerbs names the same pairs;
+// each side pins them in a test.
+var actionVerbs = map[string]string{actionApprove: "approve", actionOpen: "attach", actionStart: "", actionHelp: "states"}
+
+const (
+	actionApprove = "approve"
+	actionOpen    = "open"
+	actionStart   = "start"
+	actionHelp    = "help"
+)
 
 const (
 	// stateInfo carries only links: the Start offer, never a round state.

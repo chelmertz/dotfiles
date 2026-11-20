@@ -1151,7 +1151,7 @@ func TestTickOffersStartWhereAClickIsWhatIsMissing(t *testing.T) {
 	for u, a := range w.elly.put {
 		if a.State == stateInfo {
 			offered = append(offered, u)
-			want := []Link{{Label: "Start", URL: "claude-review://acme/widgets/" + u[strings.LastIndex(u, "/")+1:] + "?from=elly", Primary: true}}
+			want := []Link{{Label: "Start", URL: "claude-review://acme/widgets/" + u[strings.LastIndex(u, "/")+1:] + "?from=elly", Primary: true, Action: actionStart}}
 			if !slices.Equal(a.Links, want) {
 				t.Errorf("%s: links %+v, want %+v", u, a.Links, want)
 			}

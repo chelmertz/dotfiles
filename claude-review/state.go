@@ -538,7 +538,7 @@ func render(pr PR, s PRState, v View) Annotation {
 	return a
 }
 
-func statesLink(pr PR) Link { return Link{Label: "?", URL: verbURL(pr, "states")} }
+func statesLink(pr PR) Link { return Link{Label: "?", URL: verbURL(pr, "states"), Action: actionHelp} }
 
 func renderRow(pr PR, s PRState, v View) Annotation {
 	t := typed(s)
@@ -574,7 +574,7 @@ func (x AwaitingQuestion) row(pr PR, _ Typed, _ View) Annotation {
 
 func (AwaitingApprove) row(pr PR, t Typed, v View) Annotation {
 	return needsYou("LGTM at "+shortSHA(t.Head)+"; approve it if you agree",
-		Link{Label: "Approve", URL: approveURL(pr, t.Head, v.Token), Primary: true}, attachLink(pr))
+		Link{Label: "Approve", URL: approveURL(pr, t.Head, v.Token), Primary: true, Action: actionApprove}, attachLink(pr))
 }
 
 func (x AwaitingDrafts) row(pr PR, _ Typed, _ View) Annotation {
@@ -590,7 +590,7 @@ func (AwaitingDismissed) row(pr PR, _ Typed, v View) Annotation {
 
 func (HeldFresh) row(pr PR, _ Typed, _ View) Annotation {
 	return needsYou("the PR changed under its first look (force-push or new base); click claude review to look again",
-		primary(Link{Label: "Look again", URL: startAgainLink(pr).URL}), attachLink(pr))
+		primary(Link{Label: "Look again", URL: startAgainLink(pr).URL, Action: actionStart}), attachLink(pr))
 }
 
 func (HeldWindow) row(pr PR, _ Typed, _ View) Annotation {

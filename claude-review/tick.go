@@ -560,7 +560,7 @@ func offersStart(p EllyPR, cfg TickConfig, accepted, annotated bool) bool {
 // in elly only: the ledger's rows are round states, and the first one a
 // click writes ("starting") replaces it.
 func startOffer(pr PR) Annotation {
-	return Annotation{State: stateInfo, Links: []Link{{Label: "Start", URL: "claude-review://" + pr.Owner + "/" + pr.Repo + "/" + itoaPR(pr) + "?from=elly", Primary: true}}}
+	return Annotation{State: stateInfo, Links: []Link{{Label: "Start", URL: "claude-review://" + pr.Owner + "/" + pr.Repo + "/" + itoaPR(pr) + "?from=elly", Primary: true, Action: actionStart}}}
 }
 
 // offerStarts sends Start where offersStart holds, each under the PR's
