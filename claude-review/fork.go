@@ -86,7 +86,7 @@ func ForkArgs(pr PR, session, forkID ids.SessionID, remote string, skillRules []
 	args = append(append(args, readRules(pr)...), skillRules...)
 	args = append(append(args, flagDenied), denyRules...)
 	args = append(args, "Bash(git show *)", "Bash(git diff *)", "Bash(git log *)", "Bash(git grep *)")
-	return append(append(args, secretReadRules...), forkDenyRules...)
+	return append(append(append(args, secretReadRules...), protectedRules()...), forkDenyRules...)
 }
 
 // openFork opens the fork, under the PR's lock the caller holds. A link can

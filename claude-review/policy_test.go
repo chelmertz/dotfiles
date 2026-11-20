@@ -40,6 +40,7 @@ func TestUnattendedArgsArePinned(t *testing.T) {
 	flags = append(flags, denyRules...)
 	flags = append(flags, "Bash(git show *)", "Bash(git diff *)", "Bash(git log *)", "Bash(git grep *)")
 	flags = append(flags, secretReadRules...)
+	flags = append(flags, protectedRules()...)
 	flags = append(flags, "Bash(curl *)", "Bash(wget *)", "WebFetch", "WebSearch")
 	if got := PolicyFlags(widgetsPR, "upstream"); !slices.Equal(got, flags) {
 		t.Errorf("policy flags changed:\ngot  %q\nwant %q", got, flags)
@@ -47,7 +48,7 @@ func TestUnattendedArgsArePinned(t *testing.T) {
 
 	for _, resume := range []bool{true, false} {
 		prompt := BuildPrompt(Config{PostWithoutAsking: true}, widgetsPR, "upstream", resume) +
-			"\n\nThis round runs unattended, and a command it is not allowed is refused, not asked about. Run one command per Bash call: no `;`, `&&`, `|` or redirection, and no `git -C` (the session already runs in the clone). Get the PR head with `git fetch upstream pull/42/head` and `git rev-parse FETCH_HEAD`, never `git ls-remote`. Read the PR's code with `claude-review show https://github.com/acme/widgets/pull/42 <path>`, `claude-review grep https://github.com/acme/widgets/pull/42 <text>` and `claude-review diff https://github.com/acme/widgets/pull/42`; raw `git show`, `git diff`, `git log` and `git grep` are refused. A refused command stays refused: work without it, or end with the question line."
+			"\n\nThis round runs unattended, and a command it is not allowed is refused, not asked about. Run one command per Bash call: no `;`, `&&`, `|` or redirection, and no `git -C` (the session already runs in the clone). Get the PR head with `git fetch upstream pull/42/head` and `git rev-parse FETCH_HEAD`, never `git ls-remote`. Read the PR's code with `claude-review show https://github.com/acme/widgets/pull/42 <path>`, `claude-review grep https://github.com/acme/widgets/pull/42 <text>` and `claude-review diff https://github.com/acme/widgets/pull/42`; raw `git show`, `git diff`, `git log` and `git grep` are refused. Read what is already on the PR, earlier reviews (each names the commit it reviewed), PR comments and inline threads, with `claude-review threads https://github.com/acme/widgets/pull/42`; `gh api` and `gh pr view --comments` are refused. A refused command stays refused: work without it, or end with the question line."
 		// The prompt sits before the tool lists, which would swallow it.
 		first := append(append([]string{"claude", "--bg"}, flags[:5]...), "--resume", id.String(), prompt)
 		first = append(first, flags[5:]...)
@@ -71,7 +72,7 @@ func TestRoundSessionIDIsVersioned(t *testing.T) {
 	if got := widgetsPR.RoundSessionID(); got != ids.SessionFor(widgetsPR.URL()+" round-policy "+policyVersion) || got == widgetsPR.SessionID() {
 		t.Errorf("round session id %s", got)
 	}
-	if policyVersion != "4" {
+	if policyVersion != "5" {
 		t.Errorf("policyVersion %q: the literal here moves with it", policyVersion)
 	}
 }
@@ -109,6 +110,42 @@ func TestUnattendedRoundCannotReachElly(t *testing.T) {
 			if strings.Contains(rule, reach) {
 				t.Errorf("the allow rule %q could reach elly (%q)", rule, reach)
 			}
+		}
+	}
+}
+
+// A round that wanted the PR's earlier reviews tried `gh api` and `gh pr
+// view --comments`, was refused, and asked the user instead (2026-11-20):
+// the rules name threads, which is allowed and prints all of it.
+func TestUnattendedRulesNameThreads(t *testing.T) {
+	if !strings.Contains(unattendedRules, "`claude-review threads {url}`") {
+		t.Error("the unattended rules do not say how to read what is already on the PR")
+	}
+}
+
+// Every protected path is denied to every reading tool, in the rounds' and
+// the fork's policies alike; the literals are pinned so a dropped one shows.
+func TestProtectedPathsAreDeniedEverywhere(t *testing.T) {
+	round := PolicyFlags(widgetsPR, "upstream")
+	fork := ForkArgs(widgetsPR, widgetsPR.RoundSessionID(), widgetsPR.SessionID(), "upstream", nil)
+	for _, p := range []string{"~/.local/state/claude-review/**", "~/.config/elly/**", "//run/user/*/elly/**", "~/.config/gh/**", "//proc/**", "~/.mozilla/**"} {
+		for _, tool := range []string{"Read", "Grep", "Glob", "Edit"} {
+			r := tool + "(" + p + ")"
+			if !slices.Contains(round, r) || !slices.Contains(fork, r) {
+				t.Errorf("%s is not denied in both policies", r)
+			}
+		}
+	}
+	for _, c := range []string{"Bash(ps *)", "Bash(journalctl *)", "Bash(gh auth *)", "Bash(printenv *)"} {
+		if !slices.Contains(round, c) || !slices.Contains(fork, c) {
+			t.Errorf("%s is not denied in both policies", c)
+		}
+	}
+	// A protected path is never also allowed.
+	allowed := round[slices.Index(round, flagAllowed)+1 : slices.Index(round, flagDenied)]
+	for _, p := range protectedPaths {
+		if slices.Contains(allowed, "Read("+p+")") {
+			t.Errorf("%s is allowed", p)
 		}
 	}
 }

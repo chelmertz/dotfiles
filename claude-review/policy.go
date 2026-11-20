@@ -18,7 +18,7 @@ var secretReadRules = []string{
 // unattendedRules follows the prompt of every unattended round. The first
 // real rounds (2026-11-01) lost 22 of 61 tool calls to refused chains,
 // `git -C` and `git ls-remote`, which match none of the pinned rules.
-const unattendedRules = "\n\nThis round runs unattended, and a command it is not allowed is refused, not asked about. Run one command per Bash call: no `;`, `&&`, `|` or redirection, and no `git -C` (the session already runs in the clone). Get the PR head with `git fetch {remote} pull/{number}/head` and `git rev-parse FETCH_HEAD`, never `git ls-remote`. Read the PR's code with `claude-review show {url} <path>`, `claude-review grep {url} <text>` and `claude-review diff {url}`; raw `git show`, `git diff`, `git log` and `git grep` are refused. A refused command stays refused: work without it, or end with the question line."
+const unattendedRules = "\n\nThis round runs unattended, and a command it is not allowed is refused, not asked about. Run one command per Bash call: no `;`, `&&`, `|` or redirection, and no `git -C` (the session already runs in the clone). Get the PR head with `git fetch {remote} pull/{number}/head` and `git rev-parse FETCH_HEAD`, never `git ls-remote`. Read the PR's code with `claude-review show {url} <path>`, `claude-review grep {url} <text>` and `claude-review diff {url}`; raw `git show`, `git diff`, `git log` and `git grep` are refused. Read what is already on the PR, earlier reviews (each names the commit it reviewed), PR comments and inline threads, with `claude-review threads {url}`; `gh api` and `gh pr view --comments` are refused. A refused command stays refused: work without it, or end with the question line."
 
 // policyVersion names the round policy a PR's background session was first
 // launched under. Claude Code keeps a background session's options from its
@@ -28,10 +28,10 @@ const unattendedRules = "\n\nThis round runs unattended, and a command it is not
 // is part of the session id (PR.RoundSessionID). Bump it whenever
 // PolicyFlags changes; TestUnattendedArgsArePinned fails until
 // pinnedPolicyFingerprint matches the new flags.
-const policyVersion = "4"
+const policyVersion = "5"
 
 // pinnedPolicyFingerprint is policyFingerprint() for policyVersion.
-const pinnedPolicyFingerprint = "21ff70331863aa72"
+const pinnedPolicyFingerprint = "d14410ba82c848d4"
 
 // PolicyFlags is the round policy. It inherits nothing from the user's own
 // Claude Code setup: no settings file at all (the user's run in auto mode
@@ -77,8 +77,40 @@ func policyFlags(pr PR, remote, id string) []string {
 	// Not left to dontAsk: Claude Code lets some git reads through without
 	// a rule (`git status` did on 2026-10-31), and these four take --output.
 	args = append(args, "Bash(git show *)", "Bash(git diff *)", "Bash(git log *)", "Bash(git grep *)")
-	args = append(args, secretReadRules...)
+	args = append(append(args, secretReadRules...), protectedRules()...)
 	return append(args, "Bash(curl *)", "Bash(wget *)", "WebFetch", "WebSearch")
+}
+
+// protectedPaths hold live Approve tokens, elly's tokens or what prints
+// them: the ledger, claude-review's and elly's config and data, elly's
+// runtime directory (its annotation token), gh's token file, /proc
+// (environ, cmdline, fds into elly's database) and the browsers' profiles
+// and caches, which hold elly's page. dontAsk lets some read-only commands
+// through with no rule (`git status` did, 2026-10-31), so each is denied
+// by name. Not checked live (user's choice, 2026-11-20): only rule forms
+// the policy already used, path rules and command prefixes.
+var protectedPaths = []string{
+	"~/.local/state/claude-review/**", "~/.config/claude-review/**",
+	"~/.config/elly/**", "~/.local/share/elly/**", "**/elly.db*", "//run/user/*/elly/**",
+	"~/.config/gh/**", "//proc/**",
+	"~/.mozilla/**", "~/.cache/mozilla/**", "~/.config/chromium/**", "~/.cache/chromium/**", "~/.config/google-chrome/**",
+}
+
+// protectedCommands print a process's environment, the journal (which held
+// tokens before C7), elly's unit's environment or gh's stored token.
+var protectedCommands = []string{
+	"Bash(ps)", "Bash(ps *)", "Bash(pgrep *)", "Bash(env)", "Bash(printenv)", "Bash(printenv *)",
+	"Bash(journalctl *)", "Bash(systemctl *)", "Bash(gh auth *)", "Bash(secret-tool *)", "Bash(cat /proc/*)",
+}
+
+// protectedRules deny every protected path to Read, Grep, Glob and Edit,
+// and the protected commands, in the rounds' and the fork's policies.
+func protectedRules() []string {
+	var out []string
+	for _, p := range protectedPaths {
+		out = append(out, "Read("+p+")", "Grep("+p+")", "Glob("+p+")", "Edit("+p+")")
+	}
+	return append(out, protectedCommands...)
 }
 
 // personaReadRules let a round read the persona reviewer prompts in
