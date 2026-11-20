@@ -22,13 +22,19 @@ func (h tickHost) stateOf(pr PR) (PRState, error) {
 // nothing changes. Launch and re-accept are the caller's, done before the
 // event that reports them.
 func (h tickHost) move(pr PR, e Event) (PRState, error) {
+	s, _, err := h.moved(pr, e)
+	return s, err
+}
+
+// moved is move, and whether a rule applied.
+func (h tickHost) moved(pr PR, e Event) (PRState, bool, error) {
 	s, err := h.stateOf(pr)
 	if err != nil {
-		return s, err
+		return s, false, err
 	}
 	next, effects, ok := transition(s, e, h.now())
 	if !ok {
-		return s, nil
+		return s, false, nil
 	}
 	err = h.do(fmt.Sprintf("move %s from %s to %s on %s", pr.URL(), describe(s), describe(next), e.Kind), func() error {
 		for _, ef := range effects {
@@ -56,7 +62,7 @@ func (h tickHost) move(pr PR, e Event) (PRState, error) {
 		h.warn(pr, h.show(pr, next, ""))
 		return nil
 	})
-	return next, err
+	return next, true, err
 }
 
 // mintFor mints the Approve link's token when s is the first state to need

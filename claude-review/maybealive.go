@@ -104,7 +104,7 @@ func (h tickHost) startingOutcome(pr PR, s PRState) (Event, error) {
 	}
 	for _, r := range rounds {
 		if r.PR == pr.URL() && !r.StartedAt.Before(s.Since) {
-			return Event{Kind: evLaunched}, nil
+			return Event{Kind: evLaunched, Round: r.ID}, nil
 		}
 	}
 	for e := s.Prev; e != nil; e = e.Prev {

@@ -135,6 +135,19 @@ func TestRoundID(t *testing.T) {
 			t.Errorf("scanned %v", bad)
 		}
 	}
+	b, err := json.Marshal(r)
+	if err != nil || string(b) != "12" {
+		t.Errorf("marshalled %s %v", b, err)
+	}
+	var back ids.RoundID
+	if err := json.Unmarshal(b, &back); err != nil || back != r {
+		t.Errorf("read back %s %v", back, err)
+	}
+	for _, bad := range []string{`"12"`, `-1`, `1.5`, `null`} {
+		if err := json.Unmarshal([]byte(bad), &back); err == nil {
+			t.Errorf("read %s", bad)
+		}
+	}
 }
 
 // GitHub numbers reviews, review comments and PR-level comments apart; each

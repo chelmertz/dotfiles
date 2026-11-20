@@ -344,7 +344,7 @@ func (h tickHost) settle() (int, error) {
 func (h tickHost) settleRound(pr PR, r Round, retry bool) (busy bool, err error) {
 	sid := r.SessionFor(pr)
 	if h.running(sid) {
-		_, err := h.move(pr, Event{Kind: evResumed})
+		_, err := h.move(pr, Event{Kind: evResumed, Round: r.ID})
 		return true, err
 	}
 	if why, ok := h.blocked(sid); ok {
@@ -375,14 +375,14 @@ func (h tickHost) settleBlocked(pr PR, r Round, why string, retry bool) error {
 	if err != nil {
 		return err // GitHub unreachable: read it next tick
 	}
-	if _, err := h.move(pr, Event{Kind: evBlocked, Question: capRunes(why, maxQuestionNote)}); err != nil {
+	if _, err := h.move(pr, Event{Kind: evBlocked, Question: capRunes(why, maxQuestionNote), Round: r.ID}); err != nil {
 		return err
 	}
 	switch {
 	case head != "" && head != r.Head:
 		_, err = h.move(pr, Event{Kind: evPush, Head: head})
 	case !retry:
-		_, err = h.move(pr, Event{Kind: evEnded, Next: &PRState{State: stIdle}})
+		_, err = h.move(pr, Event{Kind: evEnded, Next: &PRState{State: stIdle}, Round: r.ID})
 	default:
 		return nil
 	}
@@ -435,9 +435,19 @@ func (h tickHost) apply(pr PR, r Round, d Decision, retry bool) (bool, error) {
 		}
 		h.sendDismissal(Dismissal{PR: pr.URL(), Review: d.DismissReviewID})
 	}
-	if _, err := h.move(pr, Event{Kind: evEnded, Next: d.Next}); err != nil {
+	s, err := h.stateOf(pr)
+	if err != nil {
 		return false, err
 	}
+	if namesRound(s, r.ID) {
+		_, ok, err := h.moved(pr, Event{Kind: evEnded, Next: d.Next, Round: r.ID})
+		if err != nil || !ok {
+			// No rule for it where it sits: the round stays unread and is
+			// read again next pass, when the chain may have moved.
+			return false, err
+		}
+	}
+	// Read, and dropped when no element names it: it is not this state's.
 	return false, h.do("mark round "+pr.URL()+" read", func() error { return h.ledger.MarkRead(r.ID) })
 }
 
@@ -446,7 +456,7 @@ func (h tickHost) apply(pr PR, r Round, d Decision, retry bool) (bool, error) {
 func (h tickHost) retry(pr PR, r Round, d Decision) (bool, error) {
 	var not skip
 	failed := func(detail string) error {
-		_, err := h.move(pr, Event{Kind: evEnded, Next: &PRState{State: stHeld, Kind: kindLaunch, Detail: detail}})
+		_, err := h.move(pr, Event{Kind: evEnded, Next: &PRState{State: stHeld, Kind: kindLaunch, Detail: detail}, Round: r.ID})
 		return err
 	}
 	err := h.do("retry "+pr.URL(), func() error {
@@ -455,7 +465,7 @@ func (h tickHost) retry(pr PR, r Round, d Decision) (bool, error) {
 			if err := h.ledger.MarkRetried(r.ID); err != nil {
 				return err
 			}
-			_, err := h.move(pr, Event{Kind: evEnded, Next: d.Next})
+			_, err := h.move(pr, Event{Kind: evEnded, Next: d.Next, Round: r.ID})
 			return err
 		}, failed)
 		return err
@@ -664,10 +674,13 @@ func (h tickHost) startOne(p Planned, running int) (skip, error) {
 	err = h.do(fmt.Sprintf("start a round on %s at %.9s (%s)", p.PR.URL(), p.Head, p.Trigger.Text()), func() error {
 		var err error
 		not, err = h.launch(p.PR, func() error { return h.settleUnread(p.PR) }, func(at time.Time) error {
-			if _, err := h.ledger.StartRound(p.PR, p.Head, p.Trigger, at); err != nil {
+			id, err := h.ledger.StartRound(p.PR, p.Head, p.Trigger, at)
+			if err != nil {
 				return err
 			}
-			_, err := h.move(p.PR, owedEvent(p))
+			e := owedEvent(p)
+			e.Round = id
+			_, err = h.move(p.PR, e)
 			return err
 		}, func(detail string) error {
 			_, err := h.move(p.PR, Event{Kind: evFailedToStart, Class: detail})

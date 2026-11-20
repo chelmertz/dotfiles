@@ -14,7 +14,7 @@
 //   - WorkerKey: a SessionID's Key, or a roster.json key (UnmarshalText).
 //   - Token: minted (NewToken), read back from the ledger (Scan), or
 //     presented on an Approve link (ParseToken).
-//   - RoundID: a ledger row (Scan).
+//   - RoundID: a ledger row (Scan), kept in a PR state (JSON).
 //   - ReviewID, CommentID, IssueCommentID: a GitHub response
 //     (UnmarshalJSON); a CommentID also from a command-line flag (Set).
 package ids
@@ -157,6 +157,19 @@ func (r RoundID) IsZero() bool   { return r.v == 0 }
 
 // Value writes r to the ledger.
 func (r RoundID) Value() (driver.Value, error) { return r.v, nil }
+
+// MarshalJSON stores r in a PR state as a number.
+func (r RoundID) MarshalJSON() ([]byte, error) { return []byte(strconv.FormatInt(r.v, 10)), nil }
+
+// UnmarshalJSON reads a round id a PR state stored; 0 is none.
+func (r *RoundID) UnmarshalJSON(b []byte) error {
+	n, err := strconv.ParseInt(string(b), 10, 64)
+	if err != nil || n < 0 {
+		return fmt.Errorf("round id: %q", b)
+	}
+	r.v = n
+	return nil
+}
 
 // Scan reads a round id from the ledger.
 func (r *RoundID) Scan(src any) error {

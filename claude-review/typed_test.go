@@ -10,7 +10,7 @@ import (
 // allStates.
 var allVariants = []Variant{
 	Idle{}, Starting{From: "elly"},
-	Running{By: kindTick}, Running{By: kindClick}, Running{By: kindRetry},
+	Running{By: kindTick}, Running{By: kindClick, Round: rid(7)}, Running{By: kindRetry}, AwaitingQuestion{Text: "q", Round: rid(8)},
 	AwaitingQuestion{Text: "which table?"}, AwaitingApprove{}, AwaitingDrafts{Count: 3}, AwaitingDismissed{},
 	HeldFresh{}, HeldWindow{},
 	HeldLaunchDead{Class: launchNotStarted}, HeldLaunchDead{Class: launchDuplicate},

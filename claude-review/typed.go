@@ -3,6 +3,8 @@ package main
 import (
 	"strconv"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // Variant is a PR state with only its own data. It is sealed: the types
@@ -22,9 +24,17 @@ type Variant interface {
 type (
 	Idle     struct{}
 	Starting struct{ From string } // where the click came from
-	Running  struct{ By string }   // kindTick, kindClick or kindRetry
+	// Running: By is kindTick, kindClick or kindRetry; Round is zero for one
+	// stored before rounds were named.
+	Running struct {
+		By    string
+		Round ids.RoundID
+	}
 
-	AwaitingQuestion  struct{ Text string }
+	AwaitingQuestion struct {
+		Text  string
+		Round ids.RoundID
+	}
 	AwaitingApprove   struct{}
 	AwaitingDrafts    struct{ Count int }
 	AwaitingDismissed struct{}
@@ -117,7 +127,6 @@ func typed(s PRState) Typed {
 // plain are the variants that carry nothing but their key.
 var plain = map[stateKey]Variant{
 	{stIdle, ""}: Idle{}, {stGoneLegacy, ""}: Idle{},
-	{stRunning, kindTick}: Running{By: kindTick}, {stRunning, kindClick}: Running{By: kindClick}, {stRunning, kindRetry}: Running{By: kindRetry},
 	{stAwaiting, kindApprove}: AwaitingApprove{}, {stAwaiting, kindDismiss}: AwaitingDismissed{},
 	{stHeld, kindFresh}: HeldFresh{}, {stHeld, kindWindow}: HeldWindow{},
 	{stStuck, kindRefused}:   StuckRefused{},
@@ -132,8 +141,10 @@ func variantOf(s PRState) Variant {
 	switch k {
 	case stateKey{stStarting, kindClick}:
 		return Starting{From: s.Detail}
+	case stateKey{stRunning, kindTick}, stateKey{stRunning, kindClick}, stateKey{stRunning, kindRetry}:
+		return Running{By: s.Kind, Round: s.Round}
 	case stateKey{stAwaiting, kindQuestion}:
-		return AwaitingQuestion{Text: s.Detail}
+		return AwaitingQuestion{Text: s.Detail, Round: s.Round}
 	case stateKey{stAwaiting, kindDrafts}:
 		if n, err := strconv.Atoi(s.Detail); err == nil && n >= 0 {
 			return AwaitingDrafts{Count: n}
@@ -160,12 +171,14 @@ func untyped(t Typed) PRState {
 	k := t.V.key()
 	s := PRState{State: k.State, Kind: k.Kind, Head: t.Head, Review: t.Review, Since: t.Since}
 	switch v := t.V.(type) {
-	case Idle, Running, AwaitingApprove, AwaitingDismissed, HeldFresh, HeldWindow, StuckRefused, HandledNothing, HandledApproved:
+	case Running:
+		s.Round = v.Round
+	case Idle, AwaitingApprove, AwaitingDismissed, HeldFresh, HeldWindow, StuckRefused, HandledNothing, HandledApproved:
 		// The pair alone says it all.
 	case Starting:
 		s.Detail = v.From
 	case AwaitingQuestion:
-		s.Detail = v.Text
+		s.Detail, s.Round = v.Text, v.Round
 	case AwaitingDrafts:
 		s.Detail = strconv.Itoa(v.Count)
 	case HeldLaunchDead:

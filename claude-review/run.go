@@ -334,7 +334,8 @@ func (h tickHost) recordClick(c clickTarget, at time.Time) error {
 	if c.head == "" {
 		return nil
 	}
-	if _, err := h.ledger.StartRound(c.pr, c.head, Click{At: at.UTC(), From: c.from}, at); err != nil {
+	id, err := h.ledger.StartRound(c.pr, c.head, Click{At: at.UTC(), From: c.from}, at)
+	if err != nil {
 		return err
 	}
 	// settleUnread may have moved the state on since the click
@@ -342,7 +343,7 @@ func (h tickHost) recordClick(c clickTarget, at time.Time) error {
 		_, err = h.move(c.pr, Event{Kind: evClick, From: c.from})
 		h.warn(c.pr, err)
 	}
-	_, err := h.move(c.pr, Event{Kind: evLaunched})
+	_, err = h.move(c.pr, Event{Kind: evLaunched, Round: id})
 	h.warn(c.pr, err)
 	return nil
 }

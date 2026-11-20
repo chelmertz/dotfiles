@@ -86,12 +86,19 @@ type PRState struct {
 	Review string // the round's summary review, linked from the row
 	Since  time.Time
 	Prev   *PRState
+	// Round is the round a running state or a question's worker runs, zero
+	// for any other state and for one stored before rounds were named.
+	// Older binaries ignore the field.
+	Round ids.RoundID `json:",omitzero"`
 }
 
 // Event is something tick, a click or a verb observed.
 type Event struct {
 	Kind EventKind
 	Head string
+	// Round: the round a launch started (Owed, Launched) or one that
+	// ended, blocked or resumed (Ended, Blocked, Resumed).
+	Round ids.RoundID
 	// From: where a click came from (Click).
 	From string
 	// Question: what the worker asks the user (Blocked).
@@ -224,9 +231,21 @@ func (t ruleTarget) apply(s PRState, e Event, at time.Time) PRState {
 	case t.decided:
 		next := *e.Next
 		next.Head, next.Since, next.Prev = firstNonEmpty(next.Head, firstNonEmpty(e.Head, s.Head)), at, nil
+		next.Round = roundFor(next, e)
 		return next
 	}
-	return PRState{State: t.to.State, Kind: t.to.Kind, Detail: detailFrom(t.to, e), Head: firstNonEmpty(e.Head, s.Head), Since: at}
+	next := PRState{State: t.to.State, Kind: t.to.Kind, Detail: detailFrom(t.to, e), Head: firstNonEmpty(e.Head, s.Head), Since: at}
+	next.Round = roundFor(next, e)
+	return next
+}
+
+// roundFor is the round a new state names: the event's, for a state that
+// owns a worker (a retry resumes the round that ended); none otherwise.
+func roundFor(next PRState, e Event) ids.RoundID {
+	if next.State == stRunning || next.State == stAwaiting && next.Kind == kindQuestion {
+		return e.Round
+	}
+	return ids.RoundID{}
 }
 
 // detailFrom is the stored detail a rule's target takes from its event:
@@ -365,6 +384,89 @@ func (r rule) targets() []stateKey {
 // transition is the PR state machine. ok is false when no rule applies: the
 // caller leaves the state as it is. at is when the event was seen.
 func transition(s PRState, e Event, at time.Time) (next PRState, effects []Effect, ok bool) {
+	if !roundEvent(e) {
+		return transitionTop(s, e, at)
+	}
+	depth := namedAt(s, e.Round)
+	switch {
+	case depth == 0, depth < 0 && s.State == stIdle:
+		return transitionTop(s, e, at)
+	case depth < 0:
+		return s, nil, false
+	}
+	// Below the top (under a window): the element that names the round
+	// moves, and the chain above it stays as it is.
+	el := elementAt(s, depth)
+	moved, effects, ok := transitionTop(el, e, at)
+	if !ok {
+		return s, nil, false
+	}
+	next = replaceAt(s, depth, moved)
+	return next, withTokenRule(s, next, effects), true
+}
+
+// roundEvent: an event about one round's worker, which acts on the chain
+// element that names that round.
+func roundEvent(e Event) bool {
+	switch e.Kind {
+	case evEnded, evBlocked, evResumed:
+		return !e.Round.IsZero()
+	default:
+		return false
+	}
+}
+
+// namedAt is how deep in s's chain the topmost element owning a worker
+// names round r, 0 for the top, -1 for none. An element stored before
+// rounds were named takes any round, as before. The running state a
+// question remembers is the question's own worker, so the question
+// answers for it.
+func namedAt(s PRState, r ids.RoundID) int {
+	d, underQuestion := 0, false
+	for e := &s; e != nil; e = e.Prev {
+		questions := underQuestion && e.State == stRunning
+		if ownsWorker(*e) && !questions && (e.Round == r || e.Round.IsZero()) {
+			return d
+		}
+		underQuestion = e.State == stAwaiting && e.Kind == kindQuestion
+		d++
+	}
+	return -1
+}
+
+// namesRound: an outcome of round r is s's to act on. Idle takes one too:
+// a round recorded without its move (a crash between the two writes).
+func namesRound(s PRState, r ids.RoundID) bool {
+	return r.IsZero() || s.State == stIdle || namedAt(s, r) >= 0
+}
+
+// ownsWorker: a state whose worker may still run its round.
+func ownsWorker(s PRState) bool {
+	return s.State == stRunning || s.State == stAwaiting && s.Kind == kindQuestion || maybeAlive(s)
+}
+
+func elementAt(s PRState, depth int) PRState {
+	e := &s
+	for range depth {
+		e = e.Prev
+	}
+	return *e
+}
+
+// replaceAt is s with the element depth deep replaced by el; the elements
+// above are copies, so s itself is unchanged.
+func replaceAt(s PRState, depth int, el PRState) PRState {
+	if depth == 0 {
+		return el
+	}
+	top := s
+	inner := replaceAt(*s.Prev, depth-1, el)
+	top.Prev = &inner
+	return top
+}
+
+// transitionTop applies the first rule that matches s's top.
+func transitionTop(s PRState, e Event, at time.Time) (next PRState, effects []Effect, ok bool) {
 	for _, r := range rules {
 		if r.event != e.Kind || !r.from.matches(s.State, s.Kind) || (r.when.ok != nil && !r.when.ok(s, e)) {
 			continue

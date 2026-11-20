@@ -1,6 +1,9 @@
 package main
 
 import (
+	"github.com/chelmertz/dotfiles/claude-review/ids"
+
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -424,6 +427,12 @@ func TestTheChainDepthIsPinned(t *testing.T) {
 		{Kind: evBlocked, Question: "q"}, {Kind: evResumed}, {Kind: evEnded, Next: &posted},
 		{Kind: evWindowOpened}, {Kind: evWindowClosed}, {Kind: evUserApproved}, {Kind: evLaunchCleared, Class: launchNotStarted},
 	}
+	// The same round events naming one of two rounds, so a round acts
+	// below a window and an older round's outcome is dropped.
+	for _, r := range []ids.RoundID{rid(1), rid(2)} {
+		events = append(events, Event{Kind: evOwed, Round: r}, Event{Kind: evLaunched, Round: r},
+			Event{Kind: evBlocked, Question: "q", Round: r}, Event{Kind: evResumed, Round: r}, Event{Kind: evEnded, Next: &posted, Round: r})
+	}
 	depth := func(s PRState) int {
 		n := 0
 		for e := &s; e != nil; e = e.Prev {
@@ -432,8 +441,23 @@ func TestTheChainDepthIsPinned(t *testing.T) {
 		return n
 	}
 	deepest, deepestChain := 0, ""
+	// seen is the most steps left a chain was walked with: walking it again
+	// with no more finds nothing new.
+	seen := map[string]int{}
+	key := func(s PRState) string {
+		var b strings.Builder
+		for e := &s; e != nil; e = e.Prev {
+			fmt.Fprintf(&b, "%s|%s|%s|%s|%s<", describe(*e), e.Detail, e.Head, e.Review, e.Round)
+		}
+		return b.String()
+	}
 	var walk func(s PRState, steps int)
 	walk = func(s PRState, steps int) {
+		k := key(s)
+		if left, ok := seen[k]; ok && left >= steps {
+			return
+		}
+		seen[k] = steps
 		if d := depth(s); d > deepest {
 			deepest = d
 			var names []string
@@ -451,7 +475,7 @@ func TestTheChainDepthIsPinned(t *testing.T) {
 			}
 		}
 	}
-	walk(PRState{State: stIdle}, 9)
+	walk(PRState{State: stIdle}, 14)
 	if deepest != 4 {
 		t.Errorf("deepest chain %d, pinned 4: %s", deepest, deepestChain)
 	}
