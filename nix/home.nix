@@ -1113,6 +1113,9 @@ in
     # Rounds per PR per 24 h. The default 6 paused an author's ordinary hour
     # of push-and-reply; total_daily_cap (24) still bounds the whole day.
     daily_cap = 12;
+    # A review asked of the user starts without a first click: 65 of 72 PRs
+    # started with a click on the offer anyway (2026-11-20).
+    auto_start = true;
     clone_path = "~/code/github/{owner}/{repo}";
     review_prompt = ''
       Perform an adversarial code review of {url}.
