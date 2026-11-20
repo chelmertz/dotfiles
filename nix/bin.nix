@@ -496,6 +496,11 @@ in
       executable = true;
     };
 
+    ".local/bin/claude-capped-hook" = {
+      source = py ../bin/claude-capped-hook;
+      executable = true;
+    };
+
     ".local/bin/claude-security-gate-hook" = {
       source = py ../bin/claude-security-gate-hook;
       executable = true;

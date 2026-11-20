@@ -38,6 +38,10 @@
           },
           {
             "type": "command",
+            "command": "claude-capped-hook"
+          },
+          {
+            "type": "command",
             "command": "claude-security-gate-hook"
           }
         ]
