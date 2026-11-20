@@ -70,6 +70,8 @@ func (r rule) targetName() string {
 		return "back to the state before"
 	case r.to.decided:
 		return "the round's result"
+	case r.to.dropWindow:
+		return "the same, without the window"
 	}
 	return r.to.to.name()
 }

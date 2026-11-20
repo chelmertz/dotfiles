@@ -164,14 +164,41 @@ type ruleTarget struct {
 	to      stateKey
 	prev    bool
 	decided bool
+	// dropWindow: the same chain without the window below its top.
+	dropWindow bool
 }
 
 func to(s State, kind string) ruleTarget { return ruleTarget{to: stateKey{s, kind}} }
 
 var (
-	toPrev    = ruleTarget{prev: true}
-	toDecided = ruleTarget{decided: true}
+	toPrev       = ruleTarget{prev: true}
+	toDecided    = ruleTarget{decided: true}
+	toDropWindow = ruleTarget{dropWindow: true}
 )
+
+// windowBelow: a window sits in s's chain under its top.
+func windowBelow(s PRState) bool {
+	for e := s.Prev; e != nil; e = e.Prev {
+		if e.State == stHeld && e.Kind == kindWindow {
+			return true
+		}
+	}
+	return false
+}
+
+// withoutWindow is s's chain without its first window below the top.
+func withoutWindow(s PRState) PRState {
+	if s.Prev == nil {
+		return s
+	}
+	if s.Prev.State == stHeld && s.Prev.Kind == kindWindow {
+		s.Prev = s.Prev.Prev
+		return s
+	}
+	rest := withoutWindow(*s.Prev)
+	s.Prev = &rest
+	return s
+}
 
 type rule struct {
 	from    match
@@ -235,6 +262,7 @@ var rules = []rule{
 	// restore on close mints a fresh one.
 	{from: notIn(inKind(stHeld, kindWindow)), event: evWindowOpened, to: to(stHeld, kindWindow), effects: []Effect{efRevokeTokens}, remember: true},
 	{from: inKind(stHeld, kindWindow), event: evWindowClosed, to: toPrev},
+	{from: anyState, event: evWindowClosed, when: guard{"a window below", func(s PRState, _ Event) bool { return windowBelow(s) }}, to: toDropWindow},
 }
 
 // targets are the states r can lead to from k, for the diagram and the
@@ -243,7 +271,7 @@ func (r rule) targets() []stateKey {
 	switch {
 	case r.to.decided:
 		return decidable
-	case r.to.prev:
+	case r.to.prev, r.to.dropWindow:
 		return nil
 	}
 	return []stateKey{r.to.to}
@@ -261,6 +289,8 @@ func transition(s PRState, e Event, at time.Time) (next PRState, effects []Effec
 			next = *s.Prev
 		case r.to.prev:
 			next = PRState{State: stIdle, Head: s.Head, Since: at}
+		case r.to.dropWindow:
+			next = withoutWindow(s)
 		case r.to.decided:
 			next = *e.Next
 			next.Head, next.Since, next.Prev = firstNonEmpty(next.Head, firstNonEmpty(e.Head, s.Head)), at, nil

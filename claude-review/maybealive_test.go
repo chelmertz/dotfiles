@@ -158,3 +158,33 @@ func TestRefreshSkipsALockedPR(t *testing.T) {
 		t.Errorf("the approval at the head did not clear the PR once unlocked: %+v", s)
 	}
 }
+
+// A window that closed is dropped wherever it sits in the chain, so a click
+// over it cannot later restore a window that is gone and park the PR.
+func TestAWindowClosedMidChainIsDropped(t *testing.T) {
+	question := PRState{State: stAwaiting, Kind: kindQuestion, Head: "aaa"}
+	window := PRState{State: stHeld, Kind: kindWindow, Head: "aaa", Prev: &question}
+	starting := PRState{State: stStarting, Kind: kindClick, Head: "aaa", Prev: &window}
+	next, _, ok := transition(starting, Event{Kind: evWindowClosed}, t0)
+	if !ok || next.State != stStarting || next.Prev == nil || next.Prev.Kind != kindQuestion {
+		t.Fatalf("got %+v %v, want starting over the question", next, ok)
+	}
+	if _, _, ok := transition(question, Event{Kind: evWindowClosed}, t0); ok {
+		t.Error("a chain with no window moved")
+	}
+
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	if err := w.h.ledger.SetPRState(pr, PRState{State: stStarting, Kind: kindClick, Head: "h1", Since: t0, Prev: &PRState{State: stHeld, Kind: kindWindow, Head: "h1", Prev: &PRState{State: stHandled, Kind: kindPosted, Head: "h1"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	s, _, _ := w.h.ledger.PRState(pr)
+	for e := &s; e != nil; e = e.Prev {
+		if e.Kind == kindWindow {
+			t.Errorf("a closed window stayed in the chain: %+v", s)
+		}
+	}
+}

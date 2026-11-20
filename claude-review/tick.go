@@ -971,7 +971,7 @@ func (h tickHost) refreshOne(pr PR, s PRState, paused string) {
 // evidence moves s on what GitHub and the desktop say, and returns the
 // state after. An idle PR is not asked about: it has no row.
 func (h tickHost) evidence(pr PR, s PRState) (PRState, error) {
-	if s.State == stHeld && s.Kind == kindWindow && !windowOpen(h.sess, h.ledger, pr) {
+	if (s.State == stHeld && s.Kind == kindWindow || windowBelow(s)) && !windowOpen(h.sess, h.ledger, pr) {
 		next, err := h.move(pr, Event{Kind: evWindowClosed})
 		if err != nil {
 			return s, err
