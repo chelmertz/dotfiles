@@ -15,7 +15,9 @@ func TestAMaybeAliveLaunchStartsNothing(t *testing.T) {
 		return PRState{State: stHeld, Kind: kindLaunch, Detail: class, Head: "aaa"}
 	}
 	posted := PRState{State: stHandled, Kind: kindPosted, Head: "aaa"}
-	for _, class := range []string{launchUnlisted, launchUnknown} {
+	// Text no class names (an error stored before the classes, or none)
+	// reads as a roster that could not be read, as the converter has it.
+	for _, class := range []string{launchUnlisted, launchUnknown, "old error text", ""} {
 		for _, e := range []Event{{Kind: evOwed, Trigger: Requested{At: t0}}, {Kind: evClick}} {
 			if next, _, ok := transition(alive(class), e, t0); ok {
 				t.Errorf("%s from held{%s} moved to %s{%s}", e.Kind, class, next.State, next.Kind)
@@ -41,7 +43,7 @@ func TestAMaybeAliveLaunchStartsNothing(t *testing.T) {
 			t.Errorf("held{%s} links %+v, want Open Claude primary", class, a.Links)
 		}
 	}
-	for _, class := range []string{launchNotStarted, launchDuplicate, "old error text"} {
+	for _, class := range []string{launchNotStarted, launchDuplicate} {
 		if next, _, ok := transition(alive(class), Event{Kind: evOwed}, t0); !ok || next.State != stRunning {
 			t.Errorf("owed from held{%s}: %+v %v", class, next, ok)
 		}

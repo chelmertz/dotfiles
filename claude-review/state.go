@@ -2,6 +2,7 @@ package main
 
 import (
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/chelmertz/dotfiles/claude-review/ids"
@@ -287,7 +288,8 @@ var (
 // maybeAlive: a held launch whose worker may be running: launched but not
 // listed, or the roster unreadable.
 func maybeAlive(s PRState) bool {
-	return s.State == stHeld && s.Kind == kindLaunch && (s.Detail == launchUnlisted || s.Detail == launchUnknown)
+	_, ok := typed(s).V.(HeldLaunchMaybeAlive)
+	return ok
 }
 
 // rules is the whole state machine; the first rule that applies wins.
@@ -387,44 +389,97 @@ func render(pr PR, s PRState, v View) Annotation {
 func statesLink(pr PR) Link { return Link{Label: "?", URL: verbURL(pr, "states")} }
 
 func renderRow(pr PR, s PRState, v View) Annotation {
-	var a Annotation
-	switch s.State {
-	case stStarting:
-		from := "a click"
-		if s.Detail != "" {
-			from = "a click from " + s.Detail
-		}
-		a = Annotation{State: stateRunning, Note: "starting (" + from + ")", Expires: s.Since.Add(startingLifetime)}
-	case stRunning:
-		by := map[string]string{kindTick: kindTick, kindClick: "a click", kindRetry: "tick (retry)"}[s.Kind]
-		a = Annotation{State: stateRunning, Note: "started by " + by, Links: []Link{attachLink(pr)}, Expires: s.Since.Add(roundLifetime)}
-	case stAwaiting, stHeld:
-		a = renderNeedsYou(pr, s, v)
-	case stStuck:
-		a.State = stateStuck
-		if s.Kind == kindRefused {
-			a.Note, a.Links = "a post was refused over the limit; no more reviews on this PR until you start one again", []Link{primary(startAgainLink(pr)), attachLink(pr)}
-		} else {
-			a.Note, a.Links = failedTwiceNote(s.Detail), []Link{primary(attachLink(pr))}
-		}
-	case stHandled, stIdle:
-		if v.Paused != "" {
-			return Annotation{State: stateNeedsYou, Note: capRunes(v.Paused, ellyMaxNote), Links: []Link{primary(attachLink(pr))}}
-		}
-		if s.State == stIdle {
-			return Annotation{}
-		}
-		a.State = stateHandled
-		a.Note = map[string]string{kindPosted: noteRoundPosted, kindNothing: noteNothing, kindApproved: noteApprovalStands}[s.Kind]
-		if s.Kind == kindPosted && s.Detail == detailCapped {
-			a.Note = noteCapped
-		}
-		a.Links = []Link{attachLink(pr)}
-	default:
-		return Annotation{}
+	t := typed(s)
+	if k := t.V.key(); v.Paused != "" && (k.State == stIdle || k.State == stHandled) {
+		return Annotation{State: stateNeedsYou, Note: capRunes(v.Paused, ellyMaxNote), Links: []Link{primary(attachLink(pr))}}
 	}
+	a := t.V.row(pr, t, v)
 	a.Note = capRunes(a.Note, ellyMaxNote)
 	return a
+}
+
+// Each variant words its own row; Variant requires it, so a new variant
+// does not compile without one.
+
+func (Idle) row(PR, Typed, View) Annotation { return Annotation{} }
+
+func (x Starting) row(_ PR, t Typed, _ View) Annotation {
+	from := "a click"
+	if x.From != "" {
+		from = "a click from " + x.From
+	}
+	return Annotation{State: stateRunning, Note: "starting (" + from + ")", Expires: t.Since.Add(startingLifetime)}
+}
+
+func (x Running) row(pr PR, t Typed, _ View) Annotation {
+	by := map[string]string{kindTick: kindTick, kindClick: "a click", kindRetry: "tick (retry)"}[x.By]
+	return Annotation{State: stateRunning, Note: "started by " + by, Links: []Link{attachLink(pr)}, Expires: t.Since.Add(roundLifetime)}
+}
+
+func (x AwaitingQuestion) row(pr PR, _ Typed, _ View) Annotation {
+	return needsYou(questionNote(Outcome{Question: x.Text}), primary(answerLink(pr)))
+}
+
+func (AwaitingApprove) row(pr PR, t Typed, v View) Annotation {
+	return needsYou("LGTM at "+shortSHA(t.Head)+"; approve it if you agree",
+		Link{Label: "Approve", URL: approveURL(pr, t.Head, v.Token), Primary: true}, attachLink(pr))
+}
+
+func (x AwaitingDrafts) row(pr PR, _ Typed, _ View) Annotation {
+	return needsYou("Claude left "+strconv.Itoa(x.Count)+" unsent comments in a draft review; submit or discard it on GitHub", primary(attachLink(pr)))
+}
+
+func (AwaitingDismissed) row(pr PR, _ Typed, v View) Annotation {
+	if v.Dismissing {
+		return needsYou(noteDismissing, primary(attachLink(pr)))
+	}
+	return needsYou(noteDismissed, primary(attachLink(pr)))
+}
+
+func (HeldFresh) row(pr PR, _ Typed, _ View) Annotation {
+	return needsYou("the PR changed under its first look (force-push or new base); click claude review to look again",
+		primary(Link{Label: "Look again", URL: startAgainLink(pr).URL}), attachLink(pr))
+}
+
+func (HeldWindow) row(pr PR, _ Typed, _ View) Annotation {
+	return needsYou(windowNote, primary(attachLink(pr)))
+}
+
+func (x HeldLaunchDead) row(pr PR, _ Typed, _ View) Annotation {
+	return needsYou(launchNotes[x.Class], primary(startAgainLink(pr)))
+}
+
+// No Start: a second worker would review beside the first.
+func (x HeldLaunchMaybeAlive) row(pr PR, _ Typed, _ View) Annotation {
+	return needsYou(launchNotes[x.Class], primary(attachLink(pr)))
+}
+
+func (StuckRefused) row(pr PR, _ Typed, _ View) Annotation {
+	return Annotation{State: stateStuck, Note: "a post was refused over the limit; no more reviews on this PR until you start one again",
+		Links: []Link{primary(startAgainLink(pr)), attachLink(pr)}}
+}
+
+func (x StuckFailed) row(pr PR, _ Typed, _ View) Annotation {
+	return Annotation{State: stateStuck, Note: inlineNote[x.Inline], Links: []Link{primary(attachLink(pr))}}
+}
+
+func (x HandledPosted) row(pr PR, _ Typed, _ View) Annotation {
+	if x.Capped {
+		return handled(pr, noteCapped)
+	}
+	return handled(pr, noteRoundPosted)
+}
+
+func (HandledNothing) row(pr PR, _ Typed, _ View) Annotation  { return handled(pr, noteNothing) }
+func (HandledApproved) row(pr PR, _ Typed, _ View) Annotation { return handled(pr, noteApprovalStands) }
+
+func handled(pr PR, note string) Annotation {
+	return Annotation{State: stateHandled, Note: note, Links: []Link{attachLink(pr)}}
+}
+
+// needsYou is a row that waits on the user.
+func needsYou(note string, links ...Link) Annotation {
+	return Annotation{State: stateNeedsYou, Note: note, Links: links}
 }
 
 // Row texts. elly's reader cares whether the PR needs them, not about
@@ -442,39 +497,6 @@ const (
 )
 
 func primary(l Link) Link { l.Primary = true; return l }
-
-// renderNeedsYou is an awaiting or held row: it waits on the user.
-func renderNeedsYou(pr PR, s PRState, v View) Annotation {
-	a := Annotation{State: stateNeedsYou}
-	switch s.Kind {
-	case kindQuestion:
-		a.Note, a.Links = questionNote(Outcome{Question: s.Detail}), []Link{primary(answerLink(pr))}
-	case kindApprove:
-		a.Note = "LGTM at " + shortSHA(s.Head) + "; approve it if you agree"
-		a.Links = []Link{{Label: "Approve", URL: approveURL(pr, s.Head, v.Token), Primary: true}, attachLink(pr)}
-	case kindDrafts:
-		a.Note = "Claude left " + s.Detail + " unsent comments in a draft review; submit or discard it on GitHub"
-		a.Links = []Link{primary(attachLink(pr))}
-	case kindDismiss:
-		a.Note = noteDismissed
-		if v.Dismissing {
-			a.Note = noteDismissing
-		}
-		a.Links = []Link{primary(attachLink(pr))}
-	case kindFresh:
-		a.Note = "the PR changed under its first look (force-push or new base); click claude review to look again"
-		a.Links = []Link{primary(Link{Label: "Look again", URL: startAgainLink(pr).URL}), attachLink(pr)}
-	case kindWindow:
-		a.Note, a.Links = windowNote, []Link{primary(attachLink(pr))}
-	case kindLaunch:
-		a.Note, a.Links = launchNote(s.Detail), []Link{primary(startAgainLink(pr))}
-		if maybeAlive(s) {
-			// No Start: a second worker would review beside the first.
-			a.Links = []Link{primary(attachLink(pr))}
-		}
-	}
-	return a
-}
 
 func shortSHA(sha string) string {
 	if len(sha) > 9 {
@@ -501,25 +523,10 @@ var launchNotes = map[string]string{
 	launchDuplicate:  "two workers held one session; rounds are paused for every PR",
 }
 
-// launchNote is a held{launch_failed} row's note. A Detail stored before
-// the classes existed is old error text and gets the not-started words.
-func launchNote(detail string) string {
-	if n, ok := launchNotes[detail]; ok {
-		return n
-	}
-	return launchNotes[launchNotStarted]
-}
-
-// failedTwiceNote is a stuck{failed_twice} row's note; the stored Detail is
-// one of failedTwice's two texts or, from a migrated row, anything, which
-// says nothing about why Claude stopped.
-func failedTwiceNote(detail string) string {
-	switch detail {
-	case noteStoppedTwice, noteFailedTwice:
-		return detail
-	}
-	return noteStoppedUnknown
-}
+// inlineNote is a stuck{failed_twice} row's note: only the two facts a
+// round can leave have words of their own; anything else says nothing
+// about why Claude stopped.
+var inlineNote = map[Inline]string{inlineYes: noteStoppedTwice, inlineNo: noteFailedTwice, inlineUnknown: noteStoppedUnknown}
 
 const (
 	noteFailedTwice    = "Claude failed twice"

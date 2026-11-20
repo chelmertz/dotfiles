@@ -10,8 +10,12 @@ import (
 // stored JSON is still the old (State, Kind, Detail) shape, which untyped
 // writes from a Variant and typed reads back, so an older binary reads a
 // valid state and a newer one never parses free text for meaning.
+//
+//sumtype:decl
 type Variant interface {
 	key() stateKey
+	// row is the variant's elly row, before the paused note and the cap.
+	row(pr PR, t Typed, v View) Annotation
 	sealed()
 }
 
@@ -156,6 +160,8 @@ func untyped(t Typed) PRState {
 	k := t.V.key()
 	s := PRState{State: k.State, Kind: k.Kind, Head: t.Head, Review: t.Review, Since: t.Since}
 	switch v := t.V.(type) {
+	case Idle, Running, AwaitingApprove, AwaitingDismissed, HeldFresh, HeldWindow, StuckRefused, HandledNothing, HandledApproved:
+		// The pair alone says it all.
 	case Starting:
 		s.Detail = v.From
 	case AwaitingQuestion:
