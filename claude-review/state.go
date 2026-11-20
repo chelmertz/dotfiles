@@ -176,6 +176,38 @@ var (
 	toDropWindow = ruleTarget{dropWindow: true}
 )
 
+// staleAt: s's chain holds a waiting or running state judged at another
+// head than head. An unknown head ("") proves nothing. Held states keep
+// their head across a push, as the push rule leaves them.
+func staleAt(s PRState, head string) bool {
+	if head == "" {
+		return false
+	}
+	for e := &s; e != nil; e = e.Prev {
+		if (e.State == stAwaiting || e.State == stRunning) && e.Head != "" && e.Head != head {
+			return true
+		}
+	}
+	return false
+}
+
+// apply is the state t leads s to on e, before remember and the head check.
+func (t ruleTarget) apply(s PRState, e Event, at time.Time) PRState {
+	switch {
+	case t.prev && s.Prev != nil:
+		return *s.Prev
+	case t.prev:
+		return PRState{State: stIdle, Head: s.Head, Since: at}
+	case t.dropWindow:
+		return withoutWindow(s)
+	case t.decided:
+		next := *e.Next
+		next.Head, next.Since, next.Prev = firstNonEmpty(next.Head, firstNonEmpty(e.Head, s.Head)), at, nil
+		return next
+	}
+	return PRState{State: t.to.State, Kind: t.to.Kind, Detail: e.Detail, Head: firstNonEmpty(e.Head, s.Head), Since: at}
+}
+
 // windowBelow: a window sits in s's chain under its top.
 func windowBelow(s PRState) bool {
 	for e := s.Prev; e != nil; e = e.Prev {
@@ -284,22 +316,14 @@ func transition(s PRState, e Event, at time.Time) (next PRState, effects []Effec
 		if r.event != e.Kind || !r.from.matches(s.State, s.Kind) || (r.when.ok != nil && !r.when.ok(s, e)) {
 			continue
 		}
-		switch {
-		case r.to.prev && s.Prev != nil:
-			next = *s.Prev
-		case r.to.prev:
-			next = PRState{State: stIdle, Head: s.Head, Since: at}
-		case r.to.dropWindow:
-			next = withoutWindow(s)
-		case r.to.decided:
-			next = *e.Next
-			next.Head, next.Since, next.Prev = firstNonEmpty(next.Head, firstNonEmpty(e.Head, s.Head)), at, nil
-		default:
-			next = PRState{State: r.to.to.State, Kind: r.to.to.Kind, Detail: e.Detail, Head: firstNonEmpty(e.Head, s.Head), Since: at}
-		}
+		next = r.to.apply(s, e, at)
 		if r.remember {
 			prev := s
 			next.Prev = &prev
+		}
+		if (r.to.prev || r.to.dropWindow) && e.Kind != evResumed && staleAt(next, e.Head) {
+			// Judged at an older head: dropped as a push drops it.
+			return PRState{State: stIdle, Head: e.Head, Since: at}, []Effect{efStopWorkers, efRevokeTokens, efRoundsRead}, true
 		}
 		return next, r.effects, true
 	}

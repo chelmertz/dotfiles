@@ -209,7 +209,7 @@ func (h tickHost) linkSessions(prs []EllyPR) {
 			continue
 		}
 		a := Annotation{State: "info", Links: []Link{{Label: "Session", URL: "claude-resume://" + hit.ID.String()}}}
-		if err := h.do("link "+p.Url+" to session "+hit.ID.String(), func() error { return h.elly.PutSource(sessionSource, p.Url, a, expires) }); err != nil {
+		if err := h.quiet("link "+p.Url+" to session "+hit.ID.String(), func() error { return h.elly.PutSource(sessionSource, p.Url, a, expires) }); err != nil {
 			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", p.Url, err)
 		}
 	}

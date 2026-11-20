@@ -1070,6 +1070,15 @@ in
     Service = {
       Type = "oneshot";
       ExecStart = "${lib.getExe claudeReview} tick";
+      # One tick measured 11.9s of CPU in 20s and a 656M peak (2026-11-20).
+      # Round workers run under Claude Code's own background daemon, not in
+      # this unit's cgroup, so the caps bind tick and its gh calls only.
+      # MemoryMax kills rather than throttles (MemoryHigh stalls).
+      CPUQuota = "100%";
+      MemoryMax = "1G";
+      MemorySwapMax = "0";
+      Nice = 10;
+      IOWeight = 20;
     };
   };
   systemd.user.timers.claude-review-tick = {

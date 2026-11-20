@@ -100,6 +100,16 @@ func (h tickHost) do(what string, fn func() error) error {
 	return fn()
 }
 
+// quiet is do for a write every tick repeats (a row refresh, a session
+// link): a dry run still says it, a real run does not log it, since one
+// line per PR every few minutes is most of the journal and its CPU.
+func (h tickHost) quiet(what string, fn func() error) error {
+	if h.dry {
+		return h.do(what, fn)
+	}
+	return fn()
+}
+
 // tick is one pass: read elly, stop rounds on closed PRs, settle finished
 // rounds, start owed ones, refresh annotations. Without elly it does nothing at all; the annotations
 // already written expire on their own.
@@ -584,7 +594,9 @@ func (h tickHost) startOwed(prs []EllyPR, running int) (held map[string]string, 
 
 // leave writes why tick leaves pr alone, "would leave" in a dry run.
 func (h tickHost) leave(pr PR, s skip) {
-	if h.out == nil {
+	// The two answers nearly every PR gets every tick are left out of a
+	// real run's journal; a dry run still lists them.
+	if h.out == nil || (!h.dry && (s == skipNotAccepted || s == skipNothingOwed)) {
 		return
 	}
 	verb := "leave"
@@ -963,7 +975,7 @@ func (h tickHost) refreshOne(pr PR, s PRState, paused string) {
 	if s.State == stGone {
 		return
 	}
-	if err := h.do("send "+pr.URL()+" to elly", func() error { return h.show(pr, s, paused) }); err != nil {
+	if err := h.quiet("send "+pr.URL()+" to elly", func() error { return h.show(pr, s, paused) }); err != nil {
 		fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 	}
 }
@@ -972,7 +984,10 @@ func (h tickHost) refreshOne(pr PR, s PRState, paused string) {
 // state after. An idle PR is not asked about: it has no row.
 func (h tickHost) evidence(pr PR, s PRState) (PRState, error) {
 	if (s.State == stHeld && s.Kind == kindWindow || windowBelow(s)) && !windowOpen(h.sess, h.ledger, pr) {
-		next, err := h.move(pr, Event{Kind: evWindowClosed})
+		// The head, so the restore drops what was judged at an older one;
+		// unreadable, the restore stands as before.
+		_, head, _, _ := h.gh.Standing(pr)
+		next, err := h.move(pr, Event{Kind: evWindowClosed, Head: head})
 		if err != nil {
 			return s, err
 		}

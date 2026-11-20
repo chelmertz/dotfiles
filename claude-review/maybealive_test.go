@@ -188,3 +188,54 @@ func TestAWindowClosedMidChainIsDropped(t *testing.T) {
 		}
 	}
 }
+
+// A restore lands on what it remembers only at the same head: a question
+// or an Approve judged at an older head is dropped to idle, its worker
+// stopped and its token spent, as a push does.
+func TestARestoreChecksTheHeadOverTheChain(t *testing.T) {
+	approve := PRState{State: stAwaiting, Kind: kindApprove, Head: "old"}
+	window := PRState{State: stHeld, Kind: kindWindow, Head: "old", Prev: &approve}
+	restoreEffects := []Effect{efStopWorkers, efRevokeTokens, efRoundsRead}
+
+	next, effects, ok := transition(window, Event{Kind: evWindowClosed, Head: "new"}, t0)
+	if !ok || next.State != stIdle || next.Head != "new" || !slices.Equal(effects, restoreEffects) {
+		t.Errorf("moved head: %+v %v %v", next, effects, ok)
+	}
+	next, effects, ok = transition(window, Event{Kind: evWindowClosed, Head: "old"}, t0)
+	if !ok || next.Kind != kindApprove || len(effects) != 0 {
+		t.Errorf("same head: %+v %v", next, effects)
+	}
+	// Unknown head: nothing proves it moved, so the restore stands.
+	if next, _, _ = transition(window, Event{Kind: evWindowClosed}, t0); next.Kind != kindApprove {
+		t.Errorf("unknown head: %+v", next)
+	}
+	// Deeper in the chain counts too.
+	question := PRState{State: stAwaiting, Kind: kindQuestion, Head: "old"}
+	posted := PRState{State: stHandled, Kind: kindPosted, Head: "new", Prev: &question}
+	starting := PRState{State: stStarting, Kind: kindClick, Head: "new", Prev: &posted}
+	if next, _, _ = transition(starting, Event{Kind: evNotStarted, Head: "new"}, t0); next.State != stIdle {
+		t.Errorf("an old question deep in the chain survived: %+v", next)
+	}
+	// Held states keep their head across a push, as today.
+	fresh := PRState{State: stHeld, Kind: kindFresh, Head: "old"}
+	w2 := PRState{State: stHeld, Kind: kindWindow, Head: "old", Prev: &fresh}
+	if next, _, _ = transition(w2, Event{Kind: evWindowClosed, Head: "new"}, t0); next.Kind != kindFresh {
+		t.Errorf("held fresh lost across a restore: %+v", next)
+	}
+}
+
+func TestTickClosingAWindowAfterAPushDropsTheOldApprove(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	approve := PRState{State: stAwaiting, Kind: kindApprove, Head: "old"}
+	if err := w.h.ledger.SetPRState(pr, PRState{State: stHeld, Kind: kindWindow, Head: "old", Prev: &approve}); err != nil {
+		t.Fatal(err)
+	}
+	w.gh.state, w.gh.head = "open", "new"
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if s, _, _ := w.h.ledger.PRState(pr); s.State != stIdle {
+		t.Errorf("an Approve judged before the push came back: %+v", s)
+	}
+}

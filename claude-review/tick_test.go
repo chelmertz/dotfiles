@@ -1189,13 +1189,23 @@ func TestTickLogsWhyItLeavesEachPR(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := w.out.String()
-	for _, want := range []string{
-		"leave https://github.com/acme/widgets/pull/2: " + string(skipNoSlot),
-		"leave https://github.com/acme/widgets/pull/3: " + string(skipNotAccepted),
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("missing %q in:\n%s", want, out)
+	if want := "leave https://github.com/acme/widgets/pull/2: " + string(skipNoSlot); !strings.Contains(out, want) {
+		t.Errorf("missing %q in:\n%s", want, out)
+	}
+	// The routine answers stay out of a real run's journal: one line per
+	// PR every tick was most of its volume.
+	for _, quiet := range []string{string(skipNotAccepted), "send https://", "link https://"} {
+		if strings.Contains(out, quiet) {
+			t.Errorf("a real run logged %q:\n%s", quiet, out)
 		}
+	}
+	w.h.dry = true
+	w.out.Reset()
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if want := "would leave https://github.com/acme/widgets/pull/3: " + string(skipNotAccepted); !strings.Contains(w.out.String(), want) {
+		t.Errorf("a dry run lost %q:\n%s", want, w.out)
 	}
 }
 
