@@ -144,9 +144,10 @@ func TestTickRoundRunsWhenEllyRefusesRunning(t *testing.T) {
 	if !strings.Contains(w.out.String(), "400") {
 		t.Errorf("the refusal was not logged: %q", w.out.String())
 	}
-	// Kept, so the first refresh after elly learns the state sends it.
-	if a, _, _ := w.h.ledger.Annotation(pr); a.State != stateRunning {
-		t.Errorf("the ledger lost the running row: %+v", a)
+	// Not recorded: refresh sends it again from the state, and a row that
+	// was never up needs no DELETE.
+	if _, had, _ := w.h.ledger.Annotation(pr); had {
+		t.Error("a row elly refused was recorded as up")
 	}
 }
 
@@ -205,9 +206,18 @@ func TestClickMarksItsRoundRunning(t *testing.T) {
 	if code := run([]string{target}, h.d); code != 0 {
 		t.Fatalf("exit %d: %s", code, h.stderr)
 	}
-	a, ok, err := h.ledger(t).Annotation(testPR)
-	if err != nil || !ok || a.State != stateRunning || a.Note != "started by a click" {
-		t.Fatalf("annotation %+v %v", a, err)
+	// elly is down, so no row went up and none is recorded; the state is
+	// running, and its row (sent by the next refresh) says so.
+	s, ok, err := h.ledger(t).PRState(testPR)
+	if err != nil || !ok || s.State != stRunning || s.Kind != kindClick {
+		t.Fatalf("state %+v %v", s, err)
+	}
+	if _, had, _ := h.ledger(t).Annotation(testPR); had {
+		t.Error("a row elly never took was recorded")
+	}
+	a := render(testPR, s, View{})
+	if a.State != stateRunning || a.Note != "started by a click" {
+		t.Fatalf("row %+v", a)
 	}
 	if a.Expires.Before(before.Add(roundLifetime).Truncate(time.Second)) || a.Expires.After(time.Now().Add(roundLifetime)) {
 		t.Errorf("expires %v, want one round lifetime after the launch", a.Expires)

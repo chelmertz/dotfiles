@@ -39,7 +39,7 @@ func (e *fakeElly) Put(u string, a Annotation, exp time.Time) error {
 		return e.putErr
 	}
 	if e.reject != "" && a.State == e.reject {
-		return errors.New("elly: 400 Bad Request state must be handled or needs_you")
+		return ellyRefused{Method: "PUT", URL: u, Status: 400, Text: "400 Bad Request"}
 	}
 	e.put[u] = a
 	if e.expires == nil {
@@ -470,15 +470,24 @@ func TestTickOneEllyFailureDoesNotStopTheRest(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	w.elly.putErr = errors.New("404 elly does not list that PR")
+	w.elly.putErr = ellyRefused{Method: "PUT", Status: 404, Text: "404 Not Found"}
 	if err := w.h.tick(); err != nil {
 		t.Fatalf("one PR elly does not list failed the whole tick: %v", err)
 	}
 	if strings.Count(w.out.String(), "404") != 2 {
 		t.Errorf("want both failures reported: %q", w.out.String())
 	}
-	if all, _ := w.h.ledger.Annotations(); len(all) != 2 {
-		t.Errorf("a failed send dropped an annotation from the ledger: %v", all)
+	// Nothing elly did not take is recorded or notified: the rows go out,
+	// and notify, once elly lists the PRs.
+	if all, _ := w.h.ledger.Annotations(); len(all) != 0 || len(w.notified) != 0 {
+		t.Errorf("a row elly refused was recorded %v or notified %q", all, w.notified)
+	}
+	w.elly.putErr = nil
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if all, _ := w.h.ledger.Annotations(); len(all) != 2 || len(w.notified) != 2 {
+		t.Errorf("once listed: recorded %d, notified %q", len(all), w.notified)
 	}
 }
 
@@ -1351,5 +1360,43 @@ func TestTickPlansNothingWithoutElllysAsked(t *testing.T) {
 	}
 	if len(w.started) != 1 {
 		t.Errorf("with Asked back: started %d, want 1", len(w.started))
+	}
+}
+
+// A row elly refuses as invalid is a bug here: the row it last took no
+// longer says what is true, so it comes down, and the user hears once that
+// a row is hidden, however many passes the refusal lasts.
+func TestARowEllyRefusesTakesTheOldOneDownAndSaysSoOnce(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	if err := w.h.move2(pr, PRState{State: stHandled, Kind: kindPosted, Head: "h1"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, had, _ := w.h.ledger.Annotation(pr); !had {
+		t.Fatal("setup: the handled row is not up")
+	}
+	if err := w.h.ledger.SetPRState(pr, PRState{State: stAwaiting, Kind: kindDrafts, Detail: "2", Head: "h1"}); err != nil {
+		t.Fatal(err)
+	}
+	w.elly.reject = stateNeedsYou
+	for range 2 {
+		if err := w.h.tick(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !slices.Contains(w.elly.deleted, pr.URL()) {
+		t.Errorf("the stale handled row stayed up: deleted %q", w.elly.deleted)
+	}
+	if _, had, _ := w.h.ledger.Annotation(pr); had {
+		t.Error("the refused row is recorded as up")
+	}
+	hidden := slices.DeleteFunc(slices.Clone(w.notified), func(m string) bool { return !strings.Contains(m, "is hidden") })
+	if len(hidden) != 1 {
+		t.Errorf("hidden notices %q, want one", hidden)
+	}
+	for _, m := range w.notified {
+		if strings.Contains(m, "unsent comments") {
+			t.Errorf("notified a row elly never showed: %q", m)
+		}
 	}
 }

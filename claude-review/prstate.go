@@ -42,7 +42,8 @@ func (l *Ledger) SetPRState(pr PR, s PRState) error {
 }
 
 // DeletePRState deletes pr's state and what it kept beside it: the fork's
-// session and the update time GitHub last had nothing new at.
+// session, the update time GitHub last had nothing new at, and the mark of
+// a row elly refused.
 func (l *Ledger) DeletePRState(pr PR) error {
 	tx, err := l.db.Begin()
 	if err != nil {
@@ -52,7 +53,7 @@ func (l *Ledger) DeletePRState(pr PR) error {
 	if _, err := tx.Exec(`delete from pr_state where pr = ?`, pr.URL()); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`delete from meta where key in (?, ?)`, metaForkPrefix+pr.URL(), metaStandingPrefix+pr.URL()); err != nil {
+	if _, err := tx.Exec(`delete from meta where key in (?, ?, ?)`, metaForkPrefix+pr.URL(), metaStandingPrefix+pr.URL(), metaHiddenPrefix+pr.URL()); err != nil {
 		return err
 	}
 	return tx.Commit()

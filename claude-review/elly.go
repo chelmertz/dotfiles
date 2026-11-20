@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -78,9 +79,28 @@ func (e Elly) send(method, url string, body []byte) error {
 	if resp.StatusCode != http.StatusNoContent {
 		// The body is dropped: an elly that echoes a refused link would put
 		// its live Approve token into logs and notifications.
-		return fmt.Errorf("elly: %s %s: %s", method, url, resp.Status)
+		return ellyRefused{Method: method, URL: url, Status: resp.StatusCode, Text: resp.Status}
 	}
 	return nil
+}
+
+// ellyRefused is elly answering a write with anything but 204: 404 when it
+// does not list the PR, 400 when it refuses the row, 5xx when it failed.
+type ellyRefused struct {
+	Method, URL, Text string
+	Status            int
+}
+
+func (e ellyRefused) Error() string { return fmt.Sprintf("elly: %s %s: %s", e.Method, e.URL, e.Text) }
+
+// refusedWith is the status elly refused a write with, 0 for any other
+// error (one that never reached it).
+func refusedWith(err error) int {
+	var r ellyRefused
+	if errors.As(err, &r) {
+		return r.Status
+	}
+	return 0
 }
 
 // Put writes pr's annotation, expiring at expires.
