@@ -136,14 +136,9 @@ func (h tickHost) tick() error {
 			return err
 		}
 	}
-	held, err := h.startOwed(prs, running)
-	if err != nil {
+	if err := h.plan(prs, running); err != nil {
 		return err
 	}
-	if err := h.refresh(held, prs); err != nil {
-		return err
-	}
-	h.offerStarts(prs)
 	h.linkSessions(prs)
 	// A failed run is what the timer's journal shows.
 	if reason, err := h.ledger.Tripped(); err != nil || reason != "" {
@@ -151,6 +146,52 @@ func (h tickHost) tick() error {
 	}
 	return nil
 }
+
+// plan starts the owed rounds, refreshes every row and offers Start where
+// a click is what is missing; without elly's Asked it only refreshes.
+func (h tickHost) plan(prs []EllyPR, running int) error {
+	readable, err := h.askedReadable(prs)
+	if err != nil {
+		return err
+	}
+	held := map[string]string{}
+	if readable {
+		if held, err = h.startOwed(prs, running); err != nil {
+			return err
+		}
+	}
+	if err := h.refresh(held, prs); err != nil {
+		return err
+	}
+	if readable {
+		h.offerStarts(prs)
+	}
+	return nil
+}
+
+// askedReadable: elly says who is asked on every row. When it does not (an
+// older or newer elly), tick plans and offers nothing this pass, rather
+// than read every request as none; it says so each pass and notifies once
+// until elly sends the field again.
+func (h tickHost) askedReadable(prs []EllyPR) (bool, error) {
+	if askedReadable(prs) {
+		return true, h.ledger.DeleteMeta(metaAskedUnreadable)
+	}
+	if h.out != nil {
+		fmt.Fprintln(h.out, "claude-review tick: elly sent no Asked this build reads; no review is planned this pass")
+	}
+	seen, err := h.ledger.Meta(metaAskedUnreadable)
+	if err != nil || seen != "" {
+		return false, err
+	}
+	if h.notify != nil {
+		h.notify("claude-review plans no reviews: elly does not say who is asked; update elly and claude-review together")
+	}
+	return false, h.ledger.SetMeta(metaAskedUnreadable, "1")
+}
+
+// metaAskedUnreadable marks that the user was told elly sends no Asked.
+const metaAskedUnreadable = "asked-unreadable-notified"
 
 // checkEllyLogin refuses a tick when elly polls as another GitHub login
 // than the one rounds post as: elly's turn reasons are that login's, so
@@ -512,8 +553,7 @@ func offersStart(p EllyPR, cfg TickConfig, accepted, annotated bool) bool {
 	if err != nil || accepted || annotated || p.Buried || strings.EqualFold(p.Author, cfg.User) {
 		return false
 	}
-	asked := p.ReviewRequestedOfUser || slices.ContainsFunc(append(append([]string{}, p.ReviewRequestedFromUsers...), p.RereviewFrom...), func(u string) bool { return strings.EqualFold(u, cfg.User) })
-	return asked && repoAllowed(pr.Owner, pr.Repo, cfg.ReviewRepos)
+	return p.requested() && repoAllowed(pr.Owner, pr.Repo, cfg.ReviewRepos)
 }
 
 // startOffer is the info annotation that is Start on elly's row. It lives

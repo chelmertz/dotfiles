@@ -33,7 +33,7 @@ func TestPlanTickAcceptedHeadIsTheLastLook(t *testing.T) {
 // The per-PR cap counts the last 24 hours, not only rounds started this
 // instant, and TickConfig's zero cap is no cap.
 func TestPlanTickDailyCapWindow(t *testing.T) {
-	requested := ellyPR(func(p *EllyPR) { p.ReviewRequestedFromUsers = []string{"me"} })
+	requested := ellyPR(func(p *EllyPR) { p.Asked = askedAs(askedRequested) })
 	ok := fakeGate{descends: true, base: "main"}
 	l := openTestLedger(t)
 	if err := l.Accept(widgetsPR, "h0", "main", t0); err != nil {
@@ -382,7 +382,7 @@ func TestSplitWordsEscapeReturns(t *testing.T) {
 // that started before the PR last changed does not cover it.
 func TestPlanTickARoundAfterTheLastUpdateCoversIt(t *testing.T) {
 	cfg := TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 3}
-	asked := ellyPR(func(p *EllyPR) { p.ReviewRequestedFromUsers = []string{"me"} })
+	asked := ellyPR(func(p *EllyPR) { p.Asked = askedAs(askedRequested) })
 	for _, c := range []struct {
 		started time.Time
 		want    int

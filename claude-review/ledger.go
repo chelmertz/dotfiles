@@ -696,3 +696,9 @@ func (l *Ledger) RoundWindow(id ids.RoundID) (started, read time.Time, wasRead b
 	}
 	return started, read, wasRead, nil
 }
+
+// DeleteMeta removes key; a key not there is no error.
+func (l *Ledger) DeleteMeta(key string) error {
+	_, err := l.db.Exec(`delete from meta where key = ?`, key)
+	return err
+}

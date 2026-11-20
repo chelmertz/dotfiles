@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -11,19 +10,41 @@ import (
 
 // EllyPR is the part of a row of elly's GET /api/v0/prs that tick reads.
 type EllyPR struct {
-	Url                      string
-	RepoOwner                string
-	RepoName                 string
-	Author                   string
-	HeadRefOid               string
-	LastUpdated              time.Time
-	ReviewRequestedFromUsers []string
-	// ReviewRequestedOfUser is elly's word that the user was asked, by name
-	// or through a team; a team request does not name the user in the list.
-	ReviewRequestedOfUser bool
-	RereviewFrom          []string
-	ThreadsActionable     int
-	Buried                bool
+	Url         string
+	RepoOwner   string
+	RepoName    string
+	Author      string
+	HeadRefOid  string
+	LastUpdated time.Time
+	// Asked is elly's one word on whether the user owes the PR a review,
+	// askedRequested or askedNotAsked: by name or through a team, never on
+	// the user's own PR, resolved by elly when its request search fails.
+	// nil is an elly that does not send it (older, or rolled back).
+	Asked             *string
+	ThreadsActionable int
+	Buried            bool
+}
+
+// The resolved values of elly's Asked; elly's types.AskedRequested and
+// types.AskedNotAsked name the same literals, and each side pins them.
+const (
+	askedRequested = "requested"
+	askedNotAsked  = "not_asked"
+)
+
+// requested: elly says the user was asked to review p.
+func (p EllyPR) requested() bool { return p.Asked != nil && *p.Asked == askedRequested }
+
+// askedReadable: every row carries an Asked this build knows. An elly that
+// sends none, or a value never seen, cannot say who is asked, and planning
+// on it would read every request as none.
+func askedReadable(prs []EllyPR) bool {
+	for _, p := range prs {
+		if p.Asked == nil || *p.Asked != askedRequested && *p.Asked != askedNotAsked {
+			return false
+		}
+	}
+	return true
 }
 
 // TickConfig is what tick needs from the config.
@@ -70,9 +91,9 @@ func repoAllowed(owner, repo string, allow []string) bool {
 // and replies are keyed by the PR's last update, so the same request does not
 // run twice while a new reply at the same head still does. lastHead is the
 // head of the last round, or the accepted head before any.
-func roundTrigger(p EllyPR, user, lastHead string) Trigger {
+func roundTrigger(p EllyPR, lastHead string) Trigger {
 	switch {
-	case p.ReviewRequestedOfUser || slices.Contains(p.ReviewRequestedFromUsers, user), slices.Contains(p.RereviewFrom, user):
+	case p.requested():
 		return Requested{At: p.LastUpdated.UTC()}
 	case p.ThreadsActionable > 0:
 		return Replies{At: p.LastUpdated.UTC()}
@@ -161,7 +182,7 @@ func planOne(p EllyPR, cfg TickConfig, l *Ledger, g Gate, now time.Time) (Planne
 	if lastHead == "" {
 		lastHead = acc.Head
 	}
-	out.Trigger = roundTrigger(p, cfg.User, lastHead)
+	out.Trigger = roundTrigger(p, lastHead)
 	if out.Trigger == nil {
 		return left(skipNothingOwed)
 	}

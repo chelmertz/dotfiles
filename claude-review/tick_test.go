@@ -193,7 +193,7 @@ func savedFrom(argv []string) []string {
 func requestedPR(n int) EllyPR {
 	return ellyPR(func(p *EllyPR) {
 		p.Url = PR{Owner: "acme", Repo: "widgets", Number: n}.URL()
-		p.ReviewRequestedFromUsers = []string{"me"}
+		p.Asked = askedAs(askedRequested)
 	})
 }
 
@@ -1124,13 +1124,11 @@ func TestTickOffersStartWhereAClickIsWhatIsMissing(t *testing.T) {
 	mine := requestedPR(4)
 	mine.Author = "me"
 	rereview := requestedPR(8)
-	rereview.ReviewRequestedFromUsers, rereview.RereviewFrom = nil, []string{"me"}
 	unasked := requestedPR(2)
-	unasked.ReviewRequestedFromUsers = nil
+	unasked.Asked = askedAs(askedNotAsked)
 	elsewhere := requestedPR(3)
 	elsewhere.Url = "https://github.com/other/x/pull/3"
 	team := requestedPR(9)
-	team.ReviewRequestedFromUsers, team.ReviewRequestedOfUser = []string{"@hidden"}, true
 	w.elly.prs = []EllyPR{requestedPR(1), unasked, elsewhere, mine, requestedPR(5), requestedPR(6), requestedPR(7), rereview, team}
 	w.accept(t, 5)
 	w.elly.prs[5].Buried = true
@@ -1317,5 +1315,41 @@ func TestTickSettlesARoundUnderItsOwnSession(t *testing.T) {
 	unread, _ := w.h.ledger.UnreadRounds()
 	if s, _, _ := w.h.ledger.PRState(pr); len(unread) != 1 || s.State != stRunning {
 		t.Errorf("a running round under the old policy's session looked ended: unread %d, state %+v", len(unread), s)
+	}
+}
+
+// An elly that sends no Asked (older, or rolled back) cannot say who is
+// asked: tick plans and offers nothing, notifies once however many passes
+// it lasts, and plans again as soon as the field comes back.
+func TestTickPlansNothingWithoutElllysAsked(t *testing.T) {
+	w := newTickWorld(t)
+	w.accept(t, 1)
+	pr := requestedPR(1)
+	pr.Asked = nil
+	offer := requestedPR(2)
+	offer.Asked = nil
+	w.elly.prs = []EllyPR{pr, offer}
+	for range 2 {
+		if err := w.h.tick(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(w.started) != 0 {
+		t.Errorf("planned without Asked: %q", w.started)
+	}
+	for u, a := range w.elly.put {
+		if a.State == stateInfo {
+			t.Errorf("offered Start on %s without Asked", u)
+		}
+	}
+	if n := len(slices.DeleteFunc(slices.Clone(w.notified), func(m string) bool { return !strings.Contains(m, "who is asked") })); n != 1 {
+		t.Errorf("notified %d times, want once: %q", n, w.notified)
+	}
+	w.elly.prs = []EllyPR{requestedPR(1)}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.started) != 1 {
+		t.Errorf("with Asked back: started %d, want 1", len(w.started))
 	}
 }

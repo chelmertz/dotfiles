@@ -57,7 +57,7 @@ func TestTickStuckLiftsOnlyOnARerequest(t *testing.T) {
 	}
 	w.elly.prs = []EllyPR{ellyPR(func(p *EllyPR) {
 		p.HeadRefOid = "h1"
-		p.ReviewRequestedFromUsers = []string{"me"}
+		p.Asked = askedAs(askedRequested)
 		p.LastUpdated = t0.Add(time.Hour)
 	})}
 	if err := w.h.tick(); err != nil {

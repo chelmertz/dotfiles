@@ -27,7 +27,7 @@ func TestRepoAllowed(t *testing.T) {
 
 func ellyPR(mod func(*EllyPR)) EllyPR {
 	p := EllyPR{Url: "https://github.com/acme/widgets/pull/42", RepoOwner: "acme", RepoName: "widgets",
-		Author: "alice", HeadRefOid: "h1", LastUpdated: t0}
+		Author: "alice", HeadRefOid: "h1", LastUpdated: t0, Asked: askedAs(askedNotAsked)}
 	if mod != nil {
 		mod(&p)
 	}
@@ -42,17 +42,15 @@ func TestRoundTrigger(t *testing.T) {
 		want     Trigger
 	}{
 		{"nothing owed", ellyPR(nil), "h1", nil},
-		{"review requested", ellyPR(func(p *EllyPR) { p.ReviewRequestedFromUsers = []string{"me"} }), "h1", Requested{At: t0.UTC()}},
-		{"asked through a team", ellyPR(func(p *EllyPR) { p.ReviewRequestedFromUsers, p.ReviewRequestedOfUser = []string{"@hidden"}, true }), "h1", Requested{At: t0.UTC()}},
-		{"someone else's request", ellyPR(func(p *EllyPR) { p.ReviewRequestedFromUsers = []string{"bob"} }), "h1", nil},
-		{"re-review", ellyPR(func(p *EllyPR) { p.RereviewFrom = []string{"me"} }), "h1", Requested{At: t0.UTC()}},
+		{"review requested", ellyPR(func(p *EllyPR) { p.Asked = askedAs(askedRequested) }), "h1", Requested{At: t0.UTC()}},
+		{"an Asked this build does not know", ellyPR(func(p *EllyPR) { p.Asked = askedAs("maybe") }), "h1", nil},
 		{"replies", ellyPR(func(p *EllyPR) { p.ThreadsActionable = 2 }), "h1", Replies{At: t0.UTC()}},
 		{"new head", ellyPR(func(p *EllyPR) { p.HeadRefOid = "h2" }), "h1", NewHead{Head: "h2"}},
 		{"no head known", ellyPR(func(p *EllyPR) { p.HeadRefOid = "" }), "h1", nil},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := roundTrigger(c.pr, "me", c.lastHead); got != c.want {
+			if got := roundTrigger(c.pr, c.lastHead); got != c.want {
 				t.Errorf("got %#v, want %#v", got, c.want)
 			}
 		})
@@ -91,7 +89,7 @@ func notSkipped(plans []Planned) []Planned {
 
 func TestPlanTick(t *testing.T) {
 	cfg := TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 3}
-	requested := func(p *EllyPR) { p.ReviewRequestedFromUsers = []string{"me"} }
+	requested := func(p *EllyPR) { p.Asked = askedAs(askedRequested) }
 	plan := func(l *Ledger, g fakeGate, prs ...EllyPR) []Planned {
 		t.Helper()
 		got, err := planTick(prs, cfg, l, g, t0)
@@ -305,7 +303,7 @@ func hasLink(a *Annotation, part string) bool {
 // the journal can say why a round did not start.
 func TestPlanTickNamesWhyItLeavesAPR(t *testing.T) {
 	cfg := TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 3}
-	asked := ellyPR(func(p *EllyPR) { p.ReviewRequestedFromUsers = []string{"me"} })
+	asked := ellyPR(func(p *EllyPR) { p.Asked = askedAs(askedRequested) })
 	ok := fakeGate{descends: true, base: "main"}
 	skipOf := func(l *Ledger, g fakeGate, p EllyPR) skip {
 		t.Helper()
@@ -388,4 +386,17 @@ func dismissOf(d Decision) ids.ReviewID {
 		return d.Review
 	}
 	return ids.ReviewID{}
+}
+
+func askedAs(v string) *string { return &v }
+
+// elly's types.AskedRequested and types.AskedNotAsked name the same
+// literals; a value either side moves alone reads as unreadable here.
+func TestAskedLiterals(t *testing.T) {
+	if askedRequested != "requested" || askedNotAsked != "not_asked" {
+		t.Errorf("Asked literals moved: %q %q; move elly's with them", askedRequested, askedNotAsked)
+	}
+	if askedReadable([]EllyPR{{}}) || askedReadable([]EllyPR{{Asked: askedAs("Requested")}}) || !askedReadable([]EllyPR{{Asked: askedAs(askedNotAsked)}}) {
+		t.Error("a missing or unknown Asked read as readable, or a known one as not")
+	}
 }

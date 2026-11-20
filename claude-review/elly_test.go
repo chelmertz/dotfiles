@@ -20,7 +20,7 @@ func TestElly(t *testing.T) {
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && r.URL.Path == "/api/v0/prs" {
-			_, _ = io.WriteString(w, `[{"Url":"https://github.com/acme/widgets/pull/42","RepoOwner":"acme","HeadRefOid":"h1","ReviewRequestedFromUsers":["me"],"ThreadsActionable":2,"LastUpdated":"2026-10-31T12:00:00Z"}]`)
+			_, _ = io.WriteString(w, `[{"Url":"https://github.com/acme/widgets/pull/42","RepoOwner":"acme","HeadRefOid":"h1","Asked":"requested","ThreadsActionable":2,"LastUpdated":"2026-10-31T12:00:00Z"}]`)
 			return
 		}
 		if r.URL.Path == "/api/v0/config/status" {
