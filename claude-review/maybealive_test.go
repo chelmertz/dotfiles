@@ -105,3 +105,31 @@ func TestStuckFailedWordsOnlyWhatItKnows(t *testing.T) {
 		}
 	}
 }
+
+// A window opened over an Approve row spends its token; the restore on
+// close mints a fresh one, so no fork runs beside a live Approve.
+func TestAWindowOverApproveRevokesItsToken(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	approve := PRState{State: stAwaiting, Kind: kindApprove, Head: "h1"}
+	if err := w.h.move2(pr, approve); err != nil {
+		t.Fatal(err)
+	}
+	old, _, _ := w.h.ledger.TokenFor(pr, "h1")
+	if _, err := w.h.move(pr, Event{Kind: evWindowOpened}); err != nil {
+		t.Fatal(err)
+	}
+	if live, _ := w.h.ledger.HasLiveToken(pr); live {
+		t.Error("a token stayed live under the window")
+	}
+	if _, err := w.h.move(pr, Event{Kind: evWindowClosed}); err != nil {
+		t.Fatal(err)
+	}
+	fresh, has, _ := w.h.ledger.TokenFor(pr, "h1")
+	if !has || fresh == old {
+		t.Errorf("after the window: token %v has %v, old %v", fresh, has, old)
+	}
+	if a := w.elly.put[pr.URL()]; !strings.Contains(a.Links[0].URL, fresh.String()) {
+		t.Errorf("row %+v lacks the fresh token", a.Links)
+	}
+}

@@ -801,7 +801,10 @@ claude-review alone. It holds:
    - a live session for the round session's id that is no worker's (a
      window someone opened on it with `claude --resume`) starts nothing and
      marks the PR `needs_you` "Claude window open; close it to let reviews
-     run"; the first tick that sees it gone clears that. Windows from
+     run"; the first tick that sees it gone clears that. Opening the window
+     spends the PR's Approve token, so no session that may read prod data
+     runs beside a live Approve; the row it restores on close gets a fresh
+     one. Windows from
      before clicks went background hold the PR's window session, a
      different id, and no longer hold rounds back.
 7. A round whose job is `blocked` (waiting on the user, in practice a

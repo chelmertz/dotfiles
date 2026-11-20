@@ -231,7 +231,9 @@ var rules = []rule{
 	{from: inKind(stAwaiting, kindQuestion), event: evEnded, when: decided, to: toDecided, effects: []Effect{efRoundsRead}},
 	// A round recorded without its move (a crash between the two writes).
 	{from: in(stIdle), event: evEnded, when: decided, to: toDecided, effects: []Effect{efRoundsRead}},
-	{from: notIn(inKind(stHeld, kindWindow)), event: evWindowOpened, to: to(stHeld, kindWindow), remember: true},
+	// The fork may read prod data: no Approve token stays live beside it; the
+	// restore on close mints a fresh one.
+	{from: notIn(inKind(stHeld, kindWindow)), event: evWindowOpened, to: to(stHeld, kindWindow), effects: []Effect{efRevokeTokens}, remember: true},
 	{from: inKind(stHeld, kindWindow), event: evWindowClosed, to: toPrev},
 }
 
