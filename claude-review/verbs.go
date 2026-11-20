@@ -134,7 +134,6 @@ func notIssued(pr PR) error {
 // session (fork.go). It never resumes the session itself: that window would
 // run under the user's own settings and hold every round back.
 func attach(d Deps, cfg Config, pr PR) int {
-	id := pr.RoundSessionID()
 	unlock, err := d.Lock(pr.SessionID().String())
 	if errors.Is(err, errLocked) {
 		return fail(d, fmt.Errorf("claude-review: %s is being started; try again in a moment", pr.URL()))
@@ -143,6 +142,10 @@ func attach(d Deps, cfg Config, pr PR) int {
 		return fail(d, fmt.Errorf("claude-review: locking %s: %w", pr.URL(), err))
 	}
 	defer unlock()
+	id, err := attachSession(d, pr)
+	if err != nil {
+		return fail(d, err)
+	}
 	all, err := d.Sessions.Roster()
 	if err != nil {
 		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), err))
@@ -168,6 +171,18 @@ func attach(d Deps, cfg Config, pr PR) int {
 		return openFork(d, cfg, pr)
 	}
 	return 0
+}
+
+// attachSession is the session Open Claude opens: the one pr's newest
+// round recorded, so a worker started before a policy version bump is
+// still found.
+func attachSession(d Deps, pr PR) (ids.SessionID, error) {
+	l, err := OpenLedger(LedgerPath(d.StateDir))
+	if err != nil {
+		return ids.SessionID{}, err
+	}
+	defer l.Close()
+	return l.RoundSession(pr)
 }
 
 // hostless drops "https://github.com/" from a click's notification: the

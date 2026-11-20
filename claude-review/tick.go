@@ -647,8 +647,8 @@ func (h tickHost) startOne(p Planned, running int) (skip, error) {
 		_, err := h.move(p.PR, Event{Kind: evWindowOpened})
 		return skipWindowOpen, err
 	}
-	if h.running(p.PR.RoundSessionID()) {
-		return skipRunning, nil
+	if busy, err := h.roundRuns(p.PR); err != nil || busy {
+		return skipRunning, err
 	}
 	s, err := h.stateOf(p.PR)
 	if err != nil {
@@ -676,6 +676,24 @@ func (h tickHost) startOne(p Planned, running int) (skip, error) {
 		return err
 	})
 	return not, err
+}
+
+// roundRuns: a round of pr may still run, in today's session or in the one
+// an unread round recorded, which a policy version bump leaves behind.
+func (h tickHost) roundRuns(pr PR) (bool, error) {
+	if h.running(pr.RoundSessionID()) {
+		return true, nil
+	}
+	rounds, err := h.ledger.UnreadRounds()
+	if err != nil {
+		return false, err
+	}
+	for _, r := range rounds {
+		if r.PR == pr.URL() && h.running(r.SessionFor(pr)) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // startingLifetime bounds a "starting" row a crashed click never cleared.

@@ -665,3 +665,20 @@ func (l *Ledger) SetMeta(key, value string) error {
 	_, err := l.db.Exec(`replace into meta (key, value) values (?, ?)`, key, value)
 	return err
 }
+
+// RoundSession is the session pr's rounds run in, as the round's row
+// recorded it: the newest unread round's, else the newest round's. With no
+// round, or only rounds from before the session was recorded, it is
+// today's id. Readers name a round's session through this, never through
+// RoundSessionID, which a policy version bump changes under a live worker.
+func (l *Ledger) RoundSession(pr PR) (ids.SessionID, error) {
+	var s string
+	err := l.db.QueryRow(`select session from rounds where pr = ? order by read_at is not null, id desc limit 1`, pr.URL()).Scan(&s)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && s == "" {
+		return pr.RoundSessionID(), nil
+	}
+	if err != nil {
+		return ids.SessionID{}, err
+	}
+	return ids.ParseSession(s)
+}

@@ -16,7 +16,7 @@ import (
 // denied outright. mb-sql and claude-review post are on no list: they ask.
 func TestForkArgsAreLocked(t *testing.T) {
 	fid := ids.NewSession()
-	args := ForkArgs(widgetsPR, fid, "upstream", metabaseReadRules(t.TempDir()))
+	args := ForkArgs(widgetsPR, widgetsPR.RoundSessionID(), fid, "upstream", metabaseReadRules(t.TempDir()))
 	id := widgetsPR.RoundSessionID().String()
 	head := []string{claudeCmd, "--resume", id, "--fork-session", "--session-id", fid.String(),
 		"--setting-sources", "", "--strict-mcp-config", "--permission-mode", "default"}
