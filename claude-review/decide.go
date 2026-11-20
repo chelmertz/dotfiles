@@ -174,17 +174,10 @@ func planOne(p EllyPR, cfg TickConfig, l *Ledger, g Gate, now time.Time) (Planne
 	if p.Buried {
 		return left(skipBuried)
 	}
-	if !accepted && cfg.AutoStart && p.requested() && p.HeadRefOid != "" {
-		// What a first click records: the head and base the first look
-		// starts from, which the changed-under-first-look check compares to.
-		base, open, err := g.Base(pr)
-		if err != nil || !open {
+	if !accepted && cfg.AutoStart {
+		if acc, accepted, err = autoAccept(p, pr, l, g, now); err != nil {
 			return Planned{}, false, err
 		}
-		if err := l.Accept(pr, p.HeadRefOid, base, now); err != nil {
-			return Planned{}, false, err
-		}
-		acc, accepted = Acceptance{Head: p.HeadRefOid, Base: base}, true
 	}
 	if !accepted {
 		return left(skipNotAccepted)
@@ -222,6 +215,23 @@ func planOne(p EllyPR, cfg TickConfig, l *Ledger, g Gate, now time.Time) (Planne
 func eligible(p EllyPR, cfg TickConfig) (PR, bool) {
 	pr, err := ParseTarget(p.Url)
 	return pr, err == nil && repoAllowed(p.RepoOwner, p.RepoName, cfg.ReviewRepos) && !strings.EqualFold(p.Author, cfg.User)
+}
+
+// autoAccept accepts p as a first click would, when the user was asked on
+// it and it is still open: at the head and base the first look starts
+// from, which the changed-under-first-look check compares against.
+func autoAccept(p EllyPR, pr PR, l *Ledger, g Gate, now time.Time) (Acceptance, bool, error) {
+	if !p.requested() || p.HeadRefOid == "" {
+		return Acceptance{}, false, nil
+	}
+	base, open, err := g.Base(pr)
+	if err != nil || !open {
+		return Acceptance{}, false, err
+	}
+	if err := l.Accept(pr, p.HeadRefOid, base, now); err != nil {
+		return Acceptance{}, false, err
+	}
+	return Acceptance{Head: p.HeadRefOid, Base: base}, true, nil
 }
 
 // gateFor is what stops an owed round: a PR closed since elly's last poll
