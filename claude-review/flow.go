@@ -76,7 +76,7 @@ func (h tickHost) effect(pr PR, ef Effect) error {
 	switch ef {
 	case efStopWorkers:
 		if h.sess.Roster == nil {
-			return nil // a click's host: it never stops workers
+			return errors.New("this host cannot list workers, so it cannot stop them")
 		}
 		all, err := h.sess.Roster()
 		if err != nil {

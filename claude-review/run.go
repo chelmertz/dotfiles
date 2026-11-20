@@ -276,7 +276,7 @@ func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
 			fmt.Fprintf(d.Stderr, "claude-review: %s: %v\n", pr.URL(), err)
 		}
 	}
-	h := tickHost{ledger: l, elly: Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile(d.RuntimeDir)}, now: time.Now, say: say}
+	h := tickHost{ledger: l, elly: Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile(d.RuntimeDir)}, sess: d.Sessions, now: time.Now, say: say}
 	// read before the "starting" row and the round: both replace its note
 	before, err := l.Handover(pr)
 	if err != nil {

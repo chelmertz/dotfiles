@@ -282,3 +282,11 @@ func TestRefreshAsksGitHubOnlyAfterAChange(t *testing.T) {
 		t.Errorf("a PR elly does not list was asked %d times in 2 passes", w.gh.standings-before)
 	}
 }
+
+// An effect the host cannot perform fails rather than reading as done.
+func TestAHostWithoutSessionsCannotStopWorkers(t *testing.T) {
+	h := tickHost{ledger: openTestLedger(t), now: func() time.Time { return t0 }}
+	if err := h.effect(widgetsPR, efStopWorkers); err == nil {
+		t.Error("stopping workers without a session list succeeded")
+	}
+}
