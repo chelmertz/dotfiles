@@ -119,14 +119,10 @@ func (h tickHost) tick() error {
 	if err := h.checkClaude(); err != nil {
 		return err
 	}
-	if err := h.sweep(); err != nil {
-		return err
-	}
-	if err := h.settleDismissals(); err != nil {
-		return err
-	}
-	if err := h.healBreaker(); err != nil {
-		return err
+	for _, step := range []func() error{h.sweep, h.settleDismissals, h.healBreaker} {
+		if err := step(); err != nil {
+			return err
+		}
 	}
 	if n := h.ledger.Unparsed; n > 0 && h.out != nil {
 		fmt.Fprintf(h.out, "claude-review tick: %d recorded rounds have a trigger no parser reads; they count toward the caps\n", n)
@@ -135,11 +131,10 @@ func (h tickHost) tick() error {
 	if err != nil {
 		return err
 	}
-	if err := h.recoverStarting(); err != nil {
-		return err
-	}
-	if err := h.recheckLaunches(); err != nil {
-		return err
+	for _, step := range []func() error{h.recoverStarting, h.recheckLaunches} {
+		if err := step(); err != nil {
+			return err
+		}
 	}
 	held, err := h.startOwed(prs, running)
 	if err != nil {
