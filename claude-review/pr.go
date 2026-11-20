@@ -52,14 +52,26 @@ func ParseTarget(s string) (PR, error) {
 		}
 		n, err := strconv.Atoi(m[3])
 		if err != nil {
-			return PR{}, fmt.Errorf("claude-review: PR number out of range in %q", s)
+			return PR{}, fmt.Errorf("claude-review: PR number out of range in %s", shape(s))
 		}
 		// GitHub names are case-insensitive; the canonical URL and the session
 		// id derive from them, so normalise here or a differently-cased link
 		// would start a second session for the same PR.
 		return PR{Owner: strings.ToLower(m[1]), Repo: strings.ToLower(m[2]), Number: n}, nil
 	}
-	return PR{}, fmt.Errorf("claude-review: expected a GitHub PR URL, claude-review://owner/repo/number or owner/repo/number, got %q", s)
+	return PR{}, fmt.Errorf("claude-review: expected a GitHub PR URL, claude-review://owner/repo/number or owner/repo/number, got %s", shape(s))
+}
+
+// shape describes a refused target without quoting it: a link may carry a
+// live Approve token, and the error reaches logs and notifications.
+var schemeName = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*$`)
+
+func shape(s string) string {
+	kind := "no scheme"
+	if i := strings.Index(s, "://"); i > 0 && i <= 20 && schemeName.MatchString(s[:i]) {
+		kind = "a " + strings.ToLower(s[:i]) + ":// link"
+	}
+	return fmt.Sprintf("%s of %d characters", kind, len(s))
 }
 
 // climbs reports whether a GitHub URL's tail after the PR number has a "."

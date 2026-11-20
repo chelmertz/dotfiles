@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -77,8 +76,9 @@ func (e Elly) send(method, url string, body []byte) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusNoContent {
-		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("elly: %s %s: %s %s", method, url, resp.Status, strings.TrimSpace(string(msg)))
+		// The body is dropped: an elly that echoes a refused link would put
+		// its live Approve token into logs and notifications.
+		return fmt.Errorf("elly: %s %s: %s", method, url, resp.Status)
 	}
 	return nil
 }

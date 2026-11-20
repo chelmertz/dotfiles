@@ -242,7 +242,7 @@ func TestRun_BadConfigFails(t *testing.T) {
 
 func TestRun_BadTargetFails(t *testing.T) {
 	h := newHost(t, "", true, false)
-	if code := run([]string{"what"}, h.d); code != 1 || !strings.Contains(h.stderr.String(), `"what"`) {
+	if code := run([]string{"what"}, h.d); code != 1 || !strings.Contains(h.stderr.String(), "no scheme of 4 characters") {
 		t.Errorf("code %d stderr %q", code, h.stderr.String())
 	}
 }

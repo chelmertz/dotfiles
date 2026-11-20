@@ -64,10 +64,14 @@ func TestParseTarget_RejectsOverflowingNumber(t *testing.T) {
 	}
 }
 
-func TestParseTarget_ErrorNamesTheInput(t *testing.T) {
+func TestParseTarget_ErrorDescribesTheInputsShape(t *testing.T) {
 	_, err := ParseTarget("nope")
-	if err == nil || !strings.Contains(err.Error(), "nope") {
-		t.Fatalf("error should quote the input, got %v", err)
+	if err == nil || strings.Contains(err.Error(), "nope") || !strings.Contains(err.Error(), "no scheme of 4 characters") {
+		t.Fatalf("error should describe, not quote, the input; got %v", err)
+	}
+	_, err = ParseTarget("https://example.com/x")
+	if err == nil || !strings.Contains(err.Error(), "a https:// link of 21 characters") {
+		t.Fatalf("got %v", err)
 	}
 }
 
