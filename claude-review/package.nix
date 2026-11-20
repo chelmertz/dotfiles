@@ -20,6 +20,8 @@ buildGoModule {
       ./go.mod
       ./go.sum
       (lib.fileset.fileFilter (f: f.hasExt "go") ./.)
+      # TestRowsFixtureMatchesRender reads it; elly holds a copy.
+      ./testdata/rows.json
     ];
   };
 

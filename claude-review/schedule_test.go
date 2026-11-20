@@ -38,11 +38,12 @@ func TestNextTickFollowsTheTimer(t *testing.T) {
 }
 
 // The timer in nix/home.nix and nextTick are one schedule; each names the
-// other. Asserted against the literals.
+// other. Asserted against the literals. Skipped where the nix file is not
+// beside this module, as in the nix build's sandbox.
 func TestTheNixTimerMatchesNextTick(t *testing.T) {
 	b, err := os.ReadFile("../nix/home.nix")
 	if err != nil {
-		t.Fatal(err)
+		t.Skip("nix/home.nix not beside this module")
 	}
 	for _, want := range []string{`"Mon..Fri *-*-* 08..22:00/5:00"`, `"*-*-* 00/2:00:00"`} {
 		if !strings.Contains(string(b), want) {
