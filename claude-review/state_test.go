@@ -48,7 +48,7 @@ func TestTransition(t *testing.T) {
 		{"owed from idle", idle, Event{Kind: evOwed, Head: "bbb"}, stRunning, kindTick, nil, true},
 		{"owed from handled", posted, Event{Kind: evOwed}, stRunning, kindTick, nil, true},
 		{"owed from launch failed", PRState{State: stHeld, Kind: kindLaunch, Detail: launchNotStarted}, Event{Kind: evOwed}, stRunning, kindTick, nil, true},
-		{"owed under a first look", posted, Event{Kind: evOwed, FreshLook: true}, stHeld, kindFresh, nil, true},
+		{"owed under a first look", posted, Event{Kind: evChangedUnderFirstLook}, stHeld, kindFresh, nil, true},
 		{"click looks again", st(stHeld, kindFresh), Event{Kind: evClick}, stStarting, kindClick, nil, true},
 		{"owed while running", running, Event{Kind: evOwed}, stRunning, kindTick, nil, false},
 		{"owed on fresh look", st(stHeld, kindFresh), Event{Kind: evOwed}, stHeld, kindFresh, nil, false},

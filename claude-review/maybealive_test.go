@@ -420,7 +420,7 @@ func TestTheChainDepthIsPinned(t *testing.T) {
 	posted := PRState{State: stHandled, Kind: kindPosted}
 	events := []Event{
 		{Kind: evClick}, {Kind: evLaunched}, {Kind: evAbandoned}, {Kind: evFailedToStart, Class: launchNotStarted},
-		{Kind: evOwed}, {Kind: evOwed, Trigger: Requested{At: t0}}, {Kind: evPush, Head: "x"},
+		{Kind: evOwed}, {Kind: evOwed, Trigger: Requested{At: t0}}, {Kind: evChangedUnderFirstLook}, {Kind: evPush, Head: "x"},
 		{Kind: evBlocked, Question: "q"}, {Kind: evResumed}, {Kind: evEnded, Next: &posted},
 		{Kind: evWindowOpened}, {Kind: evWindowClosed}, {Kind: evUserApproved}, {Kind: evLaunchCleared, Class: launchNotStarted},
 	}

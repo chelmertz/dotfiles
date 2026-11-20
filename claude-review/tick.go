@@ -613,7 +613,7 @@ func (h tickHost) hold(p Planned, held map[string]string) (bool, error) {
 	}
 	if p.Gate == gateFreshLook {
 		note = "the PR changed under its first look"
-		if _, err := h.move(p.PR, Event{Kind: evOwed, Head: p.Head, FreshLook: true}); err != nil {
+		if _, err := h.move(p.PR, Event{Kind: evChangedUnderFirstLook, Head: p.Head}); err != nil {
 			return false, err
 		}
 	} else if note != "" {

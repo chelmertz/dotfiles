@@ -103,8 +103,6 @@ type Event struct {
 	Next *PRState
 	// Trigger is why an owed round is owed; a request lifts stuck.
 	Trigger Trigger
-	// FreshLook: the PR changed under its first look (force-push, new base).
-	FreshLook bool
 }
 
 // EventKind is one of the ev* names.
@@ -119,14 +117,17 @@ const (
 	evFailedToStart EventKind = "failed_to_start"
 	// evAbandoned: a click gave up before any launch; back to the state
 	// before.
-	evAbandoned    EventKind = "abandoned"
-	evOwed         EventKind = "owed"
-	evPush         EventKind = "push"
-	evBlocked      EventKind = "blocked"
-	evResumed      EventKind = "resumed"
-	evEnded        EventKind = "ended"
-	evWindowOpened EventKind = "window_opened"
-	evWindowClosed EventKind = "window_closed"
+	evAbandoned EventKind = "abandoned"
+	// evChangedUnderFirstLook: an owed review found the PR force-pushed or
+	// rebased under its first look; it waits for a click.
+	evChangedUnderFirstLook EventKind = "changed_under_first_look"
+	evOwed                  EventKind = "owed"
+	evPush                  EventKind = "push"
+	evBlocked               EventKind = "blocked"
+	evResumed               EventKind = "resumed"
+	evEnded                 EventKind = "ended"
+	evWindowOpened          EventKind = "window_opened"
+	evWindowClosed          EventKind = "window_closed"
 	// evLaunchCleared: tick found no worker and no unread round for a launch
 	// whose worker may have been alive.
 	evLaunchCleared EventKind = "launch_cleared"
@@ -296,7 +297,6 @@ type rule struct {
 var (
 	launchClass  = guard{"a launch class", func(_ PRState, e Event) bool { _, ok := launchNotes[e.Class]; return ok }}
 	rerequested  = guard{"a request", func(_ PRState, e Event) bool { _, ok := e.Trigger.(Requested); return ok }}
-	freshLook    = guard{"under its first look", func(_ PRState, e Event) bool { return e.FreshLook }}
 	workerBack   = guard{"the worker works again", func(s PRState, _ Event) bool { return s.Prev != nil && s.Prev.State == stRunning }}
 	decidedRetry = guard{"decide: retry", func(_ PRState, e Event) bool {
 		return e.Next != nil && e.Next.State == stRunning && e.Next.Kind == kindRetry
@@ -327,7 +327,8 @@ var rules = []rule{
 	{from: notIn(in(stRunning)), event: evFailedToStart, when: launchClass, to: to(stHeld, kindLaunch)},
 	{from: in(stStarting), event: evAbandoned, to: toPrev},
 	{from: in(stStuck), event: evOwed, when: rerequested, to: to(stRunning, kindTick)},
-	{from: in(stIdle, stHandled, stAwaiting), event: evOwed, when: freshLook, to: to(stHeld, kindFresh)},
+	// Its own event, so no owed launch depends on rule order to not fire.
+	{from: in(stIdle, stHandled, stAwaiting), event: evChangedUnderFirstLook, to: to(stHeld, kindFresh)},
 	{from: in(stIdle, stHandled, stAwaiting), event: evOwed, to: to(stRunning, kindTick)},
 	{from: inKind(stHeld, kindLaunch), event: evOwed, when: deadLaunch, to: to(stRunning, kindTick)},
 	{from: inKind(stHeld, kindLaunch), event: evEnded, when: aliveDecided, to: toDecided, effects: []Effect{efRoundsRead}},

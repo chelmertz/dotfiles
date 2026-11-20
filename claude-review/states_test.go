@@ -48,7 +48,7 @@ func TestStatesPageIsTheRules(t *testing.T) {
 // state, so the page does not show it as a move.
 func TestStatesPageLeavesOutShadowedRules(t *testing.T) {
 	rs := []rule{
-		{from: in(stIdle), event: evOwed, when: freshLook, to: to(stHeld, kindFresh)},
+		{from: in(stIdle), event: evOwed, when: rerequested, to: to(stHeld, kindFresh)},
 		{from: in(stIdle), event: evOwed, to: to(stRunning, kindTick)},
 		{from: in(stIdle, stHandled), event: evOwed, to: to(stStuck, kindRefused)},
 	}
