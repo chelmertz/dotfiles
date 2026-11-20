@@ -92,7 +92,6 @@ PR's own marked, and prints its path; elly's ` + "`?`" + ` link opens it.
 // subcommands are the gh-backed commands beside the default launch.
 var subcommands = map[string]func([]string, Gh, io.Writer, io.Writer) int{
 	"threads": runThreads,
-	"approve": runApprove,
 }
 
 // runSessionCommand runs the commands a review session uses: post, with
@@ -103,6 +102,9 @@ func runSessionCommand(args []string, d Deps) (int, bool) {
 	}
 	if args[0] == "post" {
 		return runPost(args[1:], d.Gh, ledgerSpend(d), d.Environ, d.Stdout, d.Stderr), true
+	}
+	if args[0] == "approve" {
+		return runApproveCmd(args[1:], d), true
 	}
 	if args[0] == "stats" {
 		return runStats(args[1:], d), true

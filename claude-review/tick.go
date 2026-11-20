@@ -43,6 +43,7 @@ type tickGitHub interface {
 	// thread holding a signed comment from on or after started.
 	RepliedInRoundThread(pr PR, started, settled time.Time) (bool, error)
 	Dismiss(pr PR, id ids.ReviewID, message string) error
+	DismissalStatus(pr PR, id ids.ReviewID) (DismissalStatus, error)
 }
 
 // tickHost is one tick's world. Every write goes through do, which only
@@ -114,6 +115,9 @@ func (h tickHost) tick() error {
 		return err
 	}
 	if err := h.sweep(); err != nil {
+		return err
+	}
+	if err := h.settleDismissals(); err != nil {
 		return err
 	}
 	running, err := h.settle()
@@ -339,6 +343,9 @@ func (h tickHost) settleRound(pr PR, r Round, retry bool) (busy bool, err error)
 	if err != nil {
 		return false, err // GitHub unreachable: read it next tick
 	}
+	if facts.DismissalPending, err = h.ledger.DismissalPending(pr); err != nil {
+		return false, err
+	}
 	return h.apply(pr, r, decide(r, ReadOutcome(msg), facts, pr), retry)
 }
 
@@ -404,10 +411,14 @@ func (h tickHost) apply(pr PR, r Round, d Decision, retry bool) (bool, error) {
 		d.Next = &PRState{State: stIdle}
 	}
 	if !d.DismissReviewID.IsZero() {
-		msg := "A later review round found new problems at the current head, so this approval no longer covers it."
-		if err := h.do(fmt.Sprintf("dismiss review %s on %s", d.DismissReviewID, pr.URL()), func() error { return h.gh.Dismiss(pr, d.DismissReviewID, msg) }); err != nil {
+		// The record first: a crash or a refusal from here on leaves it for
+		// the next tick, which settles it only on reading the dismissal back.
+		if err := h.do(fmt.Sprintf("record the dismissal of review %s on %s", d.DismissReviewID, pr.URL()), func() error {
+			return errors.Join(h.ledger.AddDismissal(pr, d.DismissReviewID, h.now()), h.ledger.RevokeTokens(pr))
+		}); err != nil {
 			return false, err
 		}
+		h.sendDismissal(Dismissal{PR: pr.URL(), Review: d.DismissReviewID})
 	}
 	if _, err := h.move(pr, Event{Kind: evEnded, Next: d.Next}); err != nil {
 		return false, err

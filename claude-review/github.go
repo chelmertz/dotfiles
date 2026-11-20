@@ -24,7 +24,10 @@ type ghPull struct {
 		SHA string `json:"sha"`
 	} `json:"head"`
 	Base struct {
-		Ref string `json:"ref"`
+		Ref  string `json:"ref"`
+		Repo struct {
+			Archived bool `json:"archived"`
+		} `json:"repo"`
 	} `json:"base"`
 }
 
@@ -232,6 +235,35 @@ func repliedInRoundThread(user string, list []ghItem[ids.CommentID], started, se
 		}
 	}
 	return false
+}
+
+// DismissalStatus is what settles a pending dismissal: whether the review
+// reads back dismissed and the user's, and whether the PR merged or its
+// repository was archived (the only reasons to drop one). Any error, a 404
+// or 403 included, leaves the dismissal pending.
+type DismissalStatus struct {
+	Dismissed bool
+	Merged    bool
+	Archived  bool
+}
+
+func (g GitHub) DismissalStatus(pr PR, id ids.ReviewID) (DismissalStatus, error) {
+	var rv struct {
+		State string  `json:"state"`
+		User  ghLogin `json:"user"`
+	}
+	if err := g.getJSON(&rv, g.api(pr, "pulls/%d/reviews/%s", pr.Number, id)); err != nil {
+		return DismissalStatus{}, err
+	}
+	p, err := g.pull(pr)
+	if err != nil {
+		return DismissalStatus{}, err
+	}
+	return DismissalStatus{
+		Dismissed: rv.State == "DISMISSED" && strings.EqualFold(rv.User.Login, g.User),
+		Merged:    p.Merged,
+		Archived:  p.Base.Repo.Archived,
+	}, nil
 }
 
 // Standing is the PR's state, head and the user's standing review, for

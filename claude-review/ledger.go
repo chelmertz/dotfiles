@@ -34,6 +34,7 @@ create table if not exists posts (pr text not null, head text not null, slot tex
 create table if not exists post_refusals (pr text not null, at integer not null);
 create table if not exists meta (key text primary key, value text not null);
 create table if not exists pr_state (pr text primary key, state text not null);
+create table if not exists dismissals (pr text not null, review text not null, at integer not null, notified integer not null default 0, primary key (pr, review));
 create table if not exists breaker (id integer primary key check (id = 1), tripped text, reset_at integer not null default 0);
 `
 
@@ -346,6 +347,62 @@ func (l *Ledger) revokePreC7Tokens() error {
 		return err
 	}
 	return l.SetMeta(metaTokensRevoked, "1")
+}
+
+// Dismissal is a dismissal of the user's approval that apply asked for and
+// nobody has yet seen land. It outlives the PR's state, so a closed PR's
+// dismissal is still retried.
+type Dismissal struct {
+	PR       string
+	Review   ids.ReviewID
+	Notified bool // a refusal was notified once
+}
+
+// AddDismissal records that review on pr is to be dismissed.
+func (l *Ledger) AddDismissal(pr PR, review ids.ReviewID, at time.Time) error {
+	_, err := l.db.Exec(`insert into dismissals (pr, review, at) values (?, ?, ?) on conflict do nothing`, pr.URL(), review.String(), at.Unix())
+	return err
+}
+
+// DismissalPending: a dismissal of pr's approval is recorded and not seen.
+func (l *Ledger) DismissalPending(pr PR) (bool, error) {
+	var n int
+	err := l.db.QueryRow(`select count(*) from dismissals where pr = ?`, pr.URL()).Scan(&n)
+	return n > 0, err
+}
+
+// PendingDismissals are every recorded dismissal, oldest first.
+func (l *Ledger) PendingDismissals() ([]Dismissal, error) {
+	rows, err := l.db.Query(`select pr, review, notified from dismissals order by at, pr`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []Dismissal
+	for rows.Next() {
+		var d Dismissal
+		var review string
+		if err := rows.Scan(&d.PR, &review, &d.Notified); err != nil {
+			return nil, err
+		}
+		if err := d.Review.UnmarshalJSON([]byte(review)); err != nil {
+			return nil, fmt.Errorf("dismissal of %s: review %w", d.PR, err)
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
+// MarkDismissalNotified stores that d's refusal was notified.
+func (l *Ledger) MarkDismissalNotified(d Dismissal) error {
+	_, err := l.db.Exec(`update dismissals set notified = 1 where pr = ? and review = ?`, d.PR, d.Review.String())
+	return err
+}
+
+// SettleDismissal forgets d: seen dismissed, or dropped.
+func (l *Ledger) SettleDismissal(d Dismissal) error {
+	_, err := l.db.Exec(`delete from dismissals where pr = ? and review = ?`, d.PR, d.Review.String())
+	return err
 }
 
 // RevokeTokens spends every token minted for pr.

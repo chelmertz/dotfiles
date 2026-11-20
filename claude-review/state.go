@@ -270,6 +270,8 @@ func firstNonEmpty(a, b string) string {
 type View struct {
 	Token  ids.Token
 	Paused string
+	// Dismissing: a dismissal of the user's approval is recorded, not seen.
+	Dismissing bool
 }
 
 // render is the PR's elly row and the only writer of notes and links. Every
@@ -338,6 +340,8 @@ const (
 	detailCapped       = "capped"
 	noteNothing        = "Claude found nothing to post"
 	noteApprovalStands = "Claude found nothing new; your approval stands"
+	noteDismissed      = "new findings after your approval; your approval was dismissed"
+	noteDismissing     = "new findings after your approval; dismissing your approval, retrying"
 )
 
 func primary(l Link) Link { l.Primary = true; return l }
@@ -355,7 +359,11 @@ func renderNeedsYou(pr PR, s PRState, v View) Annotation {
 		a.Note = "Claude left " + s.Detail + " unsent comments in a draft review; submit or discard it on GitHub"
 		a.Links = []Link{primary(attachLink(pr))}
 	case kindDismiss:
-		a.Note, a.Links = "new findings after your approval; your approval was dismissed", []Link{primary(attachLink(pr))}
+		a.Note = noteDismissed
+		if v.Dismissing {
+			a.Note = noteDismissing
+		}
+		a.Links = []Link{primary(attachLink(pr))}
 	case kindFresh:
 		a.Note = "the PR changed under its first look (force-push or new base); click claude review to look again"
 		a.Links = []Link{primary(Link{Label: "Look again", URL: startAgainLink(pr).URL}), attachLink(pr)}

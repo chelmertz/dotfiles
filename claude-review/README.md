@@ -903,6 +903,14 @@ outstanding" without an approval as unclear.
   view, and stays. Any new finding counts, a reply in an existing thread
   does not; severity is not judged. A steered round can therefore block a merge, never let one through.
   This needs write access and no dismissal restriction on the repo.
+  The dismissal is a ledger record, written before it is sent (the PR's
+  Approve tokens are spent with it) and settled only when a later tick reads
+  the review back as dismissed by the user. Until then every tick retries it,
+  closed PRs included; a refusal is notified once and the row reads
+  "dismissing your approval, retrying". No Approve is offered, minted or
+  accepted (link or typed `approve`) while one is pending. It is dropped,
+  with one notification, only when the PR reads back as merged or its
+  repository as archived; a 404 or 403 keeps it.
 - **Clean round under a standing approval**: `handled`. Approval survival is a
   per-repo setting that can change, so `tick` reads the user's latest review
   on the PR from GitHub, never the setting and never elly's `ReviewStatus`,

@@ -67,6 +67,11 @@ func approveWithToken(d Deps, pr PR, at, token string) int {
 	if err != nil {
 		return fail(d, notIssued(pr))
 	}
+	unlock, err := approveGuard(d, pr)
+	if err != nil {
+		return fail(d, err)
+	}
+	defer unlock()
 	l, err := OpenLedger(LedgerPath(d.StateDir))
 	if err != nil {
 		return fail(d, err)
@@ -84,6 +89,39 @@ func approveWithToken(d Deps, pr PR, at, token string) int {
 	}
 	tell(d, fmt.Sprintf("%s approved at %.9s", pr.URL(), at))
 	return 0
+}
+
+// approveGuard takes pr's lock and refuses while a dismissal of the user's
+// approval is pending: approving then would undo it. Under the lock, tick
+// cannot record a dismissal between this check and the approval.
+func approveGuard(d Deps, pr PR) (unlock func(), err error) {
+	unlock, err = d.Lock(pr.SessionID().String())
+	if errors.Is(err, errLocked) {
+		return nil, fmt.Errorf("claude-review: %s is busy; try again in a moment", pr.URL())
+	}
+	if err != nil {
+		return nil, fmt.Errorf("claude-review: locking %s: %w", pr.URL(), err)
+	}
+	l, err := OpenLedger(LedgerPath(d.StateDir))
+	if err != nil {
+		unlock()
+		return nil, err
+	}
+	pending, err := l.DismissalPending(pr)
+	_ = l.Close()
+	if err == nil && pending {
+		err = fmt.Errorf("claude-review: a dismissal of your approval on %s is still pending; approve after it lands", pr.URL())
+	}
+	if err != nil {
+		unlock()
+		return nil, err
+	}
+	return unlock, nil
+}
+
+// runApproveCmd is the typed approve: the same guard as a link, no token.
+func runApproveCmd(args []string, d Deps) int {
+	return runApproveGuarded(args, d.Gh, d.Stdout, d.Stderr, func(pr PR) (func(), error) { return approveGuard(d, pr) })
 }
 
 // notIssued refuses an Approve link: forged, malformed or spent alike.

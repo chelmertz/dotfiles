@@ -65,6 +65,13 @@ type fakeTickGitHub struct {
 	dismissed  []ids.ReviewID
 	dismissErr error
 	posted     bool
+	// status answers DismissalStatus; statusErr fails it.
+	status    DismissalStatus
+	statusErr error
+}
+
+func (g *fakeTickGitHub) DismissalStatus(PR, ids.ReviewID) (DismissalStatus, error) {
+	return g.status, g.statusErr
 }
 
 func (g *fakeTickGitHub) RepliedInRoundThread(PR, time.Time, time.Time) (bool, error) {
@@ -439,25 +446,6 @@ func TestTickARetryCountsAsRunning(t *testing.T) {
 	}
 	if len(w.started) != 1 || !slices.Contains(w.started[0], failed.RoundSessionID().String()) {
 		t.Errorf("with one slot, the retry must take it: started %q", w.started)
-	}
-}
-
-func TestTickAFailedDismissalLeavesTheRoundForTheNextTick(t *testing.T) {
-	w := newTickWorld(t)
-	pr := w.accept(t, 42)
-	if _, err := w.h.ledger.StartRound(pr, "h1", "new_head", t0); err != nil {
-		t.Fatal(err)
-	}
-	w.gh.facts = RoundFacts{State: "open", Head: "h1", NewThreads: 1, UserReview: &Review{ID: reviewID(7), State: "APPROVED", CommitID: "h0"}}
-	w.gh.dismissErr = errors.New("403")
-	if err := w.h.tick(); err != nil {
-		t.Fatal(err)
-	}
-	if unread, _ := w.h.ledger.UnreadRounds(); len(unread) != 1 {
-		t.Errorf("a round whose dismissal failed was marked read: %v", unread)
-	}
-	if !strings.Contains(w.out.String(), "403") {
-		t.Errorf("the failure was not reported: %q", w.out.String())
 	}
 }
 

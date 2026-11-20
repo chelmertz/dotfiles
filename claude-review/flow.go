@@ -59,6 +59,9 @@ func (h tickHost) mintFor(pr PR, s PRState) error {
 	if s.State != stAwaiting || s.Kind != kindApprove {
 		return nil
 	}
+	if dismissing, err := h.ledger.DismissalPending(pr); err != nil || dismissing {
+		return err
+	}
 	if _, has, err := h.ledger.TokenFor(pr, s.Head); err != nil || has {
 		return err
 	}
@@ -98,11 +101,16 @@ func (h tickHost) effect(pr PR, ef Effect) error {
 // back this tick. A state without a row deletes it.
 func (h tickHost) show(pr PR, s PRState, paused string) error {
 	v := View{Paused: paused}
+	dismissing, err := h.ledger.DismissalPending(pr)
+	if err != nil {
+		return err
+	}
+	v.Dismissing = dismissing
 	if s.State == stAwaiting && s.Kind == kindApprove {
 		// A row whose tokens were all spent (revokePreC7Tokens) gets a
 		// fresh one rather than a link nothing accepts.
 		tok, has, err := h.ledger.TokenFor(pr, s.Head)
-		if err == nil && !has {
+		if err == nil && !has && !dismissing {
 			tok, err = h.ledger.MintToken(pr, s.Head)
 		}
 		if err != nil {

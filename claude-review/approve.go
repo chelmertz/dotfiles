@@ -17,6 +17,12 @@ var fullSHA = regexp.MustCompile(`^[0-9a-f]{40}$`)
 // the session can write: --at only guards against a push since the review,
 // and the approval is bound to that commit.
 func runApprove(args []string, gh Gh, stdout, stderr io.Writer) int {
+	return runApproveGuarded(args, gh, stdout, stderr, nil)
+}
+
+// runApproveGuarded is runApprove with guard run on the parsed PR before
+// anything reaches GitHub; guard holds what it returns until the end.
+func runApproveGuarded(args []string, gh Gh, stdout, stderr io.Writer, guard func(PR) (func(), error)) int {
 	const usage = "usage: claude-review approve <pr> --at SHA"
 	fs := flag.NewFlagSet("claude-review approve", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -33,6 +39,14 @@ func runApprove(args []string, gh Gh, stdout, stderr io.Writer) int {
 	if err != nil || fs.NArg() != 0 || !fullSHA.MatchString(*at) {
 		fs.Usage()
 		return 2
+	}
+	if guard != nil {
+		release, err := guard(pr)
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		defer release()
 	}
 	api := fmt.Sprintf("repos/%s/%s", pr.Owner, pr.Repo)
 	head, err := headSHA(gh, api, pr.Number)

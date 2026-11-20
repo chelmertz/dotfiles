@@ -259,6 +259,9 @@ type RoundFacts struct {
 	// draft review: they reach the author only with a summary, which the
 	// round never posted.
 	UnsentDrafts int
+	// DismissalPending: a dismissal of the user's approval is recorded and
+	// not yet seen on GitHub. Ledger state, not GitHub's; tick fills it in.
+	DismissalPending bool
 }
 
 // Decision is what tick does with one finished round.
@@ -298,13 +301,8 @@ func decide(r Round, o Outcome, f RoundFacts, pr PR) Decision {
 		d.DismissReviewID = f.UserReview.ID
 		return d
 	case quietApprove(r, o, f, pr):
-		if f.UserReview != nil && f.UserReview.State == reviewApproved {
-			return next(stHandled, kindApproved, "")
-		}
-		if f.Own {
-			return next(stHandled, kindNothing, "") // no Approve the author could use
-		}
-		return next(stAwaiting, kindApprove, "")
+		st, kind := quiet(f)
+		return next(st, kind, "")
 	// The summary is posted last, so it is what says the round finished.
 	case f.RoundReviewURL != "":
 		return next(stHandled, kindPosted, "")
@@ -396,4 +394,19 @@ func verbURL(pr PR, verb string) string {
 // approveURL carries the sha and the one-time token tick minted for it.
 func approveURL(pr PR, sha string, token ids.Token) string {
 	return verbURL(pr, "approve") + "?at=" + sha + "&token=" + token.String()
+}
+
+// quiet is a clean round's state: Approve offered when the user can use it.
+func quiet(f RoundFacts) (State, string) {
+	switch {
+	case f.DismissalPending:
+		// No Approve beside a dismissal still in flight; the next round
+		// after it settles decides afresh.
+		return stHandled, kindNothing
+	case f.UserReview != nil && f.UserReview.State == reviewApproved:
+		return stHandled, kindApproved
+	case f.Own:
+		return stHandled, kindNothing // no Approve the author could use
+	}
+	return stAwaiting, kindApprove
 }
