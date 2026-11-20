@@ -82,9 +82,11 @@ project is a note the next project pays for again.
 - **Node linters, type checkers, test runners and builds go through `capped`
   as well**: `capped npx eslint .`, `capped npm run test`. On 2026-11-20 one
   eslint run (three node processes, ~300% CPU) pushed CPU pressure to 60% and
-  made typing lag. `claude-capped-hook` blocks uncapped eslint/tsc/vitest/jest,
-  `npm run lint|test|build|typecheck|check`, cargo, go, gradle and
-  golangci-lint; env assignments go before `capped`.
+  made typing lag. `claude-capped-hook` blocks the uncapped forms: node
+  linters, type checkers, test runners and bundlers (direct, via npx/pnpm/yarn
+  or as `npm run lint|test|build|coverage|...`), turbo, playwright, cypress,
+  expo/eas local builds, cdk synth, cargo, go, gradle, grails and
+  golangci-lint. Env assignments go before `capped`.
 - **`capped` capped only CPU until 2026-09-27, and CPU was never what froze the
   machine.** A `gremlins unleash --workers=3` mutation run *under `capped`*
   drove tau into a thrash livelock: journald logging "Under memory pressure,

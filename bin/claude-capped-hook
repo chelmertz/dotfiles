@@ -11,7 +11,11 @@ memory limit that kills and E-core affinity, so the desktop stays usable.
 
 Blocked:
     npx eslint .
-    npm run lint          (also test, build, typecheck, check and their :suffixes)
+    npm run lint          (also test, build, type-check, coverage, compile, ... and :suffixes)
+    pnpm --filter admin test
+    turbo run build
+    node --test "src/**/*.test.ts"
+    playwright test       (also storybook build, expo run:android, cdk synth, knip)
     cargo test --lib
     CGO_ENABLED=0 go test ./...
     nix develop --command cargo build
@@ -45,17 +49,28 @@ HEAVY = (
     r"(?:"
     # Node tools, bare, via a runner or by path (node_modules/.bin/eslint,
     # node .../eslint/bin/eslint.js).
-    r"(?:(?:npx|bunx|pnpm\s+(?:exec|dlx)|yarn(?:\s+exec)?)\s+|node\s+)?\S*?"
-    r"\b(?:eslint|tsc|vitest|jest|webpack|next\s+build|vite\s+build)\b"
-    # Package scripts that build, lint or test.
-    r"|(?:npm|pnpm|yarn|bun)(?:\s+-\S+(?:\s+[./~]\S*)?)*\s+(?:run\s+)?"
-    r"(?:lint|test|build|typecheck|check)(?![\w-])"
+    r"(?:(?:npx|bunx|npm\s+exec|pnpm(?:\s+(?:exec|dlx))?|yarn(?:\s+exec)?)\s+|node\s+(?:-\S+\s+)*)?(?:\S*/)?"
+    r"(?:eslint|tsc|vitest|jest|webpack|knip|next\s+(?:build|lint)|vite\s+build"
+    r"|playwright\s+test|storybook\s+build|react-scripts\s+(?:build|test)|cypress\s+run"
+    r"|expo\s+(?:run|export|prebuild)|expo-module\s+(?:build|test)"
+    r"|eas\s+build\b[^;&|\n]*--local|keycloakify\s+build|cdk\s+(?:synth|deploy|diff)"
+    r"|turbo(?:\s+-\S+)*\s+(?:run\s+)?(?:build|lint|test|type-?check))\b"
+    r"|node\s+(?:-\S+\s+)*--test\b"
+    # Package scripts that build, lint or test. Flags that take a value
+    # (--filter admin, -C ./api) may sit before the script name.
+    r"|(?:npm|pnpm|yarn|bun)(?:\s+(?:--?(?:filter|prefix|workspace|dir)|-[CFw])(?:\s+|=)\S+|\s+-\S+)*"
+    r"\s+(?:run\s+)?(?:lint|test|build|types?-?check|check|coverage|knip|synth|compile"
+    r"|jest|eslint|e2e|contract-test)(?![\w-])"
     r"|cargo\s+(?:\+\S+\s+)?(?:build|test|check|clippy|run|nextest|bench)\b"
     r"|go\s+(?:build|test|vet|run|install)\b"
     r"|golangci-lint\s+run\b"
-    r"|\S*gradlew\b|mvnw?\b"
+    r"|\S*(?:gradlew|grailsw)\b|mvnw?\b|grails\s+(?:test-app|war|compile)\b"
     r")"
 )
+# Text that is data, not commands: heredoc bodies and quoted strings. Without
+# this, editing this very file (or grepping for 'eslint|tsc') trips the hook.
+HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?^\s*\2\s*$", re.MULTILINE | re.DOTALL)
+QUOTED = re.compile(r"'[^']*'|\"(?:\\.|[^\"\\])*\"")
 CMD = re.compile(SEG + PREFIX + r"(?P<cmd>" + HEAVY + r")[^;&|\n]*", re.MULTILINE)
 HARMLESS = re.compile(r"\s--?(?:version|help|v|h)\b")
 
@@ -70,6 +85,7 @@ User escape hatch: CLAUDE_CAPPED=0."""
 
 
 def uncapped(command):
+    command = QUOTED.sub("''", HEREDOC.sub("", command))
     for m in CMD.finditer(command):
         if re.search(r"\bcapped\b", m.group("prefix")):
             continue
