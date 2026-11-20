@@ -159,3 +159,12 @@ func TestOpenUncapsStuckWithASummary(t *testing.T) {
 		t.Fatalf("a %+v, b %+v", sa, sb)
 	}
 }
+
+// A closed PR's outcome is a deletion: storing it fails rather than leaving
+// a state no rule reads.
+func TestSetPRStateRefusesADeletion(t *testing.T) {
+	l := openTestLedger(t)
+	if err := l.SetPRState(widgetsPR, PRState{}); err == nil {
+		t.Error("the deletion outcome was stored")
+	}
+}

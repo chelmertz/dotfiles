@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"database/sql"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 // wantRunning checks pr's ledger row: running, naming who started it, with
@@ -270,5 +272,50 @@ func TestLedgerAddsTheExpiryColumn(t *testing.T) {
 		if err != nil || len(all) != 1 || !all[widgetsPR.URL()].Expires.IsZero() {
 			t.Fatalf("got %+v %v", all, err)
 		}
+	}
+}
+
+// Closing deletes everything the PR kept, and the row's receipt only once
+// elly has dropped the row: a DELETE that fails is sent again next tick,
+// since the receipt is what the stale-row walk finds.
+func TestClosingDeletesTheRowOnlyOnceEllyDropsIt(t *testing.T) {
+	w := newTickWorld(t)
+	w.gh.closedPRs = map[int]bool{}
+	w.gh.facts = RoundFacts{State: "open", Head: "h1"}
+	pr := w.closedWithWorker(t, 43, 502)
+	if err := w.h.move2(pr, PRState{State: stRunning, Kind: kindClick, Since: t0}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.h.ledger.SetForkSession(pr, ids.NewSession()); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.h.ledger.SetMeta(metaStandingPrefix+pr.URL(), "2026-11-01T00:00:00Z"); err != nil {
+		t.Fatal(err)
+	}
+	w.elly.delErr = errors.New("elly: connection refused")
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if _, has, _ := w.h.ledger.PRState(pr); has {
+		t.Error("the closed PR kept its state")
+	}
+	if _, ok, _ := w.h.ledger.Annotation(pr); !ok {
+		t.Fatal("the receipt went with a DELETE elly never took, so nothing sends it again")
+	}
+	w.elly.delErr = nil
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(w.elly.deleted, pr.URL()) {
+		t.Errorf("the DELETE was not sent again: deleted %q", w.elly.deleted)
+	}
+	if _, ok, _ := w.h.ledger.Annotation(pr); ok {
+		t.Error("the receipt outlived elly's answer")
+	}
+	if _, has, _ := w.h.ledger.ForkSession(pr); has {
+		t.Error("the closed PR kept its fork session")
+	}
+	if v, _ := w.h.ledger.Meta(metaStandingPrefix + pr.URL()); v != "" {
+		t.Errorf("the closed PR kept its standing mark %q", v)
 	}
 }

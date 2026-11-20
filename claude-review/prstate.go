@@ -30,6 +30,9 @@ func (l *Ledger) PRState(pr PR) (PRState, bool, error) {
 }
 
 func (l *Ledger) SetPRState(pr PR, s PRState) error {
+	if deleted(s) {
+		return errors.New("a closed PR's state is deleted, never stored")
+	}
 	raw, err := json.Marshal(s)
 	if err != nil {
 		return err
@@ -38,9 +41,21 @@ func (l *Ledger) SetPRState(pr PR, s PRState) error {
 	return err
 }
 
+// DeletePRState deletes pr's state and what it kept beside it: the fork's
+// session and the update time GitHub last had nothing new at.
 func (l *Ledger) DeletePRState(pr PR) error {
-	_, err := l.db.Exec(`delete from pr_state where pr = ?`, pr.URL())
-	return err
+	tx, err := l.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(`delete from pr_state where pr = ?`, pr.URL()); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`delete from meta where key in (?, ?)`, metaForkPrefix+pr.URL(), metaStandingPrefix+pr.URL()); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // migratePRState gives every accepted PR without a state one, on every

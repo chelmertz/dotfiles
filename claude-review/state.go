@@ -24,8 +24,9 @@ const (
 	stHeld     State = "held"
 	stStuck    State = "stuck"
 	stHandled  State = "handled"
-	// stGone: the PR closed; its state and elly row are deleted.
-	stGone State = "gone"
+	// stGoneLegacy: what builds before closing became a deletion stored
+	// for a closed PR, if any row still holds it; it reads as idle.
+	stGoneLegacy State = "gone"
 )
 
 // Kinds refine a state.
@@ -61,7 +62,6 @@ var allStates = []stateKey{
 	{stHeld, kindFresh}, {stHeld, kindWindow}, {stHeld, kindLaunch},
 	{stStuck, kindRefused}, {stStuck, kindFailed},
 	{stHandled, kindPosted}, {stHandled, kindNothing}, {stHandled, kindApproved},
-	{stGone, ""},
 }
 
 // decidable is what decide may choose for an ended round. idle is a round
@@ -141,7 +141,7 @@ type match struct {
 
 func (m match) matches(s State, kind string) bool {
 	in := (len(m.states) == 0 || slices.Contains(m.states, s)) && (len(m.kinds) == 0 || slices.Contains(m.kinds, kind))
-	return in != m.not && s != stGone
+	return in != m.not
 }
 
 var anyState = match{}
@@ -166,6 +166,8 @@ type ruleTarget struct {
 	decided bool
 	// dropWindow: the same chain without the window below its top.
 	dropWindow bool
+	// deletes: no state follows; the PR's state and row are deleted.
+	deletes bool
 }
 
 func to(s State, kind string) ruleTarget { return ruleTarget{to: stateKey{s, kind}} }
@@ -174,7 +176,12 @@ var (
 	toPrev       = ruleTarget{prev: true}
 	toDecided    = ruleTarget{decided: true}
 	toDropWindow = ruleTarget{dropWindow: true}
+	toDeleted    = ruleTarget{deletes: true}
 )
+
+// deleted is transition's outcome for a closed PR: the zero state, which
+// SetPRState refuses, so no caller can store it.
+func deleted(s PRState) bool { return s.State == "" }
 
 // staleAt: s's chain holds a waiting or running state judged at another
 // head than head. An unknown head ("") proves nothing. Held states keep
@@ -194,6 +201,8 @@ func staleAt(s PRState, head string) bool {
 // apply is the state t leads s to on e, before remember and the head check.
 func (t ruleTarget) apply(s PRState, e Event, at time.Time) PRState {
 	switch {
+	case t.deletes:
+		return PRState{}
 	case t.prev && s.Prev != nil:
 		return *s.Prev
 	case t.prev:
@@ -283,7 +292,7 @@ func maybeAlive(s PRState) bool {
 
 // rules is the whole state machine; the first rule that applies wins.
 var rules = []rule{
-	{from: anyState, event: evClosed, to: to(stGone, ""), effects: []Effect{efStopWorkers, efRoundsRead}},
+	{from: anyState, event: evClosed, to: toDeleted, effects: []Effect{efStopWorkers, efRoundsRead}},
 	// The user's approval at the head leaves nothing to show.
 	{from: notIn(in(stRunning, stStarting)), event: evUserApproved, to: to(stIdle, ""), effects: []Effect{efRevokeTokens}},
 	{from: notIn(in(stRunning, stStarting)), event: evClick, when: notMaybeAlive, to: to(stStarting, kindClick), remember: true},
@@ -319,7 +328,7 @@ func (r rule) targets() []stateKey {
 	switch {
 	case r.to.decided:
 		return decidable
-	case r.to.prev, r.to.dropWindow:
+	case r.to.prev, r.to.dropWindow, r.to.deletes:
 		return nil
 	}
 	return []stateKey{r.to.to}
@@ -364,7 +373,7 @@ type View struct {
 
 // render is the PR's elly row and the only writer of notes and links. Every
 // state that needs the user marks exactly one link Primary, which elly shows
-// as the row's button. idle and gone have no row: the zero Annotation.
+// as the row's button. idle has no row, and a closed PR none either: the zero Annotation.
 // render is a PR's elly row, with a `?` link to the states page on every
 // row it shows.
 func render(pr PR, s PRState, v View) Annotation {

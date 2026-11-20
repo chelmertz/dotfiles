@@ -112,7 +112,7 @@ func typed(s PRState) Typed {
 
 // plain are the variants that carry nothing but their key.
 var plain = map[stateKey]Variant{
-	{stIdle, ""}: Idle{}, {stGone, ""}: Idle{},
+	{stIdle, ""}: Idle{}, {stGoneLegacy, ""}: Idle{},
 	{stRunning, kindTick}: Running{By: kindTick}, {stRunning, kindClick}: Running{By: kindClick}, {stRunning, kindRetry}: Running{By: kindRetry},
 	{stAwaiting, kindApprove}: AwaitingApprove{}, {stAwaiting, kindDismiss}: AwaitingDismissed{},
 	{stHeld, kindFresh}: HeldFresh{}, {stHeld, kindWindow}: HeldWindow{},

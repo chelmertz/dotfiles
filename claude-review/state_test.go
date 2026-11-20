@@ -33,7 +33,7 @@ func TestTransition(t *testing.T) {
 		effects []Effect
 		ok      bool
 	}{
-		{"closed from anything", question, Event{Kind: evClosed}, stGone, "", []Effect{efStopWorkers, efRoundsRead}, true},
+		{"closed from anything", question, Event{Kind: evClosed}, "", "", []Effect{efStopWorkers, efRoundsRead}, true},
 		{"user approved", question, Event{Kind: evUserApproved, Head: "bbb"}, stIdle, "", []Effect{efRevokeTokens}, true},
 		{"user approved mid-round", running, Event{Kind: evUserApproved}, stRunning, kindTick, nil, false},
 		{"tick launch failed", posted, Event{Kind: evNotStarted, Detail: "no clone"}, stHeld, kindLaunch, nil, true},
@@ -130,7 +130,7 @@ func TestRenderPrimaryLinks(t *testing.T) {
 	pr := PR{Owner: "o", Repo: "r", Number: 1}
 	at := time.Date(2026, 11, 17, 10, 0, 0, 0, time.UTC)
 	for _, k := range allStates {
-		if k.State == stGone || k.State == stIdle {
+		if k.State == stIdle {
 			if a := render(pr, PRState{State: k.State}, View{}); a.State != "" || a.Links != nil {
 				t.Errorf("%s has a row: %+v", k.State, a)
 			}

@@ -36,8 +36,14 @@ func (h tickHost) move(pr PR, e Event) (PRState, error) {
 				return err
 			}
 		}
-		if next.State == stGone {
-			return errors.Join(h.ledger.DeletePRState(pr), h.clear(pr))
+		if deleted(next) {
+			if err := h.ledger.DeletePRState(pr); err != nil {
+				return err
+			}
+			// A row elly does not drop now keeps its receipt, which the
+			// stale-row walk sends the DELETE for again next tick.
+			h.warn(pr, h.clear(pr))
+			return nil
 		}
 		if err := h.mintFor(pr, next); err != nil {
 			return err

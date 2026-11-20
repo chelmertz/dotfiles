@@ -22,6 +22,7 @@ type fakeElly struct {
 	put     map[string]Annotation
 	expires map[string]time.Time
 	deleted []string
+	delErr  error
 	// sourced holds annotations put under another source, by source and URL.
 	sourced map[string]Annotation
 }
@@ -54,7 +55,13 @@ func (e *fakeElly) PutSource(source, u string, a Annotation, _ time.Time) error 
 	e.sourced[source+" "+u] = a
 	return nil
 }
-func (e *fakeElly) Delete(u string) error { e.deleted = append(e.deleted, u); return nil }
+func (e *fakeElly) Delete(u string) error {
+	if e.delErr != nil {
+		return e.delErr
+	}
+	e.deleted = append(e.deleted, u)
+	return nil
+}
 
 type fakeTickGitHub struct {
 	fakeGate

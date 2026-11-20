@@ -37,7 +37,7 @@ func TestEveryKeyHasAVariant(t *testing.T) {
 		seen[v.key()] = true
 	}
 	for _, k := range allStates {
-		if k.State != stGone && !seen[k] {
+		if !seen[k] {
 			t.Errorf("%s{%s} has no variant", k.State, k.Kind)
 		}
 	}
@@ -56,7 +56,7 @@ func TestTheConverterNormalisesOddRows(t *testing.T) {
 		{PRState{State: stStuck, Kind: kindFailed, Detail: "anything"}, StuckFailed{Inline: inlineUnknown}},
 		{PRState{State: "frozen", Kind: "solid"}, HeldLaunchMaybeAlive{Class: launchUnknown}},
 		{PRState{State: stRunning, Kind: "sideways"}, HeldLaunchMaybeAlive{Class: launchUnknown}},
-		{PRState{State: stGone}, Idle{}},
+		{PRState{State: stGoneLegacy}, Idle{}},
 		{PRState{State: stHandled, Kind: kindPosted, Detail: detailCapped}, HandledPosted{Capped: true}},
 	} {
 		if got := typed(c.in).V; !reflect.DeepEqual(got, c.want) {

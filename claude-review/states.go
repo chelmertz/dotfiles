@@ -72,6 +72,8 @@ func (r rule) targetName() string {
 		return "the round's result"
 	case r.to.dropWindow:
 		return "the same, without the window"
+	case r.to.deletes:
+		return "deleted, with its row"
 	}
 	return r.to.to.name()
 }
@@ -138,7 +140,6 @@ var columns = [][]string{
 	{string(stStarting), string(stRunning)},
 	{decideNode},
 	{string(stAwaiting), string(stHeld), string(stStuck), string(stHandled)},
-	{string(stGone)},
 }
 
 func kindsOf(st string) []string {
@@ -302,7 +303,7 @@ func statesPageData(pr *PR, s *PRState) statesData {
 func matchNames(m match) []string {
 	var out []string
 	for _, k := range allStates {
-		if !m.matches(k.State, k.Kind) && k.State != stGone && !slices.Contains(out, string(k.State)) {
+		if !m.matches(k.State, k.Kind) && !slices.Contains(out, string(k.State)) {
 			out = append(out, string(k.State))
 		}
 	}

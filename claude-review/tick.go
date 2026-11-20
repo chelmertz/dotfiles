@@ -539,11 +539,16 @@ func (h tickHost) clearOrSay(pr PR) {
 	}
 }
 
+// clear deletes pr's row in elly, then its receipt: a DELETE that fails
+// keeps the receipt, so the stale-row walk sends it again next tick. elly
+// answers a row it does not hold with success.
 func (h tickHost) clear(pr PR) error {
-	if err := h.ledger.ClearAnnotation(pr); err != nil || h.elly == nil {
-		return err
+	if h.elly != nil {
+		if err := h.elly.Delete(pr.URL()); err != nil {
+			return err
+		}
 	}
-	return h.elly.Delete(pr.URL())
+	return h.ledger.ClearAnnotation(pr)
 }
 
 // startOwed starts the rounds planTick picks, at most MaxRunning at once,
@@ -969,7 +974,7 @@ func (h tickHost) refreshOne(pr PR, s PRState, paused string, updated time.Time)
 		fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 		return
 	}
-	if s.State == stGone {
+	if deleted(s) {
 		return
 	}
 	if err := h.quiet("send "+pr.URL()+" to elly", func() error { return h.show(pr, s, paused) }); err != nil {

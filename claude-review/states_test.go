@@ -50,12 +50,12 @@ func TestStatesPageLeavesOutShadowedRules(t *testing.T) {
 	rs := []rule{
 		{from: in(stIdle), event: evOwed, when: freshLook, to: to(stHeld, kindFresh)},
 		{from: in(stIdle), event: evOwed, to: to(stRunning, kindTick)},
-		{from: in(stIdle, stHandled), event: evOwed, to: to(stGone, "")},
+		{from: in(stIdle, stHandled), event: evOwed, to: to(stStuck, kindRefused)},
 	}
 	if got := edgesFrom(rs, stateKey{stIdle, ""}); len(got) != 2 || got[1].r.to.to.State != stRunning {
 		t.Errorf("idle: %d moves, want the guarded one and the first unguarded one", len(got))
 	}
-	if got := edgesFrom(rs, stateKey{stHandled, kindPosted}); len(got) != 1 || got[0].r.to.to.State != stGone {
+	if got := edgesFrom(rs, stateKey{stHandled, kindPosted}); len(got) != 1 || got[0].r.to.to != (stateKey{stStuck, kindRefused}) {
 		t.Errorf("handled: %+v", got)
 	}
 }
