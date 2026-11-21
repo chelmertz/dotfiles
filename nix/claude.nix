@@ -112,6 +112,11 @@
     recursive = true;
   };
 
+  home.file.".claude/skills/move-to-project" = {
+    source = ../claude/skills/move-to-project;
+    recursive = true;
+  };
+
   home.file.".claude/skills/pr-status" = {
     source = ../claude/skills/pr-status;
     recursive = true;
