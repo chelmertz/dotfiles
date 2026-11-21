@@ -18,6 +18,12 @@ type Variant interface {
 	key() stateKey
 	// row is the variant's elly row, before the paused note and the cap.
 	row(pr PR, t Typed, v View) Annotation
+	// yieldsToMention: an open mention of the user takes this state's row.
+	// Only states whose row asks nothing of the user yield (idle, handled)
+	// and Approve, which an open mention withholds; a question, a running
+	// or starting round, a hold and a stuck state keep their row (the
+	// user, 2026-11-21: question first, then the mention).
+	yieldsToMention() bool
 	sealed()
 }
 

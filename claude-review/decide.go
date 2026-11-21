@@ -23,6 +23,10 @@ type EllyPR struct {
 	Asked             *string
 	ThreadsActionable int
 	Buried            bool
+	// Mentions are the PR's open @-mentions of the user; MentionsReadable
+	// nil is an elly that does not send it, which blocks Approve.
+	Mentions         []EllyMention
+	MentionsReadable *bool
 }
 
 // The resolved values of elly's Asked; elly's types.AskedRequested and
@@ -93,16 +97,32 @@ func repoAllowed(owner, repo string, allow []string) bool {
 // and replies are keyed by the PR's last update, so the same request does not
 // run twice while a new reply at the same head still does. lastHead is the
 // head of the last round, or the accepted head before any.
-func roundTrigger(p EllyPR, lastHead string) Trigger {
+func roundTrigger(p EllyPR, lastHead string, lastRound time.Time) Trigger {
+	m, mentioned := unseenMention(p, lastRound)
 	switch {
 	case p.requested():
 		return Requested{At: p.LastUpdated.UTC()}
 	case p.ThreadsActionable > 0:
 		return Replies{At: p.LastUpdated.UTC()}
+	case mentioned:
+		return Mentioned{Url: m.Url, At: m.At.UTC()}
 	case p.HeadRefOid != "" && p.HeadRefOid != lastHead:
 		return NewHead{Head: p.HeadRefOid}
 	}
 	return nil
+}
+
+// unseenMention is p's newest open mention written after the last round
+// started: every round's prompt has it answer or route the open mentions,
+// so one that started later saw it, and a mention starts one round at most.
+func unseenMention(p EllyPR, lastRound time.Time) (EllyMention, bool) {
+	var newest EllyMention
+	for _, m := range p.Mentions {
+		if m.At.After(lastRound) && m.At.After(newest.At) {
+			newest = m
+		}
+	}
+	return newest, newest.Url != ""
 }
 
 // Gate is what tick asks GitHub before running a PR again.
@@ -182,14 +202,9 @@ func planOne(p EllyPR, cfg TickConfig, l *Ledger, g Gate, now time.Time) (Planne
 	if !accepted {
 		return left(skipNotAccepted)
 	}
-	lastHead, err := l.LastHead(pr)
-	if err != nil {
+	if out.Trigger, err = owedTrigger(p, pr, acc, l); err != nil {
 		return Planned{}, false, err
 	}
-	if lastHead == "" {
-		lastHead = acc.Head
-	}
-	out.Trigger = roundTrigger(p, lastHead)
 	if out.Trigger == nil {
 		return left(skipNothingOwed)
 	}
@@ -211,6 +226,23 @@ func planOne(p EllyPR, cfg TickConfig, l *Ledger, g Gate, now time.Time) (Planne
 	return out, true, nil
 }
 
+// owedTrigger is roundTrigger over what the ledger knows: the last
+// round's head (the acceptance's before any) and when it started.
+func owedTrigger(p EllyPR, pr PR, acc Acceptance, l *Ledger) (Trigger, error) {
+	lastHead, err := l.LastHead(pr)
+	if err != nil {
+		return nil, err
+	}
+	if lastHead == "" {
+		lastHead = acc.Head
+	}
+	lastRound, err := l.LastRoundStart(pr)
+	if err != nil {
+		return nil, err
+	}
+	return roundTrigger(p, lastHead, lastRound), nil
+}
+
 // eligible: a PR in review_repos that the user did not write.
 func eligible(p EllyPR, cfg TickConfig) (PR, bool) {
 	pr, err := ParseTarget(p.Url)
@@ -218,10 +250,10 @@ func eligible(p EllyPR, cfg TickConfig) (PR, bool) {
 }
 
 // autoAccept accepts p as a first click would, when the user was asked on
-// it and it is still open: at the head and base the first look starts
+// it or a colleague's mention of the user is open, and it is still open: at the head and base the first look starts
 // from, which the changed-under-first-look check compares against.
 func autoAccept(p EllyPR, pr PR, l *Ledger, g Gate, now time.Time) (Acceptance, bool, error) {
-	if !p.requested() || p.HeadRefOid == "" {
+	if (!p.requested() && len(p.Mentions) == 0) || p.HeadRefOid == "" {
 		return Acceptance{}, false, nil
 	}
 	base, open, err := g.Base(pr)

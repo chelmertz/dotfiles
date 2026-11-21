@@ -25,9 +25,12 @@ func TestRepoAllowed(t *testing.T) {
 	}
 }
 
+// readable is what elly sends since it reports mentions.
+var readable = true
+
 func ellyPR(mod func(*EllyPR)) EllyPR {
 	p := EllyPR{Url: "https://github.com/acme/widgets/pull/42", RepoOwner: "acme", RepoName: "widgets",
-		Author: "alice", HeadRefOid: "h1", LastUpdated: t0, Asked: askedAs(askedNotAsked)}
+		Author: "alice", HeadRefOid: "h1", LastUpdated: t0, Asked: askedAs(askedNotAsked), MentionsReadable: &readable}
 	if mod != nil {
 		mod(&p)
 	}
@@ -50,7 +53,7 @@ func TestRoundTrigger(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := roundTrigger(c.pr, c.lastHead); got != c.want {
+			if got := roundTrigger(c.pr, c.lastHead, time.Time{}); got != c.want {
 				t.Errorf("got %#v, want %#v", got, c.want)
 			}
 		})
@@ -416,6 +419,7 @@ func TestAutoStartAcceptsAnAskedPR(t *testing.T) {
 		"on, asked":     {true, asked, true},
 		"on, not asked": {true, nil, false},
 		"on, buried":    {true, func(p *EllyPR) { asked(p); p.Buried = true }, false},
+		"on, mentioned": {true, func(p *EllyPR) { p.Mentions = []EllyMention{{Url: p.Url + "#issuecomment-1", Author: "adam", At: t0}} }, true},
 	} {
 		l := openTestLedger(t)
 		cfg := TickConfig{ReviewRepos: []string{"acme/widgets"}, User: "me", DailyCap: 6, AutoStart: c.auto}

@@ -871,6 +871,32 @@ on <url>". `journalctl --user -u claude-review-tick -g pull/42` answers
 "why did this PR not run". The user's own PRs and repos outside
 `review_repos` are never considered and never logged.
 
+#### Mentions of you
+
+elly reports each PR's open @-mentions of you: a comment by an owner,
+member or collaborator (not a bot) that names you outside quotes and code,
+which you have answered neither by a reply (Claude's signed one counts)
+nor by a reaction. It sends URLs, authors and times, never text.
+
+- **A round.** A mention no round has seen yet (written after the PR's last
+  round started) is owed, after a request and replies, as `mentioned`; with
+  `auto_start` it also accepts the PR. Every round's prompt has it answer
+  what the code at the head shows, in the thread, signed, and route the
+  rest (safety, intent, merge readiness, absence, other repos) to its
+  question line. `claude-review threads` ends by listing the comments that
+  mention the account the round posts as.
+- **Approve waits.** While a mention is open, or elly cannot say (an older
+  elly, or a PR whose threads it could not all read), the ledger mints and
+  honours no Approve token, a token minted before included. The typed
+  `claude-review approve --at` is yours and is not gated.
+- **The row.** An open mention takes the row of a state that asks nothing
+  of you (idle, handled) and of Approve: "adam mentioned you; reply or
+  react on GitHub", with Thread as the button. A question, a running round,
+  a hold or a stuck state keep their row, and the mention shows once it
+  settles. Replying or reacting clears it at elly's next poll. Mentions
+  beyond a PR's last five comments, or under a newer reply in their
+  thread, are not seen.
+
 #### The breaker
 
 Every round start and retry goes through one function, and that function

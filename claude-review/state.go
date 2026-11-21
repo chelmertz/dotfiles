@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"slices"
 	"strconv"
 	"time"
@@ -558,6 +559,9 @@ type View struct {
 	Hold  Hold
 	// Dismissing: a dismissal of the user's approval is recorded, not seen.
 	Dismissing bool
+	// Mentions is the PR's mention gate; while it blocks, a state that
+	// would show Approve, handled or nothing shows the mention instead.
+	Mentions MentionGate
 }
 
 // render is the PR's elly row and the only writer of notes and links. Every
@@ -577,6 +581,9 @@ func statesLink(pr PR) Link { return Link{Label: "?", URL: verbURL(pr, "states")
 
 func renderRow(pr PR, s PRState, v View) Annotation {
 	t := typed(s)
+	if a, ok := mentionRow(pr, t, v); ok {
+		return a
+	}
 	if k := t.V.key(); v.Hold.note() != "" && (k.State == stIdle || k.State == stHandled) {
 		return Annotation{State: stateNeedsYou, Note: capRunes(v.Hold.note(), ellyMaxNote), Links: []Link{primary(attachLink(pr))}}
 	}
@@ -584,6 +591,49 @@ func renderRow(pr PR, s PRState, v View) Annotation {
 	a.Note = capRunes(a.Note, ellyMaxNote)
 	return a
 }
+
+// mentionRow is the row an open mention gives a state that yields to it.
+// Approve with elly unable to say whether a mention is open waits too,
+// and says so; elsewhere that unknown shows nothing.
+func mentionRow(pr PR, t Typed, v View) (Annotation, bool) {
+	g := v.Mentions
+	if !g.Blocks() || !t.V.yieldsToMention() {
+		return Annotation{}, false
+	}
+	if len(g.Open) == 0 {
+		if _, approve := t.V.(AwaitingApprove); !approve {
+			return Annotation{}, false
+		}
+		return Annotation{State: stateNeedsYou, Note: noteMentionsUnreadable, Links: []Link{primary(prLinkOf(pr)), attachLink(pr)}}, true
+	}
+	m := g.Open[0]
+	note := m.Author + " mentioned you; reply or react on GitHub"
+	if n := len(g.Open); n > 1 {
+		note += fmt.Sprintf(" (1 of %d)", n)
+	}
+	return Annotation{State: stateNeedsYou, Note: note, Links: []Link{primary(Link{Label: "Thread", URL: m.Url}), attachLink(pr)}}, true
+}
+
+const noteMentionsUnreadable = "Approve waits: elly could not read every thread of this PR, so a mention of you may be open"
+
+func prLinkOf(pr PR) Link { return Link{Label: "GitHub", URL: pr.URL()} }
+
+func (Idle) yieldsToMention() bool                 { return true }
+func (Starting) yieldsToMention() bool             { return false }
+func (Running) yieldsToMention() bool              { return false }
+func (AwaitingQuestion) yieldsToMention() bool     { return false }
+func (AwaitingApprove) yieldsToMention() bool      { return true }
+func (AwaitingDrafts) yieldsToMention() bool       { return false }
+func (AwaitingDismissed) yieldsToMention() bool    { return false }
+func (HeldFresh) yieldsToMention() bool            { return false }
+func (HeldWindow) yieldsToMention() bool           { return false }
+func (HeldLaunchDead) yieldsToMention() bool       { return false }
+func (HeldLaunchMaybeAlive) yieldsToMention() bool { return false }
+func (StuckRefused) yieldsToMention() bool         { return false }
+func (StuckFailed) yieldsToMention() bool          { return false }
+func (HandledPosted) yieldsToMention() bool        { return true }
+func (HandledNothing) yieldsToMention() bool       { return true }
+func (HandledApproved) yieldsToMention() bool      { return true }
 
 // Each variant words its own row; Variant requires it, so a new variant
 // does not compile without one.

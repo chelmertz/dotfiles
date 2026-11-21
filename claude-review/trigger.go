@@ -37,6 +37,13 @@ type Answered struct{ At time.Time }
 // NewHead: the PR has commits the last round did not see.
 type NewHead struct{ Head string }
 
+// Mentioned: a colleague's @-mention of the user is open and no round
+// started after it; Url is the mention, At when it was written.
+type Mentioned struct {
+	Url string
+	At  time.Time
+}
+
 // Click: the user started the round; From is where the link was clicked,
 // statistics only.
 type Click struct {
@@ -50,6 +57,7 @@ const (
 	trigAnswered  = "answered"
 	trigNewHead   = "new_head"
 	trigClick     = "click"
+	trigMentioned = "mentioned"
 	// trigUnparsed marks a backfilled row whose old text no parser reads.
 	trigUnparsed = "unparsed"
 )
@@ -61,33 +69,38 @@ func (t Replies) Kind() string   { return trigReplies }
 func (t Answered) Kind() string  { return trigAnswered }
 func (t NewHead) Kind() string   { return trigNewHead }
 func (t Click) Kind() string     { return trigClick }
+func (Mentioned) Kind() string   { return trigMentioned }
 
 func (t Requested) DedupeKey() string { return stamp(t.At) }
 func (t Replies) DedupeKey() string   { return stamp(t.At) }
 func (t Answered) DedupeKey() string  { return stamp(t.At) }
 func (t NewHead) DedupeKey() string   { return t.Head }
 func (t Click) DedupeKey() string     { return stamp(t.At) }
+func (t Mentioned) DedupeKey() string { return t.Url }
 
 func (Requested) CountsTowardCap() bool { return true }
 func (Replies) CountsTowardCap() bool   { return true }
 func (Answered) CountsTowardCap() bool  { return true }
 func (NewHead) CountsTowardCap() bool   { return true }
 func (Click) CountsTowardCap() bool     { return false }
+func (Mentioned) CountsTowardCap() bool { return true }
 
 func (t Requested) Text() string { return "review_requested@" + stamp(t.At) }
 func (t Replies) Text() string   { return "replies@" + stamp(t.At) }
 func (t Answered) Text() string  { return "answered@" + stamp(t.At) }
 func (NewHead) Text() string     { return "new_head" }
 func (t Click) Text() string     { return "click@" + stamp(t.At) + "?from=" + t.From }
+func (t Mentioned) Text() string { return "mentioned@" + stamp(t.At) }
 
 func (Requested) sealed() {}
 func (Replies) sealed()   {}
 func (Answered) sealed()  {}
 func (NewHead) sealed()   {}
 func (Click) sealed()     {}
+func (Mentioned) sealed() {}
 
 // allTriggers has one value per variant, for the generated kind lists.
-var allTriggers = []Trigger{Requested{}, Replies{}, Answered{}, NewHead{}, Click{}}
+var allTriggers = []Trigger{Requested{}, Replies{}, Answered{}, NewHead{}, Click{}, Mentioned{}}
 
 // capKinds are the kinds the cap and the breaker count.
 func capKinds() []string {
@@ -146,6 +159,8 @@ func parseTrigger(text, head string) (Trigger, error) {
 		return Replies{At: t}, nil
 	case "answered":
 		return Answered{At: t}, nil
+	case "mentioned":
+		return Mentioned{At: t}, nil
 	}
 	return nil, fmt.Errorf("unknown trigger %q", name)
 }
@@ -177,6 +192,8 @@ func triggerOf(kind, key, from string) Trigger {
 		return NewHead{Head: key}
 	case trigClick:
 		return Click{At: at, From: from}
+	case trigMentioned:
+		return Mentioned{Url: key}
 	}
 	return nil
 }

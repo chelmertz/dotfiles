@@ -147,9 +147,27 @@ func (h tickHost) tick() error {
 	return nil
 }
 
+// recordMentions stores each review-repo PR's mention gate before anything
+// mints or renders an Approve this pass.
+func (h tickHost) recordMentions(prs []EllyPR) error {
+	for _, p := range prs {
+		pr, ok := eligible(p, h.tcfg)
+		if !ok {
+			continue
+		}
+		if err := h.ledger.SetMentionGate(pr, mentionGateOf(p)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // plan starts the owed rounds, refreshes every row and offers Start where
 // a click is what is missing; without elly's Asked it only refreshes.
 func (h tickHost) plan(prs []EllyPR, running int) error {
+	if err := h.recordMentions(prs); err != nil {
+		return err
+	}
 	readable, err := h.askedReadable(prs)
 	if err != nil {
 		return err

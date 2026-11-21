@@ -28,10 +28,18 @@ func TestEveryRowLinkNamesItsAction(t *testing.T) {
 	rows := []Annotation{startOffer(pr)}
 	for _, v := range allVariants {
 		s := untyped(Typed{V: v, Head: "0123456789abcdef0123456789abcdef01234567"})
-		rows = append(rows, render(pr, s, View{}), render(pr, s, View{Hold: holdFor(true, "")}))
+		rows = append(rows, render(pr, s, View{}), render(pr, s, View{Hold: holdFor(true, "")}),
+			render(pr, s, View{Mentions: MentionGate{Open: []EllyMention{{Url: pr.URL() + "#discussion_r1", Author: "a"}}}}),
+			render(pr, s, View{Mentions: MentionGate{Unreadable: true}}))
 	}
 	for _, a := range rows {
 		for _, l := range a.Links {
+			// A plain GitHub link to the PR (the mention's thread, the PR
+			// page) does nothing claude-review does; elly takes it without
+			// an action and checks only that it names the PR.
+			if l.Action == "" && strings.HasPrefix(l.URL, pr.URL()) {
+				continue
+			}
 			verb, known := actionVerbs[l.Action]
 			u, err := url.Parse(l.URL)
 			if err != nil || !known {

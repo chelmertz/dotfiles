@@ -35,6 +35,12 @@ const otherReviewers = "\n\nA finding that another reviewer, a person or a bot, 
 // approval beside it: the approval is the user's click, after the round.
 const cleanRound = "\n\nOpen the summary with a one-line verdict for the author: `Reviewed at <short sha>: nothing found. Recommended for approval; a human approval follows separately.` when the round finds nothing worth raising, otherwise `Reviewed at <short sha>: N points to address before approval.` (the sha is `git rev-parse FETCH_HEAD`). If the round finds nothing worth raising, end by telling the user they can approve with `! claude-review approve {url} --at <that full sha>`. Never approve yourself."
 
+// mentionRound: colleagues' @-mentions of the user are questions to the
+// user. A round answers what the code settles and routes the rest to the
+// user through its question line; tick starts a round for a mention no
+// round has seen (Mentioned), and an open one withholds Approve.
+const mentionRound = "\n\n`claude-review threads {url}` ends by listing the comments that @-mention the account you post as. Each one that account has not answered yet (no later reply by it in that thread; for a PR-level comment, no later PR comment by it) is a colleague's question to the user. Answer it only with what the code at the PR head shows, linking the file at that commit, with `claude-review post {url} reply --to <id>` for an inline comment, or `claude-review post {url} comment --body TEXT` that links the comment for a PR-level one. Do not answer anything about safety, auth, correctness, approval or merge readiness, intent, something being absent, or other repositories: put it in your question line instead. Never @-mention anyone in an answer."
+
 // rereviewPreface is prepended on every click after the first.
 const rereviewPreface = "New review round for {url}: re-check your earlier findings against the new commits and the replies on the PR, then review what changed since. `claude-review diff {url}` prints the commits and the diff since the last round. `claude-review threads {url}` prints every comment, review and inline thread with its id. Answer an existing thread instead of opening a second one on the same finding. Every thread where the author replied gets an answer in that thread with `claude-review post {url} reply --to <id>`: one line naming what settled it (the commit, or the reply) when it is settled, or the point that remains when it is not. The summary may list them too, but it does not replace the reply in the thread. Then resolve each thread you started that you judge settled with `claude-review post {url} resolve --thread <id>`, where <id> is the comment `threads` marks as the one that starts a thread, and leave open every thread you do not judge settled; never resolve a thread someone else started. If there are no new commits and no reply that needs an answer, say so, post nothing, and end with a line containing only `" + nothingLine + "`.\n\n"
 
@@ -79,7 +85,7 @@ func BuildPrompt(cfg Config, pr PR, remote string, resume bool) string {
 	} else {
 		body += postAsk
 	}
-	body += otherReviewers + cleanRound + questionRound
+	body += otherReviewers + cleanRound + mentionRound + questionRound
 	if resume {
 		body = rereviewPreface + body
 	}

@@ -209,7 +209,8 @@ func TestRun_ApproveSubcommandRoutesToRunApprove(t *testing.T) {
 
 func TestRun_ThreadsSubcommandRoutesToRunThreads(t *testing.T) {
 	h := newHost(t, "", true, false)
-	if code := run([]string{"threads", target}, h.d); code != 0 || len(h.ghCalls) != 3 {
+	// three lists, then the login its mention list needs
+	if code := run([]string{"threads", target}, h.d); code != 0 || len(h.ghCalls) != 4 {
 		t.Errorf("code %d gh %q stderr %q", code, h.ghCalls, h.stderr.String())
 	}
 }

@@ -81,8 +81,12 @@ func (h tickHost) mintFor(pr PR, s PRState) error {
 	if _, has, err := h.ledger.TokenFor(pr, s.Head); err != nil || has {
 		return err
 	}
-	_, err := h.ledger.MintToken(pr, s.Head)
-	return err
+	// An open mention holds the token back; the row says why, and viewFor
+	// mints once the mention clears.
+	if _, err := h.ledger.MintToken(pr, s.Head); err != nil && !errors.Is(err, errMentionOpen) {
+		return err
+	}
+	return nil
 }
 
 // performedEffects are the effects effect runs; a rule lists no other.
@@ -168,7 +172,10 @@ func (h tickHost) viewFor(pr PR, s PRState, hold Hold) (View, error) {
 		return v, err
 	}
 	v.Dismissing = dismissing
-	if s.State != stAwaiting || s.Kind != kindApprove {
+	if v.Mentions, err = h.ledger.MentionGate(pr); err != nil {
+		return v, err
+	}
+	if s.State != stAwaiting || s.Kind != kindApprove || v.Mentions.Blocks() {
 		return v, nil
 	}
 	tok, has, err := h.ledger.TokenFor(pr, s.Head)

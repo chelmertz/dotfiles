@@ -41,6 +41,7 @@ create table if not exists post_refusals (pr text not null, at integer not null)
 create table if not exists meta (key text primary key, value text not null);
 create table if not exists pr_state (pr text primary key, state text not null);
 create table if not exists dismissals (pr text not null, review text not null, at integer not null, notified integer not null default 0, primary key (pr, review));
+create table if not exists mention_gate (pr text primary key, readable integer not null, open text not null);
 create table if not exists breaker (id integer primary key check (id = 1), tripped text, reset_at integer not null default 0);
 `
 
@@ -325,7 +326,11 @@ func (l *Ledger) MarkRetried(id ids.RoundID) error {
 }
 
 // MintToken makes the one-time token an Approve link carries for pr at sha.
+// Precondition: approveAllowed; otherwise errMentionOpen and no token.
 func (l *Ledger) MintToken(pr PR, sha string) (ids.Token, error) {
+	if err := l.approveAllowed(pr); err != nil {
+		return ids.Token{}, err
+	}
 	tok, err := ids.NewToken()
 	if err != nil {
 		return tok, err
@@ -456,6 +461,9 @@ func (l *Ledger) MarkPRRead(pr PR, at time.Time) error {
 
 // UseToken spends tok if it was minted for pr at sha and never used.
 func (l *Ledger) UseToken(pr PR, sha string, tok ids.Token) (bool, error) {
+	if err := l.approveAllowed(pr); err != nil {
+		return false, err
+	}
 	var stored ids.Token
 	err := l.db.QueryRow(`select token from tokens where pr = ? and sha = ? and used = 0 and token = ?`, pr.URL(), sha, tok).Scan(&stored)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -597,6 +605,16 @@ func (l *Ledger) Annotations() (map[string]Annotation, error) {
 		out[pr] = a
 	}
 	return out, rows.Err()
+}
+
+// LastRoundStart is when pr's newest round started; zero with none.
+func (l *Ledger) LastRoundStart(pr PR) (time.Time, error) {
+	var at sql.NullInt64
+	err := l.db.QueryRow(`select max(started_at) from rounds where pr = ?`, pr.URL()).Scan(&at)
+	if err != nil || !at.Valid {
+		return time.Time{}, err
+	}
+	return time.Unix(at.Int64, 0).UTC(), nil
 }
 
 // LastHead is the head of pr's most recent round, or "" before any.
