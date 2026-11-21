@@ -113,3 +113,23 @@ func mentionedIn(body, user string) bool {
 	}
 	return false
 }
+
+// staleMention is how long a PR may sit untouched before its open mentions
+// stop counting: elly's icebox. A months-old question answered now helps
+// nobody, and would start a round on a PR nobody works on (two such on
+// the first poll, 2026-11-21).
+const staleMention = 14 * 24 * time.Hour
+
+// withoutStaleMentions drops the mentions of PRs untouched for
+// staleMention, before anything reads them: they start no round, accept
+// nothing and hold no Approve.
+func withoutStaleMentions(prs []EllyPR, now time.Time) []EllyPR {
+	out := make([]EllyPR, len(prs))
+	for i, p := range prs {
+		if p.LastUpdated.Before(now.Add(-staleMention)) {
+			p.Mentions = nil
+		}
+		out[i] = p
+	}
+	return out
+}

@@ -198,3 +198,27 @@ func TestMentionedIn(t *testing.T) {
 		}
 	}
 }
+
+// The first poll found two mentions months old; a tick must not answer them.
+func TestTickIgnoresMentionsOnStalePRs(t *testing.T) {
+	w := newTickWorld(t)
+	p := ellyPR(func(p *EllyPR) {
+		p.LastUpdated = w.h.now().Add(-15 * 24 * time.Hour)
+		p.Mentions = []EllyMention{{Url: p.Url + "#issuecomment-1", Author: "adam", At: p.LastUpdated}}
+	})
+	w.h.tcfg.AutoStart = true
+	w.elly.prs = []EllyPR{p}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.started) != 0 {
+		t.Errorf("a stale mention started a round: %v", w.started)
+	}
+	if g, _ := w.h.ledger.MentionGate(widgetsPR); g.Blocks() {
+		t.Errorf("a stale mention holds Approve: %+v", g)
+	}
+	fresh := withoutStaleMentions([]EllyPR{ellyPR(func(q *EllyPR) { q.LastUpdated = w.h.now(); q.Mentions = p.Mentions })}, w.h.now())
+	if len(fresh[0].Mentions) != 1 {
+		t.Error("a fresh PR lost its mention")
+	}
+}

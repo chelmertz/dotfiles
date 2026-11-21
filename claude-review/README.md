@@ -895,7 +895,8 @@ nor by a reaction. It sends URLs, authors and times, never text.
   a hold or a stuck state keep their row, and the mention shows once it
   settles. Replying or reacting clears it at elly's next poll. Mentions
   beyond a PR's last five comments, or under a newer reply in their
-  thread, are not seen.
+  thread, are not seen, and a PR untouched for two weeks (elly's icebox)
+  has its mentions ignored.
 
 #### The breaker
 

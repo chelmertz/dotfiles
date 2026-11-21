@@ -165,6 +165,7 @@ func (h tickHost) recordMentions(prs []EllyPR) error {
 // plan starts the owed rounds, refreshes every row and offers Start where
 // a click is what is missing; without elly's Asked it only refreshes.
 func (h tickHost) plan(prs []EllyPR, running int) error {
+	prs = withoutStaleMentions(prs, h.now())
 	if err := h.recordMentions(prs); err != nil {
 		return err
 	}
