@@ -86,14 +86,23 @@ const (
 // runPost is `claude-review post`. Exit codes as run: 0, 1, 2 for usage.
 // spend runs after the duplicate check and before anything is sent.
 func runPost(args []string, gh Gh, spend spendFunc, environ []string, stdout, stderr io.Writer) int {
+	return runPostGated(args, gh, spend, nil, environ, stdout, stderr)
+}
+
+// postGate refuses a post kind the PR's current round may not make; nil
+// allows every kind. draftOpen: replies wait in the account's draft review.
+type postGate func(pr PR, kind string, draftOpen bool) error
+
+// runPostGated is runPost under gate.
+func runPostGated(args []string, gh Gh, spend spendFunc, gate postGate, environ []string, stdout, stderr io.Writer) int {
 	if len(args) >= 2 && args[1] == kindResolve {
 		return runResolve(args[0], args[2:], gh, spend, stdout, stderr)
 	}
-	return runPostText(args, gh, spend, environ, stdout, stderr)
+	return runPostText(args, gh, spend, gate, environ, stdout, stderr)
 }
 
 // runPostText posts a comment, inline comment, reply or review.
-func runPostText(args []string, gh Gh, spend spendFunc, environ []string, stdout, stderr io.Writer) int {
+func runPostText(args []string, gh Gh, spend spendFunc, gate postGate, environ []string, stdout, stderr io.Writer) int {
 	if len(args) < 2 {
 		fmt.Fprintln(stderr, "claude-review post: need <pr> and a kind (comment, inline, reply, review or resolve)")
 		fmt.Fprint(stderr, postUsage)
@@ -150,7 +159,7 @@ func runPostText(args []string, gh Gh, spend spendFunc, environ []string, stdout
 		fmt.Fprintln(stderr, "claude-review post: already in the draft review, not added again")
 		return 0
 	}
-	if err := spend(pr, slot, limit); err != nil {
+	if err := admit(pr, kind, draft.ID != "", gate, func() error { return spend(pr, slot, limit) }); err != nil {
 		fmt.Fprintln(stderr, "claude-review post: not posted:", err)
 		return 1
 	}
@@ -164,6 +173,17 @@ func runPostText(args []string, gh Gh, spend spendFunc, environ []string, stdout
 	}
 	fmt.Fprintln(stdout, htmlURL(out))
 	return 0
+}
+
+// admit runs the round's gate, then takes the post from the budget: a
+// kind the round may not make spends nothing.
+func admit(pr PR, kind string, draftOpen bool, gate postGate, spend func() error) error {
+	if gate != nil {
+		if err := gate(pr, kind, draftOpen); err != nil {
+			return err
+		}
+	}
+	return spend()
 }
 
 // slot is the budget slot this post spends and its limit.

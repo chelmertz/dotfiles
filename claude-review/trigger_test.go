@@ -40,11 +40,11 @@ func TestTriggerVariants(t *testing.T) {
 
 // Every kind is listed once in the cap kinds exactly when it counts.
 func TestCapKindsFollowTheVariants(t *testing.T) {
-	want := []string{"requested", "replies", "answered", "new_head", "mentioned"}
+	want := []string{"requested", "replies", "answered", "new_head", "mentioned", "own_mention"}
 	if got := capKinds(); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Errorf("cap kinds %v, want %v", got, want)
 	}
-	if capKindsSQL() != "'requested','replies','answered','new_head','mentioned'" {
+	if capKindsSQL() != "'requested','replies','answered','new_head','mentioned','own_mention'" {
 		t.Errorf("sql %s", capKindsSQL())
 	}
 }

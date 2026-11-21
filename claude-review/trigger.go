@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Trigger is why a round started. It is sealed: the five variants below
+// Trigger is why a round started. It is sealed: the variants below
 // are all there is. The rounds table keeps the typed value as
 // (trigger_kind, trigger_key, trigger_from) and, until the old column is
 // dropped, the old text an older binary reads, rendered only here.
@@ -44,6 +44,14 @@ type Mentioned struct {
 	At  time.Time
 }
 
+// OwnMention: a Mentioned on the user's own PR. Its round answers the
+// mentions and reviews nothing: the prompt says so and post refuses inline
+// comments and a review that sends no queued replies.
+type OwnMention struct {
+	Url string
+	At  time.Time
+}
+
 // Click: the user started the round; From is where the link was clicked,
 // statistics only.
 type Click struct {
@@ -52,12 +60,13 @@ type Click struct {
 }
 
 const (
-	trigRequested = "requested"
-	trigReplies   = "replies"
-	trigAnswered  = "answered"
-	trigNewHead   = "new_head"
-	trigClick     = "click"
-	trigMentioned = "mentioned"
+	trigRequested  = "requested"
+	trigReplies    = "replies"
+	trigAnswered   = "answered"
+	trigNewHead    = "new_head"
+	trigClick      = "click"
+	trigMentioned  = "mentioned"
+	trigOwnMention = "own_mention"
 	// trigUnparsed marks a backfilled row whose old text no parser reads.
 	trigUnparsed = "unparsed"
 )
@@ -70,37 +79,42 @@ func (t Answered) Kind() string  { return trigAnswered }
 func (t NewHead) Kind() string   { return trigNewHead }
 func (t Click) Kind() string     { return trigClick }
 func (Mentioned) Kind() string   { return trigMentioned }
+func (OwnMention) Kind() string  { return trigOwnMention }
 
-func (t Requested) DedupeKey() string { return stamp(t.At) }
-func (t Replies) DedupeKey() string   { return stamp(t.At) }
-func (t Answered) DedupeKey() string  { return stamp(t.At) }
-func (t NewHead) DedupeKey() string   { return t.Head }
-func (t Click) DedupeKey() string     { return stamp(t.At) }
-func (t Mentioned) DedupeKey() string { return t.Url }
+func (t Requested) DedupeKey() string  { return stamp(t.At) }
+func (t Replies) DedupeKey() string    { return stamp(t.At) }
+func (t Answered) DedupeKey() string   { return stamp(t.At) }
+func (t NewHead) DedupeKey() string    { return t.Head }
+func (t Click) DedupeKey() string      { return stamp(t.At) }
+func (t Mentioned) DedupeKey() string  { return t.Url }
+func (t OwnMention) DedupeKey() string { return t.Url }
 
-func (Requested) CountsTowardCap() bool { return true }
-func (Replies) CountsTowardCap() bool   { return true }
-func (Answered) CountsTowardCap() bool  { return true }
-func (NewHead) CountsTowardCap() bool   { return true }
-func (Click) CountsTowardCap() bool     { return false }
-func (Mentioned) CountsTowardCap() bool { return true }
+func (Requested) CountsTowardCap() bool  { return true }
+func (Replies) CountsTowardCap() bool    { return true }
+func (Answered) CountsTowardCap() bool   { return true }
+func (NewHead) CountsTowardCap() bool    { return true }
+func (Click) CountsTowardCap() bool      { return false }
+func (Mentioned) CountsTowardCap() bool  { return true }
+func (OwnMention) CountsTowardCap() bool { return true }
 
-func (t Requested) Text() string { return "review_requested@" + stamp(t.At) }
-func (t Replies) Text() string   { return "replies@" + stamp(t.At) }
-func (t Answered) Text() string  { return "answered@" + stamp(t.At) }
-func (NewHead) Text() string     { return "new_head" }
-func (t Click) Text() string     { return "click@" + stamp(t.At) + "?from=" + t.From }
-func (t Mentioned) Text() string { return "mentioned@" + stamp(t.At) }
+func (t Requested) Text() string  { return "review_requested@" + stamp(t.At) }
+func (t Replies) Text() string    { return "replies@" + stamp(t.At) }
+func (t Answered) Text() string   { return "answered@" + stamp(t.At) }
+func (NewHead) Text() string      { return "new_head" }
+func (t Click) Text() string      { return "click@" + stamp(t.At) + "?from=" + t.From }
+func (t Mentioned) Text() string  { return "mentioned@" + stamp(t.At) }
+func (t OwnMention) Text() string { return "own_mention@" + stamp(t.At) }
 
-func (Requested) sealed() {}
-func (Replies) sealed()   {}
-func (Answered) sealed()  {}
-func (NewHead) sealed()   {}
-func (Click) sealed()     {}
-func (Mentioned) sealed() {}
+func (Requested) sealed()  {}
+func (Replies) sealed()    {}
+func (Answered) sealed()   {}
+func (NewHead) sealed()    {}
+func (Click) sealed()      {}
+func (Mentioned) sealed()  {}
+func (OwnMention) sealed() {}
 
 // allTriggers has one value per variant, for the generated kind lists.
-var allTriggers = []Trigger{Requested{}, Replies{}, Answered{}, NewHead{}, Click{}, Mentioned{}}
+var allTriggers = []Trigger{Requested{}, Replies{}, Answered{}, NewHead{}, Click{}, Mentioned{}, OwnMention{}}
 
 // capKinds are the kinds the cap and the breaker count.
 func capKinds() []string {
@@ -161,6 +175,8 @@ func parseTrigger(text, head string) (Trigger, error) {
 		return Answered{At: t}, nil
 	case "mentioned":
 		return Mentioned{At: t}, nil
+	case "own_mention":
+		return OwnMention{At: t}, nil
 	}
 	return nil, fmt.Errorf("unknown trigger %q", name)
 }
@@ -194,6 +210,14 @@ func triggerOf(kind, key, from string) Trigger {
 		return Click{At: at, From: from}
 	case trigMentioned:
 		return Mentioned{Url: key}
+	case trigOwnMention:
+		return OwnMention{Url: key}
 	}
 	return nil
+}
+
+// mentionsOnly: a round started by t answers mentions and reviews nothing.
+func mentionsOnly(t Trigger) bool {
+	_, ok := t.(OwnMention)
+	return ok
 }

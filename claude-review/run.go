@@ -101,7 +101,7 @@ func runSessionCommand(args []string, d Deps) (int, bool) {
 		return 0, false
 	}
 	if args[0] == "post" {
-		return runPost(args[1:], d.Gh, ledgerSpend(d), d.Environ, d.Stdout, d.Stderr), true
+		return runPostGated(args[1:], d.Gh, ledgerSpend(d), ledgerGate(d), d.Environ, d.Stdout, d.Stderr), true
 	}
 	if args[0] == "approve" {
 		return runApproveCmd(args[1:], d), true

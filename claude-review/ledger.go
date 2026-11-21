@@ -607,6 +607,21 @@ func (l *Ledger) Annotations() (map[string]Annotation, error) {
 	return out, rows.Err()
 }
 
+// NewestTrigger is the trigger of pr's newest round, nil with none or
+// for a row no parser reads.
+func (l *Ledger) NewestTrigger(pr PR) (Trigger, error) {
+	var kind, key string
+	var from sql.NullString
+	err := l.db.QueryRow(`select trigger_kind, trigger_key, trigger_from from rounds where pr = ? order by id desc limit 1`, pr.URL()).Scan(&kind, &key, &from)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return triggerOf(kind, key, from.String), nil
+}
+
 // LastRoundStart is when pr's newest round started; zero with none.
 func (l *Ledger) LastRoundStart(pr PR) (time.Time, error) {
 	var at sql.NullInt64

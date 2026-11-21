@@ -301,7 +301,7 @@ func TestLaunchCapCountsTheLastDay(t *testing.T) {
 	if _, err := w.h.ledger.StartRound(widgetsPR, "h1", NewHead{}, t0.Add(-time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := w.h.launch(widgetsPR, nil, func(time.Time) error { return nil }, nil); err == nil || len(w.started) != 0 {
+	if _, err := w.h.launch(widgetsPR, NewHead{}, nil, func(time.Time) error { return nil }, nil); err == nil || len(w.started) != 0 {
 		t.Errorf("a launch an hour ago did not reach a cap of 1: err %v, started %q", err, w.started)
 	}
 }

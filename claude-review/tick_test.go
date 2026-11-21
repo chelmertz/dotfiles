@@ -494,7 +494,7 @@ func TestTickOneEllyFailureDoesNotStopTheRest(t *testing.T) {
 func TestLaunchRefusesInADryRun(t *testing.T) {
 	w := newTickWorld(t)
 	w.h.dry = true
-	if _, err := w.h.launch(widgetsPR, nil, func(time.Time) error { return nil }, nil); err == nil || len(w.started) != 0 {
+	if _, err := w.h.launch(widgetsPR, NewHead{}, nil, func(time.Time) error { return nil }, nil); err == nil || len(w.started) != 0 {
 		t.Errorf("launch in a dry run: err %v, started %q", err, w.started)
 	}
 }
@@ -663,7 +663,7 @@ func TestTickBreakerCountsRetries(t *testing.T) {
 func TestLaunchWithoutACapStartsNothing(t *testing.T) {
 	w := newTickWorld(t)
 	w.h.tcfg.TotalDailyCap = 0
-	if _, err := w.h.launch(widgetsPR, nil, func(time.Time) error { return nil }, nil); err == nil || len(w.started) != 0 {
+	if _, err := w.h.launch(widgetsPR, NewHead{}, nil, func(time.Time) error { return nil }, nil); err == nil || len(w.started) != 0 {
 		t.Errorf("launch with no cap: err %v, started %q", err, w.started)
 	}
 }
@@ -676,7 +676,7 @@ func TestLaunchRefusesWhileTripped(t *testing.T) {
 		t.Fatal(err)
 	}
 	recorded := false
-	if _, err := w.h.launch(widgetsPR, nil, func(time.Time) error { recorded = true; return nil }, nil); err == nil || recorded || len(w.started) != 0 {
+	if _, err := w.h.launch(widgetsPR, NewHead{}, nil, func(time.Time) error { recorded = true; return nil }, nil); err == nil || recorded || len(w.started) != 0 {
 		t.Errorf("launch while tripped: err %v, recorded %v, started %q", err, recorded, w.started)
 	}
 }

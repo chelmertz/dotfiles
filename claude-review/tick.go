@@ -151,8 +151,9 @@ func (h tickHost) tick() error {
 // mints or renders an Approve this pass.
 func (h tickHost) recordMentions(prs []EllyPR) error {
 	for _, p := range prs {
-		pr, ok := eligible(p, h.tcfg)
-		if !ok {
+		// The user's own PRs too: their row shows the mention like any.
+		pr, err := ParseTarget(p.Url)
+		if err != nil || !repoAllowed(p.RepoOwner, p.RepoName, h.tcfg.ReviewRepos) {
 			continue
 		}
 		if err := h.ledger.SetMentionGate(pr, mentionGateOf(p)); err != nil {
@@ -535,7 +536,7 @@ func (h tickHost) retry(pr PR, r Round) (bool, error) {
 	}
 	err := h.do("retry "+pr.URL(), func() error {
 		var err error
-		not, err = h.launch(pr, nil, func(time.Time) error {
+		not, err = h.launch(pr, r.Trigger, nil, func(time.Time) error {
 			if err := h.ledger.MarkRetried(r.ID); err != nil {
 				return err
 			}
@@ -747,7 +748,7 @@ func (h tickHost) startOne(p Planned, running int) (skip, error) {
 	var not skip
 	err = h.do(fmt.Sprintf("start a round on %s at %.9s (%s)", p.PR.URL(), p.Head, p.Trigger.Text()), func() error {
 		var err error
-		not, err = h.launch(p.PR, func() error { return h.settleUnread(p.PR) }, func(at time.Time) error {
+		not, err = h.launch(p.PR, p.Trigger, func() error { return h.settleUnread(p.PR) }, func(at time.Time) error {
 			id, err := h.ledger.StartRound(p.PR, p.Head, p.Trigger, at)
 			if err != nil {
 				return err
@@ -887,7 +888,7 @@ func (h tickHost) healBreaker() error {
 // clears a cap trip once, and a second one latches, so a loop that keeps starting rounds
 // stops at the cap even after the window moves on. settle reads the PR's
 // last round before its idle worker is stopped. The caller holds the lock.
-func (h tickHost) launch(pr PR, settle func() error, record func(at time.Time) error, failed func(detail string) error) (notStarted skip, err error) {
+func (h tickHost) launch(pr PR, trigger Trigger, settle func() error, record func(at time.Time) error, failed func(detail string) error) (notStarted skip, err error) {
 	if h.dry {
 		return "", errors.New("refusing to start a round in a dry run")
 	}
@@ -911,7 +912,9 @@ func (h tickHost) launch(pr PR, settle func() error, record func(at time.Time) e
 		return "", err
 	}
 	at := h.now()
-	res, err := h.starter().start(h.cfg, pr, dir, remote, true, settle)
+	cfg := h.cfg
+	cfg.MentionsOnly = mentionsOnly(trigger)
+	res, err := h.starter().start(cfg, pr, dir, remote, true, settle)
 	if err != nil && res.Kind != relaunchDuplicate {
 		return "", err
 	}

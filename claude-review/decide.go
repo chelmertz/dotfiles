@@ -183,7 +183,7 @@ func planTick(prs []EllyPR, cfg TickConfig, l *Ledger, g Gate, now time.Time) ([
 func planOne(p EllyPR, cfg TickConfig, l *Ledger, g Gate, now time.Time) (Planned, bool, error) {
 	pr, ok := eligible(p, cfg)
 	if !ok {
-		return Planned{}, false, nil
+		return planOwn(p, cfg, l, g, now)
 	}
 	out := Planned{PR: pr, Head: p.HeadRefOid}
 	left := func(s skip) (Planned, bool, error) { out.Skip = s; return out, true, nil }
@@ -241,6 +241,48 @@ func owedTrigger(p EllyPR, pr PR, acc Acceptance, l *Ledger) (Trigger, error) {
 		return nil, err
 	}
 	return roundTrigger(p, lastHead, lastRound), nil
+}
+
+// planOwn decides about the user's own PR in review_repos: a round only
+// for a colleague's mention no round has seen, and that round answers
+// mentions and reviews nothing (OwnMention). Anything else is left alone,
+// as before, and ok is false so tick says nothing about it.
+func planOwn(p EllyPR, cfg TickConfig, l *Ledger, g Gate, now time.Time) (Planned, bool, error) {
+	pr, err := ParseTarget(p.Url)
+	if err != nil || !cfg.AutoStart || p.Buried || !strings.EqualFold(p.Author, cfg.User) || !repoAllowed(p.RepoOwner, p.RepoName, cfg.ReviewRepos) {
+		return Planned{}, false, nil //nolint:nilerr // an unparsable URL is not this PR's to plan
+	}
+	lastRound, err := l.LastRoundStart(pr)
+	if err != nil {
+		return Planned{}, false, err
+	}
+	m, ok := unseenMention(p, lastRound)
+	if !ok {
+		return Planned{}, false, nil
+	}
+	out := Planned{PR: pr, Head: p.HeadRefOid, Trigger: OwnMention{Url: m.Url, At: m.At.UTC()}}
+	acc, accepted, err := l.Acceptance(pr)
+	if err != nil {
+		return Planned{}, false, err
+	}
+	if !accepted {
+		if acc, accepted, err = autoAccept(p, pr, l, g, now); err != nil || !accepted {
+			return Planned{}, false, err
+		}
+	}
+	open, gate, err := gateFor(pr, acc, p.HeadRefOid, cfg, l, g, now)
+	if err != nil {
+		return Planned{}, false, err
+	}
+	if !open {
+		out.Skip = skipClosed
+		return out, true, nil
+	}
+	if gate != gatePaused {
+		gate = "" // a fresh look guards a review; this round reviews nothing
+	}
+	out.Gate = gate
+	return out, true, nil
 }
 
 // eligible: a PR in review_repos that the user did not write.

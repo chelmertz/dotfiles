@@ -54,3 +54,37 @@ func openHead(gh Gh, pr PR) (string, error) {
 	}
 	return p.Head.SHA, nil
 }
+
+// ledgerGate holds a round that only answers mentions (its newest round's
+// trigger is OwnMention, on the user's own PR) to answers: no inline
+// comment, and a review only to send replies already queued in the draft.
+// Read from the round, not the PR's author, so the user's own click on the
+// PR reviews as before. A ledger it cannot read refuses.
+func ledgerGate(d Deps) postGate {
+	return func(pr PR, kind string, draftOpen bool) error {
+		l, err := OpenLedger(LedgerPath(d.StateDir))
+		if err != nil {
+			return err
+		}
+		defer func() { _ = l.Close() }()
+		t, err := l.NewestTrigger(pr)
+		if err != nil {
+			return err
+		}
+		return mentionsOnlyPost(t, kind, draftOpen)
+	}
+}
+
+// mentionsOnlyPost is the rule ledgerGate applies.
+func mentionsOnlyPost(t Trigger, kind string, draftOpen bool) error {
+	if !mentionsOnly(t) {
+		return nil
+	}
+	switch {
+	case kind == kindInline:
+		return errors.New("this round answers mentions on the user's own PR and posts no inline comment")
+	case kind == kindReview && !draftOpen:
+		return errors.New("this round answers mentions on the user's own PR and posts no review; a review here only sends queued replies")
+	}
+	return nil
+}

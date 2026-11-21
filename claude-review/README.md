@@ -885,6 +885,12 @@ nor by a reaction. It sends URLs, authors and times, never text.
   rest (safety, intent, merge readiness, absence, other repos) to its
   question line. `claude-review threads` ends by listing the comments that
   mention the account the round posts as.
+- **Your own PRs.** With `auto_start`, a mention no round has seen on a PR
+  you wrote starts an `own_mention` round, and nothing else ever does. Its
+  prompt answers mentions and reviews nothing, and `post` holds it to that:
+  no inline comment, and a review only to send replies already queued in
+  the draft. The rule is read from the newest round, so your own click on
+  the PR still reviews as before.
 - **Approve waits.** While a mention is open, or elly cannot say (an older
   elly, or a PR whose threads it could not all read), the ledger mints and
   honours no Approve token, a token minted before included. The typed

@@ -14,6 +14,9 @@ import (
 // Config is the per-user configuration. Every key is optional; the zero
 // value plus Defaults() is a working setup.
 type Config struct {
+	// MentionsOnly is set by tick, never read from the file: the round
+	// answers mentions and reviews nothing (an OwnMention round).
+	MentionsOnly bool `json:"-"`
 	// Terminal is one of three things: absent (per-OS default), false (no
 	// terminal, run the session detached with --bg) or a command template
 	// with {dir} and {script} placeholders. One key, so "custom command but no

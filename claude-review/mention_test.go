@@ -222,3 +222,117 @@ func TestTickIgnoresMentionsOnStalePRs(t *testing.T) {
 		t.Error("a fresh PR lost its mention")
 	}
 }
+
+func ownMentionedPR() EllyPR {
+	return ellyPR(func(p *EllyPR) {
+		p.Url = PR{Owner: "acme", Repo: "widgets", Number: 42}.URL()
+		p.Author = "me"
+		p.Mentions = []EllyMention{{Url: p.Url + "#issuecomment-5", Author: "adam", At: t0}}
+	})
+}
+
+func TestPlanOwnRunsOnlyForAMention(t *testing.T) {
+	cfg := TickConfig{ReviewRepos: []string{"acme/widgets"}, User: "me", DailyCap: 6, AutoStart: true}
+	for name, c := range map[string]struct {
+		p    EllyPR
+		cfg  TickConfig
+		want bool
+	}{
+		"own, mentioned":        {ownMentionedPR(), cfg, true},
+		"own, nothing":          {ellyPR(func(p *EllyPR) { p.Author = "me" }), cfg, false},
+		"own, requested only":   {ellyPR(func(p *EllyPR) { p.Author = "me"; p.Asked = askedAs(askedRequested) }), cfg, false},
+		"own, auto_start off":   {ownMentionedPR(), TickConfig{ReviewRepos: cfg.ReviewRepos, User: "me", DailyCap: 6}, false},
+		"own, buried":           {func() EllyPR { p := ownMentionedPR(); p.Buried = true; return p }(), cfg, false},
+		"own, outside the list": {ownMentionedPR(), TickConfig{ReviewRepos: []string{"other/*"}, User: "me", DailyCap: 6, AutoStart: true}, false},
+	} {
+		l := openTestLedger(t)
+		got, err := planTick([]EllyPR{c.p}, c.cfg, l, fakeGate{descends: true, base: "main"}, t0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		started := len(got) == 1 && got[0].Skip == "" && got[0].Gate == ""
+		if started != c.want {
+			t.Errorf("%s: planned %+v", name, got)
+		}
+		if started {
+			if _, ok := got[0].Trigger.(OwnMention); !ok {
+				t.Errorf("%s: trigger %#v, want OwnMention", name, got[0].Trigger)
+			}
+		}
+	}
+}
+
+func TestMentionsOnlyPrompt(t *testing.T) {
+	p := BuildPrompt(Config{MentionsOnly: true, PostWithoutAsking: true}, widgetsPR, "upstream", true)
+	if !strings.Contains(p, "Do not review it") || strings.Contains(p, "post the findings as inline review comments") || strings.Contains(p, "New review round") {
+		t.Errorf("prompt reviews: %s", p)
+	}
+	if !strings.HasSuffix(strings.TrimSpace(p), "`claude-review: question for the user`.") {
+		t.Errorf("the question line is not last: %s", p)
+	}
+}
+
+// A tick on the user's own mentioned PR launches with the mentions-only
+// prompt, and its round is recorded as OwnMention for post's gate.
+func TestTickRunsAMentionsOnlyRoundOnTheUsersOwnPR(t *testing.T) {
+	w := newTickWorld(t)
+	w.h.tcfg.AutoStart = true
+	w.h.tcfg.User = "me"
+	w.elly.prs = []EllyPR{ownMentionedPR()}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.started) != 1 || !strings.Contains(strings.Join(w.started[0], " "), "Do not review it") {
+		t.Fatalf("started %q", w.started)
+	}
+	pr := PR{Owner: "acme", Repo: "widgets", Number: 42}
+	if tr, err := w.h.ledger.NewestTrigger(pr); err != nil || !mentionsOnly(tr) {
+		t.Errorf("recorded trigger %#v %v", tr, err)
+	}
+}
+
+func TestMentionsOnlyPostRefusesReviews(t *testing.T) {
+	own := OwnMention{Url: "u"}
+	for name, c := range map[string]struct {
+		t       Trigger
+		kind    string
+		draft   bool
+		refused bool
+	}{
+		"inline":               {own, kindInline, false, true},
+		"inline, draft":        {own, kindInline, true, true},
+		"summary review":       {own, kindReview, false, true},
+		"review sends replies": {own, kindReview, true, false},
+		"reply":                {own, kindReply, false, false},
+		"comment":              {own, kindComment, false, false},
+		"normal round inline":  {Mentioned{Url: "u"}, kindInline, false, false},
+		"no round":             {nil, kindReview, false, false},
+	} {
+		if err := mentionsOnlyPost(c.t, c.kind, c.draft); (err != nil) != c.refused {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
+// Through the command: in a mentions-only round, post inline is refused
+// before anything reaches GitHub's write endpoints.
+func TestPostInlineRefusedInAMentionsOnlyRound(t *testing.T) {
+	h := verbHost(t)
+	l, err := OpenLedger(LedgerPath(h.d.StateDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.StartRound(widgetsPR, sha, OwnMention{Url: widgetsPR.URL() + "#issuecomment-5", At: t0}, t0); err != nil {
+		t.Fatal(err)
+	}
+	_ = l.Close()
+	code := run([]string{"post", widgetsPR.URL(), "inline", "--path", "a.go", "--line", "1", "--at", sha, "--body", "nit"}, h.d)
+	if code == 0 || !strings.Contains(h.stderr.String(), "no inline comment") {
+		t.Errorf("exit %d: %s", code, h.stderr.String())
+	}
+	for _, c := range h.ghCalls {
+		if strings.Contains(strings.Join(c, " "), "POST") {
+			t.Errorf("a write reached GitHub: %q", c)
+		}
+	}
+}
