@@ -493,6 +493,9 @@
     polkitPolicyOwners = [ "ch" ];
   };
   programs.steam.enable = true;
+  # For Steam launch options: render a game at a low resolution and upscale it
+  # to the 3440x1440 ultrawide, which the iGPU cannot drive at native size.
+  programs.gamescope.enable = true;
 
   environment.systemPackages = with pkgs; [
     # From a .deb repository and a PPA respectively.
