@@ -1453,3 +1453,56 @@ func TestTheNotifyIdentityIsSeededFromRowsAlreadyUp(t *testing.T) {
 		t.Errorf("a row already up notified on rollout: %q", w.notified)
 	}
 }
+
+// A round tick starts on a PR nobody reviewed yet is a first look: with
+// auto_start, tick accepts the PR at its current head right before the
+// round, so the re-review prompt's "diff since the last round" is empty
+// and the round posts nothing without reading the PR (2026-11-21). The
+// re-review prompt is for a PR an earlier round, or the user's click, saw.
+func TestTickFirstLookGetsTheFirstReviewPrompt(t *testing.T) {
+	launched := func(w *tickWorld) string {
+		for _, argv := range w.started {
+			if slices.Contains(argv, "--bg") {
+				return strings.Join(argv, " ")
+			}
+		}
+		return ""
+	}
+	pr := PR{Owner: "acme", Repo: "widgets", Number: 8}
+	for name, c := range map[string]struct {
+		clicked, settled bool
+		rereview         bool
+	}{
+		"auto-started, never reviewed": {rereview: false},
+		"an earlier round settled":     {settled: true, rereview: true},
+		"the user's click reviewed it": {clicked: true, rereview: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w := newTickWorld(t)
+			w.h.tcfg.AutoStart = true
+			w.fresh[pr.RoundSessionID()] = true
+			w.fresh[pr.SessionID()] = !c.clicked
+			if c.settled {
+				w.accept(t, 8)
+				id, err := w.h.ledger.StartRound(pr, "h0", Requested{At: t0.Add(-2 * time.Hour)}, t0.Add(-2*time.Hour))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := w.h.ledger.MarkRead(id); err != nil {
+					t.Fatal(err)
+				}
+			}
+			w.elly.prs = []EllyPR{requestedPR(8)}
+			if err := w.h.tick(); err != nil {
+				t.Fatal(err)
+			}
+			got := launched(w)
+			if got == "" {
+				t.Fatalf("no round launched: %q\n%s", w.started, w.out)
+			}
+			if strings.Contains(got, "New review round") != c.rereview {
+				t.Errorf("re-review prompt = %v, want %v", !c.rereview, c.rereview)
+			}
+		})
+	}
+}

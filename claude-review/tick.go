@@ -914,7 +914,15 @@ func (h tickHost) launch(pr PR, trigger Trigger, settle func() error, record fun
 	at := h.now()
 	cfg := h.cfg
 	cfg.MentionsOnly = mentionsOnly(trigger)
-	res, err := h.starter().start(cfg, pr, dir, remote, true, settle)
+	// The re-review prompt diffs from the last round; on a PR no round and
+	// no click has seen (auto_start accepts at the current head) that diff
+	// is empty, and the round would post nothing without reading the PR.
+	_, _, settled, err := h.ledger.LastSettled(pr)
+	if err != nil {
+		return "", err
+	}
+	rereview := settled || h.exists(pr.SessionID())
+	res, err := h.starter().start(cfg, pr, dir, remote, rereview, settle)
 	if err != nil && res.Kind != relaunchDuplicate {
 		return "", err
 	}
