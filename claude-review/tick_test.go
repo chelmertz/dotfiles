@@ -1470,17 +1470,20 @@ func TestTickFirstLookGetsTheFirstReviewPrompt(t *testing.T) {
 	}
 	pr := PR{Owner: "acme", Repo: "widgets", Number: 8}
 	for name, c := range map[string]struct {
-		clicked, settled bool
-		rereview         bool
+		clicked, settled, session bool
+		rereview                  bool
 	}{
 		"auto-started, never reviewed": {rereview: false},
+		// A blind first look left a session behind; its records cleared,
+		// the redo must still read the PR (2026-11-23).
+		"a round session but no settled round": {session: true, rereview: false},
 		"an earlier round settled":     {settled: true, rereview: true},
 		"the user's click reviewed it": {clicked: true, rereview: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			w := newTickWorld(t)
 			w.h.tcfg.AutoStart = true
-			w.fresh[pr.RoundSessionID()] = true
+			w.fresh[pr.RoundSessionID()] = !c.session
 			w.fresh[pr.SessionID()] = !c.clicked
 			if c.settled {
 				w.accept(t, 8)

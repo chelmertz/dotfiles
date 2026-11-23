@@ -16,11 +16,15 @@ type roundStarter struct {
 	wrapper []string
 	// mark, when set, records the end of a stage: bootstrap, clear, launch.
 	mark func(stage string)
+	// promptFromCaller: rereview alone picks the prompt (tick, which knows
+	// whether any round settled); otherwise an existing session also means
+	// re-review (a click).
+	promptFromCaller bool
 }
 
 // start launches the next round on pr in dir. rereview asks for the
-// re-review prompt even in a session created now (tick's rounds); without
-// it the prompt follows whether the session existed (a click).
+// re-review prompt; unless promptFromCaller, a session that existed asks
+// for it too.
 func (r roundStarter) start(cfg Config, pr PR, dir, remote string, rereview bool, settle func() error) (RelaunchResult, error) {
 	id := pr.RoundSessionID()
 	existed := r.exists(id)
@@ -30,7 +34,7 @@ func (r roundStarter) start(cfg Config, pr PR, dir, remote string, rereview bool
 		}
 		r.marked("bootstrap")
 	}
-	resume := rereview || existed
+	resume := rereview || (existed && !r.promptFromCaller)
 	policy := PolicyFlags(pr, remote)
 	argv, restore, err := r.sess.RoundArgv(id, policy, RoundArgs(cfg, pr, remote, resume), ResumeArgs(cfg, pr, remote, resume))
 	if err != nil {

@@ -931,7 +931,7 @@ func (h tickHost) launch(pr PR, trigger Trigger, settle func() error, record fun
 
 // starter starts rounds the way a click does, through h.start.
 func (h tickHost) starter() roundStarter {
-	return roundStarter{sess: h.sess, exists: h.exists, run: h.start, wrapper: h.tcfg.Wrapper}
+	return roundStarter{sess: h.sess, exists: h.exists, run: h.start, wrapper: h.tcfg.Wrapper, promptFromCaller: true}
 }
 
 // afterRelaunch is the one table from a launch's result to the PR's state,
