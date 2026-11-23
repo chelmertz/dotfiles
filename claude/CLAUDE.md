@@ -177,9 +177,19 @@ project is a note the next project pays for again.
   `GIT_TERMINAL_PROMPT=0`, `GIT_ASKPASS` to something that exits non-zero,
   `SSH_ASKPASS_REQUIRE=never` with `SSH_ASKPASS` unset, and `GIT_SSH_COMMAND`
   carrying `-oBatchMode=yes`. `noninteractiveAuth` in `git-freshen/main.go` has the recipe.
-- The `gh` token expires. The symptom is HTTP 401 on every `gh` call while git
-  over SSH keeps working; `gh auth login -h github.com` is interactive, so I
-  have to run it myself.
+- **A `gh` 401 on tau is a locked keyring before it is an expired token.**
+  gh keeps its token in gnome-keyring; while the login keyring is locked,
+  every `gh` call hangs on an unlock prompt and then goes out without a token,
+  so it reads as `HTTP 401` (slowly: ticks took 3 minutes to fail). Check
+  `busctl --user get-property org.freedesktop.secrets
+  /org/freedesktop/secrets/collection/login org.freedesktop.Secret.Collection
+  Locked` and `timeout 15 gh auth token` (exit 124 = hung) before suggesting
+  `gh auth login`, which would mint a second token and hangs too. On
+  2026-11-23 a fingerprint login left it locked and the prompt died before X
+  started; dotfiles 64512fe removed fingerprint from the GDM login. If it
+  recurs: `kill` the `gnome-keyring-daemon` pids (I may not), then any `gh`
+  call reactivates it and shows the dialog. `gnome-keyring-daemon --unlock`
+  starts a stray third daemon instead of unlocking the running one.
 - Two `gh` calls in one compound shell command can hit the permission
   classifier. Run them one per invocation.
 - Something other than you commits `~/p` on `main` mid-session, with generic
