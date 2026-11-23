@@ -11,6 +11,9 @@
 set -euo pipefail
 
 repo="$1"
+# A run skipped by ExecCondition (the repository unreachable) still runs
+# ExecStopPost. It is not a run: record nothing.
+[ "${SERVICE_RESULT:-}" = "exec-condition" ] && exit 0
 dir="$HOME/.local/share/prometheus/textfile"
 out="$dir/restic_$repo.prom"
 tmp="$dir/restic_$repo.$$.prom.tmp"

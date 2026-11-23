@@ -1063,13 +1063,23 @@ in
 
   # `claude-review tick`, the unattended runner: every 5 minutes on weekdays
   # 08:00-22:59, every 2 hours otherwise. `claude-review tick --dry-run` shows
-  # what the next tick would do; `systemctl --user stop
-  # claude-review-tick.timer` pauses it until the next login.
+  # what the next tick would do.
   systemd.user.services.claude-review-tick = {
     Unit.Description = "claude-review: run owed review rounds";
     Service = {
       Type = "oneshot";
       ExecStart = "${lib.getExe claudeReview} tick";
+      # How each run ended, for the ReviewTick* rules: a failed tick only
+      # ever showed in the journal (2026-11-23: three hours of gh 401s).
+      ExecStopPost = "${pkgs.writeShellApplication {
+        name = "unit-metrics";
+        runtimeInputs = [ pkgs.coreutils pkgs.gnused ];
+        text = builtins.readFile ../bin/unit-metrics;
+      }}/bin/unit-metrics claude-review-tick";
+      # oneshot has no start timeout by default, and gh waiting on a locked
+      # keyring hangs; a hung tick never reaches ExecStopPost. 10 minutes is
+      # far past a normal tick (20s) and turns a hang into a failure.
+      TimeoutStartSec = "10min";
       # One tick measured 11.9s of CPU in 20s and a 656M peak (2026-11-20).
       # Round workers run under Claude Code's own background daemon, not in
       # this unit's cgroup, so the caps bind tick and its gh calls only.
@@ -1739,6 +1749,27 @@ in
             annotations:
               summary: "{{ $labels.service }} cannot authenticate. gh: gh auth login | elly: open http://elly.localhost:9876 and paste a PAT"
 
+          # The review runner's tick, from unit-metrics. One failure is left
+          # to the next tick to heal (5 minutes on weekdays); two in a row is
+          # not healing. A gh login problem also shows as CredentialExpired.
+          - alert: ReviewTickFailing
+            expr: unit_consecutive_failures{unit="claude-review-tick"} >= 2
+            labels:
+              severity: warning
+            annotations:
+              summary: "claude-review's tick failed {{ $value }} times in a row. Journal: journalctl --user -u claude-review-tick"
+
+          # No good tick in 3 hours: the longest gap between scheduled ticks is
+          # 2 hours. The 30 minutes absorb a resume from suspend, where the
+          # missed tick runs right away (Persistent=true).
+          - alert: ReviewTickStale
+            expr: time() - unit_last_success_timestamp_seconds{unit="claude-review-tick"} > 3 * 3600
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "claude-review's tick has not succeeded for {{ $value | humanizeDuration }}. Check: systemctl --user status claude-review-tick.timer"
+
           - alert: SystemdUserUnitFailed
             expr: systemd_user_unit_failed == 1
             for: 5m
@@ -1748,13 +1779,14 @@ in
               summary: "Systemd user unit {{ $labels.unit }} failed. Journal: cat ~/.local/share/prometheus/textfile/systemd_failed_journal.txt"
 
           # The VPS repository is reachable from anywhere, so a day and a half
-          # without a good run means the backup is broken. mediabox is only
-          # reachable at home and its runs are skipped elsewhere, so it gets a
-          # week before it counts as stale.
+          # without a good run means the backup is broken. mediabox is powered on
+          # about once a week and missing it for a month loses nothing that
+          # matters (user, 2026-11-23); at 7 days this fired for 18 days
+          # straight and taught the bar's red count to be ignored.
           - alert: BackupStale
             expr: |
               time() - restic_backup_last_success_timestamp_seconds{repo="vps"} > 36 * 3600
-              or time() - restic_backup_last_success_timestamp_seconds{repo="mediabox"} > 7 * 86400
+              or time() - restic_backup_last_success_timestamp_seconds{repo="mediabox"} > 60 * 86400
             for: 15m
             labels:
               severity: critical

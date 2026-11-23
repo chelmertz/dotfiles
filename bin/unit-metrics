@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Write one systemd unit's run outcome for node-exporter's textfile
+# collector. Run as the unit's ExecStopPost, so $SERVICE_RESULT says how the
+# run ended. restic-metrics is the same idea with restic's own numbers.
+#
+# A failure keeps the last-success timestamp, so the staleness rule can age
+# it, and counts consecutive failures, so one blip (the next run heals it)
+# alerts nobody while a second one in a row does. A run skipped by
+# ExecCondition is not a run and records nothing.
+#
+# Usage: unit-metrics <unit-name>
+set -euo pipefail
+
+unit="$1"
+[ "${SERVICE_RESULT:-}" = "exec-condition" ] && exit 0
+
+dir="$HOME/.local/share/prometheus/textfile"
+out="$dir/unit_$unit.prom"
+tmp="$dir/unit_$unit.$$.prom.tmp"
+now=$(date +%s)
+
+prev_success=$(sed -n 's/^unit_last_success_timestamp_seconds{[^}]*} //p' "$out" 2>/dev/null || true)
+failures=$(sed -n 's/^unit_consecutive_failures{[^}]*} //p' "$out" 2>/dev/null || true)
+failures=${failures:-0}
+if [ "${SERVICE_RESULT:-}" = "success" ]; then
+  ok=1
+  failures=0
+  prev_success=$now
+else
+  ok=0
+  failures=$((failures + 1))
+fi
+
+{
+  echo "# HELP unit_last_run_success 1 if the unit's last run succeeded."
+  echo "unit_last_run_success{unit=\"$unit\"} $ok"
+  echo "unit_consecutive_failures{unit=\"$unit\"} $failures"
+  echo "unit_last_run_timestamp_seconds{unit=\"$unit\"} $now"
+  if [ -n "$prev_success" ]; then
+    echo "unit_last_success_timestamp_seconds{unit=\"$unit\"} $prev_success"
+  fi
+} > "$tmp"
+mv "$tmp" "$out"

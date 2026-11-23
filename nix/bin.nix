@@ -255,7 +255,7 @@ in
         deps = [
           pkgs.coreutils
           pkgs.gh
-          pkgs.sqlite
+          pkgs.curl
           pkgs.gnugrep
           pkgs.systemd
         ];

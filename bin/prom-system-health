@@ -59,14 +59,19 @@ probe() { # name, command...
 
 probe gh gh auth status
 
-# elly keeps its personal access token in a `pat` table; no active row means
-# it fell back to setup mode and is showing nobody's pull requests. Builds
-# before elly 14e257a kept replaced tokens as inactive rows, hence the filter.
-elly_db="$HOME/.local/share/elly/elly.db"
-if [ -f "$elly_db" ] && [ "$(timeout 20 sqlite3 "$elly_db" 'select count(*) from pat where active = 1;' 2>/dev/null || echo 0)" -ge 1 ]; then
-  echo 'credential_ok{service="elly"} 1' >> "$tmpfile"
-else
-  echo 'credential_ok{service="elly"} 0' >> "$tmpfile"
+# elly without a token has fallen back to setup mode and shows nobody's
+# pull requests. Asked through its API, not its database: the sqlite query
+# this used to run named a `pat` table elly dropped on 2026-11-18, and read 0
+# (a false CredentialExpired) from then on. An elly that does not answer
+# writes no line: that is elly down, not a token to paste, and the alert's
+# remedy would be wrong. `"configured":true` is the literal elly's
+# GET /api/v0/config/status encodes (internal/server/server.go).
+if status=$(timeout 20 curl -fsS -m 10 http://127.0.0.1:9876/api/v0/config/status 2>/dev/null); then
+  if printf '%s' "$status" | grep -q '"configured":true'; then
+    echo 'credential_ok{service="elly"} 1' >> "$tmpfile"
+  else
+    echo 'credential_ok{service="elly"} 0' >> "$tmpfile"
+  fi
 fi
 
 mv "$tmpfile" "$PROM_DIR/credentials.prom"

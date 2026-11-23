@@ -189,9 +189,14 @@ lib.mkIf config.dotfiles.nixos {
     };
   };
 
-  # mediabox is only reachable at home. Away from it the run is skipped, not
-  # failed, so SystemdUserUnitFailed does not fire every day of a trip; the
-  # staleness alert in rules.yml covers a mediabox that is never reached.
+  # mediabox is only reachable at home, and powered on about once a week.
+  # When it does not answer the run is skipped, not failed, so
+  # SystemdUserUnitFailed stays quiet; the staleness alert covers a mediabox
+  # that is never reached. ExecCondition skips only on exit 1-254, and ssh
+  # exits 255 on a connection failure, which failed the unit every night
+  # until 2026-11-23: hence the explicit exit 1.
   systemd.user.services.restic-backups-mediabox.Service.ExecCondition =
-    "${pkgs.openssh}/bin/ssh -oBatchMode=yes -oConnectTimeout=5 ch@mediabox.local true";
+    "${pkgs.writeShellScript "mediabox-reachable" ''
+      ${pkgs.openssh}/bin/ssh -oBatchMode=yes -oConnectTimeout=5 ch@mediabox.local true || exit 1
+    ''}";
 }
