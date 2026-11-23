@@ -10,14 +10,16 @@ import (
 // head on GitHub. Every session's posts count, clicked or unattended, so
 // nothing about who started the session can leave a post uncounted, and
 // any error reading the ledger refuses the post. A PR that is not open
-// takes no post at all.
+// takes no post at all. A round runs this beside tick, unlocked, so it
+// opens the ledger only as OpenLedgerBudget: no migration, and no write
+// beyond posts and post_refusals.
 func ledgerSpend(d Deps) spendFunc {
 	return func(pr PR, slot string, limit int) error {
 		head, err := openHead(d.Gh, pr)
 		if err != nil {
 			return err
 		}
-		l, err := OpenLedger(LedgerPath(d.StateDir))
+		l, err := OpenLedgerBudget(LedgerPath(d.StateDir))
 		if err != nil {
 			return err
 		}
@@ -62,7 +64,7 @@ func openHead(gh Gh, pr PR) (string, error) {
 // PR reviews as before. A ledger it cannot read refuses.
 func ledgerGate(d Deps) postGate {
 	return func(pr PR, kind string, draftOpen bool) error {
-		l, err := OpenLedger(LedgerPath(d.StateDir))
+		l, err := OpenLedgerBudget(LedgerPath(d.StateDir))
 		if err != nil {
 			return err
 		}

@@ -4,9 +4,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/prlock"
 )
 
 // The pr_state table holds each accepted PR's PRState as JSON, Prev chain
@@ -59,70 +62,98 @@ func (l *Ledger) DeletePRState(pr PR) error {
 	return tx.Commit()
 }
 
-// migratePRState gives every accepted PR without a state one, on every
-// open, so a PR a build without pr_state accepted is caught up later; it
-// never overwrites a state. An unread round is
-// running; otherwise the stored row maps by its state and note
-// (migratedState), and anything unmapped is idle. Ignored PRs are idle:
-// Ignore is gone.
-func (l *Ledger) migratePRState() error {
-	prs, err := l.acceptedURLs()
+// The pr_state migrations below exist for ledgers written before pr_state
+// (2026-11-16) and before the cap counted a refused round as finished
+// (2026-11-17). Tick runs them once, under each PR's lock, and then sets
+// metaStatesMigrated. Delete MigrateStatesOnce, migrateOne, migratedFor,
+// migratedState and the legacy texts in the release after the one that
+// added the flag: by then every ledger has it, and nothing calls them.
+
+// metaStatesMigrated is set once a tick ran the pr_state migrations over
+// every PR, skipping none for its lock. After it they never run again, so a
+// closed PR, which keeps its acceptance and loses its state, is never given
+// a state back from its old row.
+const metaStatesMigrated = "pr-state-migrated"
+
+// MigrateStatesOnce runs the pr_state migrations, unless the flag says they
+// ran, over every accepted PR and every PR with a state, each under its
+// lock taken through take. A PR whose lock a click holds is skipped and
+// counted; the flag is set only on a pass that skipped none.
+func (l *Ledger) MigrateStatesOnce(take prlock.Taker) (skipped int, err error) {
+	done, err := l.Meta(metaStatesMigrated)
+	if err != nil || done != "" {
+		return 0, err
+	}
+	urls, err := l.migrationURLs()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	rows, err := l.Annotations()
 	if err != nil {
+		return 0, err
+	}
+	for _, url := range urls {
+		pr, err := ParseTarget(url)
+		if err != nil {
+			return skipped, fmt.Errorf("migrating %s: %w", url, err)
+		}
+		lk, err := lockPR(pr, take)
+		if errors.Is(err, errLocked) {
+			skipped++
+			continue
+		}
+		if err != nil {
+			return skipped, err
+		}
+		err = l.migrateOne(lk, pr, rows[url])
+		lk.Unlock()
+		if err != nil {
+			return skipped, fmt.Errorf("migrating %s: %w", url, err)
+		}
+	}
+	if skipped > 0 {
+		return skipped, nil
+	}
+	return 0, l.SetMeta(metaStatesMigrated, "1")
+}
+
+// migrateOne migrates pr under its lock. A PR without a state gets one: an
+// unread round is running; otherwise the stored row a maps by its state
+// and note (migratedState), and anything unmapped is idle. A state is never
+// overwritten, except a stuck{post_refused} whose round still posted its
+// summary (Review set): decide now calls that round handled, and the stored
+// state would otherwise hold the PR back for good.
+func (l *Ledger) migrateOne(lk prlock.Locked, pr PR, a Annotation) error {
+	if err := lk.Check(prKey(pr)); err != nil {
 		return err
 	}
-	tx, err := l.db.Begin()
+	s, ok, err := l.PRState(pr)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback() }()
-	for _, url := range prs {
-		s, err := l.migratedFor(url, rows[url])
-		if err != nil {
-			return err
-		}
-		raw, err := json.Marshal(s)
-		if err != nil {
-			return err
-		}
-		if _, err := tx.Exec(`insert or ignore into pr_state (pr, state) values (?, ?)`, url, string(raw)); err != nil {
+	if !ok {
+		if s, err = l.migratedFor(pr.URL(), a); err != nil {
 			return err
 		}
 	}
-	if err := tx.Commit(); err != nil {
-		return err
+	uncap := s.State == stStuck && s.Kind == kindRefused && s.Review != ""
+	if uncap {
+		s.State, s.Kind, s.Detail = stHandled, kindPosted, detailCapped
 	}
-	return l.uncapStuck()
-}
-
-// uncapStuck rewrites a stuck{post_refused} stored before 2026-11-17 whose
-// round still posted its summary (Review set): decide now calls that round
-// handled, and the stored row would otherwise hold the PR back for good.
-func (l *Ledger) uncapStuck() error {
-	all, err := l.PRStates()
+	if ok && !uncap {
+		return nil
+	}
+	raw, err := json.Marshal(s)
 	if err != nil {
 		return err
 	}
-	for url, s := range all {
-		if s.State == stStuck && s.Kind == kindRefused && s.Review != "" {
-			s.State, s.Kind, s.Detail = stHandled, kindPosted, detailCapped
-			raw, err := json.Marshal(s)
-			if err != nil {
-				return err
-			}
-			if _, err := l.db.Exec(`update pr_state set state = ? where pr = ?`, string(raw), url); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+	_, err = l.db.Exec(`replace into pr_state (pr, state) values (?, ?)`, pr.URL(), string(raw))
+	return err
 }
 
-func (l *Ledger) acceptedURLs() ([]string, error) {
-	rows, err := l.db.Query(`select pr from acceptance where pr not in (select pr from pr_state)`)
+// migrationURLs is every accepted PR and every PR with a state.
+func (l *Ledger) migrationURLs() ([]string, error) {
+	rows, err := l.db.Query(`select pr from acceptance union select pr from pr_state`)
 	if err != nil {
 		return nil, err
 	}

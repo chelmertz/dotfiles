@@ -37,14 +37,12 @@ create table if not exists rounds (
 	session text not null default '');
 create table if not exists tokens (token text primary key, pr text not null, sha text not null, used integer not null default 0);
 create table if not exists annotations (pr text primary key, state text not null, note text not null, links text not null, expires integer not null default 0);
-create table if not exists posts (pr text not null, head text not null, slot text not null, n integer not null, primary key (pr, head, slot));
-create table if not exists post_refusals (pr text not null, at integer not null);
 create table if not exists meta (key text primary key, value text not null);
 create table if not exists pr_state (pr text primary key, state text not null);
 create table if not exists dismissals (pr text not null, review text not null, at integer not null, notified integer not null default 0, primary key (pr, review));
 create table if not exists mention_gate (pr text primary key, readable integer not null, open text not null);
 create table if not exists breaker (id integer primary key check (id = 1), tripped text, reset_at integer not null default 0);
-`
+` + budgetSchema
 
 // LedgerPath is where the ledger lives under stateDir, the XDG state home
 // (Deps.StateDir), beside nothing else.
@@ -52,20 +50,13 @@ func LedgerPath(stateDir string) string {
 	return filepath.Join(stateDir, "claude-review", "ledger.db")
 }
 
+// OpenLedger opens the ledger read-write, creating it and its schema. It
+// adds missing columns and fills derived ones (backfillTriggers), and spends
+// pre-C7 tokens once; it does not touch any PR's state. The pr_state
+// migrations run from tick alone, under each PR's lock (MigrateStatesOnce).
 func OpenLedger(path string) (*Ledger, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return nil, fmt.Errorf("ledger dir: %w", err)
-	}
-	// _txlock=immediate: every transaction takes the write lock at BEGIN, so
-	// one that reads and then writes waits for another writer (tick beside a
-	// click) instead of failing with SQLITE_BUSY_SNAPSHOT, which busy_timeout
-	// does not retry.
-	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_txlock=immediate")
+	db, err := openLedgerDB(path)
 	if err != nil {
-		return nil, fmt.Errorf("open ledger: %w", err)
-	}
-	if err := assertWAL(db); err != nil {
-		_ = db.Close()
 		return nil, err
 	}
 	if _, err := db.Exec(ledgerSchema); err != nil {
@@ -87,6 +78,11 @@ func OpenLedger(path string) (*Ledger, error) {
 		}
 	}
 	l := &Ledger{db: db}
+	// Both stay on every open: backfillTriggers fills a round row's derived
+	// columns from that row alone, the same values whichever process writes
+	// them, and a rolled-back binary keeps writing rows without them;
+	// revokePreC7Tokens runs once by its own flag, and a token it spends is
+	// only re-minted on the next show. Neither creates or changes a state.
 	if l.Unparsed, err = l.backfillTriggers(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("ledger triggers: %w", err)
@@ -95,11 +91,71 @@ func OpenLedger(path string) (*Ledger, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("ledger tokens: %w", err)
 	}
-	if err := l.migratePRState(); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("ledger pr_state: %w", err)
-	}
 	return l, nil
+}
+
+// openLedgerDB opens path read-write in WAL mode, creating its directory.
+func openLedgerDB(path string) (*sql.DB, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, fmt.Errorf("ledger dir: %w", err)
+	}
+	// _txlock=immediate: every transaction takes the write lock at BEGIN, so
+	// one that reads and then writes waits for another writer (tick beside a
+	// click) instead of failing with SQLITE_BUSY_SNAPSHOT, which busy_timeout
+	// does not retry.
+	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_txlock=immediate")
+	if err != nil {
+		return nil, fmt.Errorf("open ledger: %w", err)
+	}
+	if err := assertWAL(db); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return db, nil
+}
+
+// BudgetLedger is the ledger as a round's post verb sees it: it spends and
+// refuses posts and reads the newest round's trigger, and has no other
+// method, so the verb a round runs beside tick writes nothing but posts and
+// post_refusals.
+type BudgetLedger struct{ db *sql.DB }
+
+// budgetSchema is the part of ledgerSchema the post budget writes.
+const budgetSchema = `
+create table if not exists posts (pr text not null, head text not null, slot text not null, n integer not null, primary key (pr, head, slot));
+create table if not exists post_refusals (pr text not null, at integer not null);
+`
+
+// OpenLedgerBudget opens the ledger for the post verb inside a round: no
+// migration, backfill or token spend, and no schema beyond the budget's two
+// tables, which a ledger tick has not yet created may lack.
+func OpenLedgerBudget(path string) (*BudgetLedger, error) {
+	db, err := openLedgerDB(path)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := db.Exec(budgetSchema); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("ledger schema: %w", err)
+	}
+	return &BudgetLedger{db: db}, nil
+}
+
+func (b *BudgetLedger) Close() error { return b.db.Close() }
+
+// SpendPost is Ledger.SpendPost.
+func (b *BudgetLedger) SpendPost(pr PR, head, slot string, limit int, at time.Time) (bool, error) {
+	return spendPost(b.db, pr, head, slot, limit, at)
+}
+
+// NewestTrigger is Ledger.NewestTrigger; a ledger without rounds, which
+// tick or a click has not opened yet, has no round.
+func (b *BudgetLedger) NewestTrigger(pr PR) (Trigger, error) {
+	var n int
+	if err := b.db.QueryRow(`select count(*) from sqlite_master where type = 'table' and name = 'rounds'`).Scan(&n); err != nil || n == 0 {
+		return nil, err
+	}
+	return newestTrigger(b.db, pr)
 }
 
 // OpenLedgerReadOnly opens an existing ledger for reading only, as what a
@@ -220,17 +276,21 @@ func (l *Ledger) RoundsSince(pr PR, since time.Time) (int, error) {
 // false, recording the refusal, when limit posts were already made there.
 // One conditional update, so two posts at once cannot both take the last.
 func (l *Ledger) SpendPost(pr PR, head, slot string, limit int, at time.Time) (bool, error) {
-	if _, err := l.db.Exec(`insert or ignore into posts (pr, head, slot, n) values (?, ?, ?, 0)`, pr.URL(), head, slot); err != nil {
+	return spendPost(l.db, pr, head, slot, limit, at)
+}
+
+func spendPost(db *sql.DB, pr PR, head, slot string, limit int, at time.Time) (bool, error) {
+	if _, err := db.Exec(`insert or ignore into posts (pr, head, slot, n) values (?, ?, ?, 0)`, pr.URL(), head, slot); err != nil {
 		return false, err
 	}
-	res, err := l.db.Exec(`update posts set n = n + 1 where pr = ? and head = ? and slot = ? and n < ?`, pr.URL(), head, slot, limit)
+	res, err := db.Exec(`update posts set n = n + 1 where pr = ? and head = ? and slot = ? and n < ?`, pr.URL(), head, slot, limit)
 	if err != nil {
 		return false, err
 	}
 	if n, err := res.RowsAffected(); err != nil || n == 1 {
 		return n == 1, err
 	}
-	_, err = l.db.Exec(`insert into post_refusals (pr, at) values (?, ?)`, pr.URL(), at.Unix())
+	_, err = db.Exec(`insert into post_refusals (pr, at) values (?, ?)`, pr.URL(), at.Unix())
 	return false, err
 }
 
@@ -641,9 +701,13 @@ func (l *Ledger) Annotations() (map[string]Annotation, error) {
 // NewestTrigger is the trigger of pr's newest round, nil with none or
 // for a row no parser reads.
 func (l *Ledger) NewestTrigger(pr PR) (Trigger, error) {
+	return newestTrigger(l.db, pr)
+}
+
+func newestTrigger(db *sql.DB, pr PR) (Trigger, error) {
 	var kind, key string
 	var from sql.NullString
-	err := l.db.QueryRow(`select trigger_kind, trigger_key, trigger_from from rounds where pr = ? order by id desc limit 1`, pr.URL()).Scan(&kind, &key, &from)
+	err := db.QueryRow(`select trigger_kind, trigger_key, trigger_from from rounds where pr = ? order by id desc limit 1`, pr.URL()).Scan(&kind, &key, &from)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -707,8 +771,9 @@ func triggerSource(kind, from string) string {
 
 // backfillTriggers fills the typed columns of rows that have only the old
 // text: from before them, or written by a rolled-back binary. It runs on
-// every open; a row no parser reads gets kind trigUnparsed (counted toward
-// the cap, never deduplicated) and is counted.
+// every read-write open but the post budget's; a row no parser reads gets
+// kind trigUnparsed (counted toward the cap, never deduplicated) and is
+// counted.
 func (l *Ledger) backfillTriggers() (int, error) {
 	rows, err := l.db.Query(`select id, trigger, head from rounds where trigger_kind = ''`)
 	if err != nil {

@@ -325,7 +325,8 @@ post is refused before anything is sent. A round that hit it and still
 posted its summary ends as handled, the rest of its findings listed in
 that summary; one that never got its summary out ends as `stuck`, with the
 PR held back until the next click or re-request. The
-budget lives in the runner's ledger, and a post that cannot read it is
+budget lives in the runner's ledger, which a post opens for the budget
+alone (no migration, no write beyond it), and a post that cannot read it is
 refused. A post whose body holds the value of a secret-shaped environment
 variable (a name with token, key, secret, pass, auth or cred) is refused
 too: the shell expands a bare `$NAME` in a command that matches the post
@@ -680,8 +681,12 @@ claude-review alone. It holds:
   only interprets the `rules` table; `render` is the one writer of a row and
   marks exactly one link Primary on every row that needs the user. Nothing
   reads a row back: the fork verb, for one, gates on the state. A ledger
-  from before it is migrated on open: each accepted PR without a state gets
-  one from its unread round or its stored row's exact note, else `idle`.
+  from before it is migrated once, by tick, under each PR's lock: each
+  accepted PR without a state gets one from its unread round or its stored
+  row's exact note, else `idle`. A pass that finds a PR's lock held by a
+  click leaves it for the next pass; the first pass that skips none sets a
+  flag, and the migration never runs again, so a closed PR, which keeps its
+  acceptance, never gets a state back from its old row.
   The daily cap and the breaker are not stored: a PR they hold back shows
   "paused" for that tick only.
 - **Bury**: a PR elly reports buried gets no rounds. elly unburies it when
@@ -696,8 +701,8 @@ claude-review alone. It holds:
   new head or click, stored as kind, dedupe key (the PR's last update, the
   head, or the click time) and a click's `?from=`. The old text column
   (`click@<time>` and so on) is still written for an older binary, and rows
-  with only that text are backfilled on every open; one no parser reads
-  counts toward the caps and tick says so.
+  with only that text are backfilled on every open but a post's; one no
+  parser reads counts toward the caps and tick says so.
 - **Claude Code version** the last passing self-check ran on.
 - **PR state**: stored as JSON in the old (state, kind, detail) shape and
   read through one converter (`typed.go`) into a variant per state that

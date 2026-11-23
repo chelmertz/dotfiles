@@ -120,7 +120,16 @@ type tickWorld struct {
 	notified []string
 }
 
-func newTickWorld(t *testing.T) *tickWorld { return newTickWorldOn(openTestLedger(t)) }
+// Its ledger is one tick already migrated (metaStatesMigrated), so a PR
+// the test accepts without a state stays without one, as on any ledger
+// written since pr_state.
+func newTickWorld(t *testing.T) *tickWorld {
+	l := openTestLedger(t)
+	if err := l.SetMeta(metaStatesMigrated, "1"); err != nil {
+		t.Fatal(err)
+	}
+	return newTickWorldOn(l)
+}
 
 // newTickWorldOn is newTickWorld over l, a ledger the caller opened and
 // closes: the generator reopens its own on every restart.

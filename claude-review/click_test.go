@@ -370,12 +370,16 @@ func TestClickThatStartsNothingPutsBackTheRow(t *testing.T) {
 	h, fs := clickHost(t, true)
 	ellyRecorder(t, h, fs)
 	l := h.ledger(t)
-	// a row from before pr_state: the click puts back what it meant, in
-	// today's words
+	// a row from before pr_state, which tick migrated: the click puts back
+	// what it meant, in today's words
 	was := Annotation{State: stateHandled, Note: legacyNothing}
 	if err := l.SetAnnotation(testPR, was); err != nil {
 		t.Fatal(err)
 	}
+	if err := l.Accept(testPR, "h0", "main", t0); err != nil {
+		t.Fatal(err)
+	}
+	migrate(t, l)
 	fs.workers = []Worker{workerFor(testPR.RoundSessionID(), 500)}
 	fs.states[testPR.RoundSessionID()] = "working"
 	if code := run([]string{target}, h.d); code != 0 {

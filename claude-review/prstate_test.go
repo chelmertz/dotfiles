@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/chelmertz/dotfiles/claude-review/prlock"
 )
 
 func TestLedgerPRStateRoundTrip(t *testing.T) {
@@ -87,11 +89,8 @@ func TestMigratePRState(t *testing.T) {
 			if _, err := l.db.Exec(`delete from pr_state`); err != nil {
 				t.Fatal(err)
 			}
-			_ = l.Close()
-			if l, err = OpenLedger(path); err != nil {
-				t.Fatal(err)
-			}
 			defer func() { _ = l.Close() }()
+			migrate(t, l)
 			got, ok, err := l.PRState(pr)
 			if err != nil || !ok || got.State != c.want || got.Kind != c.kind || got.Detail != c.detail || got.Head != "bbb" {
 				t.Fatalf("got %+v ok=%v err=%v, want %s{%s} %q at bbb", got, ok, err, c.want, c.kind, c.detail)
@@ -127,11 +126,8 @@ func TestMigratePRStateNeverOverwrites(t *testing.T) {
 	if err := l.SetAnnotation(other, Annotation{State: stateHandled, Note: legacyPosted}); err != nil {
 		t.Fatal(err)
 	}
-	_ = l.Close()
-	if l, err = OpenLedger(path); err != nil {
-		t.Fatal(err)
-	}
 	defer func() { _ = l.Close() }()
+	migrate(t, l)
 	if got, _, _ := l.PRState(widgetsPR); got.Kind != kindLaunch {
 		t.Fatalf("overwritten: %+v", got)
 	}
@@ -141,25 +137,123 @@ func TestMigratePRStateNeverOverwrites(t *testing.T) {
 }
 
 // A stuck{post_refused} stored before the cap counted as finished, with its
-// summary posted, opens as handled; one without a summary stays stuck.
-func TestOpenUncapsStuckWithASummary(t *testing.T) {
-	path := t.TempDir() + "/l.db"
+// summary posted, migrates to handled; one without a summary stays stuck.
+func TestMigrationUncapsStuckWithASummary(t *testing.T) {
+	l := openTestLedger(t)
+	a, b := PR{Owner: "o", Repo: "r", Number: 1}, PR{Owner: "o", Repo: "r", Number: 2}
+	_ = l.SetPRState(a, PRState{State: stStuck, Kind: kindRefused, Review: a.URL() + "#r"})
+	_ = l.SetPRState(b, PRState{State: stStuck, Kind: kindRefused})
+	migrate(t, l)
+	sa, _, _ := l.PRState(a)
+	sb, _, _ := l.PRState(b)
+	if sa.State != stHandled || sa.Detail != detailCapped || sb.State != stStuck {
+		t.Fatalf("a %+v, b %+v", sa, sb)
+	}
+}
+
+// takeAny takes every lock; heldLock takes every lock but held's.
+func takeAny(string) (func(), error) { return func() {}, nil }
+
+func heldLock(held PR) prlock.Taker {
+	return func(name string) (func(), error) {
+		if name == prKey(held) {
+			return nil, errLocked
+		}
+		return func() {}, nil
+	}
+}
+
+// migrate runs the pr_state migrations as tick does, with no lock held.
+func migrate(t *testing.T, l *Ledger) {
+	t.Helper()
+	if skipped, err := l.MigrateStatesOnce(takeAny); err != nil || skipped != 0 {
+		t.Fatalf("migration: skipped %d, err %v", skipped, err)
+	}
+}
+
+// An open leaves pr_state alone: only tick migrates, under the PR's lock.
+func TestOpeningTheLedgerMigratesNothing(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ledger.db")
 	l, err := OpenLedger(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, b := PR{Owner: "o", Repo: "r", Number: 1}, PR{Owner: "o", Repo: "r", Number: 2}
-	_ = l.SetPRState(a, PRState{State: stStuck, Kind: kindRefused, Review: a.URL() + "#r"})
-	_ = l.SetPRState(b, PRState{State: stStuck, Kind: kindRefused})
+	if err := l.Accept(widgetsPR, "aaa", "main", t0); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.SetAnnotation(widgetsPR, Annotation{State: stateHandled, Note: legacyPosted}); err != nil {
+		t.Fatal(err)
+	}
 	_ = l.Close()
 	if l, err = OpenLedger(path); err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = l.Close() }()
-	sa, _, _ := l.PRState(a)
-	sb, _, _ := l.PRState(b)
-	if sa.State != stHandled || sa.Detail != detailCapped || sb.State != stStuck {
-		t.Fatalf("a %+v, b %+v", sa, sb)
+	if s, ok, err := l.PRState(widgetsPR); err != nil || ok {
+		t.Errorf("the open migrated %s (err %v)", describe(s), err)
+	}
+}
+
+// A PR a click holds is skipped and the flag stays unset, so the next pass
+// migrates it; the flag is set on the first pass that skips nothing.
+func TestTheMigrationFlagIsSetOnlyWhenNoPRWasSkipped(t *testing.T) {
+	l := openTestLedger(t)
+	held, other := widgetsPR, PR{Owner: "acme", Repo: "widgets", Number: 7}
+	for _, pr := range []PR{held, other} {
+		if err := l.Accept(pr, "aaa", "main", t0); err != nil {
+			t.Fatal(err)
+		}
+		if err := l.SetAnnotation(pr, Annotation{State: stateHandled, Note: legacyPosted}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	skipped, err := l.MigrateStatesOnce(heldLock(held))
+	if err != nil || skipped != 1 {
+		t.Fatalf("a held PR: skipped %d, err %v", skipped, err)
+	}
+	if done, _ := l.Meta(metaStatesMigrated); done != "" {
+		t.Error("the flag was set on a pass that skipped a PR")
+	}
+	if _, ok, _ := l.PRState(held); ok {
+		t.Error("the held PR was migrated without its lock")
+	}
+	if s, ok, _ := l.PRState(other); !ok || s.Kind != kindPosted {
+		t.Errorf("the free PR was not migrated: %s", describe(s))
+	}
+	migrate(t, l)
+	if done, _ := l.Meta(metaStatesMigrated); done == "" {
+		t.Error("the flag was not set on a pass that skipped nothing")
+	}
+	if s, ok, _ := l.PRState(held); !ok || s.Kind != kindPosted {
+		t.Errorf("the once-held PR was not migrated: %s", describe(s))
+	}
+}
+
+// After a completed pass, a later tick does not map rows again: a closed
+// PR keeps its acceptance and row and loses its state, and stays without.
+func TestASecondTickDoesNotRerunTheMigration(t *testing.T) {
+	l := openTestLedger(t)
+	h := tickHost{ledger: l, lock: takeAny}
+	if err := l.Accept(widgetsPR, "aaa", "main", t0); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.SetAnnotation(widgetsPR, Annotation{State: stateNeedsYou, Note: "LGTM at aaaaaaaaa; approve it if you agree"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.migrateStates(); err != nil {
+		t.Fatal(err)
+	}
+	if s, ok, _ := l.PRState(widgetsPR); !ok || s.Kind != kindApprove {
+		t.Fatalf("the first pass did not migrate: %s", describe(s))
+	}
+	if err := l.DeletePRState(widgetsPR); err != nil { // closed
+		t.Fatal(err)
+	}
+	if err := h.migrateStates(); err != nil {
+		t.Fatal(err)
+	}
+	if s, ok, err := l.PRState(widgetsPR); err != nil || ok {
+		t.Errorf("the second pass mapped the row again: %s (err %v)", describe(s), err)
 	}
 }
 
@@ -173,7 +267,7 @@ func TestSetPRStateRefusesADeletion(t *testing.T) {
 }
 
 // States are written only through prstate.go (SetPRState, DeletePRState,
-// the migration and its rewrite), which move and the converter use; a
+// the migration), which move and the converter use; a
 // statement elsewhere that writes pr_state bypasses the rules. The scan
 // reads SQL, not callers, so a new raw statement fails here too.
 func TestOnlyPRStateWritesThePRStateTable(t *testing.T) {

@@ -31,9 +31,8 @@ import (
 // A crash is a process dying between two writes. Every ledger table gets
 // a trigger that asks gen_crash before each row write (genTemplate); the
 // armed point fails its write, and from then on every write and every
-// external effect fails, as nothing runs in a dead process. A restart reopens the ledger (which
-// runs OpenLedger's migrations, as a new process does) and builds a fresh
-// host on it. Production code is untouched.
+// external effect fails, as nothing runs in a dead process. A restart reopens the ledger
+// (OpenLedger, as a new process does) and builds a fresh host on it. Production code is untouched.
 
 func init() {
 	sqlite.MustRegisterScalarFunction("gen_crash", 3, func(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
@@ -870,6 +869,9 @@ func TestDefectBRefreshSendsAStateReadBeforeItsLock(t *testing.T) {
 	g := newGenWorldT(t, 1)
 	g.asked[1] = false // nothing owed: recordMentions and refresh are the pass's only locks
 	pr := g.prs[0]
+	if err := g.h.ledger.SetMeta(metaStatesMigrated, "1"); err != nil { // and not the migration's
+		t.Fatal(err)
+	}
 	if err := g.h.ledger.SetPRState(pr, PRState{State: stHandled, Kind: kindNothing, Head: g.gh.head[1]}); err != nil {
 		t.Fatal(err)
 	}
@@ -1047,13 +1049,13 @@ func TestDefectLaunchCrashLeavesTheOldApproveOverTheNewRound(t *testing.T) {
 	}
 }
 
-// The unlocked migration: every OpenLedger runs migratePRState
-// (prstate.go:68), which gives each accepted PR without a state one. A
-// closed PR keeps its acceptance and loses its state; while its row's
-// receipt is still there (elly did not take the DELETE), any process that
-// opens the ledger re-creates a state for it from that row.
+// The unlocked migration: every OpenLedger ran migratePRState, which gives
+// each accepted PR without a state one. A closed PR keeps its acceptance
+// and loses its state; while its row's receipt is still there (elly did
+// not take the DELETE), any process that opened the ledger re-created a
+// state for it from that row. Now only tick migrates, under the PR's lock,
+// and only until its first complete pass sets metaStatesMigrated.
 func TestDefectMigrationRecreatesAClosedPRsState(t *testing.T) {
-	t.Skip("unlocked migration: reopening the ledger re-creates a closed PR's state; unskip when plan step 4 lands")
 	g := newGenWorldT(t, 1)
 	pr := g.prs[0]
 	g.mustTick(t)

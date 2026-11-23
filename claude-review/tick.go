@@ -120,6 +120,11 @@ func (h tickHost) tick() error {
 	if err := h.checkClaude(); err != nil {
 		return err
 	}
+	// Before the sweep, so a closed PR the migration gives a state is
+	// closed again in this pass.
+	if err := h.migrateStates(); err != nil {
+		return err
+	}
 	for _, step := range []func() error{h.sweep, h.settleDismissals, h.healBreaker} {
 		if err := step(); err != nil {
 			return err
@@ -144,6 +149,24 @@ func (h tickHost) tick() error {
 	// A failed run is what the timer's journal shows.
 	if reason, err := h.ledger.Tripped(); err != nil || reason != "" {
 		return errors.Join(err, breakerError(reason))
+	}
+	return nil
+}
+
+// migrateStates runs the pr_state migrations until a pass completes them
+// (Ledger.MigrateStatesOnce): tick is their one caller, so no click, verb
+// or round's post re-creates a state behind tick's back. A dry run skips
+// them, as it skips every write.
+func (h tickHost) migrateStates() error {
+	if h.dry {
+		return nil
+	}
+	skipped, err := h.ledger.MigrateStatesOnce(h.lock)
+	if err != nil {
+		return fmt.Errorf("the pr_state migration: %w", err)
+	}
+	if skipped > 0 && h.out != nil {
+		fmt.Fprintf(h.out, "claude-review tick: %d PRs held by a click; the pr_state migration runs again next pass\n", skipped)
 	}
 	return nil
 }
