@@ -254,6 +254,17 @@
   # option enables it in every PAM stack, though, so the next block narrows it.
   services.fprintd.enable = true;
 
+  # ...but not at the login screen. A fingerprint login hands pam_gnome_keyring
+  # no password, so the login keyring stays locked, and every gh call from a
+  # timer (review rounds, obsidian-poll, the credential probe) waits on an
+  # unlock prompt. On 2026-11-23 that prompt fired before X was up,
+  # gcr-prompter died with "cannot open display", and the daemon never asked
+  # again: three hours of hung gh calls reading as HTTP 401. Typing the
+  # password once per boot unlocks everything; polkit keeps the reader.
+  programs.dconf.profiles.gdm.databases = [{
+    settings."org/gnome/login-screen".enable-fingerprint-authentication = false;
+  }];
+
   # ...but only there and in polkit-1. pam_fprintd is `sufficient` and lands
   # ahead of pam_unix everywhere else, where it blocks for its whole 30s
   # timeout before any password prompt appears. Ordering it after pam_unix
@@ -287,7 +298,7 @@
   # system and was removed.
   #
   # A fingerprint login cannot unlock it: the reader yields no password to
-  # derive the key from, so that path prompts separately.
+  # derive the key from. That is why GDM no longer offers one (fprintd above).
   services.gnome.gnome-keyring.enable = true;
 
   # ── Network ─────────────────────────────────────────────────────────────
