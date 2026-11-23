@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 	"fmt"
+
+	"github.com/chelmertz/dotfiles/claude-review/prlock"
 )
 
 // recheckLaunches moves every launch whose worker may have been alive to
@@ -42,15 +44,15 @@ func (h tickHost) recheckLaunches() error {
 		if unread[pr.URL()] || len(h.workersOf(pr, all)) > 0 {
 			continue
 		}
-		unlock, err := h.lock(pr.SessionID().String())
+		lk, err := lockPR(pr, h.lock)
 		if errors.Is(err, errLocked) {
 			continue
 		}
 		if err != nil {
 			return err
 		}
-		_, err = h.move(pr, Event{Kind: evLaunchCleared, Class: launchNotStarted})
-		unlock()
+		_, err = h.move(lk, pr, Event{Kind: evLaunchCleared, Class: launchNotStarted})
+		lk.Unlock()
 		if err != nil {
 			h.warn(pr, err)
 		}
@@ -64,7 +66,8 @@ func (h tickHost) recheckLaunches() error {
 // it has launched, so a locked PR is skipped. A round recorded since the
 // click means it launched; a worker with no round may be its launch; an
 // unreadable roster leaves that open; nothing at all puts back what the
-// click replaced.
+// click replaced. The state is read again under the lock: a click may have
+// moved it since.
 func (h tickHost) recoverStarting() error {
 	states, err := h.ledger.PRStates()
 	if err != nil {
@@ -78,23 +81,35 @@ func (h tickHost) recoverStarting() error {
 		if err != nil {
 			continue
 		}
-		unlock, err := h.lock(pr.SessionID().String())
+		lk, err := lockPR(pr, h.lock)
 		if errors.Is(err, errLocked) {
 			continue
 		}
 		if err != nil {
 			return err
 		}
-		e, err := h.startingOutcome(pr, s)
-		if err == nil {
-			_, err = h.move(pr, e)
-		}
-		unlock()
+		err = h.recoverOne(lk, pr)
+		lk.Unlock()
 		if err != nil {
 			h.warn(pr, err)
 		}
 	}
 	return nil
+}
+
+// recoverOne resolves pr's "starting" under lk, if it still is one past
+// startingLifetime.
+func (h tickHost) recoverOne(lk prlock.Locked, pr PR) error {
+	s, err := h.stateOf(lk, pr)
+	if err != nil || s.State != stStarting || h.now().Sub(s.Since) < startingLifetime {
+		return err
+	}
+	e, err := h.startingOutcome(pr, s)
+	if err != nil {
+		return err
+	}
+	_, err = h.move(lk, pr, e)
+	return err
 }
 
 func (h tickHost) startingOutcome(pr PR, s PRState) (Event, error) {

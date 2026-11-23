@@ -37,7 +37,7 @@ func TestDismissalRecordsLiveUntilSettled(t *testing.T) {
 	if all, _ = l.PendingDismissals(); !all[0].Notified {
 		t.Error("the notified mark did not stick")
 	}
-	if err := l.SettleDismissal(all[0]); err != nil {
+	if err := l.SettleDismissal(freeLock(t, pr), all[0]); err != nil {
 		t.Fatal(err)
 	}
 	if p, _ := l.DismissalPending(pr); p {
@@ -235,7 +235,7 @@ func TestAPendingDismissalOffersNoApprove(t *testing.T) {
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	s, _ := w.h.stateOf(pr)
+	s, _ := w.h.peekState(pr)
 	if s.Kind == kindApprove || s.Kind == kindApproved {
 		t.Errorf("state %s{%s} while a dismissal is pending", s.State, s.Kind)
 	}

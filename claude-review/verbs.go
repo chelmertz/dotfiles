@@ -88,7 +88,8 @@ func approveWithToken(d Deps, pr PR, at, token string) int {
 // approval is pending: approving then would undo it. Under the lock, tick
 // cannot record a dismissal between this check and the approval.
 func approveGuard(d Deps, pr PR) (unlock func(), err error) {
-	unlock, err = d.Lock(pr.SessionID().String())
+	lk, err := lockPR(pr, d.Lock)
+	unlock = lk.Unlock
 	if errors.Is(err, errLocked) {
 		return nil, fmt.Errorf("claude-review: %s is busy; try again in a moment", pr.URL())
 	}
@@ -127,14 +128,14 @@ func notIssued(pr PR) error {
 // session (fork.go). It never resumes the session itself: that window would
 // run under the user's own settings and hold every round back.
 func attach(d Deps, cfg Config, pr PR) int {
-	unlock, err := d.Lock(pr.SessionID().String())
+	lk, err := lockPR(pr, d.Lock)
 	if errors.Is(err, errLocked) {
 		return fail(d, fmt.Errorf("claude-review: %s is being started; try again in a moment", pr.URL()))
 	}
 	if err != nil {
 		return fail(d, fmt.Errorf("claude-review: locking %s: %w", pr.URL(), err))
 	}
-	defer unlock()
+	defer lk.Unlock()
 	id, err := attachSession(d, pr)
 	if err != nil {
 		return fail(d, err)
@@ -161,7 +162,7 @@ func attach(d Deps, cfg Config, pr PR) int {
 	case d.Sessions.WindowOpen(id):
 		return fail(d, fmt.Errorf("claude-review: %s is already open in a window", pr.URL()))
 	default:
-		return openFork(d, cfg, pr)
+		return openFork(d, cfg, lk, pr)
 	}
 	return 0
 }

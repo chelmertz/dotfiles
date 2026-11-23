@@ -63,10 +63,13 @@ func cleanEnv(environ []string) []string {
 }
 
 // osHost runs children with the environment realDeps read, and keeps its
-// files under the user cache directory realDeps resolved.
+// files under the user cache directory realDeps resolved, its locks beside
+// the ledger.
 type osHost struct {
 	environ   []string
 	cacheBase string
+	// stateDir is the XDG state home; the per-PR locks live under it.
+	stateDir string
 	// timeout bounds execOutput and execStdout; zero is execTimeout.
 	timeout time.Duration
 }
@@ -174,13 +177,40 @@ func cacheDir(base string) (string, error) {
 // errLocked is Lock's answer when another click holds the PR's lock.
 var errLocked = errors.New("locked by another click")
 
-// lockUnderCache is lockSession in cacheDir.
-func (h osHost) lockUnderCache(name string) (func(), error) {
-	dir, err := cacheDir(h.cacheBase)
+// lockDir holds the locks, beside the ledger rather than in the cache
+// directory, so a tick and a click agree on it whatever cache directory
+// each one's environment names. Created private on first use.
+func lockDir(stateDir string) (string, error) {
+	if !filepath.IsAbs(stateDir) {
+		return "", fmt.Errorf("no usable state directory: %q", stateDir)
+	}
+	dir := filepath.Join(filepath.Dir(LedgerPath(stateDir)), "locks")
+	return dir, os.MkdirAll(dir, 0o700)
+}
+
+// lock takes name's lock in the cache directory, where the build before
+// this one takes it, then in lockDir, and releases both. Taking both for
+// one release keeps a click from the previous build and a tick from this
+// one apart; the cache lock goes in the release after.
+func (h osHost) lock(name string) (func(), error) {
+	old, err := cacheDir(h.cacheBase)
 	if err != nil {
 		return nil, err
 	}
-	return lockSession(dir, name)
+	dir, err := lockDir(h.stateDir)
+	if err != nil {
+		return nil, err
+	}
+	unlockOld, err := lockSession(old, name)
+	if err != nil {
+		return nil, err
+	}
+	unlockNew, err := lockSession(dir, name)
+	if err != nil {
+		unlockOld()
+		return nil, err
+	}
+	return func() { unlockNew(); unlockOld() }, nil
 }
 
 // lockSession takes an exclusive flock on dir/<name>.lock without waiting. The

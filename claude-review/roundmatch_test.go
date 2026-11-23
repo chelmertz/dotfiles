@@ -101,7 +101,7 @@ func TestARoundEndingUnderAWindowSettlesBelowIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	posted := PRState{State: stHandled, Kind: kindPosted, Head: "h1"}
-	if _, err := w.h.apply(pr, Round{ID: r, PR: pr.URL(), Head: "h1"}, Next{State: posted}, true); err != nil {
+	if _, err := w.h.apply(mustLock(t, w.h, pr), pr, Round{ID: r, PR: pr.URL(), Head: "h1"}, Next{State: posted}, true); err != nil {
 		t.Fatal(err)
 	}
 	s, _, _ := w.h.ledger.PRState(pr)
@@ -123,7 +123,7 @@ func TestARoundEndingUnderAWindowSettlesBelowIt(t *testing.T) {
 	if err := w.h.ledger.SetPRState(pr, PRState{State: stRunning, Kind: kindTick, Head: "h1", Round: newer}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := w.h.apply(pr, Round{ID: older, PR: pr.URL(), Head: "h1"}, Next{State: posted}, true); err != nil {
+	if _, err := w.h.apply(mustLock(t, w.h, pr), pr, Round{ID: older, PR: pr.URL(), Head: "h1"}, Next{State: posted}, true); err != nil {
 		t.Fatal(err)
 	}
 	if s, _, _ := w.h.ledger.PRState(pr); s.State != stRunning || s.Round != newer {
@@ -180,7 +180,7 @@ func TestNoRetryLaunchesUnderAWindow(t *testing.T) {
 	if err := w.h.ledger.SetPRState(pr, PRState{State: stHeld, Kind: kindWindow, Head: "h1", Prev: &running}); err != nil {
 		t.Fatal(err)
 	}
-	if started, err := w.h.apply(pr, Round{ID: r, PR: pr.URL(), Head: "h1"}, Retry{}, true); err != nil || started {
+	if started, err := w.h.apply(mustLock(t, w.h, pr), pr, Round{ID: r, PR: pr.URL(), Head: "h1"}, Retry{}, true); err != nil || started {
 		t.Fatalf("retry under a window: started %v err %v", started, err)
 	}
 	if len(w.started) != 0 {

@@ -209,8 +209,12 @@ meaningful.
 A session counts as open when its id is in `~/.claude/daemon/roster.json`
 (background workers) or in a `~/.claude/sessions/<pid>.json` whose pid is
 alive with the recorded start time (every other session, `claude -p`
-included). The lock is an `flock` on `<user cache dir>/claude-review/<uuid5>.lock`;
-the kernel drops it when the click exits, however it exits.
+included). The lock is an `flock` on
+`<XDG state dir>/claude-review/locks/<uuid5>.lock`, beside the ledger, and
+for one release also on the earlier `<user cache dir>/claude-review/<uuid5>.lock`,
+so a click and a tick from builds on either side of the move still exclude
+each other. The kernel drops it when the click exits, however it exits.
+Every per-PR state write and row send checks it holds that PR's lock.
 
 The exact commands (`claude-review --dry-run <pr>` prints them for a PR):
 

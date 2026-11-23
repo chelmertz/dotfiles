@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/chelmertz/dotfiles/claude-review/ids"
+	"github.com/chelmertz/dotfiles/claude-review/prlock"
 )
 
 // fakeSessions is a roster, job states and pids a test drives: launch adds
@@ -503,8 +504,9 @@ func TestEveryLaunchResultLandsTheSameOnBothPaths(t *testing.T) {
 				t.Fatal(err)
 			}
 			recorded := false
-			not, err := w.h.afterRelaunch(pr, RelaunchResult{Kind: kind, Detail: "x"}, nil, func() error { recorded = true; return nil }, func(detail string) error {
-				_, err := w.h.move(pr, Event{Kind: evFailedToStart, Class: detail})
+			lk := mustLock(t, w.h, pr)
+			not, err := w.h.afterRelaunch(lk, pr, RelaunchResult{Kind: kind, Detail: "x"}, nil, func() error { recorded = true; return nil }, func(detail string) error {
+				_, err := w.h.move(lk, pr, Event{Kind: evFailedToStart, Class: detail})
 				return err
 			})
 			got, _, _ := w.h.ledger.PRState(pr)
@@ -522,7 +524,7 @@ func TestEveryLaunchResultLandsTheSameOnBothPaths(t *testing.T) {
 			}
 		}
 	}
-	if _, err := newTickWorld(t).h.afterRelaunch(widgetsPR, RelaunchResult{}, nil, nil, nil); err == nil {
+	if _, err := newTickWorld(t).h.afterRelaunch(prlock.Locked{}, widgetsPR, RelaunchResult{}, nil, nil, nil); err == nil {
 		t.Error("a launch with no outcome read as busy")
 	}
 }

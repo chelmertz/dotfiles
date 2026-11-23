@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/chelmertz/dotfiles/claude-review/ids"
+	"github.com/chelmertz/dotfiles/claude-review/prlock"
 )
 
 // roundLifetime is how long after its launch elly shows a round as
@@ -147,27 +148,42 @@ func (h tickHost) tick() error {
 	return nil
 }
 
-// recordMentions stores each review-repo PR's mention gate before anything
-// mints or renders an Approve this pass.
-func (h tickHost) recordMentions(prs []EllyPR) error {
+// recordMentions stores each review-repo PR's mention gate, under the PR's
+// lock, before anything mints or renders an Approve this pass. A PR a click
+// holds is returned with its gate instead: refresh stores it under its own
+// lock before it renders that PR's row, so no row this pass reads a gate
+// older than elly's.
+func (h tickHost) recordMentions(prs []EllyPR) (unstored map[string]MentionGate, err error) {
+	unstored = map[string]MentionGate{}
 	for _, p := range prs {
 		// The user's own PRs too: their row shows the mention like any.
 		pr, err := ParseTarget(p.Url)
 		if err != nil || !repoAllowed(p.RepoOwner, p.RepoName, h.tcfg.ReviewRepos) {
 			continue
 		}
-		if err := h.ledger.SetMentionGate(pr, mentionGateOf(p)); err != nil {
-			return err
+		lk, err := lockPR(pr, h.lock)
+		if errors.Is(err, errLocked) {
+			unstored[pr.URL()] = mentionGateOf(p)
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		err = h.ledger.SetMentionGate(lk, pr, mentionGateOf(p))
+		lk.Unlock()
+		if err != nil {
+			return nil, err
 		}
 	}
-	return nil
+	return unstored, nil
 }
 
 // plan starts the owed rounds, refreshes every row and offers Start where
 // a click is what is missing; without elly's Asked it only refreshes.
 func (h tickHost) plan(prs []EllyPR, running int) error {
 	prs = withoutStaleMentions(prs, h.now())
-	if err := h.recordMentions(prs); err != nil {
+	gates, err := h.recordMentions(prs)
+	if err != nil {
 		return err
 	}
 	readable, err := h.askedReadable(prs)
@@ -180,7 +196,7 @@ func (h tickHost) plan(prs []EllyPR, running int) error {
 			return err
 		}
 	}
-	if err := h.refresh(held, prs); err != nil {
+	if err := h.refresh(held, gates, prs); err != nil {
 		return err
 	}
 	if readable {
@@ -335,14 +351,14 @@ func (h tickHost) workersOf(pr PR, all []Worker) []Worker {
 // settle does a closed PR's, under the PR's lock and from a roster read
 // under it. A stop that fails leaves the rounds unread for the next tick.
 func (h tickHost) closeOut(pr PR, rounds []Round) error {
-	unlock, err := h.lock(pr.SessionID().String())
+	lk, err := lockPR(pr, h.lock)
 	if errors.Is(err, errLocked) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	defer unlock()
+	defer lk.Unlock()
 	all, err := h.sess.Roster()
 	if err != nil {
 		return err
@@ -352,7 +368,7 @@ func (h tickHost) closeOut(pr PR, rounds []Round) error {
 			return err
 		}
 	}
-	_, err = h.move(pr, Event{Kind: evClosed})
+	_, err = h.move(lk, pr, Event{Kind: evClosed})
 	if err != nil {
 		return err
 	}
@@ -378,7 +394,7 @@ func (h tickHost) settle() (int, error) {
 		if err != nil {
 			continue
 		}
-		unlock, err := h.lock(pr.SessionID().String())
+		lk, err := lockPR(pr, h.lock)
 		if err != nil {
 			if !errors.Is(err, errLocked) {
 				fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
@@ -386,8 +402,8 @@ func (h tickHost) settle() (int, error) {
 			running++
 			continue
 		}
-		busy, err := h.settleRound(pr, r, true)
-		unlock()
+		busy, err := h.settleRound(lk, pr, r, true)
+		lk.Unlock()
 		if err != nil {
 			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 		}
@@ -402,14 +418,14 @@ func (h tickHost) settle() (int, error) {
 // round still runs or a retry started. With retry false a round that would
 // be retried, or waits on the user, is read instead: the caller is about to
 // start a new one.
-func (h tickHost) settleRound(pr PR, r Round, retry bool) (busy bool, err error) {
+func (h tickHost) settleRound(lk prlock.Locked, pr PR, r Round, retry bool) (busy bool, err error) {
 	sid := r.SessionFor(pr)
 	if h.running(sid) {
-		_, err := h.move(pr, Event{Kind: evResumed, Round: r.ID})
+		_, err := h.move(lk, pr, Event{Kind: evResumed, Round: r.ID})
 		return true, err
 	}
 	if why, ok := h.blocked(sid); ok {
-		return false, h.settleBlocked(pr, r, why, retry)
+		return false, h.settleBlocked(lk, pr, r, why, retry)
 	}
 	msg, err := h.lastMessage(sid)
 	if err != nil {
@@ -422,7 +438,7 @@ func (h tickHost) settleRound(pr PR, r Round, retry bool) (busy bool, err error)
 	if facts.DismissalPending, err = h.ledger.DismissalPending(pr); err != nil {
 		return false, err
 	}
-	return h.apply(pr, r, decide(r, ReadOutcome(msg), facts, pr), retry)
+	return h.apply(lk, pr, r, decide(r, ReadOutcome(msg), facts, pr), retry)
 }
 
 // settleBlocked reads a round whose worker waits for the user: the question
@@ -431,19 +447,19 @@ func (h tickHost) settleRound(pr PR, r Round, retry bool) (busy bool, err error)
 // round started overtakes the question: the worker is stopped and the round
 // read, so the new head gets a round of its own, which asks again if the
 // question still holds.
-func (h tickHost) settleBlocked(pr PR, r Round, why string, retry bool) error {
+func (h tickHost) settleBlocked(lk prlock.Locked, pr PR, r Round, why string, retry bool) error {
 	_, head, _, err := h.gh.Standing(pr)
 	if err != nil {
 		return err // GitHub unreachable: read it next tick
 	}
-	if _, err := h.move(pr, Event{Kind: evBlocked, Question: capRunes(why, maxQuestionNote), Round: r.ID}); err != nil {
+	if _, err := h.move(lk, pr, Event{Kind: evBlocked, Question: capRunes(why, maxQuestionNote), Round: r.ID}); err != nil {
 		return err
 	}
 	switch {
 	case head != "" && head != r.Head:
-		_, err = h.move(pr, Event{Kind: evPush, Head: head})
+		_, err = h.move(lk, pr, Event{Kind: evPush, Head: head})
 	case !retry:
-		_, err = h.move(pr, Event{Kind: evEnded, Next: &PRState{State: stIdle}, Round: r.ID})
+		_, err = h.move(lk, pr, Event{Kind: evEnded, Next: &PRState{State: stIdle}, Round: r.ID})
 	default:
 		return nil
 	}
@@ -454,8 +470,9 @@ func (h tickHost) settleBlocked(pr PR, r Round, why string, retry bool) error {
 }
 
 // settleUnread reads pr's unread rounds before its idle worker is stopped
-// for a new round; any it cannot read stops the new round.
-func (h tickHost) settleUnread(pr PR) error {
+// for a new round; any it cannot read stops the new round. The caller holds
+// lk.
+func (h tickHost) settleUnread(lk prlock.Locked, pr PR) error {
 	rounds, err := h.ledger.UnreadRounds()
 	if err != nil {
 		return err
@@ -464,7 +481,7 @@ func (h tickHost) settleUnread(pr PR) error {
 		if r.PR != pr.URL() {
 			continue
 		}
-		if busy, err := h.settleRound(pr, r, false); err != nil || busy {
+		if busy, err := h.settleRound(lk, pr, r, false); err != nil || busy {
 			return errors.Join(err, errors.New("its last round still runs"))
 		}
 	}
@@ -473,22 +490,22 @@ func (h tickHost) settleUnread(pr PR) error {
 
 // apply carries out one decision; it reports whether a retry started.
 // Without retry, a retry decision only reads the round.
-func (h tickHost) apply(pr PR, r Round, d Decision, retry bool) (bool, error) {
-	s, err := h.stateOf(pr)
+func (h tickHost) apply(lk prlock.Locked, pr PR, r Round, d Decision, retry bool) (bool, error) {
+	s, err := h.stateOf(lk, pr)
 	if err != nil {
 		return false, err
 	}
 	var next PRState
 	switch d := d.(type) {
 	case Closed:
-		if _, err := h.move(pr, Event{Kind: evClosed}); err != nil {
+		if _, err := h.move(lk, pr, Event{Kind: evClosed}); err != nil {
 			return false, err
 		}
 		return false, h.do("mark round "+pr.URL()+" read", func() error { return h.ledger.MarkRead(r.ID) })
 	case Retry:
 		// No retry resumes into a session the user has open in a window.
 		if retry && !windowInChain(s) {
-			return h.retry(pr, r)
+			return h.retry(lk, pr, r)
 		}
 		next = PRState{State: stIdle}
 	case Dismiss:
@@ -505,7 +522,7 @@ func (h tickHost) apply(pr PR, r Round, d Decision, retry bool) (bool, error) {
 		next = d.State
 	}
 	if namesRound(s, r.ID) {
-		_, ok, err := h.moved(pr, Event{Kind: evEnded, Next: &next, Round: r.ID})
+		_, ok, err := h.moved(lk, pr, Event{Kind: evEnded, Next: &next, Round: r.ID})
 		if err != nil || !ok {
 			// No rule for it where it sits: the round stays unread and is
 			// read again next pass, when the chain may have moved.
@@ -528,19 +545,19 @@ func windowInChain(s PRState) bool {
 
 // retry resumes r's session for a round cut off before its summary, and
 // reports whether it started.
-func (h tickHost) retry(pr PR, r Round) (bool, error) {
+func (h tickHost) retry(lk prlock.Locked, pr PR, r Round) (bool, error) {
 	var not skip
 	failed := func(detail string) error {
-		_, err := h.move(pr, Event{Kind: evEnded, Next: &PRState{State: stHeld, Kind: kindLaunch, Detail: detail}, Round: r.ID})
+		_, err := h.move(lk, pr, Event{Kind: evEnded, Next: &PRState{State: stHeld, Kind: kindLaunch, Detail: detail}, Round: r.ID})
 		return err
 	}
 	err := h.do("retry "+pr.URL(), func() error {
 		var err error
-		not, err = h.launch(pr, r.Trigger, nil, func(time.Time) error {
+		not, err = h.launch(lk, pr, r.Trigger, nil, func(time.Time) error {
 			if err := h.ledger.MarkRetried(r.ID); err != nil {
 				return err
 			}
-			_, err := h.move(pr, Event{Kind: evEnded, Next: &PRState{State: stRunning, Kind: kindRetry, Head: r.Head}, Round: r.ID})
+			_, err := h.move(lk, pr, Event{Kind: evEnded, Next: &PRState{State: stRunning, Kind: kindRetry, Head: r.Head}, Round: r.ID})
 			return err
 		}, failed)
 		return err
@@ -605,20 +622,20 @@ func (h tickHost) offerStarts(prs []EllyPR) {
 			fmt.Fprintf(h.out, "would offer Start on %s\n", pr.URL())
 			continue
 		}
-		unlock, err := h.lock(pr.SessionID().String())
+		lk, err := lockPR(pr, h.lock)
 		if err != nil {
 			continue // a click has it, and writes its own row
 		}
 		if err := h.elly.Put(pr.URL(), startOffer(pr), h.now().Add(offerTTL)); err != nil {
 			fmt.Fprintf(h.out, "claude-review tick: %s: offering Start: %v\n", pr.URL(), err)
 		}
-		unlock()
+		lk.Unlock()
 	}
 }
 
 // clearOrSay clears pr's annotation, reporting a failure without stopping.
-func (h tickHost) clearOrSay(pr PR) {
-	if err := h.do("clear "+pr.URL(), func() error { return h.clear(pr) }); err != nil {
+func (h tickHost) clearOrSay(lk prlock.Locked, pr PR) {
+	if err := h.do("clear "+pr.URL(), func() error { return h.clear(lk, pr) }); err != nil {
 		fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 	}
 }
@@ -626,7 +643,10 @@ func (h tickHost) clearOrSay(pr PR) {
 // clear deletes pr's row in elly, then its receipt: a DELETE that fails
 // keeps the receipt, so the stale-row walk sends it again next tick. elly
 // answers a row it does not hold with success.
-func (h tickHost) clear(pr PR) error {
+func (h tickHost) clear(lk prlock.Locked, pr PR) error {
+	if err := lk.Check(prKey(pr)); err != nil {
+		return err
+	}
 	if h.elly != nil {
 		if err := h.elly.Delete(pr.URL()); err != nil {
 			return err
@@ -689,7 +709,9 @@ func (h tickHost) leave(pr PR, s skip) {
 }
 
 // hold keeps p's owed round back when the PR changed under its first look,
-// the daily cap or the breaker says so, and reports whether it did.
+// the daily cap or the breaker says so, and reports whether it did. The
+// first-look move runs under the PR's lock; a PR a click holds is left this
+// pass, held.
 func (h tickHost) hold(p Planned, held map[string]Hold) (bool, error) {
 	hold, err := h.holdOf(p)
 	if err != nil {
@@ -697,8 +719,18 @@ func (h tickHost) hold(p Planned, held map[string]Hold) (bool, error) {
 	}
 	note := hold.note()
 	if p.Gate == gateFreshLook {
+		lk, err := lockPR(p.PR, h.lock)
+		if errors.Is(err, errLocked) {
+			h.leave(p.PR, skipClickHolds)
+			return true, nil
+		}
+		if err != nil {
+			return false, err
+		}
 		note = "the PR changed under its first look"
-		if _, err := h.move(p.PR, Event{Kind: evChangedUnderFirstLook, Head: p.Head}); err != nil {
+		_, err = h.move(lk, p.PR, Event{Kind: evChangedUnderFirstLook, Head: p.Head})
+		lk.Unlock()
+		if err != nil {
 			return false, err
 		}
 	} else if note != "" {
@@ -720,22 +752,22 @@ func owedEvent(p Planned) Event {
 // round, a state no owed round moves, or no free slot. "" with no error is
 // a start.
 func (h tickHost) startOne(p Planned, running int) (skip, error) {
-	unlock, err := h.lock(p.PR.SessionID().String())
+	lk, err := lockPR(p.PR, h.lock)
 	if errors.Is(err, errLocked) {
 		return skipClickHolds, nil
 	}
 	if err != nil {
 		return "", err
 	}
-	defer unlock()
+	defer lk.Unlock()
 	if windowOpen(h.sess, h.ledger, p.PR) {
-		_, err := h.move(p.PR, Event{Kind: evWindowOpened})
+		_, err := h.move(lk, p.PR, Event{Kind: evWindowOpened})
 		return skipWindowOpen, err
 	}
 	if busy, err := h.roundRuns(p.PR); err != nil || busy {
 		return skipRunning, err
 	}
-	s, err := h.stateOf(p.PR)
+	s, err := h.stateOf(lk, p.PR)
 	if err != nil {
 		return "", err
 	}
@@ -748,17 +780,17 @@ func (h tickHost) startOne(p Planned, running int) (skip, error) {
 	var not skip
 	err = h.do(fmt.Sprintf("start a round on %s at %.9s (%s)", p.PR.URL(), p.Head, p.Trigger.Text()), func() error {
 		var err error
-		not, err = h.launch(p.PR, p.Trigger, func() error { return h.settleUnread(p.PR) }, func(at time.Time) error {
+		not, err = h.launch(lk, p.PR, p.Trigger, func() error { return h.settleUnread(lk, p.PR) }, func(at time.Time) error {
 			id, err := h.ledger.StartRound(p.PR, p.Head, p.Trigger, at)
 			if err != nil {
 				return err
 			}
 			e := owedEvent(p)
 			e.Round = id
-			_, err = h.move(p.PR, e)
+			_, err = h.move(lk, p.PR, e)
 			return err
 		}, func(detail string) error {
-			_, err := h.move(p.PR, Event{Kind: evFailedToStart, Class: detail})
+			_, err := h.move(lk, p.PR, Event{Kind: evFailedToStart, Class: detail})
 			return err
 		})
 		return err
@@ -791,7 +823,10 @@ const startingLifetime = 2 * time.Minute
 // user: a state elly shows only to someone already looking is no signal.
 // An unchanged state and note stay quiet, so a row seen every tick
 // notifies once; an Approve link's fresh token does not count as a change.
-func (h tickHost) setRow(pr PR, a Annotation, identity string) error {
+func (h tickHost) setRow(lk prlock.Locked, pr PR, a Annotation, identity string) error {
+	if err := lk.Check(prKey(pr)); err != nil {
+		return err
+	}
 	was, had, err := h.ledger.Annotation(pr)
 	if err != nil {
 		return err
@@ -887,8 +922,8 @@ func (h tickHost) healBreaker() error {
 // posting. The breaker trips at TotalDailyCap starts in 24 hours; healBreaker
 // clears a cap trip once, and a second one latches, so a loop that keeps starting rounds
 // stops at the cap even after the window moves on. settle reads the PR's
-// last round before its idle worker is stopped. The caller holds the lock.
-func (h tickHost) launch(pr PR, trigger Trigger, settle func() error, record func(at time.Time) error, failed func(detail string) error) (notStarted skip, err error) {
+// last round before its idle worker is stopped. The caller holds lk.
+func (h tickHost) launch(lk prlock.Locked, pr PR, trigger Trigger, settle func() error, record func(at time.Time) error, failed func(detail string) error) (notStarted skip, err error) {
 	if h.dry {
 		return "", errors.New("refusing to start a round in a dry run")
 	}
@@ -926,7 +961,7 @@ func (h tickHost) launch(pr PR, trigger Trigger, settle func() error, record fun
 	if err != nil && res.Kind != relaunchDuplicate {
 		return "", err
 	}
-	return h.afterRelaunch(pr, res, err, func() error { return record(at) }, failed)
+	return h.afterRelaunch(lk, pr, res, err, func() error { return record(at) }, failed)
 }
 
 // starter starts rounds the way a click does, through h.start.
@@ -941,12 +976,12 @@ func (h tickHost) starter() roundStarter {
 // row, and the exhaustive linter fails a switch that misses one. Results
 // where nothing was touched (busy, roster unreadable before any launch)
 // move nothing: the PR is tried again next pass.
-func (h tickHost) afterRelaunch(pr PR, res RelaunchResult, stopErr error, record func() error, failed func(detail string) error) (notStarted skip, err error) {
+func (h tickHost) afterRelaunch(lk prlock.Locked, pr PR, res RelaunchResult, stopErr error, record func() error, failed func(detail string) error) (notStarted skip, err error) {
 	switch res.Kind {
 	case relaunched:
 		return "", record()
 	case relaunchWindow:
-		_, err := h.move(pr, Event{Kind: evWindowOpened})
+		_, err := h.move(lk, pr, Event{Kind: evWindowOpened})
 		return skipWindowOpen, err
 	case relaunchUnknown:
 		return "", fmt.Errorf("nothing started: %s: %w", res.Detail, errRosterUnknown)
@@ -978,7 +1013,7 @@ func (h tickHost) answerOwes(p Planned) (Planned, error) {
 	if p.Skip != skipNothingOwed {
 		return p, nil
 	}
-	s, err := h.stateOf(p.PR)
+	s, err := h.peekState(p.PR) // planning only: startOne reads it again under the lock
 	if err != nil || s.State != stAwaiting || s.Kind != kindQuestion {
 		return p, err
 	}
@@ -1042,8 +1077,13 @@ func (h tickHost) refreshedExpiry(a Annotation) (expires time.Time, send bool) {
 // only on positive evidence: the PR is closed, the user's own approval
 // stands at its head, a window closed. An answered question moves only
 // by the round answerOwes starts, so a held launch keeps the question. A PR
-// missing from elly is not evidence. held is startOwed's paused rows.
-func (h tickHost) refresh(held map[string]Hold, prs []EllyPR) error {
+// missing from elly is not evidence. held is startOwed's paused rows;
+// gates are the mention gates recordMentions could not store.
+//
+// Each PR's state is read under its lock, never before it: a click that
+// held the lock in between wrote its own state and row, and a state read
+// earlier would send the row it replaced.
+func (h tickHost) refresh(held map[string]Hold, gates map[string]MentionGate, prs []EllyPR) error {
 	updated := map[string]time.Time{}
 	for _, p := range prs {
 		updated[p.Url] = p.LastUpdated
@@ -1056,26 +1096,25 @@ func (h tickHost) refresh(held map[string]Hold, prs []EllyPR) error {
 	if err != nil {
 		return err
 	}
+	// Which PRs to visit; what each holds is read under its lock.
+	urls := map[string]bool{}
+	for url := range states {
+		urls[url] = true
+	}
 	for url := range rows {
-		if _, ok := states[url]; !ok {
-			if pr, err := ParseTarget(url); err == nil {
-				h.clearOrSay(pr) // a row no state stands behind
-			}
-		}
+		urls[url] = true
 	}
 	for url := range held {
-		if _, ok := states[url]; !ok {
-			states[url] = PRState{State: stIdle} // accepted before any round
-		}
+		urls[url] = true
 	}
-	for url, s := range states {
+	for url := range urls {
 		pr, err := ParseTarget(url)
 		if err != nil {
 			continue
 		}
-		// Every move runs under the PR's lock; a click holding it is about
-		// to write its own state, and the row is refreshed next pass.
-		unlock, err := h.lock(pr.SessionID().String())
+		// A click holding the lock is about to write its own state, and the
+		// row is refreshed next pass.
+		lk, err := lockPR(pr, h.lock)
 		if errors.Is(err, errLocked) {
 			continue
 		}
@@ -1083,16 +1122,45 @@ func (h tickHost) refresh(held map[string]Hold, prs []EllyPR) error {
 			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 			continue
 		}
-		h.refreshOne(pr, s, held[url], updated[url])
-		unlock()
+		h.refreshLocked(lk, pr, held, gates, updated[url])
+		lk.Unlock()
 	}
 	return nil
 }
 
-// refreshOne moves pr's state s on evidence and sends its row; the caller
-// holds the PR's lock.
-func (h tickHost) refreshOne(pr PR, s PRState, hold Hold, updated time.Time) {
-	s, err := h.evidence(pr, s, updated)
+// refreshLocked is refresh's step for one PR, under lk.
+func (h tickHost) refreshLocked(lk prlock.Locked, pr PR, held map[string]Hold, gates map[string]MentionGate, updated time.Time) {
+	if g, ok := gates[pr.URL()]; ok {
+		if err := h.ledger.SetMentionGate(lk, pr, g); err != nil {
+			fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
+			return
+		}
+	}
+	s, ok, err := h.ledger.PRState(pr)
+	if err != nil {
+		fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
+		return
+	}
+	hold, isHeld := held[pr.URL()]
+	switch {
+	case ok:
+	case isHeld:
+		s = PRState{State: stIdle} // accepted before any round
+	default:
+		_, had, err := h.ledger.Annotation(pr)
+		h.warn(pr, err)
+		if had {
+			h.clearOrSay(lk, pr) // a row no state stands behind
+		}
+		return
+	}
+	h.refreshOne(lk, pr, s, hold, updated)
+}
+
+// refreshOne moves pr's state s, read under lk, on evidence and sends its
+// row.
+func (h tickHost) refreshOne(lk prlock.Locked, pr PR, s PRState, hold Hold, updated time.Time) {
+	s, err := h.evidence(lk, pr, s, updated)
 	if err != nil {
 		fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 		return
@@ -1100,7 +1168,7 @@ func (h tickHost) refreshOne(pr PR, s PRState, hold Hold, updated time.Time) {
 	if deleted(s) {
 		return
 	}
-	if err := h.quiet("send "+pr.URL()+" to elly", func() error { return h.show(pr, s, hold) }); err != nil {
+	if err := h.quiet("send "+pr.URL()+" to elly", func() error { return h.show(lk, pr, s, hold) }); err != nil {
 		fmt.Fprintf(h.out, "claude-review tick: %s: %v\n", pr.URL(), err)
 	}
 }
@@ -1109,12 +1177,12 @@ func (h tickHost) refreshOne(pr PR, s PRState, hold Hold, updated time.Time) {
 // state after. An idle PR is not asked about: it has no row.
 // updated is the PR's last update as elly saw it, zero when elly does not
 // list it.
-func (h tickHost) evidence(pr PR, s PRState, updated time.Time) (PRState, error) {
+func (h tickHost) evidence(lk prlock.Locked, pr PR, s PRState, updated time.Time) (PRState, error) {
 	if (s.State == stHeld && s.Kind == kindWindow || windowBelow(s)) && !windowOpen(h.sess, h.ledger, pr) {
 		// The head, so the restore drops what was judged at an older one;
 		// unreadable, the restore stands as before.
 		_, head, _, _ := h.gh.Standing(pr)
-		next, err := h.move(pr, Event{Kind: evWindowClosed, Head: head})
+		next, err := h.move(lk, pr, Event{Kind: evWindowClosed, Head: head})
 		if err != nil {
 			return s, err
 		}
@@ -1143,7 +1211,7 @@ func (h tickHost) evidence(pr PR, s PRState, updated time.Time) (PRState, error)
 		}
 		return s, nil
 	}
-	return h.move(pr, *e)
+	return h.move(lk, pr, *e)
 }
 
 // metaStandingPrefix keys the PR update time GitHub last had nothing new

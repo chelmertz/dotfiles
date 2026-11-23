@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/prlock"
 )
 
 // EllyMention is one open @-mention of the user as elly's poll found it
@@ -41,9 +43,12 @@ func mentionGateOf(p EllyPR) MentionGate {
 // Approve token is minted or honoured until it clears.
 var errMentionOpen = errors.New("a mention of you on this PR is unanswered (reply or react on GitHub first)")
 
-// SetMentionGate records g for pr; tick writes it for every review-repo PR
-// it reads from elly, each pass.
-func (l *Ledger) SetMentionGate(pr PR, g MentionGate) error {
+// SetMentionGate records g for pr, under pr's lock lk: minting reads it.
+// tick writes it for every review-repo PR it reads from elly, each pass.
+func (l *Ledger) SetMentionGate(lk prlock.Locked, pr PR, g MentionGate) error {
+	if err := lk.Check(prKey(pr)); err != nil {
+		return err
+	}
 	open, err := json.Marshal(g.Open)
 	if err != nil {
 		return err

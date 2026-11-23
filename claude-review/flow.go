@@ -7,13 +7,34 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/chelmertz/dotfiles/claude-review/prlock"
 )
 
 // The tick host's side of the state machine: every change to a PR's state
 // goes through move, and every row elly shows is render's, sent by show.
 
-// stateOf is pr's stored state; a PR without one is idle.
-func (h tickHost) stateOf(pr PR) (PRState, error) {
+// prKey names pr's lock: its SessionID, whichever session it guards.
+func prKey(pr PR) string { return pr.SessionID().String() }
+
+// lockPR takes pr's lock through take; errLocked means a click (or the
+// attach verb, or tick) holds it.
+func lockPR(pr PR, take prlock.Taker) (prlock.Locked, error) {
+	return prlock.Take(prKey(pr), take)
+}
+
+// stateOf is pr's stored state, read under its lock; a PR without one is
+// idle.
+func (h tickHost) stateOf(lk prlock.Locked, pr PR) (PRState, error) {
+	if err := lk.Check(prKey(pr)); err != nil {
+		return PRState{}, err
+	}
+	return h.peekState(pr)
+}
+
+// peekState is pr's stored state read without its lock, for planning
+// only: whatever acts on it reads it again under the lock (stateOf).
+func (h tickHost) peekState(pr PR) (PRState, error) {
 	s, ok, err := h.ledger.PRState(pr)
 	if !ok && err == nil {
 		s = PRState{State: stIdle}
@@ -25,14 +46,14 @@ func (h tickHost) stateOf(pr PR) (PRState, error) {
 // new state and shows its row; ok is false when no rule applies, and then
 // nothing changes. Launch and re-accept are the caller's, done before the
 // event that reports them.
-func (h tickHost) move(pr PR, e Event) (PRState, error) {
-	s, _, err := h.moved(pr, e)
+func (h tickHost) move(lk prlock.Locked, pr PR, e Event) (PRState, error) {
+	s, _, err := h.moved(lk, pr, e)
 	return s, err
 }
 
 // moved is move, and whether a rule applied.
-func (h tickHost) moved(pr PR, e Event) (PRState, bool, error) {
-	s, err := h.stateOf(pr)
+func (h tickHost) moved(lk prlock.Locked, pr PR, e Event) (PRState, bool, error) {
+	s, err := h.stateOf(lk, pr)
 	if err != nil {
 		return s, false, err
 	}
@@ -52,7 +73,7 @@ func (h tickHost) moved(pr PR, e Event) (PRState, bool, error) {
 			}
 			// A row elly does not drop now keeps its receipt, which the
 			// stale-row walk sends the DELETE for again next tick.
-			h.warn(pr, h.clear(pr))
+			h.warn(pr, h.clear(lk, pr))
 			return nil
 		}
 		if err := h.mintFor(pr, next); err != nil {
@@ -63,7 +84,7 @@ func (h tickHost) moved(pr PR, e Event) (PRState, bool, error) {
 		}
 		// The state is stored; elly refusing the row is said, never the
 		// move's failure, and the next refresh sends it again.
-		h.warn(pr, h.show(pr, next, Hold{}))
+		h.warn(pr, h.show(lk, pr, next, Hold{}))
 		return nil
 	})
 	return next, true, err
@@ -118,8 +139,11 @@ func (h tickHost) effect(pr PR, ef Effect) error {
 }
 
 // show sends pr's row for s to elly, hold naming why an owed round waits
-// this pass. A state without a row deletes it.
-func (h tickHost) show(pr PR, s PRState, hold Hold) error {
+// this pass. A state without a row deletes it. s must be read under lk.
+func (h tickHost) show(lk prlock.Locked, pr PR, s PRState, hold Hold) error {
+	if err := lk.Check(prKey(pr)); err != nil {
+		return err
+	}
 	v, err := h.viewFor(pr, s, hold)
 	if err != nil {
 		return err
@@ -129,18 +153,18 @@ func (h tickHost) show(pr PR, s PRState, hold Hold) error {
 		if _, had, err := h.ledger.Annotation(pr); err != nil || !had {
 			return err
 		}
-		return h.clear(pr)
+		return h.clear(lk, pr)
 	}
 	expires, send := h.refreshedExpiry(a)
 	if expires.IsZero() {
-		return h.clear(pr) // a running row nothing settled in its lifetime
+		return h.clear(lk, pr) // a running row nothing settled in its lifetime
 	}
 	if h.elly != nil && send {
-		if err := h.put(pr, a, expires); err != nil {
+		if err := h.put(lk, pr, a, expires); err != nil {
 			return err
 		}
 	}
-	return h.setRow(pr, a, notifyIdentity(pr, s, a))
+	return h.setRow(lk, pr, a, notifyIdentity(pr, s, a))
 }
 
 // notifyIdentity is what a notification is about: the state and a hash of
@@ -189,10 +213,10 @@ func (h tickHost) viewFor(pr PR, s PRState, hold Hold) (View, error) {
 // put sends a to elly. Nothing is recorded or notified for a row elly did
 // not take: a PR it does not list yet gets it once refresh sees it there,
 // and a failure is sent again next pass.
-func (h tickHost) put(pr PR, a Annotation, expires time.Time) error {
+func (h tickHost) put(lk prlock.Locked, pr PR, a Annotation, expires time.Time) error {
 	if err := h.elly.Put(pr.URL(), a, expires); err != nil {
 		if refusedWith(err) == http.StatusBadRequest {
-			err = errors.Join(err, h.hidden(pr, a))
+			err = errors.Join(err, h.hidden(lk, pr, a))
 		}
 		return err
 	}
@@ -202,9 +226,9 @@ func (h tickHost) put(pr PR, a Annotation, expires time.Time) error {
 // hidden handles a row elly refused as invalid, a bug in claude-review: the
 // row it last accepted is taken down, since it no longer says what is
 // true, and the user hears once per refused row that one is hidden.
-func (h tickHost) hidden(pr PR, a Annotation) error {
+func (h tickHost) hidden(lk prlock.Locked, pr PR, a Annotation) error {
 	if _, had, err := h.ledger.Annotation(pr); err != nil || had {
-		if err := errors.Join(err, h.clear(pr)); err != nil {
+		if err := errors.Join(err, h.clear(lk, pr)); err != nil {
 			return err
 		}
 	}

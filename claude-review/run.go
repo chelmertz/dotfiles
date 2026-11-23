@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/chelmertz/dotfiles/claude-review/ids"
+	"github.com/chelmertz/dotfiles/claude-review/prlock"
 )
 
 // version is set with -ldflags "-X main.version=..." by a release build.
@@ -193,14 +194,14 @@ func launch(d Deps, cfg Config, pr PR, dir, remote string, dryRun bool, from str
 	// One click at a time per PR, from reading the session's state to the
 	// end of the click: two clicks planned together would both see no
 	// session and both start one. Tick and the attach verb take it too.
-	unlock, err := d.Lock(pr.SessionID().String())
+	lk, err := lockPR(pr, d.Lock)
 	if errors.Is(err, errLocked) {
 		return fail(d, fmt.Errorf("claude-review: another click is already opening %s", pr.URL()))
 	}
 	if err != nil {
 		return fail(d, fmt.Errorf("claude-review: locking %s: %w", pr.URL(), err))
 	}
-	defer unlock()
+	defer lk.Unlock()
 	sw := newStopwatch(d.Now)
 	head, closed := recordAcceptance(d, cfg, pr)
 	sw.mark("accept")
@@ -210,7 +211,7 @@ func launch(d Deps, cfg Config, pr PR, dir, remote string, dryRun bool, from str
 		return fail(d, fmt.Errorf("claude-review: %s is merged/closed; no round", pr.URL()))
 	}
 	if background {
-		return backgroundClick(d, cfg, clickTarget{pr: pr, dir: dir, remote: remote, head: head, from: from}, sw)
+		return backgroundClick(d, cfg, lk, clickTarget{pr: pr, dir: dir, remote: remote, head: head, from: from}, sw)
 	}
 	plan, err := planClick(d, cfg, pr, remote)
 	if err != nil {
@@ -258,8 +259,8 @@ func planBackgroundClick(d Deps, cfg Config, pr PR, remote string) (click, error
 //
 // Its first act is a "starting" row in elly, so an open page shows the click
 // within a second whichever link it came from; a click that starts no round
-// puts back what was there (unstart).
-func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
+// puts back what was there (unstart). lk is the PR's lock, held by launch.
+func backgroundClick(d Deps, cfg Config, lk prlock.Locked, c clickTarget, sw *stopwatch) int {
 	pr, dir, remote, from := c.pr, c.dir, c.remote, c.from
 	l, err := OpenLedger(LedgerPath(d.StateDir))
 	if err != nil {
@@ -282,11 +283,11 @@ func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
 	if err != nil {
 		return fail(d, err)
 	}
-	if err := h.refuseUnderWindow(pr); err != nil {
+	if err := h.refuseUnderWindow(lk, pr); err != nil {
 		return fail(d, err)
 	}
 	// The "starting" row; a click on a running round leaves its row be.
-	s, err := h.move(pr, Event{Kind: evClick, From: from})
+	s, err := h.move(lk, pr, Event{Kind: evClick, From: from})
 	if err != nil {
 		return fail(d, err)
 	}
@@ -298,7 +299,7 @@ func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
 	defer func() {
 		if !started {
 			// back to what the click replaced, unless an outcome moved it on
-			_, err := h.move(pr, Event{Kind: evAbandoned})
+			_, err := h.move(lk, pr, Event{Kind: evAbandoned})
 			say(err)
 		}
 	}()
@@ -310,7 +311,7 @@ func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
 		if err != nil {
 			return err
 		}
-		return newTickHost(d, cfg, l, user).settleUnread(pr)
+		return newTickHost(d, cfg, l, user).settleUnread(lk, pr)
 	}
 	at := time.Now()
 	sw.mark("prepare")
@@ -322,8 +323,8 @@ func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
 	if err != nil && res.Kind != relaunchDuplicate {
 		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), err))
 	}
-	not, err := h.afterRelaunch(pr, res, err, func() error { return h.recordClick(c, at) }, func(detail string) error {
-		_, err := h.move(pr, Event{Kind: evFailedToStart, Class: detail})
+	not, err := h.afterRelaunch(lk, pr, res, err, func() error { return h.recordClick(lk, c, at) }, func(detail string) error {
+		_, err := h.move(lk, pr, Event{Kind: evFailedToStart, Class: detail})
 		return err
 	})
 	started = not == "" && err == nil
@@ -333,8 +334,8 @@ func backgroundClick(d Deps, cfg Config, c clickTarget, sw *stopwatch) int {
 // refuseUnderWindow refuses a click while a window is open on pr, recorded
 // or not yet seen by tick: a fork runs under its own session, which the
 // launch's own check misses. A window tick has not seen is recorded.
-func (h tickHost) refuseUnderWindow(pr PR) error {
-	cur, err := h.stateOf(pr)
+func (h tickHost) refuseUnderWindow(lk prlock.Locked, pr PR) error {
+	cur, err := h.stateOf(lk, pr)
 	if err != nil {
 		return err
 	}
@@ -344,14 +345,14 @@ func (h tickHost) refuseUnderWindow(pr PR) error {
 	if !windowOpen(h.sess, h.ledger, pr) {
 		return nil
 	}
-	_, err = h.move(pr, Event{Kind: evWindowOpened})
+	_, err = h.move(lk, pr, Event{Kind: evWindowOpened})
 	return errors.Join(err, fmt.Errorf("claude-review: %s: %s", pr.URL(), windowNote))
 }
 
 // recordClick records a click's round once its worker is listed, and moves
 // the PR to running. A click whose head GitHub did not say records nothing,
 // so nothing would settle a running round.
-func (h tickHost) recordClick(c clickTarget, at time.Time) error {
+func (h tickHost) recordClick(lk prlock.Locked, c clickTarget, at time.Time) error {
 	if c.head == "" {
 		return nil
 	}
@@ -360,11 +361,11 @@ func (h tickHost) recordClick(c clickTarget, at time.Time) error {
 		return err
 	}
 	// settleUnread may have moved the state on since the click
-	if s, err := h.stateOf(c.pr); err == nil && s.State != stStarting {
-		_, err = h.move(c.pr, Event{Kind: evClick, From: c.from})
+	if s, err := h.stateOf(lk, c.pr); err == nil && s.State != stStarting {
+		_, err = h.move(lk, c.pr, Event{Kind: evClick, From: c.from})
 		h.warn(c.pr, err)
 	}
-	_, err = h.move(c.pr, Event{Kind: evLaunched, Round: id})
+	_, err = h.move(lk, c.pr, Event{Kind: evLaunched, Round: id})
 	h.warn(c.pr, err)
 	return nil
 }

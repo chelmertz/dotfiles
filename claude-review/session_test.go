@@ -222,18 +222,72 @@ func TestLockSession(t *testing.T) {
 	}
 }
 
-func TestLockUnderCache(t *testing.T) {
-	h := osHost{cacheBase: t.TempDir()}
-	unlock, err := h.lockUnderCache(sid.String())
+// For one release a PR's lock is two files, the cache directory's of the
+// build before and the one beside the ledger, so either build's click
+// excludes the other's tick.
+func TestOSLockTakesTheCacheAndTheStateLock(t *testing.T) {
+	h := osHost{cacheBase: t.TempDir(), stateDir: t.TempDir()}
+	unlock, err := h.lock(sid.String())
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer unlock()
-	if _, err := h.lockUnderCache(sid.String()); !errors.Is(err, errLocked) {
+	old := filepath.Join(h.cacheBase, "claude-review")
+	beside := filepath.Join(h.stateDir, "claude-review", "locks")
+	if fi, err := os.Stat(beside); err != nil || fi.Mode().Perm() != 0o700 {
+		t.Fatalf("the lock directory beside the ledger: %v %v", fi, err)
+	}
+	for _, dir := range []string{old, beside} {
+		if _, err := lockSession(dir, sid.String()); !errors.Is(err, errLocked) {
+			t.Errorf("%s: want its lock file held, got %v", dir, err)
+		}
+	}
+	if _, err := h.lock(sid.String()); !errors.Is(err, errLocked) {
 		t.Fatalf("second lock while held: want errLocked, got %v", err)
 	}
-	if _, err := (osHost{cacheBase: "relative"}).lockUnderCache(sid.String()); err == nil {
+	unlock()
+	for _, dir := range []string{old, beside} {
+		again, err := lockSession(dir, sid.String())
+		if err != nil {
+			t.Errorf("%s: after unlock: %v", dir, err)
+			continue
+		}
+		again()
+	}
+}
+
+// A build before this one holding only the cache lock, or a later one
+// holding only the state lock, keeps this one out, and a failed second
+// lock gives the first back.
+func TestOSLockYieldsToEitherFile(t *testing.T) {
+	h := osHost{cacheBase: t.TempDir(), stateDir: t.TempDir()}
+	beside, err := lockDir(h.stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, err := cacheDir(h.cacheBase)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{old, beside} {
+		other, err := lockSession(dir, sid.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.lock(sid.String()); !errors.Is(err, errLocked) {
+			t.Errorf("%s held elsewhere: want errLocked, got %v", dir, err)
+		}
+		other()
+	}
+	unlock, err := h.lock(sid.String())
+	if err != nil {
+		t.Fatalf("a failed lock kept a file: %v", err)
+	}
+	unlock()
+	if _, err := (osHost{cacheBase: "relative", stateDir: h.stateDir}).lock(sid.String()); err == nil {
 		t.Error("no usable cache dir: want an error")
+	}
+	if _, err := (osHost{cacheBase: h.cacheBase, stateDir: "relative"}).lock(sid.String()); err == nil {
+		t.Error("no usable state dir: want an error")
 	}
 }
 

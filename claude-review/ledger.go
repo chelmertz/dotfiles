@@ -15,6 +15,7 @@ import (
 	_ "modernc.org/sqlite" // the ledger's driver, pure Go
 
 	"github.com/chelmertz/dotfiles/claude-review/ids"
+	"github.com/chelmertz/dotfiles/claude-review/prlock"
 )
 
 // Ledger is the runner's own state, apart from Claude Code's session store
@@ -463,9 +464,17 @@ func (l *Ledger) MarkDismissalNotified(d Dismissal) error {
 	return err
 }
 
-// SettleDismissal forgets d: seen dismissed, or dropped.
-func (l *Ledger) SettleDismissal(d Dismissal) error {
-	_, err := l.db.Exec(`delete from dismissals where pr = ? and review = ?`, d.PR, d.Review.String())
+// SettleDismissal forgets d, seen dismissed or dropped, under its PR's
+// lock lk: minting reads it.
+func (l *Ledger) SettleDismissal(lk prlock.Locked, d Dismissal) error {
+	pr, err := ParseTarget(d.PR)
+	if err != nil {
+		return err
+	}
+	if err := lk.Check(prKey(pr)); err != nil {
+		return err
+	}
+	_, err = l.db.Exec(`delete from dismissals where pr = ? and review = ?`, d.PR, d.Review.String())
 	return err
 }
 

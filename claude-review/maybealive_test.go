@@ -66,14 +66,14 @@ func TestTickReChecksAMaybeAliveLaunch(t *testing.T) {
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if s, _ := w.h.stateOf(pr); s.Detail != launchUnlisted {
+	if s, _ := w.h.peekState(pr); s.Detail != launchUnlisted {
 		t.Errorf("a live worker's launch was cleared: %+v", s)
 	}
 	w.fs.workers = nil
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if s, _ := w.h.stateOf(pr); s.Detail != launchNotStarted {
+	if s, _ := w.h.peekState(pr); s.Detail != launchNotStarted {
 		t.Errorf("no worker and no unread round, still %+v", s)
 	}
 	if a := w.elly.put[pr.URL()]; !strings.Contains(a.Note, "start it again") {
@@ -122,13 +122,13 @@ func TestAWindowOverApproveRevokesItsToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	old, _, _ := w.h.ledger.TokenFor(pr, "h1")
-	if _, err := w.h.move(pr, Event{Kind: evWindowOpened}); err != nil {
+	if _, err := w.h.move(mustLock(t, w.h, pr), pr, Event{Kind: evWindowOpened}); err != nil {
 		t.Fatal(err)
 	}
 	if live, _ := w.h.ledger.HasLiveToken(pr); live {
 		t.Error("a token stayed live under the window")
 	}
-	if _, err := w.h.move(pr, Event{Kind: evWindowClosed}); err != nil {
+	if _, err := w.h.move(mustLock(t, w.h, pr), pr, Event{Kind: evWindowClosed}); err != nil {
 		t.Fatal(err)
 	}
 	fresh, has, _ := w.h.ledger.TokenFor(pr, "h1")
@@ -313,7 +313,7 @@ func TestAReRequestOnAQuestionStopsItsWorker(t *testing.T) {
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if s, _ := w.h.stateOf(pr); s.Kind != kindQuestion {
+	if s, _ := w.h.peekState(pr); s.Kind != kindQuestion {
 		t.Fatalf("setup: %+v", s)
 	}
 	re := requestedPR(1)
@@ -366,12 +366,12 @@ func TestTickRecoversAStartingAClickLeftBehind(t *testing.T) {
 			c.setup(w, pr)
 			w.h.now = func() time.Time { return t0.Add(time.Minute) }
 			_ = w.h.tick()
-			if s, _ := w.h.stateOf(pr); s.State != stStarting {
+			if s, _ := w.h.peekState(pr); s.State != stStarting {
 				t.Fatalf("recovered inside startingLifetime: %+v", s)
 			}
 			w.h.now = func() time.Time { return t0.Add(5 * time.Minute) }
 			_ = w.h.tick()
-			if s, _ := w.h.stateOf(pr); s.State != c.state || s.Detail != c.detail {
+			if s, _ := w.h.peekState(pr); s.State != c.state || s.Detail != c.detail {
 				t.Errorf("got %s{%s} %q, want %s %q", s.State, s.Kind, s.Detail, c.state, c.detail)
 			}
 		})
@@ -384,7 +384,7 @@ func TestTickRecoversAStartingAClickLeftBehind(t *testing.T) {
 	w.locked[pr.SessionID().String()] = true
 	w.h.now = func() time.Time { return t0.Add(5 * time.Minute) }
 	_ = w.h.tick()
-	if s, _ := w.h.stateOf(pr); s.State != stStarting {
+	if s, _ := w.h.peekState(pr); s.State != stStarting {
 		t.Errorf("a click holding the lock lost its starting: %+v", s)
 	}
 }
@@ -401,7 +401,7 @@ func TestTickRecoveringStartingKeepsAQuestionsWorker(t *testing.T) {
 	w.fs.workers = append(w.fs.workers, workerFor(pr.RoundSessionID(), 700))
 	w.h.now = func() time.Time { return t0.Add(5 * time.Minute) }
 	_ = w.h.tick()
-	if s, _ := w.h.stateOf(pr); s.Kind != kindQuestion {
+	if s, _ := w.h.peekState(pr); s.Kind != kindQuestion {
 		t.Errorf("got %+v, want the question back", s)
 	}
 }

@@ -21,7 +21,7 @@ func TestTickAResumedWorkerRunsAgain(t *testing.T) {
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if s, _ := w.h.stateOf(pr); s.State != stAwaiting || s.Kind != kindQuestion {
+	if s, _ := w.h.peekState(pr); s.State != stAwaiting || s.Kind != kindQuestion {
 		t.Fatalf("blocked: %+v", s)
 	}
 	delete(w.blocked, pr.RoundSessionID())
@@ -29,14 +29,14 @@ func TestTickAResumedWorkerRunsAgain(t *testing.T) {
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if s, _ := w.h.stateOf(pr); s.State != stRunning || s.Kind != kindTick {
+	if s, _ := w.h.peekState(pr); s.State != stRunning || s.Kind != kindTick {
 		t.Fatalf("resumed: %+v", s)
 	}
 	delete(w.live, pr.RoundSessionID())
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if s, _ := w.h.stateOf(pr); s.State != stHandled || s.Kind != kindPosted {
+	if s, _ := w.h.peekState(pr); s.State != stHandled || s.Kind != kindPosted {
 		t.Fatalf("ended: %+v", s)
 	}
 }
@@ -63,7 +63,7 @@ func TestTickStuckLiftsOnlyOnARerequest(t *testing.T) {
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if s, _ := w.h.stateOf(pr); len(w.started) != 1 || s.State != stRunning {
+	if s, _ := w.h.peekState(pr); len(w.started) != 1 || s.State != stRunning {
 		t.Fatalf("a re-request did not lift stuck: started %q, state %+v", w.started, s)
 	}
 }

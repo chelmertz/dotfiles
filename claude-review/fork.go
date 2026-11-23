@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/chelmertz/dotfiles/claude-review/ids"
+	"github.com/chelmertz/dotfiles/claude-review/prlock"
 )
 
 // forkPrompt is what the fork is asked once it opens: Open Claude on a PR
@@ -89,11 +90,11 @@ func ForkArgs(pr PR, session, forkID ids.SessionID, remote string, skillRules []
 	return append(append(append(args, secretReadRules...), protectedRules()...), forkDenyRules...)
 }
 
-// openFork opens the fork, under the PR's lock the caller holds. A link can
+// openFork opens the fork, under the PR's lock lk the caller holds. A link can
 // come from anywhere a click can, so the ledger decides, not the link: the
 // PR is in the review repos, a review of it has ended (so its session
 // exists), and nothing is working on it.
-func openFork(d Deps, cfg Config, pr PR) int {
+func openFork(d Deps, cfg Config, lk prlock.Locked, pr PR) int {
 	if !repoAllowed(pr.Owner, pr.Repo, cfg.ReviewRepos) {
 		return fail(d, fmt.Errorf("claude-review: %s is not in review_repos", pr.URL()))
 	}
@@ -128,6 +129,9 @@ func openFork(d Deps, cfg Config, pr PR) int {
 	// Each fork gets a fresh id, recorded before launch: a window under it
 	// holds no session with the round's id, so only this record finds it.
 	forkID := ids.NewSession()
+	if err := lk.Check(prKey(pr)); err != nil {
+		return fail(d, err)
+	}
 	if err := l.SetForkSession(pr, forkID); err != nil {
 		return fail(d, err)
 	}

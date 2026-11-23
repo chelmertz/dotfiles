@@ -498,7 +498,7 @@ func TestTickOneEllyFailureDoesNotStopTheRest(t *testing.T) {
 func TestLaunchRefusesInADryRun(t *testing.T) {
 	w := newTickWorld(t)
 	w.h.dry = true
-	if _, err := w.h.launch(widgetsPR, NewHead{}, nil, func(time.Time) error { return nil }, nil); err == nil || len(w.started) != 0 {
+	if _, err := w.h.launch(mustLock(t, w.h, widgetsPR), widgetsPR, NewHead{}, nil, func(time.Time) error { return nil }, nil); err == nil || len(w.started) != 0 {
 		t.Errorf("launch in a dry run: err %v, started %q", err, w.started)
 	}
 }
@@ -667,7 +667,7 @@ func TestTickBreakerCountsRetries(t *testing.T) {
 func TestLaunchWithoutACapStartsNothing(t *testing.T) {
 	w := newTickWorld(t)
 	w.h.tcfg.TotalDailyCap = 0
-	if _, err := w.h.launch(widgetsPR, NewHead{}, nil, func(time.Time) error { return nil }, nil); err == nil || len(w.started) != 0 {
+	if _, err := w.h.launch(mustLock(t, w.h, widgetsPR), widgetsPR, NewHead{}, nil, func(time.Time) error { return nil }, nil); err == nil || len(w.started) != 0 {
 		t.Errorf("launch with no cap: err %v, started %q", err, w.started)
 	}
 }
@@ -680,7 +680,7 @@ func TestLaunchRefusesWhileTripped(t *testing.T) {
 		t.Fatal(err)
 	}
 	recorded := false
-	if _, err := w.h.launch(widgetsPR, NewHead{}, nil, func(time.Time) error { recorded = true; return nil }, nil); err == nil || recorded || len(w.started) != 0 {
+	if _, err := w.h.launch(mustLock(t, w.h, widgetsPR), widgetsPR, NewHead{}, nil, func(time.Time) error { recorded = true; return nil }, nil); err == nil || recorded || len(w.started) != 0 {
 		t.Errorf("launch while tripped: err %v, recorded %v, started %q", err, recorded, w.started)
 	}
 }
@@ -721,7 +721,7 @@ func TestTickARoundOverItsPostLimitStopsThatPR(t *testing.T) {
 	if len(w.started) != 1 {
 		t.Errorf("rounds after the limit: %q", w.started)
 	}
-	if st, _ := w.h.stateOf(pr); st.State != stStuck || st.Kind != kindRefused {
+	if st, _ := w.h.peekState(pr); st.State != stStuck || st.Kind != kindRefused {
 		t.Errorf("the PR is not held back until the next click: %+v", st)
 	}
 }
@@ -1418,10 +1418,10 @@ func TestAWindowOverAQuestionDoesNotNotifyAgain(t *testing.T) {
 	if len(w.notified) != 1 {
 		t.Fatalf("the question notified %d times", len(w.notified))
 	}
-	if _, err := w.h.move(pr, Event{Kind: evWindowOpened}); err != nil {
+	if _, err := w.h.move(mustLock(t, w.h, pr), pr, Event{Kind: evWindowOpened}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := w.h.move(pr, Event{Kind: evWindowClosed, Head: "h1"}); err != nil {
+	if _, err := w.h.move(mustLock(t, w.h, pr), pr, Event{Kind: evWindowClosed, Head: "h1"}); err != nil {
 		t.Fatal(err)
 	}
 	if len(w.notified) != 1 {
@@ -1450,7 +1450,7 @@ func TestTheNotifyIdentityIsSeededFromRowsAlreadyUp(t *testing.T) {
 	if err := w.h.ledger.SetAnnotation(pr, render(pr, s, View{})); err != nil {
 		t.Fatal(err)
 	}
-	if err := w.h.show(pr, s, Hold{}); err != nil {
+	if err := w.h.show(mustLock(t, w.h, pr), pr, s, Hold{}); err != nil {
 		t.Fatal(err)
 	}
 	if len(w.notified) != 0 {

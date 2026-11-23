@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/chelmertz/dotfiles/claude-review/ids"
+	"github.com/chelmertz/dotfiles/claude-review/prlock"
 )
 
 // dismissalMessage is the reason posted with a dismissal.
@@ -30,7 +31,8 @@ func (h tickHost) sendDismissal(d Dismissal) {
 // seen dismissed by the user settles; one whose PR merged or whose repository
 // was archived is dropped, said once; any other answer, an error included
 // (a 404 is not "gone": a private repository the token cannot see answers
-// 404), sends it again.
+// 404), sends it again. Settling runs under the PR's lock, since minting
+// reads the pending dismissal; a PR a click holds is read back next pass.
 func (h tickHost) settleDismissals() error {
 	all, err := h.ledger.PendingDismissals()
 	if err != nil {
@@ -47,24 +49,41 @@ func (h tickHost) settleDismissals() error {
 		case err != nil:
 			h.warn(pr, fmt.Errorf("reading back the dismissal of review %s: %w", d.Review, err))
 			h.notifyDismissal(d, "could not check the dismissal of your approval; tick retries it")
-		case st.Dismissed:
-			if err := h.do("settle the dismissal of review "+d.Review.String()+" on "+d.PR, func() error { return h.ledger.SettleDismissal(d) }); err != nil {
+		case st.Dismissed || st.Merged || st.Archived:
+			if err := h.settleDismissal(pr, d, st); err != nil {
 				return err
-			}
-			if err := h.reshow(pr); err != nil {
-				h.warn(pr, err)
-			}
-		case st.Merged || st.Archived:
-			why := map[bool]string{true: "merged", false: "its repository was archived"}[st.Merged]
-			if err := h.do("drop the dismissal of review "+d.Review.String()+" on "+d.PR+": "+why, func() error { return h.ledger.SettleDismissal(d) }); err != nil {
-				return err
-			}
-			if h.notify != nil && !h.dry {
-				h.notify(d.PR + ": " + why + " before your approval could be dismissed; it stands")
 			}
 		default:
 			h.sendDismissal(d)
 		}
+	}
+	return nil
+}
+
+// settleDismissal forgets d, seen dismissed (and pr's row sent again) or
+// dropped (and said), under pr's lock; a PR a click holds is left.
+func (h tickHost) settleDismissal(pr PR, d Dismissal, st DismissalStatus) error {
+	lk, err := lockPR(pr, h.lock)
+	if errors.Is(err, errLocked) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer lk.Unlock()
+	if st.Dismissed {
+		if err := h.do("settle the dismissal of review "+d.Review.String()+" on "+d.PR, func() error { return h.ledger.SettleDismissal(lk, d) }); err != nil {
+			return err
+		}
+		h.warn(pr, h.reshow(lk, pr))
+		return nil
+	}
+	why := map[bool]string{true: "merged", false: "its repository was archived"}[st.Merged]
+	if err := h.do("drop the dismissal of review "+d.Review.String()+" on "+d.PR+": "+why, func() error { return h.ledger.SettleDismissal(lk, d) }); err != nil {
+		return err
+	}
+	if h.notify != nil && !h.dry {
+		h.notify(d.PR + ": " + why + " before your approval could be dismissed; it stands")
 	}
 	return nil
 }
@@ -78,13 +97,16 @@ func (h tickHost) notifyDismissal(d Dismissal, why string) {
 	h.warn(PR{}, errors.Join(h.ledger.MarkDismissalNotified(d)))
 }
 
-// reshow sends pr's row again from its stored state.
-func (h tickHost) reshow(pr PR) error {
+// reshow sends pr's row again from its state, read under lk.
+func (h tickHost) reshow(lk prlock.Locked, pr PR) error {
+	if err := lk.Check(prKey(pr)); err != nil {
+		return err
+	}
 	s, ok, err := h.ledger.PRState(pr)
 	if err != nil || !ok {
 		return err
 	}
-	return h.show(pr, s, Hold{})
+	return h.show(lk, pr, s, Hold{})
 }
 
 // beingDismissed: review is the one a pending dismissal on pr targets.

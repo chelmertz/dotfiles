@@ -23,7 +23,7 @@ func TestApproveTokensWaitForTheMentionGate(t *testing.T) {
 		"open":       {Open: []EllyMention{openMention}},
 		"unreadable": {Unreadable: true},
 	} {
-		if err := l.SetMentionGate(widgetsPR, g); err != nil {
+		if err := l.SetMentionGate(freeLock(t, widgetsPR), widgetsPR, g); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := l.MintToken(widgetsPR, sha); !errors.Is(err, errMentionOpen) {
@@ -33,7 +33,7 @@ func TestApproveTokensWaitForTheMentionGate(t *testing.T) {
 			t.Errorf("%s: an earlier token was honoured: %v %v", name, ok, err)
 		}
 	}
-	if err := l.SetMentionGate(widgetsPR, MentionGate{}); err != nil {
+	if err := l.SetMentionGate(freeLock(t, widgetsPR), widgetsPR, MentionGate{}); err != nil {
 		t.Fatal(err)
 	}
 	if ok, err := l.UseToken(widgetsPR, sha, before); !ok || err != nil {
@@ -334,5 +334,43 @@ func TestPostInlineRefusedInAMentionsOnlyRound(t *testing.T) {
 		if strings.Contains(strings.Join(c, " "), "POST") {
 			t.Errorf("a write reached GitHub: %q", c)
 		}
+	}
+}
+
+// A click holding a PR's lock while tick records the mention gates leaves
+// that PR's gate to refresh, which stores it under its own lock before the
+// row renders: no Approve is minted or shown over a mention elly reported.
+func TestRefreshStoresAGateAClickHeldBack(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	if err := w.h.ledger.SetPRState(pr, PRState{State: stAwaiting, Kind: kindApprove, Head: "h1", Since: t0}); err != nil {
+		t.Fatal(err)
+	}
+	p := requestedPR(42)
+	p.HeadRefOid = "h1"
+	p.Mentions = []EllyMention{{Url: pr.URL() + "#discussion_r7", Author: "adam", At: t0}}
+	w.locked[prKey(pr)] = true
+	gates, err := w.h.recordMentions([]EllyPR{p})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g, _ := w.h.ledger.MentionGate(pr); g.Blocks() {
+		t.Fatal("recordMentions wrote under a click's lock")
+	}
+	if _, ok := gates[pr.URL()]; !ok {
+		t.Fatalf("the held-back gate was dropped: %v", gates)
+	}
+	w.locked[prKey(pr)] = false
+	if err := w.h.refresh(nil, gates, []EllyPR{p}); err != nil {
+		t.Fatal(err)
+	}
+	if g, _ := w.h.ledger.MentionGate(pr); !g.Blocks() {
+		t.Error("refresh did not store the held-back gate")
+	}
+	if live, err := w.h.ledger.HasLiveToken(pr); err != nil || live {
+		t.Errorf("an Approve token over an open mention: %v %v", live, err)
+	}
+	if got := w.elly.put[pr.URL()]; got.State != stateNeedsYou || !strings.Contains(got.Note, "adam mentioned you") {
+		t.Errorf("the row ignores the mention: %+v", got)
 	}
 }

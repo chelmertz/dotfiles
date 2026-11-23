@@ -486,41 +486,50 @@ func (g *genWorld) finish(n int, msg, summary string) {
 	g.gh.summary[n] = summary
 }
 
-// click is the ledger side of backgroundClick, under the harness's fakes:
-// the breaker, the window check, the starting move, the launch through the
+// click is the ledger side of launch and backgroundClick, under the
+// harness's fakes: the PR's lock (held elsewhere, the click fails as a
+// real one does), the breaker, the window check, the starting move, the launch through the
 // same starter and afterRelaunch, recordClick, and the abandon.
 func (g *genWorld) click(n int) error {
 	pr := g.prs[n-1]
 	h := g.h
 	h.out, h.notify, h.say = nil, nil, func(error) {}
+	lk, err := lockPR(pr, h.lock)
+	if errors.Is(err, errLocked) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer lk.Unlock()
 	if reason, err := h.ledger.Tripped(); err != nil || reason != "" {
 		return err
 	}
-	if err := h.refuseUnderWindow(pr); err != nil {
+	if err := h.refuseUnderWindow(lk, pr); err != nil {
 		return err
 	}
-	s, err := h.move(pr, Event{Kind: evClick, From: "elly"})
+	s, err := h.move(lk, pr, Event{Kind: evClick, From: "elly"})
 	if err != nil || maybeAlive(s) {
 		return err
 	}
 	started := false
 	defer func() {
 		if !started {
-			_, _ = h.move(pr, Event{Kind: evAbandoned})
+			_, _ = h.move(lk, pr, Event{Kind: evAbandoned})
 		}
 	}()
 	at := g.now
 	before := len(g.started)
 	starter := roundStarter{sess: h.sess, exists: h.exists, run: h.start, wrapper: h.tcfg.Wrapper}
-	res, err := starter.start(h.cfg, pr, "/clone", "upstream", false, func() error { return g.h.settleUnread(pr) })
+	res, err := starter.start(h.cfg, pr, "/clone", "upstream", false, func() error { return g.h.settleUnread(lk, pr) })
 	g.countLaunches(before)
 	if err != nil && res.Kind != relaunchDuplicate {
 		return err
 	}
-	not, err := h.afterRelaunch(pr, res, err, func() error {
-		return h.recordClick(clickTarget{pr: pr, head: g.gh.head[n], from: "elly"}, at)
+	not, err := h.afterRelaunch(lk, pr, res, err, func() error {
+		return h.recordClick(lk, clickTarget{pr: pr, head: g.gh.head[n], from: "elly"}, at)
 	}, func(detail string) error {
-		_, err := h.move(pr, Event{Kind: evFailedToStart, Class: detail})
+		_, err := h.move(lk, pr, Event{Kind: evFailedToStart, Class: detail})
 		return err
 	})
 	started = not == "" && err == nil
@@ -854,21 +863,23 @@ func TestDefectAMoveMarksRoundsReadBeforeStoringTheState(t *testing.T) {
 	}
 }
 
-// B: refresh reads every state before it takes each PR's lock
-// (tick.go:1051 vs 1078) and shows that snapshot (refreshOne, tick.go:1103)
-// when no evidence moves it, over a row a click wrote in between.
+// B: refresh read every state before it took each PR's lock and showed
+// that snapshot when no evidence moved it, over a row a click wrote in
+// between. It now reads each state under the lock.
 func TestDefectBRefreshSendsAStateReadBeforeItsLock(t *testing.T) {
-	t.Skip("defect B: refresh shows a state read before the lock, over a click's row; unskip when plan step 3 lands")
 	g := newGenWorldT(t, 1)
-	g.asked[1] = false // nothing owed: refresh is the pass's only lock
+	g.asked[1] = false // nothing owed: recordMentions and refresh are the pass's only locks
 	pr := g.prs[0]
 	if err := g.h.ledger.SetPRState(pr, PRState{State: stHandled, Kind: kindNothing, Head: g.gh.head[1]}); err != nil {
 		t.Fatal(err)
 	}
-	lock, clicked := g.h.lock, false
+	lock, calls, clicked := g.h.lock, 0, false
 	g.h.lock = func(id string) (func(), error) {
-		if !clicked && id == pr.SessionID().String() {
-			// The click held the lock first, and released it.
+		if id == pr.SessionID().String() {
+			calls++
+		}
+		if !clicked && calls == 2 {
+			// The click held the lock just before refresh, and released it.
 			clicked = true
 			if err := g.click(1); err != nil {
 				t.Fatal(err)
@@ -877,6 +888,9 @@ func TestDefectBRefreshSendsAStateReadBeforeItsLock(t *testing.T) {
 		return lock(id)
 	}
 	g.mustTick(t)
+	if calls != 3 {
+		t.Fatalf("the PR's lock was taken %d times, want recordMentions', the click's and refresh's", calls)
+	}
 	stored := g.state(t, 1)
 	if stored.State != stRunning {
 		t.Fatalf("the click did not start a round: %s", describe(stored))
@@ -891,10 +905,9 @@ func TestDefectBRefreshSendsAStateReadBeforeItsLock(t *testing.T) {
 	}
 }
 
-// C: hold moves a PR that changed under its first look (tick.go:701)
-// without the PR's lock, so a click holding it does not stop the move.
+// C: hold moved a PR that changed under its first look without the PR's
+// lock, so a click holding it did not stop the move. It now takes it.
 func TestDefectCHoldMovesThePRWithoutItsLock(t *testing.T) {
-	t.Skip("defect C: hold moves the PR while a click holds its lock; unskip when plan step 3 lands")
 	g := newGenWorldT(t, 1)
 	pr := g.prs[0]
 	before := PRState{State: stHandled, Kind: kindPosted, Head: g.gh.head[1]}

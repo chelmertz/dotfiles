@@ -24,7 +24,7 @@ func realDeps() Deps {
 	// "" on error, which cacheDir refuses: no usable cache directory.
 	cacheBase, _ := os.UserCacheDir()
 	dirs := resolveDirs(home, os.Getenv)
-	h := osHost{environ: os.Environ(), cacheBase: cacheBase}
+	h := osHost{environ: os.Environ(), cacheBase: cacheBase, stateDir: dirs.state}
 	return Deps{
 		GOOS:           goos(),
 		UserConfigDir:  cfgDir,
@@ -39,7 +39,7 @@ func realDeps() Deps {
 		FindRepo:       FindRepo,
 		SessionExists:  SessionExists,
 		SessionRunning: SessionRunning,
-		Lock:           h.lockUnderCache,
+		Lock:           h.lock,
 		Sleep:          time.Sleep,
 		Now:            time.Now,
 		Exec:           h.execAttached,
