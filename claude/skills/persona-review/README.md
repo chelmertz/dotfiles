@@ -72,6 +72,20 @@ The fixtures hold work data and are kept outside this repo.
   pairs with refactor mode, where the code already exists and is part of
   the input.
 
+## The 2026-11-23 post-mortem
+
+A month of two personal tools (128 fixed defects) showed where review missed:
+behaviour that lived only in code or prompts, a flag turned on without a
+design note that overturned an earlier decision, an earlier finding about a
+probe on a table that a later migration dropped, and formats another
+program owns drifting under a strict parser. Hence the "carry earlier
+decisions forward" step, which is workflow rather than prompt and needs no
+backtest, and one bullet each in `state-model` (downtime, crashes between
+writes, flags either way, states nothing leaves) and `domain-model`
+(formats another program owns, and how wide one bad record fails). The two
+bullets are not backtested and were written from that post-mortem, so they
+risk the vocabulary leak described above; weigh their findings by evidence.
+
 ## Not yet tested
 
 PR mode (reviewing a diff against an earlier persona review), refactor mode

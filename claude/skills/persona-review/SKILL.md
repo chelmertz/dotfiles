@@ -41,6 +41,26 @@ review stays with `/code-review` and `/security-review`.
   backtest yet; say so in the output when it runs, and weigh its findings
   by the evidence each cites rather than by the persona's record.
 
+## Carry earlier decisions forward
+
+Blind means blind to this run's other reviewers, not to the project's past.
+Before spawning, collect what the change must keep honouring and give the
+list to every reviewer as part of the input:
+
+- every `DECISIONS.md` entry the change touches, relies on or contradicts,
+  quoted, newest first; an entry the change overturns is a finding unless
+  the design says it supersedes it;
+- every finding of an earlier `*-persona-review.md` in the project that
+  names a file, table, field, format or program the change touches;
+- every other program, repository, script or alert that reads or writes
+  what the change alters (grep for the names), with the line that does.
+
+A finding that an earlier review raised and this design drops is reported
+as such. A change with no design note is not exempt: a config flag that
+removes a human gate or flips a default, or a migration that drops or
+renames stored data, gets a note of a few lines and this step before it
+ships.
+
 ## Run
 
 1. Spawn every reviewer in **one message** so they run in parallel. The

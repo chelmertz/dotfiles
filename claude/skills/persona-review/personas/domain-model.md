@@ -4,6 +4,7 @@ Read the design, then the code it describes or changes. For every value the desi
 - states or combinations the domain forbids but the type can hold: parallel flags or strings that must agree, a field that means different things depending on another field, a sentinel value standing in for a case, an "optional" field that is required in some states;
 - a fact known at one point and dropped on the way, then guessed back later from what is left (merging two sources and re-deriving which one a record came from; parsing text a layer above wrote to recover its meaning; a boolean whose reason is lost);
 - text written for people that a program later reads back as data, or any string two sides must spell the same with nothing checking it;
+- data whose format another program or repository owns, read or written here (a file, a table, an API body, a model's output): name each, and say whether one unexpected record fails that record or everything after it;
 - a decision returned as a bag of fields the caller has to interpret in the right order, where a value naming each outcome or effect could be checked, logged and tested on its own;
 - the same decision made twice in different layers or programs, which can disagree; and layers that only pass data through or re-shape it without owning a decision;
 - checks repeated at every entry point that a single computed value ("what is allowed now") could answer once;
