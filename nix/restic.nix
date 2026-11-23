@@ -93,6 +93,8 @@ let
     "${home}/.docker"
     # elly's database holds GitHub tokens for the work orgs and private PR titles.
     "${home}/.local/share/elly"
+    # claude-review's ledger holds work PR URLs, questions and review links.
+    "${home}/.local/state/claude-review"
     # ~/p's own repository tracks m/ as well.
     "${home}/p/.git"
 
