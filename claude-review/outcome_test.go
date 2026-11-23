@@ -28,6 +28,12 @@ func TestReadOutcome(t *testing.T) {
 		{"question marker quoted mid-message does not count", "I will end with " + questionLine + " if needed.\nPosted 2 comments.", Outcome{Kind: OutcomeOther}},
 		{"both: the question wins", "approve with `! claude-review approve https://github.com/acme/widgets/pull/7 --at " + sha + "`\n\nWhich one?\n" + questionLine, Outcome{Kind: OutcomeQuestion, Question: "Which one?"}},
 		{"nothing line", "Head unchanged, no replies.\n\n" + nothingLine + "\n", Outcome{Kind: OutcomeNothing}},
+		// A re-review round with nothing new still offers Approve when it
+		// would approve: both prompt rules apply, and the round printed both
+		// (https://github.com/eversport/ai-platform/pull/71, 2026-11-20).
+		// Nothing only means it posted nothing; the approve line is the verdict.
+		{"both: the approve line wins over nothing", "Every thread settled.\n\nYou can still approve with `! claude-review approve https://github.com/acme/widgets/pull/7 --at " + sha + "`\n\n" + nothingLine,
+			Outcome{Kind: OutcomeApprove, PrURL: "https://github.com/acme/widgets/pull/7", SHA: sha}},
 		{"nothing line quoted mid-message does not count", "Would have ended with " + nothingLine + ".\nPosted 1 reply.", Outcome{Kind: OutcomeOther}},
 		{"empty", "", Outcome{Kind: OutcomeOther}},
 	}

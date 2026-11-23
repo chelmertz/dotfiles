@@ -52,14 +52,20 @@ const ellyMaxNote = 300
 var approveLine = regexp.MustCompile(`claude-review approve (https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/pull/[1-9][0-9]*) --at ([0-9a-f]{40})\b`)
 
 // ReadOutcome reads a round's last message. The question and nothing lines
-// count only as the message's last non-empty line; when both are present the question wins,
-// since it needs the user either way.
+// count only as the message's last non-empty line. The question beats an
+// approve line, since it needs the user either way; an approve line beats
+// the nothing line, which only says nothing was posted.
 func ReadOutcome(msg string) Outcome {
 	lines := strings.Split(strings.TrimSpace(msg), "\n")
 	switch strings.TrimSpace(lines[len(lines)-1]) {
 	case questionLine:
 		return Outcome{Kind: OutcomeQuestion, Question: lastParagraph(lines[:len(lines)-1])}
 	case nothingLine:
+		// Nothing says the round posted nothing; an approve line beside it
+		// is still the verdict, and decide checks it against GitHub.
+		if m := approveLine.FindStringSubmatch(msg); m != nil {
+			return Outcome{Kind: OutcomeApprove, PrURL: m[1], SHA: m[2]}
+		}
 		return Outcome{Kind: OutcomeNothing}
 	}
 	if m := approveLine.FindStringSubmatch(msg); m != nil {
