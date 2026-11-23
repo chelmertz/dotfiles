@@ -122,8 +122,8 @@ func (h tickHost) startingOutcome(pr PR, s PRState) (Event, error) {
 			return Event{Kind: evLaunched, Round: r.ID}, nil
 		}
 	}
-	for e := s.Prev; e != nil; e = e.Prev {
-		if e.State == stAwaiting && e.Kind == kindQuestion {
+	for d, e := range chain(s) {
+		if d > 0 && e.State == stAwaiting && e.Kind == kindQuestion {
 			// A worker now is the question's own, waiting on the user.
 			return Event{Kind: evAbandoned}, nil
 		}

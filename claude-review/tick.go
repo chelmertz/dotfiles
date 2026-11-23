@@ -535,8 +535,8 @@ func (h tickHost) apply(lk prlock.Locked, pr PR, r Round, d Decision, retry bool
 
 // windowInChain: a window is open somewhere in s's chain.
 func windowInChain(s PRState) bool {
-	for e := &s; e != nil; e = e.Prev {
-		if e.State == stHeld && e.Kind == kindWindow {
+	for _, e := range chain(s) {
+		if isWindow(e.PRState) {
 			return true
 		}
 	}

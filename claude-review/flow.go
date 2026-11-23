@@ -172,15 +172,15 @@ func (h tickHost) show(lk prlock.Locked, pr PR, s PRState, hold Hold) error {
 // it stands over, so opening and closing it on an unanswered question
 // notifies nothing new.
 func notifyIdentity(pr PR, s PRState, a Annotation) string {
-	if s.State == stHeld && s.Kind == kindWindow {
-		under := s.Prev
-		for under != nil && under.State == stHeld && under.Kind == kindWindow {
-			under = under.Prev
-		}
-		if under != nil {
-			if ua := renderRow(pr, *under, View{}); needsUser(ua.State) {
-				return notifyIdentity(pr, *under, ua)
+	if isWindow(s) {
+		for _, under := range chain(s) {
+			if isWindow(under.PRState) {
+				continue
 			}
+			if ua := renderRow(pr, under.PRState, View{}); needsUser(ua.State) {
+				return notifyIdentity(pr, under.PRState, ua)
+			}
+			break
 		}
 	}
 	return describe(s) + " " + hashOf(a.Note)

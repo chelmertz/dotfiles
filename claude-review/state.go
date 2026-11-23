@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"iter"
 	"slices"
 	"strconv"
 	"time"
@@ -210,7 +211,7 @@ func staleAt(s PRState, head string) bool {
 	if head == "" {
 		return false
 	}
-	for e := &s; e != nil; e = e.Prev {
+	for _, e := range chain(s) {
 		if (e.State == stAwaiting || e.State == stRunning) && e.Head != "" && e.Head != head {
 			return true
 		}
@@ -269,33 +270,37 @@ func detailFrom(k stateKey, e Event) string {
 // opening also drops an older window off the top: one window stands for the
 // user's session at a time.
 func remembered(s PRState, e Event) *PRState {
-	top := &s
-	for top != nil && (top.State == stStarting || (e.Kind == evWindowOpened && top.State == stHeld && top.Kind == kindWindow)) {
-		top = top.Prev
+	for _, l := range chain(s) {
+		if l.State == stStarting || e.Kind == evWindowOpened && isWindow(l.PRState) {
+			continue
+		}
+		kept := l.PRState
+		return &kept
 	}
-	if top == nil {
-		return nil
-	}
-	kept := *top
-	return &kept
+	return nil
 }
 
 // windowBelow: a window sits in s's chain under its top.
 func windowBelow(s PRState) bool {
-	for e := s.Prev; e != nil; e = e.Prev {
-		if e.State == stHeld && e.Kind == kindWindow {
+	for d, e := range chain(s) {
+		if d > 0 && isWindow(e.PRState) {
 			return true
 		}
 	}
 	return false
 }
 
-// withoutWindow is s's chain without its first window below the top.
+// isWindow: s is the user's window, an interactive fork of its session.
+func isWindow(s PRState) bool { return s.State == stHeld && s.Kind == kindWindow }
+
+// withoutWindow is s's chain without its first window below the top. It
+// rebuilds the chain above the window, so it recurses rather than ranging
+// over chain.
 func withoutWindow(s PRState) PRState {
 	if s.Prev == nil {
 		return s
 	}
-	if s.Prev.State == stHeld && s.Prev.Kind == kindWindow {
+	if isWindow(*s.Prev) {
 		s.Prev = s.Prev.Prev
 		return s
 	}
@@ -347,15 +352,13 @@ func maybeAlive(s PRState) bool {
 
 // liveInChain: s's chain holds a window, a running worker or a launch whose
 // worker may be alive, which an event that does not concern them keeps.
-// The running state a question remembers is the question's own worker, not
-// another live element.
+// A running state that owns no worker (chain's Owner) is a question's own,
+// not another live element.
 func liveInChain(s PRState) bool {
-	underQuestion := false
-	for e := &s; e != nil; e = e.Prev {
-		if e.State == stRunning && !underQuestion || e.State == stHeld && e.Kind == kindWindow || maybeAlive(*e) {
+	for _, e := range chain(s) {
+		if e.Owner && e.State == stRunning || isWindow(e.PRState) || maybeAlive(e.PRState) {
 			return true
 		}
-		underQuestion = e.State == stAwaiting && e.Kind == kindQuestion
 	}
 	return false
 }
@@ -455,17 +458,13 @@ func roundEvent(e Event) bool {
 // namedAt is how deep in s's chain the topmost element owning a worker
 // names round r, 0 for the top, -1 for none. An element stored before
 // rounds were named takes any round, as before. The running state a
-// question remembers is the question's own worker, so the question
+// question remembers owns no worker (chain's Owner), so the question
 // answers for it.
 func namedAt(s PRState, r ids.RoundID) int {
-	d, underQuestion := 0, false
-	for e := &s; e != nil; e = e.Prev {
-		questions := underQuestion && e.State == stRunning
-		if ownsWorker(*e) && !questions && (e.Round == r || e.Round.IsZero()) {
+	for d, e := range chain(s) {
+		if e.Owner && (e.Round == r || e.Round.IsZero()) {
 			return d
 		}
-		underQuestion = e.State == stAwaiting && e.Kind == kindQuestion
-		d++
 	}
 	return -1
 }
@@ -481,16 +480,46 @@ func ownsWorker(s PRState) bool {
 	return s.State == stRunning || s.State == stAwaiting && s.Kind == kindQuestion || maybeAlive(s)
 }
 
-func elementAt(s PRState, depth int) PRState {
-	e := &s
-	for range depth {
-		e = e.Prev
+// link is one element of a state's chain; its Prev is the rest of it.
+type link struct {
+	PRState
+	// Owner: the element owns a worker (ownsWorker), except the running
+	// state a question remembers, whose worker is the question's own.
+	Owner bool
+}
+
+// chain yields s's elements top first with their depth, 0 for the top. It
+// is the one walk over Prev for reading; the rule that a question owns the
+// worker of the running state below it lives here and nowhere else.
+func chain(s PRState) iter.Seq2[int, link] {
+	return func(yield func(int, link) bool) {
+		underQuestion := false
+		d := 0
+		for e := &s; e != nil; e = e.Prev {
+			owner := ownsWorker(*e) && (!underQuestion || e.State != stRunning)
+			if !yield(d, link{*e, owner}) {
+				return
+			}
+			underQuestion = e.State == stAwaiting && e.Kind == kindQuestion
+			d++
+		}
 	}
-	return *e
+}
+
+// elementAt is the element depth deep in s's chain; depth comes from
+// namedAt, so it is always in the chain.
+func elementAt(s PRState, depth int) PRState {
+	for d, e := range chain(s) {
+		if d == depth {
+			return e.PRState
+		}
+	}
+	panic(fmt.Sprintf("elementAt: depth %d is below the chain", depth))
 }
 
 // replaceAt is s with the element depth deep replaced by el; the elements
-// above are copies, so s itself is unchanged.
+// above are copies, so s itself is unchanged. It rebuilds the chain, so it
+// recurses rather than ranging over chain.
 func replaceAt(s PRState, depth int, el PRState) PRState {
 	if depth == 0 {
 		return el
@@ -536,7 +565,7 @@ func withTokenRule(s, next PRState, effects []Effect) []Effect {
 
 // holdsApprove: s's chain has an Approve, at head unless head is "".
 func holdsApprove(s PRState, head string) bool {
-	for e := &s; e != nil; e = e.Prev {
+	for _, e := range chain(s) {
 		if e.State == stAwaiting && e.Kind == kindApprove && (head == "" || e.Head == head) {
 			return true
 		}
