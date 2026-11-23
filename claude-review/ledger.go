@@ -55,9 +55,17 @@ func OpenLedger(path string) (*Ledger, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("ledger dir: %w", err)
 	}
-	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)")
+	// _txlock=immediate: every transaction takes the write lock at BEGIN, so
+	// one that reads and then writes waits for another writer (tick beside a
+	// click) instead of failing with SQLITE_BUSY_SNAPSHOT, which busy_timeout
+	// does not retry.
+	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_txlock=immediate")
 	if err != nil {
 		return nil, fmt.Errorf("open ledger: %w", err)
+	}
+	if err := assertWAL(db); err != nil {
+		_ = db.Close()
+		return nil, err
 	}
 	if _, err := db.Exec(ledgerSchema); err != nil {
 		_ = db.Close()
@@ -113,6 +121,20 @@ func OpenLedgerReadOnly(path string) (*Ledger, error) {
 }
 
 func (l *Ledger) Close() error { return l.db.Close() }
+
+// assertWAL refuses a ledger whose journal mode is not WAL: the pragma in the
+// DSN is a request SQLite may decline (a filesystem without shared memory),
+// and a rollback journal turns a reader beside a writer into SQLITE_BUSY.
+func assertWAL(db *sql.DB) error {
+	var mode string
+	if err := db.QueryRow(`pragma journal_mode`).Scan(&mode); err != nil {
+		return fmt.Errorf("ledger journal mode: %w", err)
+	}
+	if !strings.EqualFold(mode, "wal") {
+		return fmt.Errorf("ledger journal mode is %q, want wal", mode)
+	}
+	return nil
+}
 
 // Acceptance is the user's first-look click: the head and base it saw.
 type Acceptance struct {
