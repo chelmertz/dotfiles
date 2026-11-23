@@ -2,6 +2,8 @@ module github.com/chelmertz/dotfiles/claude-review
 
 go 1.26.10
 
+toolchain go1.27.3
+
 require (
 	golang.org/x/term v0.46.0
 	modernc.org/sqlite v1.48.2

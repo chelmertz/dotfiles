@@ -1477,8 +1477,8 @@ func TestTickFirstLookGetsTheFirstReviewPrompt(t *testing.T) {
 		// A blind first look left a session behind; its records cleared,
 		// the redo must still read the PR (2026-11-23).
 		"a round session but no settled round": {session: true, rereview: false},
-		"an earlier round settled":     {settled: true, rereview: true},
-		"the user's click reviewed it": {clicked: true, rereview: true},
+		"an earlier round settled":             {settled: true, rereview: true},
+		"the user's click reviewed it":         {clicked: true, rereview: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			w := newTickWorld(t)
