@@ -526,3 +526,28 @@ func TestEveryLaunchResultLandsTheSameOnBothPaths(t *testing.T) {
 		t.Error("a launch with no outcome read as busy")
 	}
 }
+
+// Claude Code 2.1.325 records a worker forked off an interactive session by
+// that session's transcript path, not its id. One such worker, which is not
+// this tool's, made the whole roster unreadable and so held every launch
+// and close-out (2026-11-23). The path's file name is the id; any other
+// shape stays an unreadable roster.
+func TestRosterReadsALaunchRecordedAsATranscriptPath(t *testing.T) {
+	dir := t.TempDir()
+	writeRoster(t, dir, fmt.Sprintf(`{"workers":{"188e19ec": {"pid": 5, "sessionId": %q,
+	  "dispatch": {"launch": {"sessionId": "/home/u/.claude/projects/-home-u-p/%s.jsonl", "fork": true}}}}}`, forkID, sid))
+	ws, err := readRoster(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ws) != 1 || ws[0].LaunchID != sid || !ws[0].Fork {
+		t.Errorf("roster: %+v, want one fork of %s", ws, sid)
+	}
+	for _, bad := range []string{"/home/u/notes.jsonl", "/home/u/" + sid.String() + ".txt", "x" + sid.String() + ".jsonl"} {
+		writeRoster(t, dir, fmt.Sprintf(`{"workers":{"188e19ec": {"pid": 5, "sessionId": %q,
+		  "dispatch": {"launch": {"sessionId": %q}}}}}`, forkID, bad))
+		if _, err := readRoster(dir); err == nil {
+			t.Errorf("launch %q read as a session", bad)
+		}
+	}
+}

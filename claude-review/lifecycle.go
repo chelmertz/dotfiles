@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,11 +40,33 @@ type rosterFile struct {
 		ReplPID   int           `json:"replPid"`
 		Dispatch  struct {
 			Launch struct {
-				SessionID ids.SessionID `json:"sessionId"`
-				Fork      bool          `json:"fork"`
+				SessionID launchRef `json:"sessionId"`
+				Fork      bool      `json:"fork"`
 			} `json:"launch"`
 		} `json:"dispatch"`
 	} `json:"workers"`
+}
+
+// launchRef is the session a worker was launched from. Claude Code writes
+// an id, or, for a fork of an interactive session (2.1.325), that session's
+// transcript path, whose file name is the id. Any other shape is refused,
+// which makes the roster unreadable, as before.
+type launchRef ids.SessionID
+
+func (l *launchRef) UnmarshalJSON(b []byte) error {
+	var raw string
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	if base, ok := strings.CutSuffix(filepath.Base(raw), ".jsonl"); ok && strings.Contains(raw, "/") {
+		raw = base
+	}
+	var id ids.SessionID
+	if err := id.UnmarshalJSON([]byte(strconv.Quote(raw))); err != nil {
+		return err
+	}
+	*l = launchRef(id)
+	return nil
 }
 
 // readRoster is three-valued: no file is no workers (nil error); a file
@@ -64,7 +87,7 @@ func readRoster(claudeDir string) ([]Worker, error) {
 	out := make([]Worker, 0, len(r.Workers))
 	for key, w := range r.Workers {
 		out = append(out, Worker{Short: key, SessionID: w.SessionID, PID: w.PID, ReplPID: w.ReplPID,
-			Fork: w.Dispatch.Launch.Fork, LaunchID: w.Dispatch.Launch.SessionID})
+			Fork: w.Dispatch.Launch.Fork, LaunchID: ids.SessionID(w.Dispatch.Launch.SessionID)})
 	}
 	return out, nil
 }
