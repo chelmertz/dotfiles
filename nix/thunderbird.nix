@@ -134,6 +134,14 @@ let
     hash = "sha256-i+qevgNNEr/z1kyR/kvf9a5EgcM8lN8Hxq0hVR+OWOU=";
   };
 
+  # Google Calendar over Google's own API. Its event dialog shows an event's
+  # conference (Meet name, icon and join link), which CalDAV never delivers.
+  gdataProvider = addon {
+    addonId = "{a62ef8ec-5fdc-40c2-873c-223b8a6925cc}";
+    url = "https://addons.thunderbird.net/thunderbird/downloads/file/1054520/provider_for_google_calendar-128.5.13-tb.xpi";
+    hash = "sha256-u0fJWaSA/H13dWgd6WLZyNs4pbbdkYWxOi6iSxgxZdc=";
+  };
+
   # A "Claude review" button on GitHub PR mails that opens
   # claude-review://owner/repo/number, the link the GitHub userscript's button
   # emits (handler in home.nix). Built from ../thunderbird/claude-review.
@@ -228,9 +236,19 @@ let
       thunderbird = {
         enable = true;
         inherit color;
-        # Invitations accepted from mail are answered as this account.
         settings = id: {
+          # Invitations accepted from mail are answered as this account.
           "calendar.registry.calendar_${id}.imip.identity.key" = "id_${builtins.hashString "sha256" account}";
+          # Read through Provider for Google Calendar (gdataProvider below)
+          # instead of CalDAV: Google's CalDAV leaves out conferenceData, so a
+          # Meet link showed only when the organiser pasted it into the
+          # description. home-manager refuses remote.type "google_calendar",
+          # so the CalDAV remote above stays declared and these two prefs,
+          # applied after it, replace its type and uri. The session id is the
+          # address, which the add-on's OAuth sign-in asks for once.
+          "calendar.registry.calendar_${id}.type" = "gdata";
+          "calendar.registry.calendar_${id}.uri" =
+            "googleapi://${address}/?calendar=${lib.replaceStrings [ "@" ] [ "%40" ] address}";
         };
       };
     };
@@ -245,6 +263,7 @@ lib.mkIf config.dotfiles.nixos {
         nostalgy
         claudeReview
         obsidianTodo
+        gdataProvider
       ];
       settings = {
         # Extensions installed by home-manager are otherwise disabled until
