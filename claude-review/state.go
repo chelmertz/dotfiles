@@ -726,7 +726,11 @@ func (StuckRefused) row(pr PR, _ Typed, _ View) Annotation {
 }
 
 func (x StuckFailed) row(pr PR, _ Typed, _ View) Annotation {
-	return Annotation{State: stateStuck, Note: inlineNote[x.Inline], Links: []Link{primary(attachLink(pr))}}
+	note := inlineNote[x.Inline]
+	if x.Unreadable {
+		note = noteUnreadable
+	}
+	return Annotation{State: stateStuck, Note: note, Links: []Link{primary(attachLink(pr))}}
 }
 
 func (x HandledPosted) row(pr PR, _ Typed, _ View) Annotation {
@@ -798,4 +802,7 @@ const (
 	noteFailedTwice    = "Claude failed twice"
 	noteStoppedTwice   = "Claude stopped twice before posting its summary"
 	noteStoppedUnknown = "Claude stopped; open it to see why"
+	// noteUnreadable: the round's transcript could not be read three
+	// passes running, so how it ended is unknown.
+	noteUnreadable = "Claude's transcript could not be read; open it to see how it ended"
 )

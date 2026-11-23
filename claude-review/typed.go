@@ -55,7 +55,12 @@ type (
 	HeldLaunchMaybeAlive struct{ Class string }
 
 	StuckRefused struct{}
-	StuckFailed  struct{ Inline Inline }
+	// StuckFailed: a round that stopped twice before its summary, or whose
+	// transcript could not be read (Unreadable).
+	StuckFailed struct {
+		Inline     Inline
+		Unreadable bool
+	}
 
 	HandledPosted   struct{ Capped bool }
 	HandledNothing  struct{}
@@ -164,6 +169,9 @@ func variantOf(s PRState) Variant {
 			return HeldLaunchMaybeAlive{Class: s.Detail}
 		}
 	case stateKey{stStuck, kindFailed}:
+		if s.Detail == noteUnreadable {
+			return StuckFailed{Unreadable: true}
+		}
 		return StuckFailed{Inline: map[string]Inline{noteStoppedTwice: inlineYes, noteFailedTwice: inlineNo}[s.Detail]}
 	case stateKey{stHandled, kindPosted}:
 		return HandledPosted{Capped: s.Detail == detailCapped}
@@ -192,6 +200,10 @@ func untyped(t Typed) PRState {
 	case HeldLaunchMaybeAlive:
 		s.Detail = v.Class
 	case StuckFailed:
+		if v.Unreadable {
+			s.Detail = noteUnreadable
+			break
+		}
 		s.Detail = map[Inline]string{inlineYes: noteStoppedTwice, inlineNo: noteFailedTwice}[v.Inline]
 	case HandledPosted:
 		if v.Capped {

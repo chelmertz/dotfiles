@@ -929,12 +929,16 @@ afresh from that moment. A cap of 0 starts nothing. While it is tripped, clicks 
 
 #### Reading a round's outcome
 
-The session's last message carries one of three fixed lines: the approve
+The round's last message carries one of three fixed lines: the approve
 line (`claude-review approve <url> --at <sha>`), the question line,
 `claude-review: question for the user`, which every prompt asks for when a
 round ends on a question only the user can answer, or the nothing line,
 `claude-review: nothing to post`, which a later round ends on when there are
 no new commits and no reply that needs an answer. None is trusted on its own.
+The round's last message is the last assistant text the session wrote after
+the round, or its retry, launched: the ledger keeps the transcript's size
+at that launch and reads from there, so a round that wrote nothing never
+reads as the round before it.
 
 The posted summary opens with a verdict for the author, who sees it with no
 approval beside it: "Reviewed at <sha>: nothing found. Recommended for
@@ -999,6 +1003,10 @@ outstanding" without an approval as unclear.
   add at that commit (one reply per author comment); a second cut-off reads "round stopped twice
   before posting its summary". A suspended laptop needs none of this: the
   round continues on wake-up, and the timer's missed tick runs then.
+- **A transcript that cannot be read** (an I/O error, or shorter than at the
+  round's launch) leaves the round for the next tick; the third failure in a
+  row reads it as `stuck`, "Claude's transcript could not be read", and
+  notifies.
 
 `handled` suppresses only the review-owed reasons in elly. A reason outside
 the triggers, such as a top-level question from the author, still counts.

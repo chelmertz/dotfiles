@@ -15,7 +15,7 @@ var allVariants = []Variant{
 	HeldFresh{}, HeldWindow{},
 	HeldLaunchDead{Class: launchNotStarted}, HeldLaunchDead{Class: launchDuplicate},
 	HeldLaunchMaybeAlive{Class: launchUnlisted}, HeldLaunchMaybeAlive{Class: launchUnknown},
-	StuckRefused{}, StuckFailed{Inline: inlineYes}, StuckFailed{Inline: inlineNo}, StuckFailed{Inline: inlineUnknown},
+	StuckRefused{}, StuckFailed{Inline: inlineYes}, StuckFailed{Inline: inlineNo}, StuckFailed{Inline: inlineUnknown}, StuckFailed{Unreadable: true},
 	HandledPosted{}, HandledPosted{Capped: true}, HandledNothing{}, HandledApproved{},
 }
 

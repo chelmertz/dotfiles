@@ -52,7 +52,7 @@ type tickHost struct {
 	gh          tickGitHub
 	running     func(sessionID ids.SessionID) bool
 	blocked     func(sessionID ids.SessionID) (why string, ok bool)
-	lastMessage func(sessionID ids.SessionID) (string, error)
+	lastMessage func(sessionID ids.SessionID, from int64) (string, error)
 	findRepo    func(pr PR) (dir, remote string, err error)
 	start       func(dir string, argv []string) error
 	now         func() time.Time
@@ -66,6 +66,10 @@ type tickHost struct {
 	sess Sessions
 	// exists reports a transcript for a session id.
 	exists func(id ids.SessionID) bool
+	// transcriptSize is a session transcript's byte size, measured just
+	// before each launch as where the round's own lines start: lastMessage
+	// reads from there.
+	transcriptSize func(id ids.SessionID) int64
 	// trust marks a clone trusted for Claude Code before a launch in it.
 	trust func(dir string) error
 	// version is `claude --version`; selfCheck checks a new one, and notify
@@ -450,9 +454,9 @@ func (h tickHost) settleRound(lk prlock.Locked, pr PR, r Round, retry bool) (bus
 	if why, ok := h.blocked(sid); ok {
 		return false, h.settleBlocked(lk, pr, r, why, retry)
 	}
-	msg, err := h.lastMessage(sid)
+	msg, err := h.lastMessage(sid, r.TranscriptFrom)
 	if err != nil {
-		return false, fmt.Errorf("reading the round: %w", err)
+		return h.unreadable(lk, pr, r, retry, err)
 	}
 	facts, err := h.gh.RoundFacts(pr, r)
 	if err != nil {
@@ -462,6 +466,25 @@ func (h tickHost) settleRound(lk prlock.Locked, pr PR, r Round, retry bool) (bus
 		return false, err
 	}
 	return h.apply(lk, pr, r, decide(r, ReadOutcome(msg), facts, pr), retry)
+}
+
+// maxUnreadable is how many passes running a round's transcript may fail to
+// read before the round is read as stuck: a passing I/O error heals, a
+// rewritten transcript does not.
+const maxUnreadable = 3
+
+// unreadable counts a pass whose read of r's transcript failed with why.
+// Below maxUnreadable the round stays unread and is read again next pass;
+// at it the round is read and the PR goes stuck{failed}, a needs-you row.
+// A click's read counts too: a round it cannot read stops its new round.
+func (h tickHost) unreadable(lk prlock.Locked, pr PR, r Round, retry bool, why error) (bool, error) {
+	if r.Unreadable+1 < maxUnreadable {
+		return false, errors.Join(fmt.Errorf("reading the round: %w", why),
+			h.do("count an unreadable read of "+pr.URL(), func() error { return h.ledger.MarkUnreadable(r.ID) }))
+	}
+	fmt.Fprintf(h.out, "claude-review tick: %s: reading the round: %v; stuck\n", pr.URL(), why)
+	stuck := Next{State: PRState{State: stStuck, Kind: kindFailed, Detail: noteUnreadable, Head: r.Head}}
+	return h.apply(lk, pr, r, stuck, retry)
 }
 
 // settleBlocked reads a round whose worker waits for the user: the question
@@ -576,8 +599,8 @@ func (h tickHost) retry(lk prlock.Locked, pr PR, r Round) (bool, error) {
 	}
 	err := h.do("retry "+pr.URL(), func() error {
 		var err error
-		not, err = h.launch(lk, pr, r.Trigger, nil, func(time.Time) error {
-			if err := h.ledger.MarkRetried(r.ID); err != nil {
+		not, err = h.launch(lk, pr, r.Trigger, nil, func(_ time.Time, from int64) error {
+			if err := h.ledger.MarkRetried(r.ID, from); err != nil {
 				return err
 			}
 			_, err := h.move(lk, pr, Event{Kind: evEnded, Next: &PRState{State: stRunning, Kind: kindRetry, Head: r.Head}, Round: r.ID})
@@ -803,8 +826,8 @@ func (h tickHost) startOne(p Planned, running int) (skip, error) {
 	var not skip
 	err = h.do(fmt.Sprintf("start a round on %s at %.9s (%s)", p.PR.URL(), p.Head, p.Trigger.Text()), func() error {
 		var err error
-		not, err = h.launch(lk, p.PR, p.Trigger, func() error { return h.settleUnread(lk, p.PR) }, func(at time.Time) error {
-			id, err := h.ledger.StartRound(p.PR, p.Head, p.Trigger, at)
+		not, err = h.launch(lk, p.PR, p.Trigger, func() error { return h.settleUnread(lk, p.PR) }, func(at time.Time, from int64) error {
+			id, err := h.ledger.StartRoundFrom(p.PR, p.Head, p.Trigger, at, from)
 			if err != nil {
 				return err
 			}
@@ -939,14 +962,15 @@ func (h tickHost) healBreaker() error {
 }
 
 // launch starts a round on pr in its clone and then records it with
-// record, given the time taken before the launch. It is the only way tick
+// record, given the time taken before the launch and the session
+// transcript's size just before it. It is the only way tick
 // starts a round, so both failsafes live here. Every caller runs it through
 // do; the dry-run check makes a caller that forgets fail loudly instead of
 // posting. The breaker trips at TotalDailyCap starts in 24 hours; healBreaker
 // clears a cap trip once, and a second one latches, so a loop that keeps starting rounds
 // stops at the cap even after the window moves on. settle reads the PR's
 // last round before its idle worker is stopped. The caller holds lk.
-func (h tickHost) launch(lk prlock.Locked, pr PR, trigger Trigger, settle func() error, record func(at time.Time) error, failed func(detail string) error) (notStarted skip, err error) {
+func (h tickHost) launch(lk prlock.Locked, pr PR, trigger Trigger, settle func() error, record func(at time.Time, from int64) error, failed func(detail string) error) (notStarted skip, err error) {
 	if h.dry {
 		return "", errors.New("refusing to start a round in a dry run")
 	}
@@ -980,11 +1004,16 @@ func (h tickHost) launch(lk prlock.Locked, pr PR, trigger Trigger, settle func()
 		return "", err
 	}
 	rereview := settled || h.exists(pr.SessionID())
-	res, err := h.starter().start(cfg, pr, dir, remote, rereview, settle)
+	// from: where the round's own lines start in the transcript it appends
+	// to, so its read never reaches an earlier round's words.
+	var from int64
+	st := h.starter()
+	st.beforeLaunch = func() { from = h.transcriptSize(pr.RoundSessionID()) }
+	res, err := st.start(cfg, pr, dir, remote, rereview, settle)
 	if err != nil && res.Kind != relaunchDuplicate {
 		return "", err
 	}
-	return h.afterRelaunch(lk, pr, res, err, func() error { return record(at) }, failed)
+	return h.afterRelaunch(lk, pr, res, err, func() error { return record(at, from) }, failed)
 }
 
 // starter starts rounds the way a click does, through h.start.

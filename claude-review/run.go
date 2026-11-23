@@ -317,13 +317,15 @@ func backgroundClick(d Deps, cfg Config, lk prlock.Locked, c clickTarget, sw *st
 	sw.mark("prepare")
 	starter := clickStarter(d, cfg)
 	starter.mark = sw.mark
+	var transcriptFrom int64
+	starter.beforeLaunch = func() { transcriptFrom = TranscriptSize(d.ClaudeDir, pr.RoundSessionID()) }
 	res, err := starter.start(cfg, pr, dir, remote, false, settle)
 	sw.mark("listed")
 	fmt.Fprintf(d.Stderr, "claude-review: %s: click from %s, timing: %s\n", pr.URL(), from, sw)
 	if err != nil && res.Kind != relaunchDuplicate {
 		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), err))
 	}
-	not, err := h.afterRelaunch(lk, pr, res, err, func() error { return h.recordClick(lk, c, at) }, func(detail string) error {
+	not, err := h.afterRelaunch(lk, pr, res, err, func() error { return h.recordClick(lk, c, at, transcriptFrom) }, func(detail string) error {
 		_, err := h.move(lk, pr, Event{Kind: evFailedToStart, Class: detail})
 		return err
 	})
@@ -350,13 +352,14 @@ func (h tickHost) refuseUnderWindow(lk prlock.Locked, pr PR) error {
 }
 
 // recordClick records a click's round once its worker is listed, and moves
-// the PR to running. A click whose head GitHub did not say records nothing,
-// so nothing would settle a running round.
-func (h tickHost) recordClick(lk prlock.Locked, c clickTarget, at time.Time) error {
+// the PR to running; from is the session transcript's size just before the
+// launch. A click whose head GitHub did not say records nothing, so nothing
+// would settle a running round.
+func (h tickHost) recordClick(lk prlock.Locked, c clickTarget, at time.Time, from int64) error {
 	if c.head == "" {
 		return nil
 	}
-	id, err := h.ledger.StartRound(c.pr, c.head, Click{At: at.UTC(), From: c.from}, at)
+	id, err := h.ledger.StartRoundFrom(c.pr, c.head, Click{At: at.UTC(), From: c.from}, at, from)
 	if err != nil {
 		return err
 	}

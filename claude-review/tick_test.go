@@ -156,11 +156,12 @@ func newTickWorldOn(l *Ledger) *tickWorld {
 			why, ok := w.blocked[id]
 			return why, ok
 		},
-		lastMessage: func(id ids.SessionID) (string, error) {
+		lastMessage: func(id ids.SessionID, _ int64) (string, error) {
 			w.fs.events = append(w.fs.events, "read "+id.Key().String())
 			return w.msgs[id], nil
 		},
-		findRepo: func(PR) (string, string, error) { return "/clone", "upstream", nil },
+		findRepo:       func(PR) (string, string, error) { return "/clone", "upstream", nil },
+		transcriptSize: func(ids.SessionID) int64 { return 0 },
 		// A launch adds the worker Claude Code would: listed under the
 		// fixed id that follows --resume.
 		start: func(_ string, argv []string) error {
@@ -507,7 +508,7 @@ func TestTickOneEllyFailureDoesNotStopTheRest(t *testing.T) {
 func TestLaunchRefusesInADryRun(t *testing.T) {
 	w := newTickWorld(t)
 	w.h.dry = true
-	if _, err := w.h.launch(mustLock(t, w.h, widgetsPR), widgetsPR, NewHead{}, nil, func(time.Time) error { return nil }, nil); err == nil || len(w.started) != 0 {
+	if _, err := w.h.launch(mustLock(t, w.h, widgetsPR), widgetsPR, NewHead{}, nil, func(time.Time, int64) error { return nil }, nil); err == nil || len(w.started) != 0 {
 		t.Errorf("launch in a dry run: err %v, started %q", err, w.started)
 	}
 }
@@ -676,7 +677,7 @@ func TestTickBreakerCountsRetries(t *testing.T) {
 func TestLaunchWithoutACapStartsNothing(t *testing.T) {
 	w := newTickWorld(t)
 	w.h.tcfg.TotalDailyCap = 0
-	if _, err := w.h.launch(mustLock(t, w.h, widgetsPR), widgetsPR, NewHead{}, nil, func(time.Time) error { return nil }, nil); err == nil || len(w.started) != 0 {
+	if _, err := w.h.launch(mustLock(t, w.h, widgetsPR), widgetsPR, NewHead{}, nil, func(time.Time, int64) error { return nil }, nil); err == nil || len(w.started) != 0 {
 		t.Errorf("launch with no cap: err %v, started %q", err, w.started)
 	}
 }
@@ -689,7 +690,7 @@ func TestLaunchRefusesWhileTripped(t *testing.T) {
 		t.Fatal(err)
 	}
 	recorded := false
-	if _, err := w.h.launch(mustLock(t, w.h, widgetsPR), widgetsPR, NewHead{}, nil, func(time.Time) error { recorded = true; return nil }, nil); err == nil || recorded || len(w.started) != 0 {
+	if _, err := w.h.launch(mustLock(t, w.h, widgetsPR), widgetsPR, NewHead{}, nil, func(time.Time, int64) error { recorded = true; return nil }, nil); err == nil || recorded || len(w.started) != 0 {
 		t.Errorf("launch while tripped: err %v, recorded %v, started %q", err, recorded, w.started)
 	}
 }

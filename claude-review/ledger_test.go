@@ -64,7 +64,7 @@ func TestLedgerRounds(t *testing.T) {
 	if err != nil || len(unread) != 1 || unread[0].ID != id || unread[0].Head != "head1" || !unread[0].StartedAt.Equal(t0) {
 		t.Fatalf("unread: %+v %v", unread, err)
 	}
-	if err := l.MarkRetried(id); err != nil {
+	if err := l.MarkRetried(id, 0); err != nil {
 		t.Fatal(err)
 	}
 	if unread, _ := l.UnreadRounds(); unread[0].Retries != 1 {
@@ -130,7 +130,7 @@ func TestLedgerBreaker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := l.MarkRetried(id); err != nil {
+	if err := l.MarkRetried(id, 0); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := l.StartRound(other, "h1", NewHead{}, t0); err != nil {

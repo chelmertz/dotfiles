@@ -90,14 +90,15 @@ func TestRecordedRounds(t *testing.T) {
 			out := &bytes.Buffer{}
 			fs := newFakeSessions()
 			h := tickHost{
-				tcfg:        TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 6, MaxRunning: 2, TotalDailyCap: 24},
-				ledger:      l,
-				elly:        &fakeElly{login: "me", put: map[string]Annotation{}},
-				gh:          gh,
-				running:     func(ids.SessionID) bool { return false },
-				blocked:     func(ids.SessionID) (string, bool) { return "", false },
-				lastMessage: func(ids.SessionID) (string, error) { return rr.LastMessage, nil },
-				findRepo:    func(PR) (string, string, error) { return "/clone", "upstream", nil },
+				tcfg:           TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 6, MaxRunning: 2, TotalDailyCap: 24},
+				ledger:         l,
+				elly:           &fakeElly{login: "me", put: map[string]Annotation{}},
+				gh:             gh,
+				running:        func(ids.SessionID) bool { return false },
+				blocked:        func(ids.SessionID) (string, bool) { return "", false },
+				lastMessage:    func(ids.SessionID, int64) (string, error) { return rr.LastMessage, nil },
+				findRepo:       func(PR) (string, string, error) { return "/clone", "upstream", nil },
+				transcriptSize: func(ids.SessionID) int64 { return 0 },
 				start: func(_ string, argv []string) error {
 					started = append(started, argv)
 					fs.workers = append(fs.workers, workerFor(pr.RoundSessionID(), 700))

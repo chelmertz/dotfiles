@@ -316,7 +316,7 @@ func recordRound(claudeDir string, pr PR, user string, n int) (recordedRound, er
 	if err != nil {
 		return recordedRound{}, err
 	}
-	msg, err := LastMessage(claudeDir, pr.SessionID())
+	msg, err := LastMessage(claudeDir, pr.SessionID(), 0)
 	if err != nil {
 		return recordedRound{}, err
 	}

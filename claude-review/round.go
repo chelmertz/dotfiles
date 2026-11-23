@@ -16,6 +16,10 @@ type roundStarter struct {
 	wrapper []string
 	// mark, when set, records the end of a stage: bootstrap, clear, launch.
 	mark func(stage string)
+	// beforeLaunch, when set, runs just before the round's worker launches,
+	// after the bootstrap and the last worker's stop: where the caller
+	// measures the transcript the round appends to.
+	beforeLaunch func()
 	// promptFromCaller: rereview alone picks the prompt (tick, which knows
 	// whether any round settled); otherwise an existing session also means
 	// re-review (a click).
@@ -49,6 +53,9 @@ func (r roundStarter) start(cfg Config, pr PR, dir, remote string, rereview bool
 			if err := r.sess.Restore(id, policy); err != nil {
 				return err
 			}
+		}
+		if r.beforeLaunch != nil {
+			r.beforeLaunch()
 		}
 		return r.run(dir, argv)
 	})

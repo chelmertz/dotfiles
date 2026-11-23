@@ -71,6 +71,8 @@ func OpenLedger(path string) (*Ledger, error) {
 		`alter table rounds add column trigger_kind text not null default ''`,
 		`alter table rounds add column trigger_key text not null default ''`,
 		`alter table rounds add column trigger_from text`,
+		`alter table rounds add column transcript_from integer not null default 0`,
+		`alter table rounds add column unreadable integer not null default 0`,
 	} {
 		if _, err := db.Exec(alter); err != nil && !strings.Contains(err.Error(), "duplicate column") {
 			_ = db.Close()
@@ -231,6 +233,13 @@ type Round struct {
 	// Session is the session the round started in, empty for one recorded
 	// before rounds stored it.
 	Session ids.SessionID
+	// TranscriptFrom is the session transcript's byte size at the launch
+	// of the round, or of its retry: where its own lines start. 0, for a
+	// round recorded before rounds stored it, reads the whole transcript.
+	TranscriptFrom int64
+	// Unreadable counts the passes whose read of the round's transcript
+	// failed.
+	Unreadable int
 }
 
 // SessionFor is the session r runs in: the one it started in, which a
@@ -243,13 +252,14 @@ func (r Round) SessionFor(pr PR) ids.SessionID {
 	return r.Session
 }
 
-// StartRound records a round. The old trigger text is still written, for
-// an older binary's counts and RanAt.
-func (l *Ledger) StartRound(pr PR, head string, trigger Trigger, at time.Time) (ids.RoundID, error) {
+// StartRoundFrom records a round whose session transcript was from bytes
+// long at its launch. The old trigger text is still written, for an older
+// binary's counts and RanAt.
+func (l *Ledger) StartRoundFrom(pr PR, head string, trigger Trigger, at time.Time, from int64) (ids.RoundID, error) {
 	var id ids.RoundID
-	if err := l.db.QueryRow(`insert into rounds (pr, head, trigger, trigger_kind, trigger_key, trigger_from, started_at, session)
-		values (?, ?, ?, ?, ?, nullif(?, ''), ?, ?) returning id`,
-		pr.URL(), head, trigger.Text(), trigger.Kind(), trigger.DedupeKey(), triggerFrom(trigger), at.Unix(), pr.RoundSessionID().String()).Scan(&id); err != nil {
+	if err := l.db.QueryRow(`insert into rounds (pr, head, trigger, trigger_kind, trigger_key, trigger_from, started_at, session, transcript_from)
+		values (?, ?, ?, ?, ?, nullif(?, ''), ?, ?, ?) returning id`,
+		pr.URL(), head, trigger.Text(), trigger.Kind(), trigger.DedupeKey(), triggerFrom(trigger), at.Unix(), pr.RoundSessionID().String(), from).Scan(&id); err != nil {
 		return id, fmt.Errorf("start round: %w", err)
 	}
 	return id, nil
@@ -359,7 +369,7 @@ func (l *Ledger) PRs() ([]string, error) {
 // UnreadRounds are rounds whose outcome has not been processed yet.
 func (l *Ledger) UnreadRounds() ([]Round, error) {
 	rows, err := l.db.Query(`select id, pr, head, trigger_kind, trigger_key, coalesce(trigger_from, ''), started_at, retries, session,
-		exists (select 1 from post_refusals f where f.pr = rounds.pr and f.at >= rounds.started_at)
+		transcript_from, unreadable, exists (select 1 from post_refusals f where f.pr = rounds.pr and f.at >= rounds.started_at)
 		from rounds where read_at is null order by id`)
 	if err != nil {
 		return nil, fmt.Errorf("unread rounds: %w", err)
@@ -370,7 +380,7 @@ func (l *Ledger) UnreadRounds() ([]Round, error) {
 		var r Round
 		var started int64
 		var session, kind, key, from string
-		if err := rows.Scan(&r.ID, &r.PR, &r.Head, &kind, &key, &from, &started, &r.Retries, &session, &r.PostRefused); err != nil {
+		if err := rows.Scan(&r.ID, &r.PR, &r.Head, &kind, &key, &from, &started, &r.Retries, &session, &r.TranscriptFrom, &r.Unreadable, &r.PostRefused); err != nil {
 			return nil, err
 		}
 		r.Trigger = triggerOf(kind, key, from)
@@ -403,8 +413,17 @@ func (l *Ledger) LastSettled(pr PR) (started, read time.Time, ok bool, err error
 	return time.Unix(s, 0).UTC(), time.Unix(r, 0).UTC(), err == nil, err
 }
 
-func (l *Ledger) MarkRetried(id ids.RoundID) error {
-	_, err := l.db.Exec(`update rounds set retries = retries + 1 where id = ?`, id)
+// MarkRetried counts a retry of round id, whose session transcript was
+// from bytes long at the retry's launch: the retry reads from there, and
+// its reads start a fresh unreadable count.
+func (l *Ledger) MarkRetried(id ids.RoundID, from int64) error {
+	_, err := l.db.Exec(`update rounds set retries = retries + 1, transcript_from = ?, unreadable = 0 where id = ?`, from, id)
+	return err
+}
+
+// MarkUnreadable counts a pass that could not read round id's transcript.
+func (l *Ledger) MarkUnreadable(id ids.RoundID) error {
+	_, err := l.db.Exec(`update rounds set unreadable = unreadable + 1 where id = ?`, id)
 	return err
 }
 

@@ -520,13 +520,15 @@ func (g *genWorld) click(n int) error {
 	at := g.now
 	before := len(g.started)
 	starter := roundStarter{sess: h.sess, exists: h.exists, run: h.start, wrapper: h.tcfg.Wrapper}
+	var from int64
+	starter.beforeLaunch = func() { from = h.transcriptSize(pr.RoundSessionID()) }
 	res, err := starter.start(h.cfg, pr, "/clone", "upstream", false, func() error { return g.h.settleUnread(lk, pr) })
 	g.countLaunches(before)
 	if err != nil && res.Kind != relaunchDuplicate {
 		return err
 	}
 	not, err := h.afterRelaunch(lk, pr, res, err, func() error {
-		return h.recordClick(lk, clickTarget{pr: pr, head: g.gh.head[n], from: "elly"}, at)
+		return h.recordClick(lk, clickTarget{pr: pr, head: g.gh.head[n], from: "elly"}, at, from)
 	}, func(detail string) error {
 		_, err := h.move(lk, pr, Event{Kind: evFailedToStart, Class: detail})
 		return err
@@ -794,7 +796,7 @@ func TestPropGenHistoriesWithEveryCrashPoint(t *testing.T) {
 // --- Known defects, one test each ------------------------------------------
 
 // newGenWorldT is a genWorld for one directed test, its first PR asked.
-func newGenWorldT(t *testing.T, n int) *genWorld {
+func newGenWorldT(t *testing.T, n int) *genWorld { //nolint:unparam // n PRs; the directed tests so far need one
 	t.Helper()
 	g, err := newGenWorld(t.TempDir(), n)
 	if err != nil {
@@ -812,7 +814,7 @@ func (g *genWorld) mustTick(t *testing.T) {
 	}
 }
 
-func (g *genWorld) state(t *testing.T, n int) PRState {
+func (g *genWorld) state(t *testing.T, n int) PRState { //nolint:unparam // the nth PR; the directed tests so far have one
 	t.Helper()
 	s, _, err := g.h.ledger.PRState(g.prs[n-1])
 	if err != nil {
@@ -821,7 +823,7 @@ func (g *genWorld) state(t *testing.T, n int) PRState {
 	return s
 }
 
-func (g *genWorld) unread(t *testing.T, n int) int {
+func (g *genWorld) unread(t *testing.T, n int) int { //nolint:unparam // the nth PR; the directed tests so far have one
 	t.Helper()
 	rounds, err := g.h.ledger.UnreadRounds()
 	if err != nil {
@@ -831,7 +833,7 @@ func (g *genWorld) unread(t *testing.T, n int) int {
 }
 
 // passes runs k passes ten minutes apart.
-func (g *genWorld) passes(t *testing.T, k int) {
+func (g *genWorld) passes(t *testing.T, k int) { //nolint:unparam // the skipped defect tests pass 2 and 3
 	t.Helper()
 	for range k {
 		g.now = g.now.Add(10 * time.Minute)
@@ -947,10 +949,10 @@ func appendTranscript(t *testing.T, path string, lines ...string) {
 	}
 }
 
-// D: LastMessage reads the last assistant text of the whole session
-// (transcript.go), with no round boundary.
+// D: LastMessage read the last assistant text of the whole session, with no
+// round boundary. It now reads from the transcript's size at the round's
+// launch.
 func TestDefectDLastMessageCrossesTheRoundBoundary(t *testing.T) {
-	t.Skip("defect D: LastMessage returns an earlier round's text; unskip when plan step 8 lands")
 	dir := t.TempDir()
 	sid := widgetsPR.RoundSessionID()
 	if err := os.MkdirAll(filepath.Join(dir, "projects", "p"), 0o700); err != nil {
@@ -960,9 +962,10 @@ func TestDefectDLastMessageCrossesTheRoundBoundary(t *testing.T) {
 	appendTranscript(t, path,
 		transcriptLine(t, turn("user", "Review the PR.")),
 		transcriptLine(t, turn("assistant", "No new commits.\n"+nothingLine)),
-		transcriptLine(t, turn("user", "Review the new commits.")), // the next round, which died before writing
 	)
-	got, err := LastMessage(dir, sid)
+	from := TranscriptSize(dir, sid)                                                      // the next round launches
+	appendTranscript(t, path, transcriptLine(t, turn("user", "Review the new commits."))) // and dies before writing
+	got, err := LastMessage(dir, sid, from)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -974,7 +977,6 @@ func TestDefectDLastMessageCrossesTheRoundBoundary(t *testing.T) {
 // D through tick: a round that died before writing is read as the last
 // round's verdict and settled on it, instead of retried.
 func TestDefectDARoundThatWroteNothingInheritsTheLastVerdict(t *testing.T) {
-	t.Skip("defect D: a round that wrote nothing settles on the round before's verdict; unskip when plan step 8 lands")
 	g := newGenWorldT(t, 1)
 	dir := t.TempDir()
 	sid := g.prs[0].RoundSessionID()
@@ -982,7 +984,8 @@ func TestDefectDARoundThatWroteNothingInheritsTheLastVerdict(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(dir, "projects", "p", sid.String()+".jsonl")
-	g.h.lastMessage = func(id ids.SessionID) (string, error) { return LastMessage(dir, id) }
+	g.h.lastMessage = func(id ids.SessionID, from int64) (string, error) { return LastMessage(dir, id, from) }
+	g.h.transcriptSize = func(id ids.SessionID) int64 { return TranscriptSize(dir, id) }
 	g.mustTick(t)
 	appendTranscript(t, path, transcriptLine(t, turn("user", "Review the PR.")), transcriptLine(t, turn("assistant", "No new commits.\n"+nothingLine)))
 	g.setJob(sid, "done", "")
@@ -1000,6 +1003,71 @@ func TestDefectDARoundThatWroteNothingInheritsTheLastVerdict(t *testing.T) {
 	g.passes(t, 1)
 	if s := g.state(t, 1); s.State != stRunning || s.Kind != kindRetry {
 		t.Errorf("defect D: the round that wrote nothing settled as %s at %s on the first round's line, not retried", describe(s), s.Head)
+	}
+}
+
+// A retry reads from its own launch: a retry that wrote nothing does not
+// read the words of the attempt it retried.
+func TestRetryReadsFromItsOwnLaunch(t *testing.T) {
+	g := newGenWorldT(t, 1)
+	dir := t.TempDir()
+	sid := g.prs[0].RoundSessionID()
+	if err := os.MkdirAll(filepath.Join(dir, "projects", "p"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "projects", "p", sid.String()+".jsonl")
+	var read []string
+	g.h.lastMessage = func(id ids.SessionID, from int64) (string, error) {
+		msg, err := LastMessage(dir, id, from)
+		read = append(read, msg)
+		return msg, err
+	}
+	g.h.transcriptSize = func(id ids.SessionID) int64 { return TranscriptSize(dir, id) }
+	g.mustTick(t)
+	appendTranscript(t, path, transcriptLine(t, turn("user", "Review the PR.")), transcriptLine(t, turn("assistant", "Reading the diff.")))
+	g.setJob(sid, "done", "") // cut off before its summary
+	g.passes(t, 1)
+	if s := g.state(t, 1); s.State != stRunning || s.Kind != kindRetry {
+		t.Fatalf("the cut-off round was not retried: %s", describe(s))
+	}
+	appendTranscript(t, path, transcriptLine(t, turn("user", "Continue.")))
+	g.setJob(sid, "done", "") // the retry dies before writing
+	g.passes(t, 1)
+	if want := []string{"Reading the diff.", ""}; !slices.Equal(read, want) {
+		t.Errorf("read %q, want %q: the retry read the attempt before it", read, want)
+	}
+	if s := g.state(t, 1); s.State != stStuck || s.Kind != kindFailed {
+		t.Errorf("a retry that wrote nothing settled as %s, want stuck{failed_twice}", describe(s))
+	}
+}
+
+// A transcript that cannot be read leaves the round unread for the next
+// pass; the third failure reads it, and the PR is stuck with the reason and
+// notifies, without failing the tick.
+func TestUnreadableTranscriptIsStuckOnTheThirdPass(t *testing.T) {
+	g := newGenWorldT(t, 1)
+	sid := g.prs[0].RoundSessionID()
+	g.h.lastMessage = func(ids.SessionID, int64) (string, error) { return "", errTranscriptShrunk }
+	g.mustTick(t)
+	g.setJob(sid, "done", "")
+	for pass := 1; pass < maxUnreadable; pass++ {
+		g.passes(t, 1)
+		if s := g.state(t, 1); s.State != stRunning || g.unread(t, 1) != 1 {
+			t.Fatalf("pass %d: %s with %d unread rounds, want running over its unread round", pass, describe(s), g.unread(t, 1))
+		}
+	}
+	rounds, err := g.h.ledger.UnreadRounds()
+	if err != nil || len(rounds) != 1 || rounds[0].Unreadable != maxUnreadable-1 {
+		t.Fatalf("unread rounds %+v (%v), want one counted unreadable %d times", rounds, err, maxUnreadable-1)
+	}
+	g.notified = nil
+	g.passes(t, 1)
+	s := g.state(t, 1)
+	if s.State != stStuck || s.Kind != kindFailed || s.Detail != noteUnreadable || g.unread(t, 1) != 0 {
+		t.Fatalf("third unreadable pass: %s (%q), %d unread, want stuck{failed_twice} %q, read", describe(s), s.Detail, g.unread(t, 1), noteUnreadable)
+	}
+	if want := []string{g.prs[0].URL() + " needs you: " + noteUnreadable}; !slices.Equal(g.notified, want) {
+		t.Errorf("notified %q, want %q", g.notified, want)
 	}
 }
 

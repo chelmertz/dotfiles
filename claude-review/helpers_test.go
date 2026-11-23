@@ -3,9 +3,18 @@ package main
 import (
 	"os"
 	"testing"
+	"time"
 
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 	"github.com/chelmertz/dotfiles/claude-review/prlock"
 )
+
+// StartRound records a round with no transcript offset, as a row from
+// before rounds stored one: its whole transcript is read. Production
+// records the offset with StartRoundFrom.
+func (l *Ledger) StartRound(pr PR, head string, trigger Trigger, at time.Time) (ids.RoundID, error) {
+	return l.StartRoundFrom(pr, head, trigger, at, 0)
+}
 
 const (
 	owner       = "acme"

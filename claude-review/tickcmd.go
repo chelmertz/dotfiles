@@ -98,10 +98,11 @@ func newTickHost(d Deps, cfg Config, l *Ledger, user string) tickHost {
 		gh:          GitHub{Gh: d.Gh, User: user},
 		running:     func(id ids.SessionID) bool { return RoundRunning(d.ClaudeDir, id) },
 		blocked:     func(id ids.SessionID) (string, bool) { return BlockedOn(d.ClaudeDir, id) },
-		lastMessage: func(id ids.SessionID) (string, error) { return LastMessage(d.ClaudeDir, id) },
+		lastMessage: func(id ids.SessionID, from int64) (string, error) { return LastMessage(d.ClaudeDir, id, from) },
 		findRepo: func(pr PR) (string, string, error) {
 			return d.FindRepo(cfg.GitRepoRoots, cfg.ClonePath, pr)
 		},
+		transcriptSize: func(id ids.SessionID) int64 { return TranscriptSize(d.ClaudeDir, id) },
 		start: func(dir string, argv []string) error {
 			out, err := d.Output(dir, viaInteractiveShell(shellLine(dir, argv)))
 			if err != nil {
