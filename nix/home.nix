@@ -1868,6 +1868,14 @@ in
     Unit = {
       Description = "Prometheus";
       After = [ "blackbox-exporter.service" ];
+      # Prometheus reads its config and rules only at start, and a switch
+      # restarts only units whose own file changed. Without these, a changed
+      # rule waited for the next reboot: on 2026-11-23 BackupStale kept firing
+      # on the old 7-day mediabox threshold hours after the switch.
+      X-Restart-Triggers = [
+        config.xdg.configFile."prometheus/prometheus.yml".source
+        config.xdg.configFile."prometheus/rules.yml".source
+      ];
     };
     Service = {
       ExecStart = "${pkgs.prometheus}/bin/prometheus --config.file=%h/.config/prometheus/prometheus.yml --storage.tsdb.path=%h/.local/share/prometheus --web.listen-address=127.0.0.1:9090";
@@ -1882,7 +1890,7 @@ in
     Unit.Description = "Collect system health metrics (systemd failures, disk usage) for Prometheus";
     Service = {
       Type = "oneshot";
-      # The credential probes call gh and sqlite3. Neither is on a unit's default
+      # The credential probes call gh and curl. Neither is on a unit's default
       # PATH and the user's nix profile is not either, so with no PATH the probes
       # once reported a logged-out account on a machine that was logged in. The
       # script now carries them itself (bin.nix wrapBin), so this unit pins none.
