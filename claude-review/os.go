@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"golang.org/x/term"
 )
@@ -65,6 +67,41 @@ func cleanEnv(environ []string) []string {
 type osHost struct {
 	environ   []string
 	cacheBase string
+	// timeout bounds execOutput and execStdout; zero is execTimeout.
+	timeout time.Duration
+}
+
+// execTimeout bounds a command this program waits on: a launch, a stop, a
+// version or self-check turn. The tick unit's own cap is 10 minutes.
+const execTimeout = 5 * time.Minute
+
+// errTimedOut: a command outlived its bound and was killed with its
+// process group. What it did before is unknown.
+var errTimedOut = errors.New("timed out")
+
+// boundedCommand is exec.Command in its own process group, killed whole
+// after d: killing only an interactive shell leaves its children holding
+// the output pipe, and the wait for them never ends. WaitDelay bounds that
+// wait too. timedOut names a timeout in the error a run returned.
+func boundedCommand(d time.Duration, name string, args ...string) (cmd *exec.Cmd, cancel func(), timedOut func(error) error) {
+	ctx, cancel := context.WithTimeout(context.Background(), d)
+	cmd = exec.CommandContext(ctx, name, args...) //nolint:gosec // argv is built by this program
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	cmd.WaitDelay = 2 * time.Second
+	return cmd, cancel, func(err error) error {
+		if err != nil && errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return fmt.Errorf("%w after %s: %w", errTimedOut, d, err)
+		}
+		return err
+	}
+}
+
+func (h osHost) bound() time.Duration {
+	if h.timeout > 0 {
+		return h.timeout
+	}
+	return execTimeout
 }
 
 func (h osHost) execAttached(dir string, argv []string) error {
@@ -76,23 +113,25 @@ func (h osHost) execAttached(dir string, argv []string) error {
 }
 
 func (h osHost) execOutput(dir string, argv []string) (string, error) {
-	cmd := exec.Command(argv[0], argv[1:]...) //nolint:gosec // argv is built by this program
+	cmd, cancel, timedOut := boundedCommand(h.bound(), argv[0], argv[1:]...)
+	defer cancel()
 	cmd.Dir = dir
 	cmd.Env = cleanEnv(h.environ)
 	out, err := cmd.CombinedOutput()
-	return string(out), err
+	return string(out), timedOut(err)
 }
 
 // execStdout is execOutput with stdout alone: a warning claude writes to
 // stderr must not pass for its reply, so stderr goes into the error only.
 func (h osHost) execStdout(dir string, argv []string) (string, error) {
-	cmd := exec.Command(argv[0], argv[1:]...) //nolint:gosec // argv is built by this program
+	cmd, cancel, timedOut := boundedCommand(h.bound(), argv[0], argv[1:]...)
+	defer cancel()
 	cmd.Dir = dir
 	cmd.Env = cleanEnv(h.environ)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
-	if err != nil {
+	if err = timedOut(err); err != nil {
 		return string(out), fmt.Errorf("%w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 	return string(out), nil
@@ -163,19 +202,77 @@ func lockSession(dir, name string) (func(), error) {
 	return func() { _ = f.Close() }, nil
 }
 
+// ghTimeout bounds one gh call; the slowest seen, RoundFacts' two GraphQL
+// queries, takes seconds.
+const ghTimeout = 60 * time.Second
+
+var (
+	// errGhTimeout: a gh read got no answer in time; the caller reads again
+	// next pass, as when GitHub is unreachable.
+	errGhTimeout = errors.New("GitHub did not answer in time")
+	// errGhUnknown: a gh write ran out of time and may have landed. Nothing
+	// sends it again before reading GitHub back.
+	errGhUnknown = errors.New("a GitHub write timed out; whether it landed is unknown")
+)
+
 // ghRun runs gh and returns its stdout. Stderr (a warning on success, the
 // reason on failure) must not leak into values such as a commit sha, so it
 // is attached to the error only.
-func ghRun(args ...string) (string, error) {
-	if err := graphqlVarsMismatch(args); err != nil {
-		return "", err
-	}
-	cmd := exec.Command("gh", args...) //nolint:gosec // args are built by this program
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
-	if err != nil {
+var ghRun = ghRunWith("gh", ghTimeout)
+
+func ghRunWith(bin string, timeout time.Duration) Gh {
+	return func(args ...string) (string, error) {
+		if err := graphqlVarsMismatch(args); err != nil {
+			return "", err
+		}
+		cmd, cancel, timedOut := boundedCommand(timeout, bin, args...)
+		defer cancel()
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		out, err := cmd.Output()
+		if err == nil {
+			return string(out), nil
+		}
+		if errors.Is(timedOut(err), errTimedOut) {
+			class := errGhTimeout
+			if ghWrites(args) {
+				class = errGhUnknown
+			}
+			return string(out), fmt.Errorf("gh %s: %w", strings.Join(args[:min(2, len(args))], " "), class)
+		}
 		return string(out), fmt.Errorf("%w: %s", err, strings.TrimSpace(stderr.String()))
 	}
-	return string(out), nil
 }
+
+// ghWrites: args change something on GitHub, a REST method other than GET
+// or a GraphQL mutation.
+func ghWrites(args []string) bool {
+	for i, a := range args {
+		if (a == "-X" || a == "--method") && i+1 < len(args) && !strings.EqualFold(args[i+1], "GET") {
+			return true
+		}
+		if q, ok := strings.CutPrefix(a, "query="); ok && strings.HasPrefix(strings.TrimSpace(q), "mutation") {
+			return true
+		}
+	}
+	return false
+}
+
+// ghCounter wraps a Gh and counts its calls and timeouts, so a pass where
+// every call timed out can fail the unit.
+type ghCounter struct {
+	gh              Gh
+	calls, timeouts int
+}
+
+func (c *ghCounter) run(args ...string) (string, error) {
+	out, err := c.gh(args...)
+	c.calls++
+	if errors.Is(err, errGhTimeout) || errors.Is(err, errGhUnknown) {
+		c.timeouts++
+	}
+	return out, err
+}
+
+// allTimedOut: at least one call, and none answered.
+func (c *ghCounter) allTimedOut() bool { return c.calls > 0 && c.timeouts == c.calls }

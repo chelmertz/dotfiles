@@ -48,6 +48,10 @@ func runTick(args []string, d Deps) int {
 		return 0
 	}
 
+	// Counted, so a pass in which every GitHub call timed out fails the
+	// unit (ReviewTickFailing) instead of logging one line per PR.
+	gh := &ghCounter{gh: d.Gh}
+	d.Gh = gh.run
 	user, err := githubUser(d, cfg)
 	if err != nil {
 		return fail(d, fmt.Errorf("claude-review tick: %w", err))
@@ -62,6 +66,10 @@ func runTick(args []string, d Deps) int {
 	h.dry = *dry
 	if err := h.tick(); err != nil {
 		fmt.Fprintln(d.Stderr, "claude-review tick:", err)
+		return 1
+	}
+	if gh.allTimedOut() {
+		fmt.Fprintf(d.Stderr, "claude-review tick: all %d GitHub calls timed out\n", gh.calls)
 		return 1
 	}
 	return 0
@@ -97,6 +105,10 @@ func newTickHost(d Deps, cfg Config, l *Ledger, user string) tickHost {
 		start: func(dir string, argv []string) error {
 			out, err := d.Output(dir, viaInteractiveShell(shellLine(dir, argv)))
 			if err != nil {
+				if errors.Is(err, errTimedOut) {
+					// Kept as an error to match: Relaunch holds the PR as unknown.
+					return fmt.Errorf("starting the round: %w", err)
+				}
 				return fmt.Errorf("starting the round: %s", lastLineOr(out, err.Error()))
 			}
 			return nil

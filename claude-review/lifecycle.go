@@ -309,6 +309,11 @@ func (s Sessions) Relaunch(id ids.SessionID, settle, launch func() error) (Relau
 		return res, err
 	}
 	if err := launch(); err != nil {
+		if errors.Is(err, errTimedOut) {
+			// Killed mid-launch: its worker may run. Unknown holds the PR
+			// until the roster says; "not started" would launch beside it.
+			return RelaunchResult{Kind: relaunchUnknown, Detail: err.Error()}, nil
+		}
 		return RelaunchResult{}, err
 	}
 	return s.awaitListed(id)
