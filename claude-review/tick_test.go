@@ -120,7 +120,11 @@ type tickWorld struct {
 	notified []string
 }
 
-func newTickWorld(t *testing.T) *tickWorld {
+func newTickWorld(t *testing.T) *tickWorld { return newTickWorldOn(openTestLedger(t)) }
+
+// newTickWorldOn is newTickWorld over l, a ledger the caller opened and
+// closes: the generator reopens its own on every restart.
+func newTickWorldOn(l *Ledger) *tickWorld {
 	w := &tickWorld{
 		elly:    &fakeElly{login: "me", put: map[string]Annotation{}},
 		gh:      &fakeTickGitHub{fakeGate: fakeGate{descends: true, base: "main"}, state: "open", head: "h1"},
@@ -135,7 +139,7 @@ func newTickWorld(t *testing.T) *tickWorld {
 	}
 	w.h = tickHost{
 		tcfg:    TickConfig{ReviewRepos: []string{"acme/*"}, User: "me", DailyCap: 6, MaxRunning: 2, TotalDailyCap: 24, Wrapper: []string{"capped"}},
-		ledger:  openTestLedger(t),
+		ledger:  l,
 		elly:    w.elly,
 		gh:      w.gh,
 		running: func(id ids.SessionID) bool { return w.live[id] },
