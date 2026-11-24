@@ -69,10 +69,18 @@ func approveWithToken(d Deps, pr PR, at, token string) int {
 	if err != nil {
 		return fail(d, err)
 	}
-	ok, err := l.UseToken(pr, at, tok)
+	// The window is read here, under pr's lock: a fork may hold prod data,
+	// so no Approve link is honoured beside one, nor while one cannot be
+	// ruled out.
+	window := windowOf(d.Sessions, l, pr)
+	if window != winClosed {
+		_ = l.Close()
+		return fail(d, approveWindowRefusal(pr, window))
+	}
+	ok, err := l.UseToken(pr, at, tok, window)
 	_ = l.Close()
 	if err != nil {
-		return fail(d, err)
+		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), err))
 	}
 	if !ok {
 		return fail(d, notIssued(pr))
@@ -116,6 +124,14 @@ func approveGuard(d Deps, pr PR) (unlock func(), err error) {
 // runApproveCmd is the typed approve: the same guard as a link, no token.
 func runApproveCmd(args []string, d Deps) int {
 	return runApproveGuarded(args, d.Gh, d.Stdout, d.Stderr, func(pr PR) (func(), error) { return approveGuard(d, pr) })
+}
+
+// approveWindowRefusal is why an Approve link is refused under window.
+func approveWindowRefusal(pr PR, window WindowState) error {
+	if window == winOpen {
+		return fmt.Errorf("claude-review: %s is open in a window; approve once it is closed", pr.URL())
+	}
+	return fmt.Errorf("claude-review: %s: %s, so its Approve link waits", pr.URL(), windowUnknownNote)
 }
 
 // notIssued refuses an Approve link: forged, malformed or spent alike.

@@ -383,7 +383,7 @@ func TestTickCleanRoundGetsAWorkingApproveLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ok, _ := w.h.ledger.UseToken(pr, u.Query().Get("at"), tok); !ok {
+	if ok, _ := w.h.ledger.UseToken(pr, u.Query().Get("at"), tok, winClosed); !ok {
 		t.Errorf("the Approve link's token is not one the ledger minted: %s", a.Links[0].URL)
 	}
 	if want := []string{pr.URL() + " needs you: LGTM at aaaaaaaaa; approve it if you agree"}; !slices.Equal(w.notified, want) {

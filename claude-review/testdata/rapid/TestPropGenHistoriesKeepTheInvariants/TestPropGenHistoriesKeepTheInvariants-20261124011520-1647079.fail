@@ -1,0 +1,132 @@
+# 2026/11/24 01:15:20.223351 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw prs: 1
+# 2026/11/24 01:15:20.226608 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw steps: 10
+# 2026/11/24 01:15:20.226612 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw action: "tick"
+# 2026/11/24 01:15:20.226614 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw crash?: 0
+# 2026/11/24 01:15:20.226614 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw crash at: "pr_state"
+# 2026/11/24 01:15:20.226615 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw nth: 2
+# 2026/11/24 01:15:20.235029 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw action: "time"
+# 2026/11/24 01:15:20.235035 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw minutes: 1
+# 2026/11/24 01:15:20.235150 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw action: "finish"
+# 2026/11/24 01:15:20.235153 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw pr: 1
+# 2026/11/24 01:15:20.235157 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw outcome: "nothing"
+# 2026/11/24 01:15:20.235282 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw action: "push"
+# 2026/11/24 01:15:20.235285 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw pr: 1
+# 2026/11/24 01:15:20.235387 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw action: "tick"
+# 2026/11/24 01:15:20.235389 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw crash?: 1
+# 2026/11/24 01:15:20.244591 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw action: "finish"
+# 2026/11/24 01:15:20.244596 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw pr: 1
+# 2026/11/24 01:15:20.244602 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw outcome: "approve at head"
+# 2026/11/24 01:15:20.244725 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw action: "tick"
+# 2026/11/24 01:15:20.244727 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw crash?: 0
+# 2026/11/24 01:15:20.244728 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw crash at: "meta"
+# 2026/11/24 01:15:20.244729 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw nth: 3
+# 2026/11/24 01:15:20.249923 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw action: "finish"
+# 2026/11/24 01:15:20.249928 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw pr: 1
+# 2026/11/24 01:15:20.250004 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw action: "tick"
+# 2026/11/24 01:15:20.250006 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw crash?: 0
+# 2026/11/24 01:15:20.250006 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw crash at: "acceptance"
+# 2026/11/24 01:15:20.250008 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw nth: 2
+# 2026/11/24 01:15:20.251668 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw action: "click"
+# 2026/11/24 01:15:20.251672 [TestPropGenHistoriesKeepTheInvariants] [rapid] draw pr: 1
+# 2026/11/24 01:15:20.257666 [TestPropGenHistoriesKeepTheInvariants] after click: https://github.com/acme/widgets/pull/1 is running{click} with an unspent Approve token; journal:
+# start a round on https://github.com/acme/widgets/pull/1 at 000000000 (review_requested@2026-10-31T12:00:00Z)
+# move https://github.com/acme/widgets/pull/1 from idle to running{tick} on owed
+# claude-review tick: https://github.com/acme/widgets/pull/1: constraint failed: gen: crashed (1811)
+# claude-review tick: https://github.com/acme/widgets/pull/1: constraint failed: gen: crashed (1811)
+# claude-review tick: https://github.com/acme/widgets/pull/1: gen: the process crashed
+# -- crashed; restart
+# -- after tick
+# -- after time
+# -- after finish
+# -- after push
+# move https://github.com/acme/widgets/pull/1 from running{tick} to handled{nothing} on ended
+# mark round https://github.com/acme/widgets/pull/1 read
+# start a round on https://github.com/acme/widgets/pull/1 at 000000000 (review_requested@2026-10-31T12:01:00Z)
+# move https://github.com/acme/widgets/pull/1 from handled{nothing} to running{tick} on owed
+# -- after tick
+# -- after finish
+# move https://github.com/acme/widgets/pull/1 from running{tick} to awaiting{approve} on ended
+# mark round https://github.com/acme/widgets/pull/1 read
+# leave https://github.com/acme/widgets/pull/1: a round at this head already saw this update
+# -- after tick
+# -- after finish
+# leave https://github.com/acme/widgets/pull/1: a round at this head already saw this update
+# -- after tick
+# -- after click
+# 
+v0.4.8#13236724550149512846
+0x0
+0x0
+0x0
+0x0
+0xe3e05a098777c
+0x9
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x9867f1f40f739
+0x8
+0x0
+0x0
+0x0
+0x6b74f03291620
+0x5
+0x0
+0x0
+0x0
+0x38e38e38e38e4
+0x2
+0x1981d488c96f47
+0xa
+0x15b9f2d6b55f5c
+0x30f56fa59f6db
+0x0
+0x444bf0ca5e9c3
+0x0
+0x13785cdbd60c17
+0x2e4ca5aa772cb
+0x1
+0x1bcc0d496e962e
+0x7
+0xb170949793837
+0x4c8d0ba6b84ad
+0x0
+0x1758d85e608304
+0x0
+0x1e01770cd7b4a5
+0x0
+0x1995b6fbbc30fd
+0x1633cf0b2f1bba
+0x0
+0x14806cbe51b7d4
+0x4
+0xe50d65ab13b90
+0x7ceb999a2c014
+0x2
+0x8ba129dd808e6
+0x7
+0x252071229916b
+0x1fd708fdbeda44
+0xffffffffffffffff
+0x87e49f48f3e2f
+0x0
+0x7d558421e949f
+0x156fde1d2a515d
+0x0
+0x1cdcc412e5be14
+0x7
+0xcc68e0b080101
+0x1393a7f09e99f6
+0x1
+0x162a4dda79d21c
+0x10
+0x79e65b10c6e48
+0x14fc9ab0bc405c
+0x0

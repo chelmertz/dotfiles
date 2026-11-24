@@ -16,7 +16,7 @@ claude-review threads <pr>       # what is already on the PR, with ids to reply 
 claude-review show <pr> <path>   # a file at the PR head
 claude-review grep <pr> <text>   # fixed-string search at the PR head
 claude-review diff <pr>          # commits and diff since the last round
-claude-review approve <pr> --at SHA   # yours: approve SHA if it is still the head
+claude-review approve <pr> --at SHA   # yours: approve SHA if the PR is open and SHA its head
 claude-review slack [--dry-run] <pr>...   # lines to paste when pinging a reviewer
 claude-review tick [--dry-run | --reset | --self-check]   # the unattended runner
 ```

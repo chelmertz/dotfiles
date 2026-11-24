@@ -78,7 +78,7 @@ clone. Config: ` + "`claude-review/config.json`" + ` under the user config direc
 ` + "`claude-review post`" + ` is what the session uses to post; see its --help.
 ` + "`claude-review threads`" + ` prints what is already on the PR; ` + "`show`, `grep` and `diff`" + `
 read the PR's code at its head without giving the session git.
-` + "`claude-review approve <pr> --at SHA`" + ` approves SHA if it is still the head;
+` + "`claude-review approve <pr> --at SHA`" + ` approves SHA if the PR is open and SHA its head;
 it is yours to run, and the session is denied it.
 ` + "`claude-review slack`" + ` prints a line per PR to paste to its reviewer, and
 refuses a PR that is red, pending, conflicting, a draft or owes a reply.

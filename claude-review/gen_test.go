@@ -541,6 +541,23 @@ func (g *genWorld) runningHasARound() error {
 	return nil
 }
 
+// runningHoldsNoToken: no Approve token stays unspent under a running top;
+// the Approve it was minted for is gone or buried under the round.
+func (g *genWorld) runningHoldsNoToken() error {
+	states, err := g.h.ledger.PRStates()
+	if err != nil {
+		return err
+	}
+	for _, pr := range g.prs {
+		if s := states[pr.URL()]; s.State == stRunning {
+			if live, err := g.h.ledger.HasLiveToken(pr); err != nil || live {
+				return errors.Join(err, fmt.Errorf("%s is %s with an unspent Approve token", pr.URL(), describe(s)))
+			}
+		}
+	}
+	return nil
+}
+
 // approveAtHead: every Approve row elly holds is at the PR's head now.
 func (g *genWorld) approveAtHead() error {
 	rows, err := g.h.ledger.Annotations()
@@ -703,7 +720,7 @@ func genHistories(t *testing.T, full bool) {
 			name := rapid.SampledFrom(genWeighted).Draw(rt, "action")
 			actions[name](rt)
 			fmt.Fprintf(g.out, "-- after %s\n", name)
-			if err := g.runningHasARound(); err != nil {
+			if err := errors.Join(g.runningHasARound(), g.runningHoldsNoToken()); err != nil {
 				rt.Fatalf("after %s: %v; journal:\n%s", name, err, g.out)
 			}
 			// Approve is checked right after a pass that completed: a push,

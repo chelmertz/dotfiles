@@ -84,23 +84,28 @@ func TestLedgerApproveTokensAreOneTime(t *testing.T) {
 	if err != nil || len(tok.String()) != 48 {
 		t.Fatalf("token %q, %v", tok, err)
 	}
-	if ok, _ := l.UseToken(widgetsPR, "sha2", tok); ok {
+	for _, pr := range []PR{widgetsPR, {Owner: owner, Repo: repoName, Number: 43}} {
+		if err := l.SetPRState(pr, PRState{State: stAwaiting, Kind: kindApprove, Head: "sha1", Since: t0}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if ok, _ := l.UseToken(widgetsPR, "sha2", tok, winClosed); ok {
 		t.Error("token accepted for another sha")
 	}
-	if ok, _ := l.UseToken(PR{Owner: owner, Repo: repoName, Number: 43}, "sha1", tok); ok {
+	if ok, _ := l.UseToken(PR{Owner: owner, Repo: repoName, Number: 43}, "sha1", tok, winClosed); ok {
 		t.Error("token accepted for another PR")
 	}
 	forged, err := ids.ParseToken(strings.Repeat("0", 48))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ok, _ := l.UseToken(widgetsPR, "sha1", forged); ok {
+	if ok, _ := l.UseToken(widgetsPR, "sha1", forged, winClosed); ok {
 		t.Error("forged token accepted")
 	}
-	if ok, _ := l.UseToken(widgetsPR, "sha1", tok); !ok {
+	if ok, _ := l.UseToken(widgetsPR, "sha1", tok, winClosed); !ok {
 		t.Error("the minted token was refused")
 	}
-	if ok, _ := l.UseToken(widgetsPR, "sha1", tok); ok {
+	if ok, _ := l.UseToken(widgetsPR, "sha1", tok, winClosed); ok {
 		t.Error("a used token worked twice")
 	}
 }

@@ -42,6 +42,9 @@ func TestApproveVerbNeedsAMintedToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := l.SetPRState(widgetsPR, PRState{State: stAwaiting, Kind: kindApprove, Head: sha, Since: t0}); err != nil {
+		t.Fatal(err)
+	}
 	tok, err := l.MintToken(widgetsPR, sha)
 	_ = l.Close()
 	if err != nil {
@@ -52,7 +55,7 @@ func TestApproveVerbNeedsAMintedToken(t *testing.T) {
 		if strings.Contains(strings.Join(args, " "), "-X POST") {
 			return `{"html_url":"approved"}`, nil
 		}
-		return sha, nil // headSHA asks gh for .head.sha alone
+		return "open " + sha, nil // runApprove asks gh for the state and head alone
 	}
 	approvals := func() int {
 		n := 0

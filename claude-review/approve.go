@@ -11,7 +11,7 @@ import (
 var fullSHA = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 // runApprove is `claude-review approve <pr> --at SHA`: approve the PR at
-// SHA, which must still be its head. It is for the human, typed with `!` in
+// SHA, which must still be the head of a PR still open. It is for the human, typed with `!` in
 // the session's window after a round that found nothing; denyRules keep the
 // session from running it. Nothing is read from the PR's comments, which
 // the session can write: --at only guards against a push since the review,
@@ -49,9 +49,13 @@ func runApproveGuarded(args []string, gh Gh, stdout, stderr io.Writer, guard fun
 		defer release()
 	}
 	api := fmt.Sprintf("repos/%s/%s", pr.Owner, pr.Repo)
-	head, err := headSHA(gh, api, pr.Number)
+	state, head, err := pullStateHead(gh, api, pr.Number)
 	if err != nil {
 		fmt.Fprintln(stderr, "claude-review approve:", err)
+		return 1
+	}
+	if state != "open" {
+		fmt.Fprintf(stderr, "claude-review approve: %s is %s; there is nothing to approve\n", pr.URL(), state)
 		return 1
 	}
 	if head != *at {
@@ -65,4 +69,18 @@ func runApproveGuarded(args []string, gh Gh, stdout, stderr io.Writer, guard fun
 	}
 	fmt.Fprintln(stdout, htmlURL(out))
 	return 0
+}
+
+// pullStateHead reads the PR's state (open or closed, merged included) and
+// head sha in one call.
+func pullStateHead(gh Gh, api string, number int) (state, head string, err error) {
+	out, err := gh("api", fmt.Sprintf("%s/pulls/%d", api, number), "--jq", `.state + " " + .head.sha`)
+	if err != nil {
+		return "", "", fmt.Errorf("reading PR head: %w\n%s", err, strings.TrimSpace(out))
+	}
+	state, head, _ = strings.Cut(strings.TrimSpace(out), " ")
+	if state == "" || head == "" {
+		return "", "", fmt.Errorf("reading PR head: empty sha")
+	}
+	return state, head, nil
 }

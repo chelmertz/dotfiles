@@ -577,25 +577,55 @@ func markPRRead(q querier, pr PR, at time.Time) error {
 	return err
 }
 
-// UseToken spends tok if it was minted for pr at sha and never used.
-func (l *Ledger) UseToken(pr PR, sha string, tok ids.Token) (bool, error) {
-	if err := approveAllowed(l.db, pr); err != nil {
+// UseToken spends tok if it was minted for pr at sha and never used, and
+// pr's stored state still offers Approve at sha (wantToken, window as the
+// caller read it under pr's lock). The check and the spend are one
+// IMMEDIATE transaction, so no write lands between them. A blocking
+// mention is errMentionOpen; a state that no longer offers Approve is
+// errNotOffered; a token never issued, or spent, is false with no error.
+func (l *Ledger) UseToken(pr PR, sha string, tok ids.Token, window WindowState) (bool, error) {
+	tx, err := l.db.Begin()
+	if err != nil {
 		return false, err
 	}
+	defer func() { _ = tx.Rollback() }()
+	if err := approveAllowed(tx, pr); err != nil {
+		return false, err
+	}
+	s, ok, err := prStateIn(tx, pr)
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		s = PRState{State: stIdle}
+	}
+	gate, err := mentionGate(tx, pr)
+	if err != nil {
+		return false, err
+	}
+	dismissing, err := dismissalPending(tx, pr)
+	if err != nil {
+		return false, err
+	}
+	if !wantToken(s, window, gate, dismissing) || s.Head != sha {
+		return false, errNotOffered
+	}
 	var stored ids.Token
-	err := l.db.QueryRow(`select token from tokens where pr = ? and sha = ? and used = 0 and token = ?`, pr.URL(), sha, tok).Scan(&stored)
+	err = tx.QueryRow(`select token from tokens where pr = ? and sha = ? and used = 0 and token = ?`, pr.URL(), sha, tok).Scan(&stored)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
 	if err != nil || subtle.ConstantTimeCompare([]byte(stored.String()), []byte(tok.String())) != 1 {
 		return false, err
 	}
-	res, err := l.db.Exec(`update tokens set used = 1 where token = ? and used = 0`, tok)
+	res, err := tx.Exec(`update tokens set used = 1 where token = ? and used = 0`, tok)
 	if err != nil {
 		return false, err
 	}
-	n, err := res.RowsAffected()
-	return n == 1, err
+	if n, err := res.RowsAffected(); err != nil || n != 1 {
+		return false, err
+	}
+	return true, tx.Commit()
 }
 
 // Annotation is what the runner tells elly about one PR.

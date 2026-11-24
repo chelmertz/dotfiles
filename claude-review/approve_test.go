@@ -20,7 +20,7 @@ func approveRun(t *testing.T, g *fakeGh, args ...string) (int, string, string) {
 }
 
 func TestApprove_AtHeadApprovesThatCommit(t *testing.T) {
-	g := &fakeGh{outs: []string{headSha + "\n", urlU}}
+	g := &fakeGh{outs: []string{"open " + headSha + "\n", urlU}}
 	code, out, errb := approveRun(t, g, prURL, atFlag, headSha)
 	if code != 0 || out != "u\n" || len(g.calls) != 2 {
 		t.Fatalf("code %d out %q stderr %q calls %d", code, out, errb, len(g.calls))
@@ -29,7 +29,7 @@ func TestApprove_AtHeadApprovesThatCommit(t *testing.T) {
 }
 
 func TestApprove_RefusesAfterAPush(t *testing.T) {
-	g := &fakeGh{outs: []string{headSha}}
+	g := &fakeGh{outs: []string{"open " + headSha}}
 	code, out, errb := approveRun(t, g, prURL, atFlag, olderSha)
 	if code != 1 || out != "" || len(g.calls) != 1 || !strings.Contains(errb, "covered bbbbbbbbb, but the head is now aaaaaaaaa") {
 		t.Errorf("code %d out %q calls %d stderr %q", code, out, len(g.calls), errb)
@@ -60,7 +60,7 @@ func TestApprove_GhFailures(t *testing.T) {
 		want string
 	}{
 		"head":       {&fakeGh{outs: []string{notFound}, errs: []error{boom}}, "reading PR head"},
-		"approve":    {&fakeGh{outs: []string{headSha, "Unprocessable"}, errs: []error{nil, boom}}, "Unprocessable"},
+		"approve":    {&fakeGh{outs: []string{"open " + headSha, "Unprocessable"}, errs: []error{nil, boom}}, "Unprocessable"},
 		"empty head": {&fakeGh{outs: []string{"  \n"}}, "empty sha"},
 	} {
 		if code, _, errb := approveRun(t, c.g, prURL, atFlag, headSha); code != 1 || !strings.Contains(errb, c.want) {

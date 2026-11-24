@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -56,6 +55,9 @@ type plan struct {
 	from, to  PRState
 	effects   []Effect
 	decisions []decision
+	// window is the PR's window as the host read it under the lock, for
+	// the mint (wantToken); the zero value, Unknown, mints nothing.
+	window WindowState
 }
 
 // planStep folds events over transition from s, at at cut to milliseconds
@@ -118,7 +120,7 @@ func (l *Ledger) Commit(lk prlock.Locked, pr PR, p plan) error {
 		}
 	}
 	if !deleted(p.to) {
-		if err := mintFor(tx, pr, p.to); err != nil {
+		if err := mintFor(tx, pr, p.to, p.window); err != nil {
 			return err
 		}
 	}
@@ -163,22 +165,23 @@ func commitEffect(q querier, pr PR, ef Effect, at time.Time) error {
 }
 
 // mintFor mints the Approve link's token when s is the first state to need
-// one at its head. An open mention holds the token back; the row says why,
-// and viewFor mints once the mention clears.
-func mintFor(q querier, pr PR, s PRState) error {
-	if s.State != stAwaiting || s.Kind != kindApprove {
-		return nil
+// one at its head (wantToken). Whatever holds it back (a mention, a window
+// not read Closed, a pending dismissal) the next show re-checks and mints
+// once it clears.
+func mintFor(q querier, pr PR, s PRState, window WindowState) error {
+	gate, err := mentionGate(q, pr)
+	if err != nil {
+		return err
 	}
-	if dismissing, err := dismissalPending(q, pr); err != nil || dismissing {
+	dismissing, err := dismissalPending(q, pr)
+	if err != nil || !wantToken(s, window, gate, dismissing) {
 		return err
 	}
 	if _, has, err := tokenFor(q, pr, s.Head); err != nil || has {
 		return err
 	}
-	if _, err := mintToken(q, pr, s.Head); err != nil && !errors.Is(err, errMentionOpen) {
-		return err
-	}
-	return nil
+	_, err = mintToken(q, pr, s.Head)
+	return err
 }
 
 // --- The decision log ------------------------------------------------------

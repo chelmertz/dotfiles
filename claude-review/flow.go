@@ -75,6 +75,9 @@ func (h tickHost) commit(lk prlock.Locked, pr PR, events ...Event) (PRState, boo
 		return s, false, nil
 	}
 	p.origin = h.origin
+	if p.to.State == stAwaiting && p.to.Kind == kindApprove {
+		p.window = windowOf(h.sess, h.ledger, pr)
+	}
 	err = h.do(fmt.Sprintf("move %s from %s to %s on %s", pr.URL(), describe(s), describe(p.to), p.eventNames()), func() error {
 		if slices.Contains(p.effects, efStopWorkers) {
 			if err := h.stopWorkers(pr); err != nil {
@@ -169,8 +172,12 @@ func notifyIdentity(pr PR, s PRState, a Annotation) string {
 }
 
 // viewFor is what render needs beyond s: the hold, whether a dismissal is
-// pending, and for an Approve its token. A row whose tokens were all spent
-// (revokePreC7Tokens) gets a fresh one rather than a link nothing accepts.
+// pending, and for an Approve its token, read under pr's lock. The token
+// is there only while wantToken holds, and render offers Approve only with
+// one: a row whose token was spent (a click whose approve failed,
+// revokePreC7Tokens) or held back (a mention since cleared) gets a fresh
+// one rather than a link nothing accepts, and a window open or unknown
+// hides the link.
 func (h tickHost) viewFor(pr PR, s PRState, hold Hold) (View, error) {
 	v := View{Hold: hold}
 	dismissing, err := h.ledger.DismissalPending(pr)
@@ -181,11 +188,14 @@ func (h tickHost) viewFor(pr PR, s PRState, hold Hold) (View, error) {
 	if v.Mentions, err = h.ledger.MentionGate(pr); err != nil {
 		return v, err
 	}
-	if s.State != stAwaiting || s.Kind != kindApprove || v.Mentions.Blocks() {
+	if s.State != stAwaiting || s.Kind != kindApprove {
+		return v, nil
+	}
+	if !wantToken(s, windowOf(h.sess, h.ledger, pr), v.Mentions, dismissing) {
 		return v, nil
 	}
 	tok, has, err := h.ledger.TokenFor(pr, s.Head)
-	if err == nil && !has && !dismissing {
+	if err == nil && !has {
 		tok, err = h.ledger.MintToken(pr, s.Head)
 	}
 	v.Token = tok

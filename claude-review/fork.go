@@ -197,10 +197,13 @@ const windowUnknownNote = "a Claude Code session file naming it could not be rea
 // under, older policy versions' included, is held by a non-worker session,
 // or the last fork's recorded id by any live session. Unknown when no id
 // is open and one of them cannot be read, or the fork's record cannot be.
-// Unknown holds the PR's launches this pass and is never stored. Step 7's
-// wantToken has to read it as not Closed, so an Approve link hides under
-// it; until then minting does not consult the window.
+// Unknown holds the PR's launches this pass and is never stored, and
+// wantToken reads it as not Closed, so an Approve link hides under it. A
+// host that cannot read windows at all reads Unknown.
 func windowOf(s Sessions, l *Ledger, pr PR) WindowState {
+	if s.Window == nil {
+		return winUnknown
+	}
 	st := winClosed
 	for _, id := range pr.workerIDs() {
 		switch s.WindowOf(id) {

@@ -651,6 +651,11 @@ func mentionRow(pr PR, t Typed, v View) (Annotation, bool) {
 	return Annotation{State: stateNeedsYou, Note: note, Links: []Link{primary(Link{Label: "Thread", URL: m.Url}), attachLink(pr)}}, true
 }
 
+const (
+	noteApproveWindow     = "Approve waits: a Claude window on this PR is open, or its session files could not be read"
+	noteApproveDismissing = "Approve waits: a dismissal of your approval is still pending"
+)
+
 const noteMentionsUnreadable = "Approve waits: elly could not read every thread of this PR, so a mention of you may be open"
 
 func prLinkOf(pr PR) Link { return Link{Label: "GitHub", URL: pr.URL()} }
@@ -694,7 +699,17 @@ func (x AwaitingQuestion) row(pr PR, _ Typed, _ View) Annotation {
 	return needsYou(questionNote(Outcome{Question: x.Text}), primary(answerLink(pr)))
 }
 
+// An Approve without a token is one wantToken withholds (viewFor): the
+// row says why and offers no link nothing would accept.
 func (AwaitingApprove) row(pr PR, t Typed, v View) Annotation {
+	if v.Token == (ids.Token{}) {
+		why := noteApproveWindow
+		if v.Dismissing {
+			why = noteApproveDismissing
+		}
+		// Open Claude is a primary elly's rows fixture already allows.
+		return needsYou("LGTM at "+shortSHA(t.Head)+"; "+why, primary(attachLink(pr)))
+	}
 	return needsYou("LGTM at "+shortSHA(t.Head)+"; approve it if you agree",
 		Link{Label: "Approve", URL: approveURL(pr, t.Head, v.Token), Primary: true, Action: actionApprove}, attachLink(pr))
 }

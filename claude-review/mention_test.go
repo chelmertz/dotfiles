@@ -15,6 +15,9 @@ var openMention = EllyMention{Url: widgetsPR.URL() + "#discussion_r7", Author: "
 // blocks, a token minted before the mention included.
 func TestApproveTokensWaitForTheMentionGate(t *testing.T) {
 	l := openTestLedger(t)
+	if err := l.SetPRState(widgetsPR, PRState{State: stAwaiting, Kind: kindApprove, Head: sha, Since: t0}); err != nil {
+		t.Fatal(err)
+	}
 	before, err := l.MintToken(widgetsPR, sha)
 	if err != nil {
 		t.Fatalf("no gate recorded must not block: %v", err)
@@ -29,14 +32,14 @@ func TestApproveTokensWaitForTheMentionGate(t *testing.T) {
 		if _, err := l.MintToken(widgetsPR, sha); !errors.Is(err, errMentionOpen) {
 			t.Errorf("%s: minted: %v", name, err)
 		}
-		if ok, err := l.UseToken(widgetsPR, sha, before); ok || !errors.Is(err, errMentionOpen) {
+		if ok, err := l.UseToken(widgetsPR, sha, before, winClosed); ok || !errors.Is(err, errMentionOpen) {
 			t.Errorf("%s: an earlier token was honoured: %v %v", name, ok, err)
 		}
 	}
 	if err := l.SetMentionGate(freeLock(t, widgetsPR), widgetsPR, MentionGate{}); err != nil {
 		t.Fatal(err)
 	}
-	if ok, err := l.UseToken(widgetsPR, sha, before); !ok || err != nil {
+	if ok, err := l.UseToken(widgetsPR, sha, before, winClosed); !ok || err != nil {
 		t.Errorf("cleared gate: the earlier token was refused: %v %v", ok, err)
 	}
 	if _, err := l.db.Exec(`update mention_gate set open = 'garbage'`); err != nil {

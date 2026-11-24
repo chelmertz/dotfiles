@@ -93,6 +93,22 @@ func approveAllowed(q querier, pr PR) error {
 	return nil
 }
 
+// wantToken is the one rule for an Approve token: the top of s's chain is
+// awaiting{approve} at a known head with no window anywhere in the chain,
+// Claude Code's files say no window is open on the PR (Unknown is not
+// Closed), no mention blocks, and no dismissal of the user's approval is
+// pending. show mints a missing token on it and offers the Approve link
+// only under it; Commit mints on it; UseToken spends only under it, against
+// the state stored in its own transaction.
+func wantToken(s PRState, window WindowState, gate MentionGate, dismissing bool) bool {
+	return s.State == stAwaiting && s.Kind == kindApprove && s.Head != "" && !windowInChain(s) &&
+		window == winClosed && !gate.Blocks() && !dismissing
+}
+
+// errNotOffered: the stored state no longer offers Approve at the link's
+// commit (a click, a push or a window moved it), so its token is refused.
+var errNotOffered = errors.New("the PR no longer offers Approve at that commit; use the row elly shows now")
+
 var inlineCode = regexp.MustCompile("`[^`\n]*`")
 
 // mentionedIn says whether body names @user outside quoted lines, code

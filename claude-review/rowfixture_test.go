@@ -6,7 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
+
+	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
 
 var updateRows = flag.Bool("update-rows", false, "rewrite testdata/rows.json from render")
@@ -25,9 +28,14 @@ type rowRules map[string]struct {
 func rowsFixture() rowRules {
 	pr := PR{Owner: "o", Repo: "r", Number: 1}
 	rows := []Annotation{startOffer(pr)}
+	// An Approve row offers its link only with a token (wantToken).
+	tok, err := ids.ParseToken(strings.Repeat("0", 48))
+	if err != nil {
+		panic(err)
+	}
 	for _, v := range allVariants {
 		s := untyped(Typed{V: v, Head: "0123456789abcdef0123456789abcdef01234567"})
-		for _, view := range []View{{}, {Hold: holdFor(true, "")}, {Hold: holdFor(false, breakerDuplicate)}, {Dismissing: true}} {
+		for _, view := range []View{{}, {Hold: holdFor(true, "")}, {Hold: holdFor(false, breakerDuplicate)}, {Dismissing: true}, {Token: tok}} {
 			rows = append(rows, render(pr, s, view))
 		}
 	}
