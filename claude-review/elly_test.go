@@ -61,6 +61,16 @@ func TestElly(t *testing.T) {
 		t.Errorf("PUT body %+v", got.body)
 	}
 
+	if _, sent := got.body["handover"]; sent {
+		t.Errorf("a row that hands nothing over sent handover: %+v", got.body)
+	}
+	if err := e.Put(widgetsPR.URL(), Annotation{State: stateHandled, Handover: true}, t0); err != nil {
+		t.Fatal(err)
+	}
+	if got.body["handover"] != true {
+		t.Errorf("a handed-over row went out without handover: %+v", got.body)
+	}
+
 	// elly refuses a note over 300 runes with a 400, which loses the whole
 	// row; a long note (a policy mismatch listing every flag) goes out cut.
 	long := Annotation{State: stateNeedsYou, Note: strings.Repeat("é", 400)}

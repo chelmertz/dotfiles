@@ -57,3 +57,30 @@ func TestEveryRowLinkNamesItsAction(t *testing.T) {
 		}
 	}
 }
+
+// Every handled and running row hands the PR over to claude-review, a
+// running round included, and no other row does: elly refuses handover on
+// any other state.
+func TestHandoverIsExactlyTheHandledAndRunningRows(t *testing.T) {
+	pr := PR{Owner: "o", Repo: "r", Number: 1}
+	rows := []Annotation{startOffer(pr)}
+	for _, v := range allVariants {
+		s := untyped(Typed{V: v, Head: "0123456789abcdef0123456789abcdef01234567"})
+		rows = append(rows, render(pr, s, View{}), render(pr, s, View{Hold: holdFor(true, "")}),
+			render(pr, s, View{Mentions: MentionGate{Open: []EllyMention{{Url: pr.URL() + "#discussion_r1", Author: "a"}}}}),
+			render(pr, s, View{Dismissing: true}))
+	}
+	seen := map[string]bool{}
+	for _, a := range rows {
+		if a.State == "" {
+			continue
+		}
+		seen[a.State] = true
+		if want := a.State == stateHandled || a.State == stateRunning; a.Handover != want {
+			t.Errorf("%s row %q: handover %v, want %v", a.State, a.Note, a.Handover, want)
+		}
+	}
+	if !seen[stateHandled] || !seen[stateRunning] {
+		t.Fatalf("the rows cover %v, want handled and running among them", seen)
+	}
+}

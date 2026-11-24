@@ -110,13 +110,19 @@ func (e Elly) Put(prURL string, a Annotation, expires time.Time) error {
 
 // PutSource writes pr's annotation under another source than this tool's.
 // The note goes out cut to what elly accepts: a longer one is refused with
-// a 400 and the row keeps its old state.
+// a 400 and the row keeps its old state. handover goes out only when set:
+// elly reads it left out as false, and refuses it true outside handled and
+// running.
 func (e Elly) PutSource(source, prURL string, a Annotation, expires time.Time) error {
 	links := a.Links
 	if links == nil {
 		links = []Link{}
 	}
-	body, err := json.Marshal(map[string]any{"state": a.State, "note": capRunes(a.Note, ellyMaxNote), "links": links, "expiresAt": expires.UTC().Format(time.RFC3339)})
+	fields := map[string]any{"state": a.State, "note": capRunes(a.Note, ellyMaxNote), "links": links, "expiresAt": expires.UTC().Format(time.RFC3339)}
+	if a.Handover {
+		fields["handover"] = true
+	}
+	body, err := json.Marshal(fields)
 	if err != nil {
 		return err
 	}

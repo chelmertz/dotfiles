@@ -724,6 +724,10 @@ type Annotation struct {
 	// Expires is when elly stops showing it. Zero means refresh keeps it
 	// alive: every tick re-sends it for another rowTTL.
 	Expires time.Time
+	// Handover tells elly the PR is handed over to this tool: render sets
+	// it on every handled and running row, and elly accepts it on no other
+	// state. It is not stored: render rebuilds every row it sends.
+	Handover bool
 }
 
 type Link struct {

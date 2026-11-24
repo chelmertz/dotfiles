@@ -605,12 +605,14 @@ type View struct {
 // state that needs the user marks exactly one link Primary, which elly shows
 // as the row's button. idle has no row, and a closed PR none either: the zero Annotation.
 // render is a PR's elly row, with a `?` link to the states page on every
-// row it shows.
+// row it shows. A handled or running row hands the PR over: elly then
+// groups someone else's PR as handed over, a round in progress included.
 func render(pr PR, s PRState, v View) Annotation {
 	a := renderRow(pr, s, v)
 	if a.State != "" {
 		a.Links = append(a.Links, statesLink(pr))
 	}
+	a.Handover = a.State == stateHandled || a.State == stateRunning
 	return a
 }
 

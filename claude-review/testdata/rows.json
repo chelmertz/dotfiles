@@ -4,7 +4,8 @@
     "offered": [
       "help",
       "open"
-    ]
+    ],
+    "handover": true
   },
   "info": {
     "primary": [
@@ -12,7 +13,8 @@
     ],
     "offered": [
       "start"
-    ]
+    ],
+    "handover": false
   },
   "needs_you": {
     "primary": [
@@ -25,14 +27,16 @@
       "help",
       "open",
       "start"
-    ]
+    ],
+    "handover": false
   },
   "running": {
     "primary": [],
     "offered": [
       "help",
       "open"
-    ]
+    ],
+    "handover": true
   },
   "stuck": {
     "primary": [
@@ -43,6 +47,7 @@
       "help",
       "open",
       "start"
-    ]
+    ],
+    "handover": false
   }
 }

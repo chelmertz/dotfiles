@@ -14,11 +14,12 @@ import (
 
 var updateRows = flag.Bool("update-rows", false, "rewrite testdata/rows.json from render")
 
-// rowRules is, per annotation state, the actions a row may make primary and
-// the actions it may offer at all.
+// rowRules is, per annotation state, the actions a row may make primary,
+// the actions it may offer at all, and whether its rows hand the PR over.
 type rowRules map[string]struct {
-	Primary []string `json:"primary"`
-	Offered []string `json:"offered"`
+	Primary  []string `json:"primary"`
+	Offered  []string `json:"offered"`
+	Handover bool     `json:"handover"`
 }
 
 // rowsFixture is what render writes, over every state, every hold and a
@@ -45,6 +46,7 @@ func rowsFixture() rowRules {
 			continue
 		}
 		r := out[a.State]
+		r.Handover = r.Handover || a.Handover
 		for _, l := range a.Links {
 			if !slices.Contains(r.Offered, l.Action) {
 				r.Offered = append(r.Offered, l.Action)
