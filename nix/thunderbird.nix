@@ -292,6 +292,13 @@ lib.mkIf config.dotfiles.nixos {
         # Gmail filters spam on the server. Thunderbird's own classifier
         # guessed again on top and flagged ordinary mail as junk.
         "mail.server.default.spamLevel" = 0;
+        # Accept/Decline above invitation mails, as under CalDAV. Provider for
+        # Google Calendar reports no iTIP transport without it, so the bar said
+        # "No writable calendars". The add-on keeps its settings in extension
+        # storage, but copies calendar.google.* prefs there on every startup
+        # (background.js migrate()) and then deletes them, so this re-applies
+        # each launch.
+        "calendar.google.enableEmailInvitations" = true;
       };
     };
   };
