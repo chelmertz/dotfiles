@@ -3,6 +3,10 @@ name: claude-review slow tests
 # Daily rather than on every push: mutation testing reruns the suite once per
 # mutant, and the long property run draws 100 times the usual cases. Both run
 # locally with `make mutate` and `make props-long` in claude-review/.
+#
+# Two jobs, so each gets its own time limit and one cannot eat the other's:
+# on 2026-11-24 props-long took 10 min and mutation with one worker ran past
+# the then-shared 2 h limit.
 on:
   schedule:
     - cron: "37 3 * * *"
@@ -11,10 +15,9 @@ on:
 permissions: {}
 
 jobs:
-  slow-tests:
+  props-long:
     runs-on: ubuntu-latest
-    # Local runs with one worker took 33 to 76 minutes on 2026-11-03.
-    timeout-minutes: 120
+    timeout-minutes: 30
     permissions:
       contents: read
     defaults:
@@ -33,5 +36,24 @@ jobs:
     - name: Long property run
       run: make props-long
 
+  mutation:
+    runs-on: ubuntu-latest
+    # Four workers on the runner's four cores; one worker took over 110 min.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: claude-review
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        persist-credentials: false
+
+    - name: Set up Go
+      uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+      with:
+        go-version-file: claude-review/go.mod
+
     - name: Mutation testing
-      run: make mutate
+      run: make mutate WORKERS=4
