@@ -19,6 +19,7 @@ claude-review diff <pr>          # commits and diff since the last round
 claude-review approve <pr> --at SHA   # yours: approve SHA if the PR is open and SHA its head
 claude-review slack [--dry-run] <pr>...   # lines to paste when pinging a reviewer
 claude-review tick [--dry-run | --reset | --self-check]   # the unattended runner
+claude-review log <pr>           # yours: the PR's decision log, oldest first
 ```
 
 An owner or repo that starts with `-` or is only dots is refused in every
@@ -722,6 +723,14 @@ claude-review alone. It holds:
   Every token minted before that rule was spent once on upgrade; an
   Approve row gets a fresh one when next shown.
 - **Daily round count** per PR.
+- **Decision log**: one row per decided event, with the state it moved
+  from and to, its effects and the facts it was decided on, and one row per
+  approval (the Approve link's token spend and the typed `approve --at`,
+  each with the head, where it came from and GitHub's outcome). No column
+  holds a token or its hash; free text only as a hash. Tick alone prunes it
+  to 90 days. `claude-review log <pr>` prints a PR's rows oldest first, one
+  line each, control characters escaped; it opens the ledger read-only and
+  refuses to run inside a Claude Code session, rounds and forks included.
 
 #### Each tick
 

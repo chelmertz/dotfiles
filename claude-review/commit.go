@@ -38,11 +38,12 @@ const (
 // Step kinds, the decisions table's step column: decided, an event that
 // found a rule; failsafe, a dismissal recorded and its tokens revoked
 // before anything else the step does; global, the breaker, which belongs
-// to no PR. recorded is in the table's check but not written: a round's
-// row is written before its launch, and the step that lists it is decided
-// on its event.
+// to no PR; recorded, an approval (approvelog.go), which moves no state.
+// A round's row is written before its launch, and the step that lists it
+// is decided on its event.
 const (
 	stepDecided  = "decided"
+	stepRecorded = "recorded"
 	stepFailsafe = "failsafe"
 	stepGlobal   = "global"
 )
@@ -530,6 +531,15 @@ type FactsBreaker struct {
 	Cause  string `json:"cause,omitempty"`
 }
 
+// FactsApprove: the user approved at Head, by the link (its token spent)
+// or by typing, with GitHub's outcome. No token, nor its hash: the row
+// says an approval was spent, never with what.
+type FactsApprove struct {
+	Head    string `json:"head,omitempty"`
+	Origin  string `json:"origin,omitempty"`
+	Outcome string `json:"outcome,omitempty"`
+}
+
 func (FactsRound) factsKind() string     { return "round" }
 func (FactsOwed) factsKind() string      { return "owed" }
 func (FactsStanding) factsKind() string  { return "standing" }
@@ -540,6 +550,7 @@ func (FactsClick) factsKind() string     { return "click" }
 func (FactsClose) factsKind() string     { return "close" }
 func (FactsDismissal) factsKind() string { return "dismissal" }
 func (FactsBreaker) factsKind() string   { return "breaker" }
+func (FactsApprove) factsKind() string   { return factsKindApprove }
 
 // factsOf is the observation e reports, by the source that observes it.
 func factsOf(e Event) Facts {
@@ -570,4 +581,17 @@ func factsOf(e Event) Facts {
 		return FactsClose{}
 	}
 	panic(fmt.Sprintf("factsOf: event %q has no source", e.Kind))
+}
+
+// decisionRetention is how long the log keeps a row.
+const decisionRetention = 90 * 24 * time.Hour
+
+// PruneDecisions deletes the rows older than decisionRetention before now:
+// a row on the boundary stays. Tick is its one caller; verbs never prune.
+func (l *Ledger) PruneDecisions(now time.Time) (int64, error) {
+	res, err := l.db.Exec(`delete from decisions where at_ms < ?`, now.Add(-decisionRetention).UnixMilli())
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }

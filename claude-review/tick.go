@@ -131,7 +131,7 @@ func (h tickHost) tick() error {
 	if err := h.migrateStates(); err != nil {
 		return err
 	}
-	for _, step := range []func() error{h.sweep, h.settleDismissals, h.healBreaker} {
+	for _, step := range []func() error{h.pruneDecisions, h.sweep, h.settleDismissals, h.healBreaker} {
 		if err := step(); err != nil {
 			return err
 		}

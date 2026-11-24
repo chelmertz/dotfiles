@@ -85,7 +85,13 @@ func approveWithToken(d Deps, pr PR, at, token string) int {
 	if !ok {
 		return fail(d, notIssued(pr))
 	}
-	if code := runApprove([]string{pr.URL(), "--at", at}, d.Gh, d.Stdout, d.Stderr); code != 0 {
+	// at is the head the spent token was minted for (UseToken), so the
+	// log takes it as it takes a typed --at.
+	code, outcome := approveAt(d.Gh, pr, at, d.Stdout, d.Stderr)
+	if err := logApproval(d, pr, at, originLink, outcome); err != nil {
+		return fail(d, fmt.Errorf("claude-review: %s: %s at %.9s, but logging it failed: %w", pr.URL(), outcome, at, err))
+	}
+	if code != 0 {
 		return fail(d, fmt.Errorf("claude-review: approving %s failed; see the session", pr.URL()))
 	}
 	tell(d, fmt.Sprintf("%s approved at %.9s", pr.URL(), at))
@@ -121,9 +127,11 @@ func approveGuard(d Deps, pr PR) (unlock func(), err error) {
 	return unlock, nil
 }
 
-// runApproveCmd is the typed approve: the same guard as a link, no token.
+// runApproveCmd is the typed approve: the same guard as a link, no token,
+// and its outcome logged as the link's is.
 func runApproveCmd(args []string, d Deps) int {
-	return runApproveGuarded(args, d.Gh, d.Stdout, d.Stderr, func(pr PR) (func(), error) { return approveGuard(d, pr) })
+	return runApproveGuarded(args, d.Gh, d.Stdout, d.Stderr, func(pr PR) (func(), error) { return approveGuard(d, pr) },
+		func(pr PR, at, outcome string) error { return logApproval(d, pr, at, originVerb, outcome) })
 }
 
 // approveWindowRefusal is why an Approve link is refused under window.

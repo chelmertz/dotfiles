@@ -70,6 +70,7 @@ const usageText = `usage: claude-review [--dry-run] <pr>
        claude-review tick [--dry-run | --reset]
        claude-review stats [-days N]
        claude-review states [<pr>]
+       claude-review log <pr>
 
   <pr>   a GitHub PR URL, claude-review://owner/repo/number or owner/repo/number
 
@@ -88,11 +89,20 @@ and reports them to elly; a timer runs it.
 (a link's ?from=, or tick).
 ` + "`claude-review states [<pr>]`" + ` writes a page of every PR state and move, the
 PR's own marked, and prints its path; elly's ` + "`?`" + ` link opens it.
+` + "`claude-review log <pr>`" + ` prints the PR's decision log, oldest first; it is
+yours to run, and refuses to run inside a Claude Code session.
 `
 
 // subcommands are the gh-backed commands beside the default launch.
 var subcommands = map[string]func([]string, Gh, io.Writer, io.Writer) int{
 	"threads": runThreads,
+}
+
+// ownCommands are the user's and the timer's commands, run before anything
+// else: tick, and the decision log.
+var ownCommands = map[string]func([]string, Deps) int{
+	"tick": runTick,
+	"log":  runLog,
 }
 
 // runSessionCommand runs the commands a review session uses: post, with
@@ -121,8 +131,10 @@ func runSessionCommand(args []string, d Deps) (int, bool) {
 
 // run is main without os: returns the exit code. 0 ok, 1 failure, 2 usage.
 func run(args []string, d Deps) int {
-	if len(args) > 0 && args[0] == "tick" {
-		return runTick(args[1:], d)
+	if len(args) > 0 {
+		if cmd, ok := ownCommands[args[0]]; ok {
+			return cmd(args[1:], d)
+		}
 	}
 	if code, ok := runSessionCommand(args, d); ok {
 		return code

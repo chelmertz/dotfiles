@@ -175,6 +175,23 @@ func TestDecisionLogHoldsNoTokenAndNoQuestionText(t *testing.T) {
 	msg, _ = g.message(1, "approve at head")
 	g.finish(1, msg, "")
 	g.passes(t, 1)
+	// The approvals: the link spends the token, then the user types one.
+	head := g.gh.head[1]
+	tok, has, err := g.h.ledger.TokenFor(g.prs[0], head)
+	if err != nil || !has {
+		t.Fatalf("no token at the head: %v", err)
+	}
+	if ok, err := g.h.ledger.UseToken(g.prs[0], head, tok, winClosed); !ok || err != nil {
+		t.Fatalf("spend: %v %v", ok, err)
+	}
+	for _, origin := range []string{originLink, originVerb} {
+		if err := g.h.ledger.LogApproval(g.prs[0], head, origin, outcomeApproved, g.now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := len(approveRows(t, g.h.ledger)); n != 2 {
+		t.Fatalf("%d approve rows, want 2", n)
+	}
 	rows, err := g.h.ledger.db.Query(`select token from tokens`)
 	if err != nil {
 		t.Fatal(err)
