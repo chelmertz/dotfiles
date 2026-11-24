@@ -78,6 +78,9 @@ type tickHost struct {
 	notify    func(msg string)
 	// say reports a click's non-fatal failures (warn); tick's go to out.
 	say func(error)
+	// origin is what the decision log names as deciding this host's steps:
+	// originTick when empty.
+	origin string
 	// sessionIndex maps each PR to the session that last acted on it.
 	sessionIndex func() (map[string]SessionHit, error)
 }

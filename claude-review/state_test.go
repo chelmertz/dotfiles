@@ -195,13 +195,16 @@ func TestRulesListOnlyPerformedEffects(t *testing.T) {
 			}
 		}
 	}
+	if err := w.h.stopWorkers(widgetsPR); err != nil {
+		t.Errorf("effect %q: %v", efStopWorkers, err)
+	}
 	for _, ef := range performedEffects {
-		if err := w.h.effect(widgetsPR, ef); err != nil {
+		if err := commitEffect(w.h.ledger.db, widgetsPR, ef, t0); err != nil {
 			t.Errorf("effect %q: %v", ef, err)
 		}
 	}
-	if err := w.h.effect(widgetsPR, Effect("launch")); err == nil {
-		t.Error("an effect move does not know was accepted")
+	if err := commitEffect(w.h.ledger.db, widgetsPR, Effect("launch"), t0); err == nil {
+		t.Error("an effect a step does not know was accepted")
 	}
 }
 

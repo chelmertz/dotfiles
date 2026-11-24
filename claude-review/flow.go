@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/chelmertz/dotfiles/claude-review/prlock"
@@ -42,10 +43,10 @@ func (h tickHost) peekState(pr PR) (PRState, error) {
 	return s, err
 }
 
-// move applies e to pr's state. It runs the transition's effects, stores the
-// new state and shows its row; ok is false when no rule applies, and then
-// nothing changes. Launch and re-accept are the caller's, done before the
-// event that reports them.
+// move applies e to pr's state: one step, committed whole (Commit), its
+// row shown after. ok is false when no rule applies, and then nothing
+// changes. Launch and re-accept are the caller's, done before the event
+// that reports them.
 func (h tickHost) move(lk prlock.Locked, pr PR, e Event) (PRState, error) {
 	s, _, err := h.moved(lk, pr, e)
 	return s, err
@@ -53,91 +54,68 @@ func (h tickHost) move(lk prlock.Locked, pr PR, e Event) (PRState, error) {
 
 // moved is move, and whether a rule applied.
 func (h tickHost) moved(lk prlock.Locked, pr PR, e Event) (PRState, bool, error) {
+	return h.commit(lk, pr, e)
+}
+
+// commit plans one step of events over pr's state read under lk, and
+// carries it out in its phases: workers stopped first, under the lock,
+// against that state; then the ledger's writes in one transaction
+// (Ledger.Commit); then, once committed, the row sent to elly. A crash
+// before the commit leaves the state as it was, the stopped worker
+// included, which the next pass settles; after it, the next refresh sends
+// the row. ok is false when an event finds no rule, and then nothing
+// changes.
+func (h tickHost) commit(lk prlock.Locked, pr PR, events ...Event) (PRState, bool, error) {
 	s, err := h.stateOf(lk, pr)
 	if err != nil {
 		return s, false, err
 	}
-	next, effects, ok := transition(s, e, h.now())
+	p, ok := planStep(s, h.now(), events...)
 	if !ok {
 		return s, false, nil
 	}
-	err = h.do(fmt.Sprintf("move %s from %s to %s on %s", pr.URL(), describe(s), describe(next), e.Kind), func() error {
-		for _, ef := range effects {
-			if err := h.effect(pr, ef); err != nil {
+	p.origin = h.origin
+	err = h.do(fmt.Sprintf("move %s from %s to %s on %s", pr.URL(), describe(s), describe(p.to), p.eventNames()), func() error {
+		if slices.Contains(p.effects, efStopWorkers) {
+			if err := h.stopWorkers(pr); err != nil {
 				return err
 			}
 		}
-		if deleted(next) {
-			if err := h.ledger.DeletePRState(pr); err != nil {
-				return err
-			}
+		if err := h.ledger.Commit(lk, pr, p); err != nil {
+			return err
+		}
+		if deleted(p.to) {
 			// A row elly does not drop now keeps its receipt, which the
 			// stale-row walk sends the DELETE for again next tick.
 			h.warn(pr, h.clear(lk, pr))
 			return nil
 		}
-		if err := h.mintFor(pr, next); err != nil {
-			return err
-		}
-		if err := h.ledger.SetPRState(pr, next); err != nil {
-			return err
-		}
-		// The state is stored; elly refusing the row is said, never the
-		// move's failure, and the next refresh sends it again.
-		h.warn(pr, h.show(lk, pr, next, Hold{}))
+		// The state is committed; elly refusing the row is said, never the
+		// step's failure, and the next refresh sends it again.
+		h.warn(pr, h.show(lk, pr, p.to, Hold{}))
 		return nil
 	})
-	return next, true, err
+	return p.to, true, err
 }
 
-// mintFor mints the Approve link's token when s is the first state to need
-// one at its head.
-func (h tickHost) mintFor(pr PR, s PRState) error {
-	if s.State != stAwaiting || s.Kind != kindApprove {
-		return nil
+// stopWorkers stops pr's workers, the one effect a step performs before
+// its commit.
+func (h tickHost) stopWorkers(pr PR) error {
+	if h.sess.Roster == nil {
+		return errors.New("this host cannot list workers, so it cannot stop them")
 	}
-	if dismissing, err := h.ledger.DismissalPending(pr); err != nil || dismissing {
+	all, err := h.sess.Roster()
+	if err != nil {
 		return err
 	}
-	if _, has, err := h.ledger.TokenFor(pr, s.Head); err != nil || has {
+	mine, err := h.workersOf(pr, all)
+	if err != nil {
 		return err
 	}
-	// An open mention holds the token back; the row says why, and viewFor
-	// mints once the mention clears.
-	if _, err := h.ledger.MintToken(pr, s.Head); err != nil && !errors.Is(err, errMentionOpen) {
-		return err
-	}
-	return nil
-}
-
-// performedEffects are the effects effect runs; a rule lists no other.
-var performedEffects = []Effect{efStopWorkers, efRevokeTokens, efRoundsRead}
-
-func (h tickHost) effect(pr PR, ef Effect) error {
-	switch ef {
-	case efStopWorkers:
-		if h.sess.Roster == nil {
-			return errors.New("this host cannot list workers, so it cannot stop them")
-		}
-		all, err := h.sess.Roster()
-		if err != nil {
+	for _, w := range mine {
+		if err := h.sess.stopAndWait(w); err != nil {
 			return err
 		}
-		mine, err := h.workersOf(pr, all)
-		if err != nil {
-			return err
-		}
-		for _, w := range mine {
-			if err := h.sess.stopAndWait(w); err != nil {
-				return err
-			}
-		}
-	case efRevokeTokens:
-		return h.ledger.RevokeTokens(pr)
-	case efRoundsRead:
-		return h.ledger.MarkPRRead(pr, h.now())
-	default:
-		return fmt.Errorf("effect %s is not one move performs", ef)
 	}
 	return nil
 }

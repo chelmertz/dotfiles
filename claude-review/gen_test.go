@@ -53,7 +53,7 @@ var (
 )
 
 // crashedTables are the ledger tables a crash can interrupt a write to.
-var crashedTables = []string{"pr_state", "rounds", "annotations", "tokens", "meta", "dismissals", "breaker", "acceptance", "mention_gate"}
+var crashedTables = []string{"pr_state", "rounds", "annotations", "tokens", "meta", "dismissals", "breaker", "acceptance", "mention_gate", "decisions"}
 
 // Crash points outside the ledger: the effect happens, then the process
 // dies before its next write.
@@ -73,20 +73,17 @@ type crashCtl struct {
 	nth  int    // the nth write or effect there, or the first one after it, crashes
 	seen int
 	dead bool
-	// spare keeps the armed crash out of the windows of the known
-	// defects, which the Defect tests pin; it fires at the next write
-	// outside them instead. The windows, tracked from the writes that pass:
-	//   - roundsRead, deleting: move marked rounds read and has not yet
-	//     stored the state, its mint included, nor committed the deletion
-	//     (meta's deletes are DeletePRState's own transaction): defect A;
-	//   - launched: a worker is launched and the owed move has not stored
-	//     its state: the launch crash. Before StartRound the next pass
-	//     launches the same review again; after it, the old state stays over
-	//     the new round, an Approve at the old head included.
-	spare      bool
-	roundsRead bool
-	deleting   bool
-	launched   bool
+	// spare keeps the armed crash out of the window of the known defect
+	// left, which the Defect tests pin; it fires at the next write outside
+	// it instead. launched: a worker is launched and the owed move has not
+	// stored its state: the launch crash. Before StartRound the next pass
+	// launches the same review again; after it, the old state stays over
+	// the new round, an Approve at the old head included. Commit writes
+	// pr_state last in its transaction, so the window ends there. A step's
+	// own writes (effects, mint, decision rows, state) are one transaction
+	// and a crash at any of them is armed like any other.
+	spare    bool
+	launched bool
 }
 
 func newCrashCtl() (*crashCtl, int64) {
@@ -104,7 +101,7 @@ func (c *crashCtl) arm(at string, nth int) {
 // hit reports whether a write or an effect at point (a table and its op, or
 // a crashAfter* effect that already happened) must fail: the process is
 // dead, or this is the armed one, which kills it.
-func (c *crashCtl) hit(point, op string) bool {
+func (c *crashCtl) hit(point, _ string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.dead {
@@ -116,29 +113,17 @@ func (c *crashCtl) hit(point, op string) bool {
 	if c.at != "" && c.at == point {
 		c.seen++
 	}
-	if c.at != "" && c.seen >= c.nth && (!c.spare || !c.inDefectWindow(point, op)) {
+	if c.at != "" && c.seen >= c.nth && (!c.spare || !c.inDefectWindow()) {
 		c.dead = true
 		return true
 	}
-	switch {
-	case point == "rounds" && op == "update":
-		c.roundsRead, c.deleting = true, false
-	case point == "tokens":
-		// mintFor, between the effects and the state
-	case point == "pr_state" && op == "delete":
-		c.deleting, c.roundsRead, c.launched = c.roundsRead, false, false
-	case point == "pr_state":
-		c.roundsRead, c.deleting, c.launched = false, false, false
-	case point == "meta" && op == "delete" && c.deleting:
-	case op != "":
-		c.roundsRead, c.deleting = false, false
+	if point == "pr_state" {
+		c.launched = false
 	}
 	return false
 }
 
-func (c *crashCtl) inDefectWindow(point, op string) bool {
-	return c.roundsRead || c.launched || (c.deleting && point == "meta" && op == "delete")
-}
+func (c *crashCtl) inDefectWindow() bool { return c.launched }
 
 func (c *crashCtl) isDead() bool {
 	c.mu.Lock()
@@ -151,7 +136,7 @@ func (c *crashCtl) revive() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.at, c.nth, c.seen, c.dead = "", 0, 0, false
-	c.roundsRead, c.deleting, c.launched = false, false, false
+	c.launched = false
 }
 
 // genTemplate is a fresh ledger with the crash triggers in it, made once
@@ -306,7 +291,7 @@ type genWorld struct {
 	// launched twice for the same reason shows here.
 	launches map[string]int
 	restarts int
-	// full draws what reaches the known defects too; see spared.
+	// full reads a launched round's transcript as defect D leaves it.
 	full bool
 	// crashed: the last pass crashed.
 	crashed bool
@@ -367,11 +352,6 @@ func newGenWorld(dir string, n int) (*genWorld, error) {
 		for _, pr := range g.prs {
 			if sid := pr.RoundSessionID(); sid.Key() == short {
 				g.setJob(sid, "stopped", "")
-				if !g.full {
-					// read as cut off, it would be retried over a state
-					// that is not running: see spared
-					g.msgs[sid], _ = g.message(pr.Number, "nothing")
-				}
 			}
 		}
 		c.hit(crashAfterStop, "")
@@ -592,7 +572,7 @@ func (g *genWorld) quiesce(k int) ([]string, error) {
 	for range k {
 		for _, pr := range g.prs {
 			if g.job(pr.Number) == "working" {
-				msg, summary := g.message(pr.Number, g.spared(pr.Number, "empty"))
+				msg, summary := g.message(pr.Number, "empty")
 				g.finish(pr.Number, msg, summary)
 			}
 		}
@@ -647,45 +627,11 @@ var genWeighted = []string{
 	"user approves", "click", "click", "close",
 }
 
-// spared is outcome, unless g.full is false and pr n's state is not running:
-// then a round that would be retried ends on the nothing line instead. A
-// retry decided over any state but running reads its own round and leaves
-// running{retry} that nothing settles
-// (TestDefectRetryOverAQuestionReadsItsRound); crashes and answers reach
-// such states, so only full draws the cut-off ending there. A stopped
-// worker's transcript ends on the nothing line for the same reason.
-func (g *genWorld) spared(n int, outcome string) string {
-	if g.full {
-		return outcome
-	}
-	s, _, err := g.h.ledger.PRState(g.prs[n-1])
-	if err == nil && s.State == stRunning {
-		return outcome
-	}
-	switch outcome {
-	case "approve at head", "question", "nothing", "posted a summary":
-		return outcome
-	}
-	return "nothing"
-}
-
-// genSparedPoints are the crash points the default property arms. Left
-// out, for the full one:
-//   - crashAfterStop: a crash after a push stopped a blocked worker and
-//     before the question's state moved leaves the question over a
-//     stopped worker; the full property reaches the cut-off defect below
-//     that way within a few hundred histories.
-var genSparedPoints = slices.DeleteFunc(slices.Clone(genCrashPoints), func(p string) bool { return p == crashAfterStop })
-
 // genHistories draws histories and checks them after every step, then
-// quiesces them. full arms every crash point inside the known defects'
-// windows too and draws every round ending (spared); the default keeps
-// both out of the known defects' reach.
+// quiesces them. full also crashes inside the launch crash's window and
+// reads a launched round's transcript as defect D leaves it; the default
+// keeps both out of the known defects' reach.
 func genHistories(t *testing.T, full bool) {
-	points := genSparedPoints
-	if full {
-		points = genCrashPoints
-	}
 	rapid.Check(t, func(rt *rapid.T) {
 		dir, err := os.MkdirTemp("", "claude-review-gen-")
 		if err != nil {
@@ -705,7 +651,7 @@ func genHistories(t *testing.T, full bool) {
 		actions := map[string]func(*rapid.T){
 			"tick": func(t *rapid.T) {
 				if rapid.IntRange(0, 2).Draw(t, "crash?") == 0 {
-					g.crash.arm(rapid.SampledFrom(points).Draw(t, "crash at"), rapid.IntRange(1, 3).Draw(t, "nth"))
+					g.crash.arm(rapid.SampledFrom(genCrashPoints).Draw(t, "crash at"), rapid.IntRange(1, 3).Draw(t, "nth"))
 				}
 				if err := g.tick(); err != nil {
 					t.Fatal(err)
@@ -724,7 +670,7 @@ func genHistories(t *testing.T, full bool) {
 			},
 			"finish": func(t *rapid.T) {
 				if n := pick(t); g.job(n) == "working" {
-					msg, summary := g.message(n, g.spared(n, rapid.SampledFrom(genOutcomes).Draw(t, "outcome")))
+					msg, summary := g.message(n, rapid.SampledFrom(genOutcomes).Draw(t, "outcome"))
 					g.finish(n, msg, summary)
 				}
 			},
@@ -776,6 +722,9 @@ func genHistories(t *testing.T, full bool) {
 		if len(stuck) > 0 {
 			rt.Fatalf("after 8 quiet passes still not settled: %q; journal:\n%s", stuck, g.out)
 		}
+		if err := replayDecisions(g.h.ledger); err != nil {
+			rt.Fatal(err)
+		}
 	})
 }
 
@@ -783,13 +732,13 @@ func TestPropGenHistoriesKeepTheInvariants(t *testing.T) {
 	genHistories(t, false)
 }
 
-// The same histories with every crash point and every round ending. On
-// today's code it fails within a few dozen histories, most often on the
-// retry over a question; with that one out of reach it found defect A
-// (a crash at the Approve mint after the round was read) and the launch
-// crash.
+// The same histories with crashes inside the launch crash's window and a
+// launched round reading the transcript defect D leaves. Before plan step 5
+// it failed within a few dozen histories, most often on the retry over a
+// question, then on defect A (a crash at the Approve mint after the round
+// was read); what is left is the launch crash and D.
 func TestPropGenHistoriesWithEveryCrashPoint(t *testing.T) {
-	t.Skip("defects A, D, the launch crash and the retry over a question; unskip when plan steps 5, 6 and 8 land and that retry is fixed")
+	t.Skip("the launch crash; unskip when plan step 6 lands")
 	genHistories(t, true)
 }
 
@@ -841,11 +790,11 @@ func (g *genWorld) passes(t *testing.T, k int) { //nolint:unparam // the skipped
 	}
 }
 
-// A: move marks the PR's rounds read (efRoundsRead, flow.go:45-50) before
-// SetPRState (flow.go:62), outside any transaction. A crash between them
-// leaves running with no unread round, and no rule moves it again.
+// A: move marked the PR's rounds read (efRoundsRead) before it stored the
+// state, outside any transaction, so a crash between them left running
+// with no unread round, and no rule moved it again. Both are now one
+// Commit.
 func TestDefectAMoveMarksRoundsReadBeforeStoringTheState(t *testing.T) {
-	t.Skip("defect A: a crash between move's effects and SetPRState leaves running with no round; unskip when plan step 5 lands")
 	g := newGenWorldT(t, 1)
 	g.mustTick(t)
 	if s := g.state(t, 1); s.State != stRunning {
@@ -1147,13 +1096,12 @@ func TestDefectMigrationRecreatesAClosedPRsState(t *testing.T) {
 	}
 }
 
-// Found by the generator, in no plan step yet: a retry decided over a
-// state other than running moves it with that state's evEnded rule, which
-// marks the round read (state.go:398 from a question, :400 from idle). The
-// retry's running{retry} then has no unread round, and once its worker
-// ends nothing settles it.
+// Found by the generator: a retry decided over a state other than running
+// moved it with that state's evEnded rule, which marked the round read
+// (from a question, from idle). The retry's running{retry} then had no
+// unread round, and once its worker ended nothing settled it. Every
+// state an ended round moves now has a retry rule that reads nothing.
 func TestDefectRetryOverAQuestionReadsItsRound(t *testing.T) {
-	t.Skip("retry over a question reads its own round, so running{retry} never settles; no plan step fixes it yet")
 	g := newGenWorldT(t, 1)
 	sid := g.prs[0].RoundSessionID()
 	g.mustTick(t)

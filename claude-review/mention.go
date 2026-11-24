@@ -61,10 +61,12 @@ func (l *Ledger) SetMentionGate(lk prlock.Locked, pr PR, g MentionGate) error {
 // MentionGate is pr's last recorded gate. A PR tick never recorded is not
 // blocked: tick records every PR elly lists, and a PR elly does not list
 // has no mention elly can see. A stored list that does not parse blocks.
-func (l *Ledger) MentionGate(pr PR) (MentionGate, error) {
+func (l *Ledger) MentionGate(pr PR) (MentionGate, error) { return mentionGate(l.db, pr) }
+
+func mentionGate(q querier, pr PR) (MentionGate, error) {
 	var readable bool
 	var open string
-	err := l.db.QueryRow(`select readable, open from mention_gate where pr = ?`, pr.URL()).Scan(&readable, &open)
+	err := q.QueryRow(`select readable, open from mention_gate where pr = ?`, pr.URL()).Scan(&readable, &open)
 	if errors.Is(err, sql.ErrNoRows) {
 		return MentionGate{}, nil
 	}
@@ -80,8 +82,8 @@ func (l *Ledger) MentionGate(pr PR) (MentionGate, error) {
 
 // approveAllowed is the contract both token functions check: false with
 // errMentionOpen while pr's gate blocks.
-func (l *Ledger) approveAllowed(pr PR) error {
-	g, err := l.MentionGate(pr)
+func approveAllowed(q querier, pr PR) error {
+	g, err := mentionGate(q, pr)
 	if err != nil {
 		return err
 	}

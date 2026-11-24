@@ -142,8 +142,9 @@ const (
 	evLaunchCleared EventKind = "launch_cleared"
 )
 
-// Effect is work a transition asks the caller to do, in order, before it
-// stores the new state.
+// Effect is work a transition asks the caller to do with the step:
+// stopping workers before the commit, the ledger's writes inside it
+// (commitEffect).
 type Effect string
 
 const (
@@ -341,6 +342,7 @@ var (
 	deadLaunch   = guard{"nothing started", func(s PRState, _ Event) bool { return !maybeAlive(s) }}
 	aliveCleared = guard{"a worker may have been alive", func(s PRState, _ Event) bool { return maybeAlive(s) }}
 	aliveDecided = guard{"a worker may be alive; decide", func(s PRState, e Event) bool { return maybeAlive(s) && e.Next != nil }}
+	aliveRetry   = guard{"a worker may be alive; decide: retry", func(s PRState, e Event) bool { return maybeAlive(s) && decidedRetry.ok(s, e) }}
 )
 
 // maybeAlive: a held launch whose worker may be running: launched but not
@@ -389,6 +391,7 @@ var rules = []rule{
 	{from: in(stIdle, stHandled, stAwaiting), event: evChangedUnderFirstLook, to: to(stHeld, kindFresh)},
 	{from: in(stIdle, stHandled, stAwaiting), event: evOwed, to: to(stRunning, kindTick)},
 	{from: inKind(stHeld, kindLaunch), event: evOwed, when: deadLaunch, to: to(stRunning, kindTick)},
+	{from: inKind(stHeld, kindLaunch), event: evEnded, when: aliveRetry, to: toDecided},
 	{from: inKind(stHeld, kindLaunch), event: evEnded, when: aliveDecided, to: toDecided, effects: []Effect{efRoundsRead}},
 	{from: inKind(stHeld, kindLaunch), event: evLaunchCleared, when: aliveCleared, to: to(stHeld, kindLaunch)},
 	{from: in(stAwaiting), event: evPush, to: to(stIdle, ""), effects: []Effect{efStopWorkers, efRevokeTokens}},
@@ -396,7 +399,12 @@ var rules = []rule{
 	// A round recorded without its move (a crash between the two writes).
 	{from: in(stIdle), event: evBlocked, to: to(stAwaiting, kindQuestion)},
 	{from: inKind(stAwaiting, kindQuestion), event: evResumed, when: workerBack, to: toPrev},
+	// A retry resumes the round that ended, so that round stays unread for
+	// the retry's own end, from every state an ended round moves; any other
+	// decision reads it.
 	{from: in(stRunning), event: evEnded, when: decidedRetry, to: toDecided},
+	{from: inKind(stAwaiting, kindQuestion), event: evEnded, when: decidedRetry, to: toDecided},
+	{from: in(stIdle), event: evEnded, when: decidedRetry, to: toDecided},
 	{from: in(stRunning), event: evEnded, when: decided, to: toDecided, effects: []Effect{efRoundsRead}},
 	{from: inKind(stAwaiting, kindQuestion), event: evEnded, when: decided, to: toDecided, effects: []Effect{efRoundsRead}},
 	// A round recorded without its move (a crash between the two writes).

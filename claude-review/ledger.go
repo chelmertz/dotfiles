@@ -42,7 +42,7 @@ create table if not exists pr_state (pr text primary key, state text not null);
 create table if not exists dismissals (pr text not null, review text not null, at integer not null, notified integer not null default 0, primary key (pr, review));
 create table if not exists mention_gate (pr text primary key, readable integer not null, open text not null);
 create table if not exists breaker (id integer primary key check (id = 1), tripped text, reset_at integer not null default 0);
-` + budgetSchema
+` + budgetSchema + decisionsSchema
 
 // LedgerPath is where the ledger lives under stateDir, the XDG state home
 // (Deps.StateDir), beside nothing else.
@@ -429,23 +429,27 @@ func (l *Ledger) MarkUnreadable(id ids.RoundID) error {
 
 // MintToken makes the one-time token an Approve link carries for pr at sha.
 // Precondition: approveAllowed; otherwise errMentionOpen and no token.
-func (l *Ledger) MintToken(pr PR, sha string) (ids.Token, error) {
-	if err := l.approveAllowed(pr); err != nil {
+func (l *Ledger) MintToken(pr PR, sha string) (ids.Token, error) { return mintToken(l.db, pr, sha) }
+
+func mintToken(q querier, pr PR, sha string) (ids.Token, error) {
+	if err := approveAllowed(q, pr); err != nil {
 		return ids.Token{}, err
 	}
 	tok, err := ids.NewToken()
 	if err != nil {
 		return tok, err
 	}
-	_, err = l.db.Exec(`insert into tokens (token, pr, sha) values (?, ?, ?)`, tok, pr.URL(), sha)
+	_, err = q.Exec(`insert into tokens (token, pr, sha) values (?, ?, ?)`, tok, pr.URL(), sha)
 	return tok, err
 }
 
 // TokenFor is pr's newest unused token at sha, for re-rendering its
 // Approve link; ok is false when none is left.
-func (l *Ledger) TokenFor(pr PR, sha string) (ids.Token, bool, error) {
+func (l *Ledger) TokenFor(pr PR, sha string) (ids.Token, bool, error) { return tokenFor(l.db, pr, sha) }
+
+func tokenFor(q querier, pr PR, sha string) (ids.Token, bool, error) {
 	var tok ids.Token
-	err := l.db.QueryRow(`select token from tokens where pr = ? and sha = ? and used = 0 order by rowid desc limit 1`, pr.URL(), sha).Scan(&tok)
+	err := q.QueryRow(`select token from tokens where pr = ? and sha = ? and used = 0 order by rowid desc limit 1`, pr.URL(), sha).Scan(&tok)
 	if errors.Is(err, sql.ErrNoRows) {
 		return tok, false, nil
 	}
@@ -509,9 +513,11 @@ func (l *Ledger) AddDismissal(pr PR, review ids.ReviewID, at time.Time) error {
 }
 
 // DismissalPending: a dismissal of pr's approval is recorded and not seen.
-func (l *Ledger) DismissalPending(pr PR) (bool, error) {
+func (l *Ledger) DismissalPending(pr PR) (bool, error) { return dismissalPending(l.db, pr) }
+
+func dismissalPending(q querier, pr PR) (bool, error) {
 	var n int
-	err := l.db.QueryRow(`select count(*) from dismissals where pr = ?`, pr.URL()).Scan(&n)
+	err := q.QueryRow(`select count(*) from dismissals where pr = ?`, pr.URL()).Scan(&n)
 	return n > 0, err
 }
 
@@ -558,20 +564,22 @@ func (l *Ledger) SettleDismissal(lk prlock.Locked, d Dismissal) error {
 }
 
 // RevokeTokens spends every token minted for pr.
-func (l *Ledger) RevokeTokens(pr PR) error {
-	_, err := l.db.Exec(`update tokens set used = 1 where pr = ?`, pr.URL())
+func (l *Ledger) RevokeTokens(pr PR) error { return revokeTokens(l.db, pr) }
+
+func revokeTokens(q querier, pr PR) error {
+	_, err := q.Exec(`update tokens set used = 1 where pr = ?`, pr.URL())
 	return err
 }
 
-// MarkPRRead marks every unread round of pr read.
-func (l *Ledger) MarkPRRead(pr PR, at time.Time) error {
-	_, err := l.db.Exec(`update rounds set read_at = ? where pr = ? and read_at is null`, at.Unix(), pr.URL())
+// markPRRead marks every unread round of pr read, in a step's commit.
+func markPRRead(q querier, pr PR, at time.Time) error {
+	_, err := q.Exec(`update rounds set read_at = ? where pr = ? and read_at is null`, at.Unix(), pr.URL())
 	return err
 }
 
 // UseToken spends tok if it was minted for pr at sha and never used.
 func (l *Ledger) UseToken(pr PR, sha string, tok ids.Token) (bool, error) {
-	if err := l.approveAllowed(pr); err != nil {
+	if err := approveAllowed(l.db, pr); err != nil {
 		return false, err
 	}
 	var stored ids.Token

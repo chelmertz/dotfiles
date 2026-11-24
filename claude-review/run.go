@@ -277,7 +277,7 @@ func backgroundClick(d Deps, cfg Config, lk prlock.Locked, c clickTarget, sw *st
 			fmt.Fprintf(d.Stderr, "claude-review: %s: %v\n", pr.URL(), err)
 		}
 	}
-	h := tickHost{ledger: l, elly: Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile(d.RuntimeDir)}, sess: d.Sessions, now: time.Now, say: say}
+	h := tickHost{ledger: l, elly: Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile(d.RuntimeDir)}, sess: d.Sessions, now: time.Now, say: say, origin: originLink}
 	// read before the "starting" row and the round: both replace its note
 	before, err := l.Handover(pr)
 	if err != nil {
@@ -311,7 +311,9 @@ func backgroundClick(d Deps, cfg Config, lk prlock.Locked, c clickTarget, sw *st
 		if err != nil {
 			return err
 		}
-		return newTickHost(d, cfg, l, user).settleUnread(lk, pr)
+		th := newTickHost(d, cfg, l, user)
+		th.origin = originLink
+		return th.settleUnread(lk, pr)
 	}
 	at := time.Now()
 	sw.mark("prepare")

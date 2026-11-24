@@ -16,9 +16,13 @@ import (
 // included: it is read and written whole, never queried by field.
 
 // PRState is pr's stored state, and whether it has one.
-func (l *Ledger) PRState(pr PR) (PRState, bool, error) {
+func (l *Ledger) PRState(pr PR) (PRState, bool, error) { return prStateIn(l.db, pr) }
+
+// prStateIn is pr's stored state read through q, a transaction's or the
+// ledger's.
+func prStateIn(q querier, pr PR) (PRState, bool, error) {
 	var raw string
-	err := l.db.QueryRow(`select state from pr_state where pr = ?`, pr.URL()).Scan(&raw)
+	err := q.QueryRow(`select state from pr_state where pr = ?`, pr.URL()).Scan(&raw)
 	if errors.Is(err, sql.ErrNoRows) {
 		return PRState{}, false, nil
 	}
@@ -32,7 +36,9 @@ func (l *Ledger) PRState(pr PR) (PRState, bool, error) {
 	return normalized(s), true, nil
 }
 
-func (l *Ledger) SetPRState(pr PR, s PRState) error {
+func (l *Ledger) SetPRState(pr PR, s PRState) error { return setPRState(l.db, pr, s) }
+
+func setPRState(q querier, pr PR, s PRState) error {
 	if deleted(s) {
 		return errors.New("a closed PR's state is deleted, never stored")
 	}
@@ -40,7 +46,7 @@ func (l *Ledger) SetPRState(pr PR, s PRState) error {
 	if err != nil {
 		return err
 	}
-	_, err = l.db.Exec(`replace into pr_state (pr, state) values (?, ?)`, pr.URL(), string(raw))
+	_, err = q.Exec(`replace into pr_state (pr, state) values (?, ?)`, pr.URL(), string(raw))
 	return err
 }
 
@@ -53,13 +59,20 @@ func (l *Ledger) DeletePRState(pr PR) error {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.Exec(`delete from pr_state where pr = ?`, pr.URL()); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(`delete from meta where key in (?, ?, ?, ?)`, metaForkPrefix+pr.URL(), metaStandingPrefix+pr.URL(), metaHiddenPrefix+pr.URL(), metaNotifiedPrefix+pr.URL()); err != nil {
+	if err := deletePRState(tx, pr); err != nil {
 		return err
 	}
 	return tx.Commit()
+}
+
+// deletePRState is DeletePRState inside the caller's transaction. The
+// state goes last, as in every Commit.
+func deletePRState(q querier, pr PR) error {
+	if _, err := q.Exec(`delete from meta where key in (?, ?, ?, ?)`, metaForkPrefix+pr.URL(), metaStandingPrefix+pr.URL(), metaHiddenPrefix+pr.URL(), metaNotifiedPrefix+pr.URL()); err != nil {
+		return err
+	}
+	_, err := q.Exec(`delete from pr_state where pr = ?`, pr.URL())
+	return err
 }
 
 // The pr_state migrations below exist for ledgers written before pr_state

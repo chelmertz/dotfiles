@@ -94,6 +94,7 @@ func newTickHost(d Deps, cfg Config, l *Ledger, user string) tickHost {
 		cfg:         cfg,
 		tcfg:        TickConfig{ReviewRepos: cfg.ReviewRepos, User: user, DailyCap: cfg.DailyCap, AutoStart: cfg.AutoStart, MaxRunning: cfg.MaxRunning, TotalDailyCap: cfg.TotalDailyCap, Wrapper: cfg.RoundWrapper},
 		ledger:      l,
+		origin:      originTick,
 		elly:        Elly{Base: cfg.EllyURL, TokenFile: ellyTokenFile(d.RuntimeDir)},
 		gh:          GitHub{Gh: d.Gh, User: user},
 		running:     func(id ids.SessionID) bool { return RoundRunning(d.ClaudeDir, id) },
