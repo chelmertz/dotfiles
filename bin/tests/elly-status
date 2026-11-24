@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# The credential probe in bin/prom-system-health tells a configured elly
+# from one in setup mode by grepping GET /api/v0/config/status. This runs
+# the probe's own pattern, read out of the script, against the bodies elly
+# writes to its internal/server/testdata/config-status.txt (copied here as
+# elly-config-status.txt): configured on line 1, setup mode on line 2.
+set -euo pipefail
+here=$(dirname "$0")
+pattern=$(grep -oP "grep -q '\K\"configured\":[^']*" "$here/../prom-system-health")
+[ -n "$pattern" ] || { echo "no configured pattern in prom-system-health" >&2; exit 1; }
+configured=$(sed -n 1p "$here/elly-config-status.txt")
+setup=$(sed -n 2p "$here/elly-config-status.txt")
+printf '%s' "$configured" | grep -q "$pattern" || { echo "a configured elly reads as needing a token: $configured" >&2; exit 1; }
+if printf '%s' "$setup" | grep -q "$pattern"; then
+  echo "elly in setup mode reads as configured: $setup" >&2
+  exit 1
+fi
+echo ok

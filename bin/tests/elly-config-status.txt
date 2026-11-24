@@ -1,0 +1,2 @@
+{"configured":true,"degradations":[],"owner_tokens":[],"stored_at":"2026-01-01T00:00:00Z","username":"me"}
+{"configured":false}

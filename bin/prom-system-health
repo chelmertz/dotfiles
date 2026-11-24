@@ -65,7 +65,8 @@ probe gh gh auth status
 # (a false CredentialExpired) from then on. An elly that does not answer
 # writes no line: that is elly down, not a token to paste, and the alert's
 # remedy would be wrong. `"configured":true` is the literal elly's
-# GET /api/v0/config/status encodes (internal/server/server.go).
+# GET /api/v0/config/status encodes (internal/server/server.go);
+# bin/tests/elly-status runs this grep against elly's fixture of both bodies.
 if status=$(timeout 20 curl -fsS -m 10 http://127.0.0.1:9876/api/v0/config/status 2>/dev/null); then
   if printf '%s' "$status" | grep -q '"configured":true'; then
     echo 'credential_ok{service="elly"} 1' >> "$tmpfile"

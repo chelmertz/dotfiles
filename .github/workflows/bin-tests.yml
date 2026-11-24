@@ -1,0 +1,27 @@
+name: bin tests
+
+# Scripts in bin/ that read another program's output carry a test against a
+# copy of that output; bin/tests/elly-status checks the credential probe
+# against the status bodies elly writes to its own fixture.
+on:
+  push:
+    paths:
+      - "bin/**"
+      - ".github/workflows/bin-tests.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  bin-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        persist-credentials: false
+
+    - name: Credential probe reads elly's status bodies
+      run: bin/tests/elly-status
