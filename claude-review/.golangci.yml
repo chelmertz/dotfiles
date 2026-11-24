@@ -52,6 +52,12 @@ linters:
         # Tests pass values through Deps or an explicit env slice instead.
         - pattern: ^(os\.(Setenv|Unsetenv|Clearenv)|testing\.(T|B|F|TB)\.Setenv)$
           msg: "never change the process environment: pass the value through Deps or an explicit env slice"
+        # A PR's state and its rounds change only in a step's one
+        # transaction (Ledger.Commit, through tickHost.step), or in the
+        # launch's own round writes (RecordRound, RecordRetry); the bare
+        # writers stay for the ledger's own code and for tests.
+        - pattern: ^main\.Ledger\.(SetPRState|DeletePRState|StartRoundFrom|MarkRead|MarkRetried)$
+          msg: "a bare ledger writer: change a PR's state and its rounds in one step (tickHost.step, Ledger.Commit)"
     depguard:
       rules:
         prevent_unmaintained_packages:
@@ -133,6 +139,13 @@ linters:
           - forbidigo
         path: ^main\.go$
         text: "the environment is read only in main.go's realDeps"
+
+      # The ledger's own files define the bare writers; tests set fixtures
+      # with them.
+      - linters:
+          - forbidigo
+        path: ^(ledger|prstate|commit)\.go$|_test\.go$
+        text: "a bare ledger writer"
 
       # goconst: golangci-lint 2.15 started counting test literals, where a
       # spelled-out URL or flag reads better than a named constant.

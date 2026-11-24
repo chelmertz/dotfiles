@@ -508,7 +508,7 @@ func TestTickOneEllyFailureDoesNotStopTheRest(t *testing.T) {
 func TestLaunchRefusesInADryRun(t *testing.T) {
 	w := newTickWorld(t)
 	w.h.dry = true
-	if _, err := w.h.launch(mustLock(t, w.h, widgetsPR), widgetsPR, NewHead{}, nil, func(time.Time, int64) error { return nil }, nil); err == nil || len(w.started) != 0 {
+	if _, err := w.h.launch(mustLock(t, w.h, widgetsPR), widgetsPR, NewHead{}, nil, &launchRecord{}); err == nil || len(w.started) != 0 {
 		t.Errorf("launch in a dry run: err %v, started %q", err, w.started)
 	}
 }
@@ -631,7 +631,7 @@ func TestTickBreakerHealsOnceThenLatches(t *testing.T) {
 		t.Errorf("a latched breaker does not ask for the reset: %+v", a)
 	}
 
-	if err := w.h.ledger.Reset(w.h.now()); err != nil {
+	if err := w.h.ledger.Reset(originVerb, w.h.now()); err != nil {
 		t.Fatal(err)
 	}
 	if err := w.h.tick(); err != nil {
@@ -648,7 +648,7 @@ func TestTickBreakerFaultsStayLatched(t *testing.T) {
 		w := newTickWorld(t)
 		w.accept(t, 1)
 		w.elly.prs = []EllyPR{requestedPR(1)}
-		if err := w.h.ledger.Trip(reason); err != nil {
+		if err := w.h.ledger.Trip(originTick, reason); err != nil {
 			t.Fatal(err)
 		}
 		w.h.now = func() time.Time { return t0.Add(48 * time.Hour) }
@@ -677,7 +677,7 @@ func TestTickBreakerCountsRetries(t *testing.T) {
 func TestLaunchWithoutACapStartsNothing(t *testing.T) {
 	w := newTickWorld(t)
 	w.h.tcfg.TotalDailyCap = 0
-	if _, err := w.h.launch(mustLock(t, w.h, widgetsPR), widgetsPR, NewHead{}, nil, func(time.Time, int64) error { return nil }, nil); err == nil || len(w.started) != 0 {
+	if _, err := w.h.launch(mustLock(t, w.h, widgetsPR), widgetsPR, NewHead{}, nil, &launchRecord{}); err == nil || len(w.started) != 0 {
 		t.Errorf("launch with no cap: err %v, started %q", err, w.started)
 	}
 }
@@ -686,11 +686,11 @@ func TestLaunchWithoutACapStartsNothing(t *testing.T) {
 // latch has to hold in launch itself.
 func TestLaunchRefusesWhileTripped(t *testing.T) {
 	w := newTickWorld(t)
-	if err := w.h.ledger.Trip("too many"); err != nil {
+	if err := w.h.ledger.Trip(originTick, "too many"); err != nil {
 		t.Fatal(err)
 	}
 	recorded := false
-	if _, err := w.h.launch(mustLock(t, w.h, widgetsPR), widgetsPR, NewHead{}, nil, func(time.Time, int64) error { recorded = true; return nil }, nil); err == nil || recorded || len(w.started) != 0 {
+	if _, err := w.h.launch(mustLock(t, w.h, widgetsPR), widgetsPR, NewHead{}, nil, &launchRecord{record: func(time.Time, int64) (ids.RoundID, error) { recorded = true; return ids.RoundID{}, nil }}); err == nil || recorded || len(w.started) != 0 {
 		t.Errorf("launch while tripped: err %v, recorded %v, started %q", err, recorded, w.started)
 	}
 }
@@ -736,21 +736,37 @@ func TestTickARoundOverItsPostLimitStopsThatPR(t *testing.T) {
 	}
 }
 
-// A launch that fails leaves nothing in the ledger: a round recorded first
-// would be settled from the previous round's last message.
-func TestTickRecordsARoundOnlyAfterItsLaunch(t *testing.T) {
+// A launch that fails leaves only its unlisted round, written before it;
+// the next pass takes it back before it reads any round, so it is never
+// settled from the previous round's last message.
+func TestTickAFailedLaunchLeavesOnlyAnUnlistedRound(t *testing.T) {
 	w := newTickWorld(t)
-	w.accept(t, 42)
+	pr := w.accept(t, 42)
 	w.elly.prs = []EllyPR{requestedPR(42)}
-	w.h.start = func(string, []string) error { return errors.New("Workspace not trusted") }
+	launches := 0
+	w.h.start = func(string, []string) error { launches++; return errors.New("Workspace not trusted") }
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if rounds, _ := w.h.ledger.UnreadRounds(); len(rounds) != 0 {
-		t.Errorf("a failed launch left a round: %+v", rounds)
+	first, _ := w.h.ledger.UnreadRounds()
+	if len(first) != 1 || first[0].Listed {
+		t.Fatalf("after a failed launch: %+v, want one unlisted round", first)
 	}
 	if !strings.Contains(w.out.String(), "Workspace not trusted") {
 		t.Errorf("the failure was not reported: %q", w.out)
+	}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	rounds, _ := w.h.ledger.UnreadRounds()
+	if len(rounds) != 1 || rounds[0].Listed || launches != 2 {
+		t.Errorf("the next pass: %+v after %d launches, want the first round taken back, the review launched again and its round unlisted", rounds, launches)
+	}
+	if _, _, read, err := w.h.ledger.LastSettled(pr); err != nil || read {
+		t.Errorf("a round that never launched was read (%v)", err)
+	}
+	if s, _ := w.h.peekState(pr); s.State != stIdle {
+		t.Errorf("a launch that never started moved the PR to %s", describe(s))
 	}
 }
 
@@ -942,7 +958,7 @@ func TestTickAFailedSelfCheckTripsTheBreakerAndStartsNothing(t *testing.T) {
 		t.Errorf("a failed version was recorded: %q", v)
 	}
 	w.h.version = func() (string, error) { return "", errors.New("claude: not found") }
-	if err := w.h.ledger.Reset(t0); err != nil {
+	if err := w.h.ledger.Reset(originVerb, t0); err != nil {
 		t.Fatal(err)
 	}
 	if err := w.h.tick(); err == nil || len(w.started) != 0 {

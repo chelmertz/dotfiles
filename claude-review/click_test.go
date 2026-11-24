@@ -191,7 +191,7 @@ func TestClickSettlesTheLastRoundBeforeStoppingItsWorker(t *testing.T) {
 
 func TestClickRefusedWhileTheBreakerIsTripped(t *testing.T) {
 	h, fs := clickHost(t, true)
-	if err := h.ledger(t).Trip("self-check failed"); err != nil {
+	if err := h.ledger(t).Trip(originTick, "self-check failed"); err != nil {
 		t.Fatal(err)
 	}
 	if code := run([]string{target}, h.d); code != 1 || slices.Contains(fs.events, "launch") {

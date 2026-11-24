@@ -196,7 +196,9 @@ func (l *Ledger) migratedFor(url string, a Annotation) (PRState, error) {
 	if err != nil {
 		return PRState{}, err
 	}
-	err = l.db.QueryRow(`select trigger_kind, started_at from rounds where pr = ? and read_at is null order by id desc limit 1`, url).Scan(&kind, &started)
+	// An unlisted round is settle's to resolve, and running would stand on
+	// a launch that may never have happened.
+	err = l.db.QueryRow(`select trigger_kind, started_at from rounds where pr = ? and read_at is null and listed_at is not null order by id desc limit 1`, url).Scan(&kind, &started)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return PRState{}, err
 	}

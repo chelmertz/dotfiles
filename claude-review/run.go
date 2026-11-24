@@ -253,8 +253,8 @@ func planBackgroundClick(d Deps, cfg Config, pr PR, remote string) (click, error
 // background worker, under the pinned round policy, and notifies: nobody
 // watches it, and watching is `claude attach`. Like tick it starts nothing
 // while the breaker is tripped, settles the last round before stopping its
-// idle worker, and records the round once the worker is listed, so tick
-// settles it like its own. head is the PR head the click saw ("" when
+// idle worker, writes the round before its launch and lists it once the
+// worker is listed (clickRecord), so tick settles it like its own. head is the PR head the click saw ("" when
 // GitHub did not say; then nothing is recorded).
 //
 // Its first act is a "starting" row in elly, so an open page shows the click
@@ -319,18 +319,15 @@ func backgroundClick(d Deps, cfg Config, lk prlock.Locked, c clickTarget, sw *st
 	sw.mark("prepare")
 	starter := clickStarter(d, cfg)
 	starter.mark = sw.mark
-	var transcriptFrom int64
-	starter.beforeLaunch = func() { transcriptFrom = TranscriptSize(d.ClaudeDir, pr.RoundSessionID()) }
+	rec := h.clickRecord(lk, c)
+	starter.beforeLaunch = rec.before(at, func() int64 { return TranscriptSize(d.ClaudeDir, pr.RoundSessionID()) })
 	res, err := starter.start(cfg, pr, dir, remote, false, settle)
 	sw.mark("listed")
 	fmt.Fprintf(d.Stderr, "claude-review: %s: click from %s, timing: %s\n", pr.URL(), from, sw)
 	if err != nil && res.Kind != relaunchDuplicate {
 		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), err))
 	}
-	not, err := h.afterRelaunch(lk, pr, res, err, func() error { return h.recordClick(lk, c, at, transcriptFrom) }, func(detail string) error {
-		_, err := h.move(lk, pr, Event{Kind: evFailedToStart, Class: detail})
-		return err
-	})
+	not, err := h.afterRelaunch(lk, pr, res, err, rec)
 	started = not == "" && err == nil
 	return clickOutcome(d, pr, res, started, err, before)
 }
@@ -355,28 +352,6 @@ func (h tickHost) refuseUnderWindow(lk prlock.Locked, pr PR) error {
 	}
 	_, err = h.move(lk, pr, Event{Kind: evWindowOpened})
 	return errors.Join(err, fmt.Errorf("claude-review: %s: %s", pr.URL(), windowNote))
-}
-
-// recordClick records a click's round once its worker is listed, and moves
-// the PR to running; from is the session transcript's size just before the
-// launch. A click whose head GitHub did not say records nothing, so nothing
-// would settle a running round.
-func (h tickHost) recordClick(lk prlock.Locked, c clickTarget, at time.Time, from int64) error {
-	if c.head == "" {
-		return nil
-	}
-	id, err := h.ledger.StartRoundFrom(c.pr, c.head, Click{At: at.UTC(), From: c.from}, at, from)
-	if err != nil {
-		return err
-	}
-	// settleUnread may have moved the state on since the click
-	if s, err := h.stateOf(lk, c.pr); err == nil && s.State != stStarting {
-		_, err = h.move(lk, c.pr, Event{Kind: evClick, From: c.from})
-		h.warn(c.pr, err)
-	}
-	_, err = h.move(lk, c.pr, Event{Kind: evLaunched, Round: id})
-	h.warn(c.pr, err)
-	return nil
 }
 
 // clickTarget is what a background click acts on: the PR, its clone and

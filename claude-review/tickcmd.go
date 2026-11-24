@@ -178,7 +178,7 @@ func resetBreaker(d Deps) int {
 		return fail(d, err)
 	}
 	defer func() { _ = l.Close() }()
-	if err := l.Reset(time.Now()); err != nil {
+	if err := l.Reset(originVerb, time.Now()); err != nil {
 		return fail(d, err)
 	}
 	return 0

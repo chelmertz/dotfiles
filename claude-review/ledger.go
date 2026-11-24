@@ -73,6 +73,10 @@ func OpenLedger(path string) (*Ledger, error) {
 		`alter table rounds add column trigger_from text`,
 		`alter table rounds add column transcript_from integer not null default 0`,
 		`alter table rounds add column unreadable integer not null default 0`,
+		// listed_at: when the round's worker was listed. A row is written
+		// before its launch with null; every row from before the column was
+		// written after its listing, so the default lists them.
+		`alter table rounds add column listed_at integer default 0`,
 	} {
 		if _, err := db.Exec(alter); err != nil && !strings.Contains(err.Error(), "duplicate column") {
 			_ = db.Close()
@@ -240,6 +244,11 @@ type Round struct {
 	// Unreadable counts the passes whose read of the round's transcript
 	// failed.
 	Unreadable int
+	// Listed: the round's worker was listed after its launch. A round is
+	// written before its launch, unlisted, and a crash can leave it so;
+	// settle then decides from the roster and the transcript whether it
+	// launched.
+	Listed bool
 }
 
 // SessionFor is the session r runs in: the one it started in, which a
@@ -252,14 +261,38 @@ func (r Round) SessionFor(pr PR) ids.SessionID {
 	return r.Session
 }
 
-// StartRoundFrom records a round whose session transcript was from bytes
-// long at its launch. The old trigger text is still written, for an older
-// binary's counts and RanAt.
+// StartRoundFrom records a listed round whose session transcript was from
+// bytes long at its launch, in one write: a launch records its round with
+// RecordRound before it and lists it in the step after, so only tests and
+// the ledger write rounds this way. The old trigger text is still written,
+// for an older binary's counts and RanAt.
 func (l *Ledger) StartRoundFrom(pr PR, head string, trigger Trigger, at time.Time, from int64) (ids.RoundID, error) {
+	return insertRound(l.db, pr, head, trigger, at, from, true)
+}
+
+// RecordRound writes the round a launch is about to start, in its own
+// transaction under pr's lock lk, before the launch: unlisted, with the
+// session transcript's size from where the round's own lines will start.
+// The step after the launch lists it (listRound), or deletes it with the
+// launch's failure (forgetRound); settle resolves a row a crash left
+// unlisted.
+func (l *Ledger) RecordRound(lk prlock.Locked, pr PR, head string, trigger Trigger, at time.Time, from int64) (ids.RoundID, error) {
+	if err := lk.Check(prKey(pr)); err != nil {
+		return ids.RoundID{}, err
+	}
+	return insertRound(l.db, pr, head, trigger, at, from, false)
+}
+
+func insertRound(q querier, pr PR, head string, trigger Trigger, at time.Time, from int64, listed bool) (ids.RoundID, error) {
+	var listedAt *int64
+	if listed {
+		n := at.Unix()
+		listedAt = &n
+	}
 	var id ids.RoundID
-	if err := l.db.QueryRow(`insert into rounds (pr, head, trigger, trigger_kind, trigger_key, trigger_from, started_at, session, transcript_from)
-		values (?, ?, ?, ?, ?, nullif(?, ''), ?, ?, ?) returning id`,
-		pr.URL(), head, trigger.Text(), trigger.Kind(), trigger.DedupeKey(), triggerFrom(trigger), at.Unix(), pr.RoundSessionID().String(), from).Scan(&id); err != nil {
+	if err := q.QueryRow(`insert into rounds (pr, head, trigger, trigger_kind, trigger_key, trigger_from, started_at, session, transcript_from, listed_at)
+		values (?, ?, ?, ?, ?, nullif(?, ''), ?, ?, ?, ?) returning id`,
+		pr.URL(), head, trigger.Text(), trigger.Kind(), trigger.DedupeKey(), triggerFrom(trigger), at.Unix(), pr.RoundSessionID().String(), from, listedAt).Scan(&id); err != nil {
 		return id, fmt.Errorf("start round: %w", err)
 	}
 	return id, nil
@@ -318,7 +351,9 @@ func (l *Ledger) DiffBase(pr PR) (string, bool, error) {
 
 // Launches counts tick's round starts and retries since since, across all
 // PRs, for the breaker. Starts before the last reset do not count; a
-// click's round counts only through its retries, which tick starts.
+// click's round counts only through its retries, which tick starts. A row
+// not yet listed counts: its launch may have happened, so the count only
+// ever errs toward stopping.
 func (l *Ledger) Launches(since time.Time) (int, error) {
 	var n int
 	err := l.db.QueryRow(`select coalesce(sum(retries + (trigger_kind not in (`+freeKindsSQL()+`))), 0) from rounds
@@ -326,10 +361,15 @@ func (l *Ledger) Launches(since time.Time) (int, error) {
 	return n, err
 }
 
-// Trip latches the breaker: no round starts until Reset.
-func (l *Ledger) Trip(reason string) error {
-	_, err := l.db.Exec(`insert into breaker (id, tripped) values (1, ?) on conflict (id) do update set tripped = excluded.tripped`, reason)
-	return err
+// Trip latches the breaker: no round starts until Reset. It is a global
+// write, its own transaction and logged as one, never part of a PR's step:
+// a step that fails after it does not take the trip back. origin is what
+// tripped it.
+func (l *Ledger) Trip(origin, reason string) error {
+	return l.global(origin, FactsBreaker{Action: "trip", Cause: breakerKind(reason)}, func(q querier) error {
+		_, err := q.Exec(`insert into breaker (id, tripped) values (1, ?) on conflict (id) do update set tripped = excluded.tripped`, reason)
+		return err
+	})
 }
 
 // Tripped is the reason the breaker tripped, or "" while it is closed.
@@ -342,10 +382,39 @@ func (l *Ledger) Tripped() (string, error) {
 	return reason.String, err
 }
 
-// Reset closes the breaker and starts its count afresh at.
-func (l *Ledger) Reset(at time.Time) error {
-	_, err := l.db.Exec(`insert into breaker (id, tripped, reset_at) values (1, null, ?) on conflict (id) do update set tripped = null, reset_at = excluded.reset_at`, at.Unix())
+// Reset closes the breaker and starts its count afresh at, a global write
+// like Trip.
+func (l *Ledger) Reset(origin string, at time.Time) error {
+	return l.global(origin, FactsBreaker{Action: "reset"}, func(q querier) error { return writeReset(q, at) })
+}
+
+// Heal is healBreaker's clear of a cap trip: the reset and the time it
+// healed, stored under key, in one global transaction.
+func (l *Ledger) Heal(origin, key string, at time.Time) error {
+	return l.global(origin, FactsBreaker{Action: "heal", Cause: "cap"}, func(q querier) error {
+		if err := writeReset(q, at); err != nil {
+			return err
+		}
+		_, err := q.Exec(`replace into meta (key, value) values (?, ?)`, key, at.UTC().Format(time.RFC3339))
+		return err
+	})
+}
+
+func writeReset(q querier, at time.Time) error {
+	_, err := q.Exec(`insert into breaker (id, tripped, reset_at) values (1, null, ?) on conflict (id) do update set tripped = null, reset_at = excluded.reset_at`, at.Unix())
 	return err
+}
+
+// breakerKind is a breaker reason's kind, its prefix without the colon:
+// the log keeps that, never the reason's text (session ids, a self-check's
+// output).
+func breakerKind(reason string) string {
+	for _, prefix := range []string{breakerCap, breakerDuplicate, breakerSelfCheck, breakerLoop} {
+		if strings.HasPrefix(reason, prefix) {
+			return strings.TrimSuffix(prefix, ": ")
+		}
+	}
+	return "" // a reason from before the prefixes
 }
 
 // PRs are the URLs of every PR the ledger knows: accepted, or with a round.
@@ -366,10 +435,12 @@ func (l *Ledger) PRs() ([]string, error) {
 	return out, rows.Err()
 }
 
-// UnreadRounds are rounds whose outcome has not been processed yet.
+// UnreadRounds are rounds whose outcome has not been processed yet, the
+// unlisted among them: settle resolves those first.
 func (l *Ledger) UnreadRounds() ([]Round, error) {
 	rows, err := l.db.Query(`select id, pr, head, trigger_kind, trigger_key, coalesce(trigger_from, ''), started_at, retries, session,
-		transcript_from, unreadable, exists (select 1 from post_refusals f where f.pr = rounds.pr and f.at >= rounds.started_at)
+		transcript_from, unreadable, exists (select 1 from post_refusals f where f.pr = rounds.pr and f.at >= rounds.started_at),
+		listed_at is not null
 		from rounds where read_at is null order by id`)
 	if err != nil {
 		return nil, fmt.Errorf("unread rounds: %w", err)
@@ -380,7 +451,7 @@ func (l *Ledger) UnreadRounds() ([]Round, error) {
 		var r Round
 		var started int64
 		var session, kind, key, from string
-		if err := rows.Scan(&r.ID, &r.PR, &r.Head, &kind, &key, &from, &started, &r.Retries, &session, &r.TranscriptFrom, &r.Unreadable, &r.PostRefused); err != nil {
+		if err := rows.Scan(&r.ID, &r.PR, &r.Head, &kind, &key, &from, &started, &r.Retries, &session, &r.TranscriptFrom, &r.Unreadable, &r.PostRefused, &r.Listed); err != nil {
 			return nil, err
 		}
 		r.Trigger = triggerOf(kind, key, from)
@@ -397,6 +468,8 @@ func (l *Ledger) UnreadRounds() ([]Round, error) {
 	return out, rows.Err()
 }
 
+// MarkRead marks round id read on its own. A step marks the rounds it
+// reads in its commit (readRound); only tests and the ledger call this.
 func (l *Ledger) MarkRead(id ids.RoundID) error {
 	_, err := l.db.Exec(`update rounds set read_at = ? where id = ?`, time.Now().Unix(), id)
 	return err
@@ -415,9 +488,24 @@ func (l *Ledger) LastSettled(pr PR) (started, read time.Time, ok bool, err error
 
 // MarkRetried counts a retry of round id, whose session transcript was
 // from bytes long at the retry's launch: the retry reads from there, and
-// its reads start a fresh unreadable count.
+// its reads start a fresh unreadable count. A retry writes this before its
+// launch, unlisted, through RecordRetry; only tests and the ledger call
+// this.
 func (l *Ledger) MarkRetried(id ids.RoundID, from int64) error {
 	_, err := l.db.Exec(`update rounds set retries = retries + 1, transcript_from = ?, unreadable = 0 where id = ?`, from, id)
+	return err
+}
+
+// RecordRetry counts a retry of pr's round id before the retry's launch, in
+// its own transaction under lk: unlisted again, reading from the session
+// transcript's size from, its unreadable count fresh. The step after the
+// launch lists it, or takes the retry back (unretry) with the launch's
+// failure.
+func (l *Ledger) RecordRetry(lk prlock.Locked, pr PR, id ids.RoundID, from int64) error {
+	if err := lk.Check(prKey(pr)); err != nil {
+		return err
+	}
+	_, err := l.db.Exec(`update rounds set retries = retries + 1, transcript_from = ?, unreadable = 0, listed_at = null where id = ? and pr = ?`, from, id, pr.URL())
 	return err
 }
 

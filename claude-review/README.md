@@ -692,11 +692,16 @@ claude-review alone. It holds:
 - **Bury**: a PR elly reports buried gets no rounds. elly unburies it when
   someone else updates it, a re-request included, and rounds resume. Bury
   replaced the Ignore link (2026-11-16); an old Ignore link says so.
-- **Rounds**: each round is recorded once its worker is listed in Claude
-  Code's roster (PR, head, trigger), never before: a launch that failed
-  leaves no round to be settled from the previous round's message. Clicks
-  on a PR in `review_repos` record theirs too, so tick settles them; those
-  count toward neither cap. Marked read when its result is processed. A
+- **Rounds**: each round (PR, head, trigger) is written just before its
+  launch, unlisted, with the transcript's size there, and listed once its
+  worker shows in Claude Code's roster, in the same step that moves the
+  PR; a launch that started nothing takes its row back in the step that
+  says so. A crash in between leaves the row unlisted, and the next pass
+  settles it first: a listed worker or transcript text past its start
+  means it launched, and it is listed and read like any round; neither
+  means it never did, and the row goes, so the review is owed again.
+  Unlisted rows count toward the caps. Clicks on a PR in `review_repos`
+  record theirs too, so tick settles them; those count toward neither cap. Marked read when its result is processed. A
   trigger is one of requested (a request or re-request), replies, answered,
   new head or click, stored as kind, dedupe key (the PR's last update, the
   head, or the click time) and a click's `?from=`. The old text column

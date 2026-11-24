@@ -305,7 +305,7 @@ func (h tickHost) runSelfCheck(v string) error {
 	if err := h.selfCheck(); err != nil {
 		reason := fmt.Sprintf("the self-check on %s failed: %v", v, err)
 		h.notify(reason)
-		return errors.Join(h.ledger.Trip(breakerSelfCheck+reason), breakerError(reason))
+		return errors.Join(h.ledger.Trip(h.originOrTick(), breakerSelfCheck+reason), breakerError(reason))
 	}
 	return h.ledger.SetMeta(metaClaudeVersion, v)
 }
@@ -402,16 +402,12 @@ func (h tickHost) closeOut(pr PR, rounds []Round) error {
 			return err
 		}
 	}
-	_, err = h.move(lk, pr, Event{Kind: evClosed})
-	if err != nil {
-		return err
-	}
+	reads := make([]ledgerWrite, 0, len(rounds))
 	for _, r := range rounds {
-		if err := h.do("mark round "+pr.URL()+" read", func() error { return h.ledger.MarkRead(r.ID) }); err != nil {
-			return err
-		}
+		reads = append(reads, readRound(r.ID))
 	}
-	return nil
+	_, _, err = h.step(lk, pr, reads, may(Event{Kind: evClosed}))
+	return err
 }
 
 // settle reads every round the ledger started and has not read, and returns
@@ -454,6 +450,17 @@ func (h tickHost) settle() (int, error) {
 // start a new one.
 func (h tickHost) settleRound(lk prlock.Locked, pr PR, r Round, retry bool) (busy bool, err error) {
 	sid := r.SessionFor(pr)
+	if !r.Listed {
+		// Settled first: a launch whose step after it never committed.
+		switch found, err := h.resolveUnlisted(lk, pr, r); {
+		case err != nil:
+			return false, err
+		case found == unlistedUnknown:
+			return true, nil
+		case found == unlistedNever:
+			return false, nil
+		}
+	}
 	if h.running(sid) {
 		_, err := h.move(lk, pr, Event{Kind: evResumed, Round: r.ID})
 		return true, err
@@ -505,21 +512,18 @@ func (h tickHost) settleBlocked(lk prlock.Locked, pr PR, r Round, why string, re
 	if err != nil {
 		return err // GitHub unreachable: read it next tick
 	}
-	if _, err := h.move(lk, pr, Event{Kind: evBlocked, Question: capRunes(why, maxQuestionNote), Round: r.ID}); err != nil {
-		return err
-	}
+	// A question already showing finds no rule, and is skipped.
+	blocked := may(Event{Kind: evBlocked, Question: capRunes(why, maxQuestionNote), Round: r.ID})
+	read := []ledgerWrite{readRound(r.ID)}
 	switch {
 	case head != "" && head != r.Head:
-		_, err = h.move(lk, pr, Event{Kind: evPush, Head: head})
+		_, _, err = h.step(lk, pr, read, blocked, must(Event{Kind: evPush, Head: head}))
 	case !retry:
-		_, err = h.move(lk, pr, Event{Kind: evEnded, Next: &PRState{State: stIdle}, Round: r.ID})
+		_, _, err = h.step(lk, pr, read, blocked, must(Event{Kind: evEnded, Next: &PRState{State: stIdle}, Round: r.ID}))
 	default:
-		return nil
+		_, _, err = h.step(lk, pr, nil, blocked)
 	}
-	if err != nil {
-		return err
-	}
-	return h.do("mark round "+pr.URL()+" read", func() error { return h.ledger.MarkRead(r.ID) })
+	return err
 }
 
 // settleUnread reads pr's unread rounds before its idle worker is stopped
@@ -549,12 +553,11 @@ func (h tickHost) apply(lk prlock.Locked, pr PR, r Round, d Decision, retry bool
 		return false, err
 	}
 	var next PRState
+	read := []ledgerWrite{readRound(r.ID)}
 	switch d := d.(type) {
 	case Closed:
-		if _, err := h.move(lk, pr, Event{Kind: evClosed}); err != nil {
-			return false, err
-		}
-		return false, h.do("mark round "+pr.URL()+" read", func() error { return h.ledger.MarkRead(r.ID) })
+		_, _, err := h.step(lk, pr, read, must(Event{Kind: evClosed}))
+		return false, err
 	case Retry:
 		// No retry resumes into a session the user has open in a window.
 		if retry && !windowInChain(s) {
@@ -562,10 +565,12 @@ func (h tickHost) apply(lk prlock.Locked, pr PR, r Round, d Decision, retry bool
 		}
 		next = PRState{State: stIdle}
 	case Dismiss:
-		// The record first: a crash or a refusal from here on leaves it for
-		// the next tick, which settles it only on reading the dismissal back.
+		// The record first, in its own commit, whatever the rule table says
+		// of the move after it: a crash or a refusal from here on leaves it
+		// for the next tick, which settles it only on reading the dismissal
+		// back.
 		if err := h.do(fmt.Sprintf("record the dismissal of review %s on %s", d.Review, pr.URL()), func() error {
-			return errors.Join(h.ledger.AddDismissal(pr, d.Review, h.now()), h.ledger.RevokeTokens(pr))
+			return h.ledger.Failsafe(lk, pr, d.Review, h.now(), h.origin)
 		}); err != nil {
 			return false, err
 		}
@@ -575,16 +580,19 @@ func (h tickHost) apply(lk prlock.Locked, pr PR, r Round, d Decision, retry bool
 		next = d.State
 	}
 	if namesRound(s, r.ID) {
-		_, ok, err := h.moved(lk, pr, Event{Kind: evEnded, Next: &next, Round: r.ID})
-		if err != nil || !ok {
-			// No rule for it where it sits: the round stays unread and is
-			// read again next pass, when the chain may have moved.
-			return false, err
-		}
+		// No rule for it where it sits: nothing commits, and the round
+		// stays unread and is read again next pass, when the chain may have
+		// moved.
+		_, _, err := h.step(lk, pr, read, must(Event{Kind: evEnded, Next: &next, Round: r.ID}))
+		return false, err
 	}
 	// Read, and dropped when no element names it: it is not this state's.
-	return false, h.do("mark round "+pr.URL()+" read", func() error { return h.ledger.MarkRead(r.ID) })
+	_, _, err = h.step(lk, pr, read)
+	return false, err
 }
+
+// originOrTick is the origin the log names for this host's global writes.
+func (h tickHost) originOrTick() string { return firstNonEmpty(h.origin, originTick) }
 
 // windowInChain: a window is open somewhere in s's chain.
 func windowInChain(s PRState) bool {
@@ -600,19 +608,10 @@ func windowInChain(s PRState) bool {
 // reports whether it started.
 func (h tickHost) retry(lk prlock.Locked, pr PR, r Round) (bool, error) {
 	var not skip
-	failed := func(detail string) error {
-		_, err := h.move(lk, pr, Event{Kind: evEnded, Next: &PRState{State: stHeld, Kind: kindLaunch, Detail: detail}, Round: r.ID})
-		return err
-	}
+	rec := h.retryRecord(lk, pr, r)
 	err := h.do("retry "+pr.URL(), func() error {
 		var err error
-		not, err = h.launch(lk, pr, r.Trigger, nil, func(_ time.Time, from int64) error {
-			if err := h.ledger.MarkRetried(r.ID, from); err != nil {
-				return err
-			}
-			_, err := h.move(lk, pr, Event{Kind: evEnded, Next: &PRState{State: stRunning, Kind: kindRetry, Head: r.Head}, Round: r.ID})
-			return err
-		}, failed)
+		not, err = h.launch(lk, pr, r.Trigger, nil, rec)
 		return err
 	})
 	if err != nil && !h.dry {
@@ -621,7 +620,7 @@ func (h tickHost) retry(lk prlock.Locked, pr PR, r Round) (bool, error) {
 		if errors.Is(err, errRosterUnknown) {
 			class = launchUnknown
 		}
-		err = errors.Join(err, failed(class))
+		err = errors.Join(err, rec.failed(rec.id, class))
 	}
 	if not != "" {
 		h.leave(pr, not)
@@ -837,19 +836,7 @@ func (h tickHost) startOne(p Planned, running int) (skip, error) {
 	var not skip
 	err = h.do(fmt.Sprintf("start a round on %s at %.9s (%s)", p.PR.URL(), p.Head, p.Trigger.Text()), func() error {
 		var err error
-		not, err = h.launch(lk, p.PR, p.Trigger, func() error { return h.settleUnread(lk, p.PR) }, func(at time.Time, from int64) error {
-			id, err := h.ledger.StartRoundFrom(p.PR, p.Head, p.Trigger, at, from)
-			if err != nil {
-				return err
-			}
-			e := owedEvent(p)
-			e.Round = id
-			_, err = h.move(lk, p.PR, e)
-			return err
-		}, func(detail string) error {
-			_, err := h.move(lk, p.PR, Event{Kind: evFailedToStart, Class: detail})
-			return err
-		})
+		not, err = h.launch(lk, p.PR, p.Trigger, func() error { return h.settleUnread(lk, p.PR) }, h.owedRecord(lk, p))
 		return err
 	})
 	return not, err
@@ -964,24 +951,23 @@ func (h tickHost) healBreaker() error {
 			if h.notify != nil {
 				h.notify("claude-review: the round limit across all PRs tripped twice in a week; rounds stay paused until `claude-review tick --reset`")
 			}
-			return h.ledger.Trip(breakerLoop + strings.TrimPrefix(reason, breakerCap))
+			return h.ledger.Trip(h.originOrTick(), breakerLoop+strings.TrimPrefix(reason, breakerCap))
 		})
 	}
 	return h.do("clear the breaker: fewer than the limit started in the last 24 hours", func() error {
-		return errors.Join(h.ledger.Reset(h.now()), h.ledger.SetMeta(metaBreakerHealed, h.now().UTC().Format(time.RFC3339)))
+		return h.ledger.Heal(h.originOrTick(), metaBreakerHealed, h.now())
 	})
 }
 
-// launch starts a round on pr in its clone and then records it with
-// record, given the time taken before the launch and the session
-// transcript's size just before it. It is the only way tick
+// launch starts a round on pr in its clone, its round written before the
+// launch and listed after it through rec. It is the only way tick
 // starts a round, so both failsafes live here. Every caller runs it through
 // do; the dry-run check makes a caller that forgets fail loudly instead of
 // posting. The breaker trips at TotalDailyCap starts in 24 hours; healBreaker
 // clears a cap trip once, and a second one latches, so a loop that keeps starting rounds
 // stops at the cap even after the window moves on. settle reads the PR's
 // last round before its idle worker is stopped. The caller holds lk.
-func (h tickHost) launch(lk prlock.Locked, pr PR, trigger Trigger, settle func() error, record func(at time.Time, from int64) error, failed func(detail string) error) (notStarted skip, err error) {
+func (h tickHost) launch(lk prlock.Locked, pr PR, trigger Trigger, settle func() error, rec *launchRecord) (notStarted skip, err error) {
 	if h.dry {
 		return "", errors.New("refusing to start a round in a dry run")
 	}
@@ -995,7 +981,7 @@ func (h tickHost) launch(lk prlock.Locked, pr PR, trigger Trigger, settle func()
 	}
 	if n >= h.tcfg.TotalDailyCap {
 		reason = fmt.Sprintf("%d rounds started in 24 hours, the limit across all PRs", n)
-		return "", errors.Join(h.ledger.Trip(breakerCap+reason), breakerError(reason))
+		return "", errors.Join(h.ledger.Trip(h.originOrTick(), breakerCap+reason), breakerError(reason))
 	}
 	dir, remote, err := h.findRepo(pr)
 	if err != nil {
@@ -1015,16 +1001,13 @@ func (h tickHost) launch(lk prlock.Locked, pr PR, trigger Trigger, settle func()
 		return "", err
 	}
 	rereview := settled || h.exists(pr.SessionID())
-	// from: where the round's own lines start in the transcript it appends
-	// to, so its read never reaches an earlier round's words.
-	var from int64
 	st := h.starter()
-	st.beforeLaunch = func() { from = h.transcriptSize(pr.RoundSessionID()) }
+	st.beforeLaunch = rec.before(at, func() int64 { return h.transcriptSize(pr.RoundSessionID()) })
 	res, err := st.start(cfg, pr, dir, remote, rereview, settle)
 	if err != nil && res.Kind != relaunchDuplicate {
 		return "", err
 	}
-	return h.afterRelaunch(lk, pr, res, err, func() error { return record(at, from) }, failed)
+	return h.afterRelaunch(lk, pr, res, err, rec)
 }
 
 // starter starts rounds the way a click does, through h.start.
@@ -1033,25 +1016,29 @@ func (h tickHost) starter() roundStarter {
 }
 
 // afterRelaunch is the one table from a launch's result to the PR's state,
-// for the click and tick alike: the round is recorded only once its worker
-// is listed and alone; failed records why none started. notStarted names
+// for the click and tick alike: the round is listed only once its worker
+// is listed and alone (rec.listed); rec.failed records why none started,
+// with its round's row in the same commit. notStarted names
 // why no round started; "" with no error is a start. Every result has its
 // row, and the exhaustive linter fails a switch that misses one. Results
 // where nothing was touched (busy, roster unreadable before any launch)
 // move nothing: the PR is tried again next pass.
-func (h tickHost) afterRelaunch(lk prlock.Locked, pr PR, res RelaunchResult, stopErr error, record func() error, failed func(detail string) error) (notStarted skip, err error) {
+func (h tickHost) afterRelaunch(lk prlock.Locked, pr PR, res RelaunchResult, stopErr error, rec *launchRecord) (notStarted skip, err error) {
+	failed := func(detail string) error { return rec.failed(rec.id, detail) }
 	switch res.Kind {
 	case relaunched:
-		return "", record()
+		return "", rec.listed(rec.id)
 	case relaunchWindow:
 		_, err := h.move(lk, pr, Event{Kind: evWindowOpened})
 		return skipWindowOpen, err
 	case relaunchUnknown:
+		// A launch that timed out may have started its worker: its round,
+		// if written, stays unlisted for settle to resolve from the roster.
 		return "", fmt.Errorf("nothing started: %s: %w", res.Detail, errRosterUnknown)
 	case relaunchDuplicate:
 		reason := pr.URL() + ": " + res.Detail
 		err := failed(launchDuplicate)
-		return skip(res.Detail + "; rounds are paused for every PR"), errors.Join(stopErr, err, h.ledger.Trip(breakerDuplicate+reason), breakerError(reason))
+		return skip(res.Detail + "; rounds are paused for every PR"), errors.Join(stopErr, err, h.ledger.Trip(h.originOrTick(), breakerDuplicate+reason), breakerError(reason))
 	case relaunchNotListed:
 		err := failed(launchUnlisted)
 		return skip("the round was launched but " + res.Detail + "; nothing was recorded"), err

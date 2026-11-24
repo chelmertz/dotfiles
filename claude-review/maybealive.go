@@ -118,7 +118,8 @@ func (h tickHost) startingOutcome(pr PR, s PRState) (Event, error) {
 		return Event{}, err
 	}
 	for _, r := range rounds {
-		if r.PR == pr.URL() && !r.StartedAt.Before(s.Since) {
+		// An unlisted round is settle's to resolve, from the roster below.
+		if r.PR == pr.URL() && r.Listed && !r.StartedAt.Before(s.Since) {
 			return Event{Kind: evLaunched, Round: r.ID}, nil
 		}
 	}

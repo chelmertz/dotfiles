@@ -27,18 +27,25 @@ type querier interface {
 	QueryRow(query string, args ...any) *sql.Row
 }
 
-// origin is what decided a step: the tick or a link clicked in the
-// browser. The log also takes "verb", a verb typed in a terminal, which no
-// step commits yet.
+// origin is what decided a step: the tick, a link clicked in the browser,
+// or a verb typed in a terminal (the breaker's reset).
 const (
 	originTick = "tick"
 	originLink = "link"
+	originVerb = "verb"
 )
 
-// Step kinds, the decisions table's step column. Only decided is written
-// yet; recorded (a launch's round row), failsafe (a dismissal) and global
-// (the breaker) arrive with the callers that commit them.
-const stepDecided = "decided"
+// Step kinds, the decisions table's step column: decided, an event that
+// found a rule; failsafe, a dismissal recorded and its tokens revoked
+// before anything else the step does; global, the breaker, which belongs
+// to no PR. recorded is in the table's check but not written: a round's
+// row is written before its launch, and the step that lists it is decided
+// on its event.
+const (
+	stepDecided  = "decided"
+	stepFailsafe = "failsafe"
+	stepGlobal   = "global"
+)
 
 // decision is one event that found a rule, logged as one decided row.
 type decision struct {
@@ -48,7 +55,8 @@ type decision struct {
 }
 
 // plan is one step: the state it was planned from, the state it leads to,
-// the effects in order, and the decision of each event.
+// the effects in order, the decision of each event, and the step's own
+// ledger writes (a round listed, read or forgotten).
 type plan struct {
 	at        time.Time
 	origin    string
@@ -58,19 +66,37 @@ type plan struct {
 	// window is the PR's window as the host read it under the lock, for
 	// the mint (wantToken); the zero value, Unknown, mints nothing.
 	window WindowState
+	writes []ledgerWrite
 }
 
-// planStep folds events over transition from s, at at cut to milliseconds
-// so a logged decision replays exactly. Every event must find a rule: one
-// that finds none plans nothing, and ok is false.
-func planStep(s PRState, at time.Time, events ...Event) (p plan, ok bool) {
+// folded is one event of a step: must find a rule, or may, and is then
+// skipped when it finds none (blocked on a question already showing).
+type folded struct {
+	e   Event
+	may bool
+}
+
+// must is an event the step cannot go without: one that finds no rule
+// commits nothing.
+func must(e Event) folded { return folded{e: e} }
+
+// may is an event a step skips when it finds no rule.
+func may(e Event) folded { return folded{e: e, may: true} }
+
+// fold folds events over transition from s, at at cut to milliseconds so
+// a logged decision replays exactly. A may event that finds no rule is
+// skipped; a must one plans nothing, and ok is false.
+func fold(s PRState, at time.Time, events ...folded) (p plan, ok bool) {
 	p = plan{at: at.Truncate(time.Millisecond), from: s, to: s}
-	for _, e := range events {
-		next, effects, ok := transition(p.to, e, p.at)
+	for _, f := range events {
+		next, effects, ok := transition(p.to, f.e, p.at)
 		if !ok {
+			if f.may {
+				continue
+			}
 			return plan{}, false
 		}
-		p.decisions = append(p.decisions, decision{e: e, from: p.to, to: next, effects: effects})
+		p.decisions = append(p.decisions, decision{e: f.e, from: p.to, to: next, effects: effects})
 		for _, ef := range effects {
 			if !slices.Contains(p.effects, ef) {
 				p.effects = append(p.effects, ef)
@@ -78,7 +104,18 @@ func planStep(s PRState, at time.Time, events ...Event) (p plan, ok bool) {
 		}
 		p.to = next
 	}
-	return p, len(p.decisions) > 0
+	return p, true
+}
+
+// planStep folds events that must each find a rule; ok is false when one
+// finds none, or there are none.
+func planStep(s PRState, at time.Time, events ...Event) (p plan, ok bool) {
+	fs := make([]folded, len(events))
+	for i, e := range events {
+		fs[i] = must(e)
+	}
+	p, ok = fold(s, at, fs...)
+	return p, ok && len(p.decisions) > 0
 }
 
 // eventNames names p's events for the journal.
@@ -90,11 +127,76 @@ func (p plan) eventNames() string {
 	return strings.Join(names, ", ")
 }
 
+// writeNames names p's own ledger writes for the journal.
+func (p plan) writeNames() string {
+	names := make([]string, len(p.writes))
+	for i, w := range p.writes {
+		names[i] = w.what
+	}
+	return strings.Join(names, ", ")
+}
+
+// ledgerWrite is one write a step makes to the ledger beside its state, in
+// its transaction: what names it for the journal, and do writes it at the
+// step's time.
+type ledgerWrite struct {
+	what string
+	do   func(q querier, at time.Time) error
+}
+
+// listRound marks round id's worker listed: its launch is the step's.
+func listRound(id ids.RoundID) ledgerWrite {
+	return ledgerWrite{"list round " + id.String(), func(q querier, at time.Time) error {
+		_, err := q.Exec(`update rounds set listed_at = ? where id = ?`, at.Unix(), id)
+		return err
+	}}
+}
+
+// readRound marks round id read.
+func readRound(id ids.RoundID) ledgerWrite {
+	return ledgerWrite{"mark round " + id.String() + " read", func(q querier, at time.Time) error {
+		_, err := q.Exec(`update rounds set read_at = ? where id = ?`, at.Unix(), id)
+		return err
+	}}
+}
+
+// forgetRound deletes the row of round id, whose launch started nothing:
+// nothing counts it, and the review it was for is owed again.
+func forgetRound(id ids.RoundID) ledgerWrite {
+	return ledgerWrite{"forget round " + id.String(), func(q querier, _ time.Time) error {
+		_, err := q.Exec(`delete from rounds where id = ? and listed_at is null`, id)
+		return err
+	}}
+}
+
+// unretry takes back a retry of round id whose launch started nothing: its
+// count, and listed again as the round it retried.
+func unretry(id ids.RoundID) ledgerWrite {
+	return ledgerWrite{"take back the retry of round " + id.String(), func(q querier, _ time.Time) error {
+		_, err := q.Exec(`update rounds set retries = max(retries - 1, 0), listed_at = started_at where id = ? and listed_at is null`, id)
+		return err
+	}}
+}
+
+// launchStartedNothing is the write for a launch of round id that started
+// nothing: a retry is taken back, a new round's row deleted. A zero id
+// recorded nothing, and has none.
+func launchStartedNothing(id ids.RoundID, retry bool) []ledgerWrite {
+	switch {
+	case id.IsZero():
+		return nil
+	case retry:
+		return []ledgerWrite{unretry(id)}
+	}
+	return []ledgerWrite{forgetRound(id)}
+}
+
 // Commit writes p for pr in one transaction, under pr's lock lk. The state
 // stored must be p's from: under the lock only a bug changes it between
 // the plan and the commit, so a mismatch is an error and nothing is
-// written. The state is written last, after the effects, the mint and the
-// decision rows.
+// written. The state is written last, after the step's own writes, the
+// effects, the mint and the decision rows. A plan with no decision makes
+// only its own writes, and the state stays as stored.
 func (l *Ledger) Commit(lk prlock.Locked, pr PR, p plan) error {
 	if err := lk.Check(prKey(pr)); err != nil {
 		return err
@@ -114,30 +216,43 @@ func (l *Ledger) Commit(lk prlock.Locked, pr PR, p plan) error {
 	if !sameState(stored, p.from) {
 		return fmt.Errorf("%s: the stored state is %s, the step was planned from %s: a write outside the PR's lock", pr.URL(), describe(stored), describe(p.from))
 	}
+	if err := p.write(tx, pr); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// write is p's writes in a step's transaction q: its own writes, then, when
+// an event decided anything, the effects, the mint, the decision rows and
+// the state, last.
+func (p plan) write(q querier, pr PR) error {
+	for _, w := range p.writes {
+		if err := w.do(q, p.at); err != nil {
+			return fmt.Errorf("%s: %w", w.what, err)
+		}
+	}
+	if len(p.decisions) == 0 {
+		return nil
+	}
 	for _, ef := range p.effects {
-		if err := commitEffect(tx, pr, ef, p.at); err != nil {
+		if err := commitEffect(q, pr, ef, p.at); err != nil {
 			return err
 		}
 	}
 	if !deleted(p.to) {
-		if err := mintFor(tx, pr, p.to, p.window); err != nil {
+		if err := mintFor(q, pr, p.to, p.window); err != nil {
 			return err
 		}
 	}
 	for _, d := range p.decisions {
-		if err := logDecision(tx, pr, p, d); err != nil {
+		if err := logDecision(q, pr, p, d); err != nil {
 			return err
 		}
 	}
 	if deleted(p.to) {
-		err = deletePRState(tx, pr)
-	} else {
-		err = setPRState(tx, pr, p.to)
+		return deletePRState(q, pr)
 	}
-	if err != nil {
-		return err
-	}
-	return tx.Commit()
+	return setPRState(q, pr, p.to)
 }
 
 // sameState compares two states as they are stored.
@@ -227,6 +342,65 @@ func logDecision(q querier, pr PR, p plan, d decision) error {
 		values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		pr.URL(), p.at.UnixMilli(), firstNonEmpty(p.origin, originTick), version, stepDecided,
 		string(event), string(from), string(to), string(effects), f.factsKind(), string(facts))
+	return err
+}
+
+// Failsafe records that review on pr is to be dismissed and spends every
+// token of pr's, in its own transaction under lk, logged as a failsafe
+// step: it commits whatever the rule table then says about the step that
+// asked for it (2026-10-30, fail-safe toward blocking).
+func (l *Ledger) Failsafe(lk prlock.Locked, pr PR, review ids.ReviewID, at time.Time, origin string) error {
+	if err := lk.Check(prKey(pr)); err != nil {
+		return err
+	}
+	return l.inTx(func(q querier) error {
+		if _, err := q.Exec(`insert into dismissals (pr, review, at) values (?, ?, ?) on conflict do nothing`, pr.URL(), review.String(), at.Unix()); err != nil {
+			return err
+		}
+		if err := revokeTokens(q, pr); err != nil {
+			return err
+		}
+		return logRow(q, pr.URL(), at, origin, stepFailsafe, []Effect{efRevokeTokens}, FactsDismissal{Review: review.String()})
+	})
+}
+
+// global runs write, a change that belongs to no PR (the breaker), in its
+// own transaction with its global log row.
+func (l *Ledger) global(origin string, f Facts, write func(q querier) error) error {
+	return l.inTx(func(q querier) error {
+		if err := write(q); err != nil {
+			return err
+		}
+		return logRow(q, "", time.Now(), origin, stepGlobal, nil, f)
+	})
+}
+
+// inTx runs fn in one transaction.
+func (l *Ledger) inTx(fn func(q querier) error) error {
+	tx, err := l.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// logRow logs a failsafe or global step: no event and no states, which
+// only these two may go without. An empty pr is none (global).
+func logRow(q querier, pr string, at time.Time, origin, step string, effects []Effect, f Facts) error {
+	effs, err := json.Marshal(append([]Effect{}, effects...))
+	if err != nil {
+		return err
+	}
+	facts, err := json.Marshal(f)
+	if err != nil {
+		return err
+	}
+	_, err = q.Exec(`insert into decisions (pr, at_ms, origin, build, step, effects, facts_kind, facts) values (nullif(?, ''), ?, ?, ?, ?, ?, ?, ?)`,
+		pr, at.UnixMilli(), firstNonEmpty(origin, originTick), version, step, string(effs), f.factsKind(), string(facts))
 	return err
 }
 
@@ -343,14 +517,29 @@ type FactsClick struct {
 // FactsClose: the PR is merged or closed.
 type FactsClose struct{}
 
-func (FactsRound) factsKind() string    { return "round" }
-func (FactsOwed) factsKind() string     { return "owed" }
-func (FactsStanding) factsKind() string { return "standing" }
-func (FactsWindow) factsKind() string   { return "window" }
-func (FactsRoster) factsKind() string   { return "roster" }
-func (FactsLaunch) factsKind() string   { return "launch" }
-func (FactsClick) factsKind() string    { return "click" }
-func (FactsClose) factsKind() string    { return "close" }
+// FactsDismissal: a failsafe step recorded the dismissal of Review, a
+// GitHub review id.
+type FactsDismissal struct {
+	Review string `json:"review"`
+}
+
+// FactsBreaker: a global step tripped, reset or healed the breaker; Cause
+// is the reason's kind, never its text.
+type FactsBreaker struct {
+	Action string `json:"action"`
+	Cause  string `json:"cause,omitempty"`
+}
+
+func (FactsRound) factsKind() string     { return "round" }
+func (FactsOwed) factsKind() string      { return "owed" }
+func (FactsStanding) factsKind() string  { return "standing" }
+func (FactsWindow) factsKind() string    { return "window" }
+func (FactsRoster) factsKind() string    { return "roster" }
+func (FactsLaunch) factsKind() string    { return "launch" }
+func (FactsClick) factsKind() string     { return "click" }
+func (FactsClose) factsKind() string     { return "close" }
+func (FactsDismissal) factsKind() string { return "dismissal" }
+func (FactsBreaker) factsKind() string   { return "breaker" }
 
 // factsOf is the observation e reports, by the source that observes it.
 func factsOf(e Event) Facts {

@@ -57,28 +57,48 @@ func (h tickHost) moved(lk prlock.Locked, pr PR, e Event) (PRState, bool, error)
 	return h.commit(lk, pr, e)
 }
 
-// commit plans one step of events over pr's state read under lk, and
-// carries it out in its phases: workers stopped first, under the lock,
-// against that state; then the ledger's writes in one transaction
-// (Ledger.Commit); then, once committed, the row sent to elly. A crash
-// before the commit leaves the state as it was, the stopped worker
-// included, which the next pass settles; after it, the next refresh sends
-// the row. ok is false when an event finds no rule, and then nothing
-// changes.
+// commit plans one step of events over pr's state read under lk, each of
+// which must find a rule, and carries it out (step).
 func (h tickHost) commit(lk prlock.Locked, pr PR, events ...Event) (PRState, bool, error) {
+	fs := make([]folded, len(events))
+	for i, e := range events {
+		fs[i] = must(e)
+	}
+	return h.step(lk, pr, nil, fs...)
+}
+
+// step plans one step of events over pr's state read under lk, with the
+// step's own ledger writes, and carries it out in its phases: workers
+// stopped first, under the lock, against that state; then the ledger's
+// writes in one transaction (Ledger.Commit); then, once committed, the row
+// sent to elly. A crash before the commit leaves the state as it was, the
+// stopped worker included, which the next pass settles; after it, the next
+// refresh sends the row. ok is false when a must event finds no rule, and
+// then nothing changes, the writes included; a may event that finds none
+// is skipped.
+func (h tickHost) step(lk prlock.Locked, pr PR, writes []ledgerWrite, events ...folded) (PRState, bool, error) {
 	s, err := h.stateOf(lk, pr)
 	if err != nil {
 		return s, false, err
 	}
-	p, ok := planStep(s, h.now(), events...)
+	p, ok := fold(s, h.now(), events...)
 	if !ok {
 		return s, false, nil
 	}
-	p.origin = h.origin
+	if len(p.decisions) == 0 && len(writes) == 0 {
+		return s, true, nil
+	}
+	p.origin, p.writes = h.origin, writes
 	if p.to.State == stAwaiting && p.to.Kind == kindApprove {
 		p.window = windowOf(h.sess, h.ledger, pr)
 	}
-	err = h.do(fmt.Sprintf("move %s from %s to %s on %s", pr.URL(), describe(s), describe(p.to), p.eventNames()), func() error {
+	what := fmt.Sprintf("move %s from %s to %s on %s", pr.URL(), describe(s), describe(p.to), p.eventNames())
+	if len(p.decisions) == 0 {
+		what = p.writeNames() + " of " + pr.URL()
+	} else if len(writes) > 0 {
+		what += "; " + p.writeNames()
+	}
+	err = h.do(what, func() error {
 		if slices.Contains(p.effects, efStopWorkers) {
 			if err := h.stopWorkers(pr); err != nil {
 				return err
@@ -87,15 +107,18 @@ func (h tickHost) commit(lk prlock.Locked, pr PR, events ...Event) (PRState, boo
 		if err := h.ledger.Commit(lk, pr, p); err != nil {
 			return err
 		}
-		if deleted(p.to) {
+		switch {
+		case len(p.decisions) == 0:
+			// The state did not move: its row stands.
+		case deleted(p.to):
 			// A row elly does not drop now keeps its receipt, which the
 			// stale-row walk sends the DELETE for again next tick.
 			h.warn(pr, h.clear(lk, pr))
-			return nil
+		default:
+			// The state is committed; elly refusing the row is said, never
+			// the step's failure, and the next refresh sends it again.
+			h.warn(pr, h.show(lk, pr, p.to, Hold{}))
 		}
-		// The state is committed; elly refusing the row is said, never the
-		// step's failure, and the next refresh sends it again.
-		h.warn(pr, h.show(lk, pr, p.to, Hold{}))
 		return nil
 	})
 	return p.to, true, err

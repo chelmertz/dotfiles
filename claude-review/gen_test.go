@@ -67,23 +67,16 @@ const (
 // genCrashPoints is every crash point the generator arms.
 var genCrashPoints = append(slices.Clone(crashedTables), crashAfterLaunch, crashAfterStop, crashAfterPut, crashAfterDelete)
 
+// A step's own writes (effects, mint, decision rows, state) are one
+// transaction, and a crash at any of them is armed like any other; so is
+// one between a launch's round row and its launch, or between the launch
+// and the step that lists it.
 type crashCtl struct {
 	mu   sync.Mutex
 	at   string // the armed point: a table, or a crashAfter* effect
 	nth  int    // the nth write or effect there, or the first one after it, crashes
 	seen int
 	dead bool
-	// spare keeps the armed crash out of the window of the known defect
-	// left, which the Defect tests pin; it fires at the next write outside
-	// it instead. launched: a worker is launched and the owed move has not
-	// stored its state: the launch crash. Before StartRound the next pass
-	// launches the same review again; after it, the old state stays over
-	// the new round, an Approve at the old head included. Commit writes
-	// pr_state last in its transaction, so the window ends there. A step's
-	// own writes (effects, mint, decision rows, state) are one transaction
-	// and a crash at any of them is armed like any other.
-	spare    bool
-	launched bool
 }
 
 func newCrashCtl() (*crashCtl, int64) {
@@ -107,23 +100,15 @@ func (c *crashCtl) hit(point, _ string) bool {
 	if c.dead {
 		return true
 	}
-	if point == crashAfterLaunch {
-		c.launched = true
-	}
 	if c.at != "" && c.at == point {
 		c.seen++
 	}
-	if c.at != "" && c.seen >= c.nth && (!c.spare || !c.inDefectWindow()) {
+	if c.at != "" && c.seen >= c.nth {
 		c.dead = true
 		return true
 	}
-	if point == "pr_state" {
-		c.launched = false
-	}
 	return false
 }
-
-func (c *crashCtl) inDefectWindow() bool { return c.launched }
 
 func (c *crashCtl) isDead() bool {
 	c.mu.Lock()
@@ -136,7 +121,6 @@ func (c *crashCtl) revive() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.at, c.nth, c.seen, c.dead = "", 0, 0, false
-	c.launched = false
 }
 
 // genTemplate is a fresh ledger with the crash triggers in it, made once
@@ -293,6 +277,9 @@ type genWorld struct {
 	restarts int
 	// full reads a launched round's transcript as defect D leaves it.
 	full bool
+	// size is each round session's transcript size: a launch appends its
+	// prompt, a finished round its words.
+	size map[ids.SessionID]int64
 	// crashed: the last pass crashed.
 	crashed bool
 }
@@ -314,8 +301,10 @@ func newGenWorld(dir string, n int) (*genWorld, error) {
 		asked:     map[int]bool{},
 		update:    map[int]time.Time{},
 		launches:  map[string]int{},
+		size:      map[ids.SessionID]int64{},
 	}
 	g.h.now = func() time.Time { return g.now }
+	g.h.transcriptSize = func(id ids.SessionID) int64 { return g.size[id] }
 	g.h.gh = g.gh
 	g.h.elly = dyingElly{g.elly, c}
 	start := g.h.start
@@ -338,6 +327,7 @@ func newGenWorld(dir string, n int) (*genWorld, error) {
 			}
 		}
 		g.setJob(sid, "working", "")
+		g.size[sid]++ // the round's prompt
 		c.hit(crashAfterLaunch, "")
 		return nil
 	}
@@ -463,12 +453,13 @@ func (g *genWorld) finish(n int, msg, summary string) {
 	g.setJob(sid, "done", "")
 	g.msgs[sid] = msg
 	g.gh.summary[n] = summary
+	g.size[sid]++
 }
 
 // click is the ledger side of launch and backgroundClick, under the
 // harness's fakes: the PR's lock (held elsewhere, the click fails as a
 // real one does), the breaker, the window check, the starting move, the launch through the
-// same starter and afterRelaunch, recordClick, and the abandon.
+// same starter, clickRecord and afterRelaunch, and the abandon.
 func (g *genWorld) click(n int) error {
 	pr := g.prs[n-1]
 	h := g.h
@@ -500,19 +491,14 @@ func (g *genWorld) click(n int) error {
 	at := g.now
 	before := len(g.started)
 	starter := roundStarter{sess: h.sess, exists: h.exists, run: h.start, wrapper: h.tcfg.Wrapper}
-	var from int64
-	starter.beforeLaunch = func() { from = h.transcriptSize(pr.RoundSessionID()) }
+	rec := h.clickRecord(lk, clickTarget{pr: pr, head: g.gh.head[n], from: "elly"})
+	starter.beforeLaunch = rec.before(at, func() int64 { return h.transcriptSize(pr.RoundSessionID()) })
 	res, err := starter.start(h.cfg, pr, "/clone", "upstream", false, func() error { return g.h.settleUnread(lk, pr) })
 	g.countLaunches(before)
 	if err != nil && res.Kind != relaunchDuplicate {
 		return err
 	}
-	not, err := h.afterRelaunch(lk, pr, res, err, func() error {
-		return h.recordClick(lk, clickTarget{pr: pr, head: g.gh.head[n], from: "elly"}, at, from)
-	}, func(detail string) error {
-		_, err := h.move(lk, pr, Event{Kind: evFailedToStart, Class: detail})
-		return err
-	})
+	not, err := h.afterRelaunch(lk, pr, res, err, rec)
 	started = not == "" && err == nil
 	return err
 }
@@ -645,9 +631,8 @@ var genWeighted = []string{
 }
 
 // genHistories draws histories and checks them after every step, then
-// quiesces them. full also crashes inside the launch crash's window and
-// reads a launched round's transcript as defect D leaves it; the default
-// keeps both out of the known defects' reach.
+// quiesces them. full also reads a launched round's transcript as defect D
+// leaves it.
 func genHistories(t *testing.T, full bool) {
 	rapid.Check(t, func(rt *rapid.T) {
 		dir, err := os.MkdirTemp("", "claude-review-gen-")
@@ -660,7 +645,7 @@ func genHistories(t *testing.T, full bool) {
 			rt.Fatal(err)
 		}
 		defer func() { _ = g.close() }()
-		g.crash.spare, g.full = !full, full
+		g.full = full
 		pick := func(t *rapid.T) int { return rapid.IntRange(1, len(g.prs)).Draw(t, "pr") }
 		for _, pr := range g.prs {
 			g.asked[pr.Number] = true // asked at the start, so rounds get going
@@ -749,13 +734,12 @@ func TestPropGenHistoriesKeepTheInvariants(t *testing.T) {
 	genHistories(t, false)
 }
 
-// The same histories with crashes inside the launch crash's window and a
-// launched round reading the transcript defect D leaves. Before plan step 5
-// it failed within a few dozen histories, most often on the retry over a
-// question, then on defect A (a crash at the Approve mint after the round
-// was read); what is left is the launch crash and D.
+// The same histories with a launched round reading the transcript defect D
+// leaves. Before plan step 5 it failed within a few dozen histories, most
+// often on the retry over a question, then on defect A (a crash at the
+// Approve mint after the round was read); before step 6, on the launch
+// crash, which a spare window kept out of the default histories.
 func TestPropGenHistoriesWithEveryCrashPoint(t *testing.T) {
-	t.Skip("the launch crash; unskip when plan step 6 lands")
 	genHistories(t, true)
 }
 
@@ -1037,12 +1021,11 @@ func TestUnreadableTranscriptIsStuckOnTheThirdPass(t *testing.T) {
 	}
 }
 
-// The launch crash: startOne records the round (StartRound, tick.go:752)
-// and moves the state only after the worker is launched and listed. A
-// crash in between leaves no record, and the next pass launches the same
-// review again.
+// The launch crash: startOne recorded the round and moved the state only
+// after the worker was launched and listed, so a crash in between left no
+// record, and the next pass launched the same review again. The round is
+// now written before the launch, and settle lists it on its worker.
 func TestDefectLaunchCrashStartsTheSameReviewTwice(t *testing.T) {
-	t.Skip("launch crash: a crash after the launch and before StartRound launches the same review again; unskip when plan step 6 lands")
 	g := newGenWorldT(t, 1)
 	g.crash.arm(crashAfterLaunch, 1)
 	g.mustTick(t)
@@ -1058,11 +1041,10 @@ func TestDefectLaunchCrashStartsTheSameReviewTwice(t *testing.T) {
 	}
 }
 
-// The launch crash after StartRound: the owed move never stores running,
-// so the state before stays over the new round, an Approve at the old
-// head included.
+// The launch crash before the owed move: it never stored running, so the
+// state before stayed over the new round, an Approve at the old head
+// included. Settle now lists the round and moves the state.
 func TestDefectLaunchCrashLeavesTheOldApproveOverTheNewRound(t *testing.T) {
-	t.Skip("launch crash: a crash between StartRound and the owed move leaves Approve at the old head; unskip when plan step 6 lands")
 	g := newGenWorldT(t, 1)
 	g.mustTick(t)
 	msg, _ := g.message(1, "approve at head")

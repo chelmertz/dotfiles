@@ -151,13 +151,13 @@ func TestLedgerBreaker(t *testing.T) {
 	if reason, err := l.Tripped(); err != nil || reason != "" {
 		t.Errorf("a new ledger is tripped: %q %v", reason, err)
 	}
-	if err := l.Trip("too many"); err != nil {
+	if err := l.Trip(originTick, "too many"); err != nil {
 		t.Fatal(err)
 	}
 	if reason, _ := l.Tripped(); reason != "too many" {
 		t.Errorf("tripped: %q", reason)
 	}
-	if err := l.Reset(t0.Add(time.Minute)); err != nil {
+	if err := l.Reset(originVerb, t0.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	if reason, _ := l.Tripped(); reason != "" {

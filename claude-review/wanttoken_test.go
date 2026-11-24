@@ -210,7 +210,11 @@ func TestCommitMintsOnlyUnderAClosedWindow(t *testing.T) {
 		want   bool
 	}{{winUnknown, false}, {winOpen, false}, {winClosed, true}} {
 		l := openTestLedger(t)
-		p := plan{at: t0, origin: originTick, from: PRState{State: stIdle}, to: to, window: c.window}
+		p, ok := planStep(PRState{State: stIdle}, t0, Event{Kind: evEnded, Next: &to})
+		if !ok || p.to.State != stAwaiting || p.to.Kind != kindApprove {
+			t.Fatalf("no step from idle to Approve: %s", describe(p.to))
+		}
+		p.origin, p.window = originTick, c.window
 		if err := l.Commit(freeLock(t, widgetsPR), widgetsPR, p); err != nil {
 			t.Fatal(err)
 		}
