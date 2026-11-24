@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -69,9 +70,15 @@ func TestAHungGhWriteIsUnknown(t *testing.T) {
 // process group is killed and the wait bounded.
 func TestAHungCommandIsKilledWithItsChildren(t *testing.T) {
 	pidFile := filepath.Join(t.TempDir(), "child.pid")
-	bin := fakeBin(t, "sleep 30 & echo $! > "+pidFile+"\nwait")
-	h := osHost{environ: []string{"PATH=/run/current-system/sw/bin:/usr/bin:/bin"}, timeout: 300 * time.Millisecond}
-	err := within(t, 5*time.Second, func() error { _, err := h.execOutput("", []string{bin}); return err })
+	// sleep by absolute path: execOutput runs with the host's environment
+	// only, and a nix build sandbox has no /usr/bin or /run.
+	sleep, err := exec.LookPath("sleep")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bin := fakeBin(t, sleep+" 30 & echo $! > "+pidFile+"\nwait")
+	h := osHost{timeout: 300 * time.Millisecond}
+	err = within(t, 5*time.Second, func() error { _, err := h.execOutput("", []string{bin}); return err })
 	if !errors.Is(err, errTimedOut) {
 		t.Fatalf("a hung command: %v, want errTimedOut", err)
 	}
