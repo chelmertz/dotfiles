@@ -263,9 +263,9 @@ func TestForkWindowIsSeen(t *testing.T) {
 	}
 	fs.window, fs.windowID = 4242, fid
 	l, _ = OpenLedger(LedgerPath(h.d.StateDir))
-	open := windowOpen(h.d.Sessions, l, widgetsPR)
+	open := windowOf(h.d.Sessions, l, widgetsPR)
 	_ = l.Close()
-	if !open {
+	if open != winOpen {
 		t.Error("the fork's window was not seen")
 	}
 	h.scripts = map[string]string{}

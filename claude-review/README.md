@@ -746,7 +746,11 @@ claude-review alone. It holds:
    state and repeats safely, so tick converges on a closed PR from any
    state: a click's round, a merge mid-round, a crash between two writes.
    An unreadable roster, a PR GitHub does not answer for, and a PR a click
-   holds are left for a later tick. A stopped round frees its slot in the
+   holds are left for a later tick. Claude Code's roster, `sessions/*.json`
+   and job files are read entry by entry: an entry that does not parse holds
+   only the PRs whose session ids it names (by its roster key or anywhere in
+   its bytes), and a roster entry that names no session at all holds every
+   PR. A stopped round frees its slot in the
    same tick. A worker on an open PR is never stopped here, a `blocked`
    one included.
 3. Pick candidates: the repo is in `review_repos` in claude-review's config
@@ -797,7 +801,8 @@ claude-review alone. It holds:
      (step 8), then `claude stop` it, wait until its pid has ended (the
      roster drops it before the process exits), and launch;
    - any other state, or none, is a round that may still be going: leave
-     it. An unreadable roster starts nothing either;
+     it. An unreadable roster, or a roster entry naming the PR that does not
+     parse, starts nothing either;
    - after the launch, wait until the roster lists a worker for the id; if
      none appears in a minute, mark the PR `needs_you` and record nothing.
      A second worker for the id, or a fork of it, is stopped, the PR marked
@@ -820,7 +825,10 @@ claude-review alone. It holds:
    - a live session for the round session's id that is no worker's (a
      window someone opened on it with `claude --resume`) starts nothing and
      marks the PR `needs_you` "Claude window open; close it to let reviews
-     run"; the first tick that sees it gone clears that. Opening the window
+     run"; the first tick that sees it gone clears that. A `sessions/` file
+     naming the PR that does not parse leaves its window unknown: nothing
+     starts that pass and nothing is stored. A pass on which any `sessions/`
+     file of a live process does not parse closes no window. Opening the window
      spends the PR's Approve token, so no session that may read prod data
      runs beside a live Approve; the row it restores on close gets a fresh
      one. Windows from

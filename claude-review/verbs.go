@@ -144,8 +144,12 @@ func attach(d Deps, cfg Config, pr PR) int {
 	if err != nil {
 		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), err))
 	}
+	mine, err := d.Sessions.workersFor(all, id)
+	if err != nil {
+		return fail(d, fmt.Errorf("claude-review: %s: %w", pr.URL(), err))
+	}
 	var key ids.WorkerKey
-	for _, w := range d.Sessions.workersFor(id, all) {
+	for _, w := range mine {
 		if w.SessionID == id {
 			key = w.Short
 		}
@@ -159,8 +163,10 @@ func attach(d Deps, cfg Config, pr PR) int {
 		if err := openTerminal(d, cfg, dir, [][]string{AttachArgs(key)}, pr); err != nil {
 			return fail(d, err)
 		}
-	case d.Sessions.WindowOpen(id):
+	case d.Sessions.WindowOf(id) == winOpen:
 		return fail(d, fmt.Errorf("claude-review: %s is already open in a window", pr.URL()))
+	case d.Sessions.WindowOf(id) == winUnknown:
+		return fail(d, fmt.Errorf("claude-review: %s: %s", pr.URL(), windowUnknownNote))
 	default:
 		return openFork(d, cfg, lk, pr)
 	}

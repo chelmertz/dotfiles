@@ -62,8 +62,8 @@ func TestSessionRunning(t *testing.T) {
 		t.Fatal("no roster: not running")
 	}
 	writeRoster(t, dir, "{not json")
-	if SessionRunning(dir, sid).PID != 0 {
-		t.Fatal("bad roster: not running")
+	if got := SessionRunning(dir, sid); got.PID != 0 || got.Err == nil {
+		t.Fatalf("bad roster: unknown, got %+v", got)
 	}
 
 	old := processAlive
@@ -72,8 +72,8 @@ func TestSessionRunning(t *testing.T) {
 	processAlive = func(pid int) bool { return alive[pid] }
 
 	writeRoster(t, dir, fmt.Sprintf(`{"proto":1,"workers":{
-	  "aa": {"sessionId": %q, "pid": 200},
-	  "bb": {"sessionId": "other", "pid": 100}}}`, sid))
+	  "aaaaaaaa": {"sessionId": %q, "pid": 200},
+	  "bbbbbbbb": {"sessionId": %q, "pid": 100}}}`, sid, forkID))
 	if SessionRunning(dir, sid).PID != 0 {
 		t.Fatal("dead pid: not running")
 	}
@@ -81,7 +81,7 @@ func TestSessionRunning(t *testing.T) {
 	if got := SessionRunning(dir, sid); got != (Live{PID: 100, Background: true}) {
 		t.Fatalf("live worker for this id: running in the background, got %+v", got)
 	}
-	writeRoster(t, dir, fmt.Sprintf(`{"workers":{"aa": {"sessionId": %q, "pid": 0}}}`, sid))
+	writeRoster(t, dir, fmt.Sprintf(`{"workers":{"aaaaaaaa": {"sessionId": %q, "pid": 0}}}`, sid))
 	if SessionRunning(dir, sid).PID != 0 {
 		t.Fatal("pid 0 is not a worker")
 	}

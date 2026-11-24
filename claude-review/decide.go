@@ -146,9 +146,12 @@ const (
 	// Decided at start, under the PR's lock.
 	skipClickHolds skip = "a click holds it"
 	skipWindowOpen skip = "its review window is open"
-	skipRunning    skip = "its session is open"
-	skipNoSlot     skip = "no free slot (max_running)"
-	skipBusy       skip = "a round still runs in its worker"
+	// skipWindowUnknown: a Claude Code file naming it did not parse; held
+	// this pass, nothing stored.
+	skipWindowUnknown skip = "whether its review window is open is unknown this pass"
+	skipRunning       skip = "its session is open"
+	skipNoSlot        skip = "no free slot (max_running)"
+	skipBusy          skip = "a round still runs in its worker"
 )
 
 // Planned is tick's decision on one PR in review_repos: a round to start,

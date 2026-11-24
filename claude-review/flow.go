@@ -123,7 +123,11 @@ func (h tickHost) effect(pr PR, ef Effect) error {
 		if err != nil {
 			return err
 		}
-		for _, w := range h.workersOf(pr, all) {
+		mine, err := h.workersOf(pr, all)
+		if err != nil {
+			return err
+		}
+		for _, w := range mine {
 			if err := h.sess.stopAndWait(w); err != nil {
 				return err
 			}

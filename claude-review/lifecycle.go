@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -32,25 +34,23 @@ type Worker struct {
 	LaunchID ids.SessionID
 }
 
-// rosterFile is the part of roster.json this tool reads.
-type rosterFile struct {
-	Workers map[ids.WorkerKey]struct {
-		SessionID ids.SessionID `json:"sessionId"`
-		PID       int           `json:"pid"`
-		ReplPID   int           `json:"replPid"`
-		Dispatch  struct {
-			Launch struct {
-				SessionID launchRef `json:"sessionId"`
-				Fork      bool      `json:"fork"`
-			} `json:"launch"`
-		} `json:"dispatch"`
-	} `json:"workers"`
+// rosterEntry is the part of one roster.json worker this tool reads.
+type rosterEntry struct {
+	SessionID ids.SessionID `json:"sessionId"`
+	PID       int           `json:"pid"`
+	ReplPID   int           `json:"replPid"`
+	Dispatch  struct {
+		Launch struct {
+			SessionID launchRef `json:"sessionId"`
+			Fork      bool      `json:"fork"`
+		} `json:"launch"`
+	} `json:"dispatch"`
 }
 
 // launchRef is the session a worker was launched from. Claude Code writes
 // an id, or, for a fork of an interactive session (2.1.325), that session's
 // transcript path, whose file name is the id. Any other shape is refused,
-// which makes the roster unreadable, as before.
+// which makes that worker's entry unreadable.
 type launchRef ids.SessionID
 
 func (l *launchRef) UnmarshalJSON(b []byte) error {
@@ -69,39 +69,105 @@ func (l *launchRef) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// readRoster is three-valued: no file is no workers (nil error); a file
-// that cannot be read or parsed is an error, which every launcher treats as
-// "do not launch": an unknown roster may hold a worker a launch would fork.
-func readRoster(claudeDir string) ([]Worker, error) {
-	b, err := os.ReadFile(filepath.Join(claudeDir, "daemon", "roster.json")) //nolint:gosec // path under the user's own config dir
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
+// Roster is one read of Claude Code's roster. Each worker's entry is read
+// on its own, so one this tool cannot read is unknown only for the
+// sessions it names, and ignored for the rest.
+type Roster struct {
+	workers []Worker
+	failed  []failedEntry
+}
+
+// failedEntry is a roster entry, or a sessions/ file, that did not parse:
+// where it is, its raw bytes, and why.
+type failedEntry struct {
+	where string
+	raw   []byte
+	err   error
+}
+
+// names reports whether f names id: as its roster key (the id's first 8
+// characters) or anywhere in its raw bytes.
+func (f failedEntry) names(key string, id ids.SessionID) bool {
+	return key == id.Key().String() || bytes.Contains(f.raw, []byte(id.String()))
+}
+
+// anySessionID finds a session id's shape anywhere in raw.
+var anySessionID = regexp.MustCompile(`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
+
+// For is the listed workers of any of the ids: their own, or a fork of
+// one. An error is unknown for them: an entry that did not parse names one
+// of them, or names no session at all, so it may be anyone's.
+func (r Roster) For(sessions ...ids.SessionID) ([]Worker, error) {
+	for _, f := range r.failed {
+		key, _ := strings.CutPrefix(f.where, rosterKeyPrefix)
+		var k ids.WorkerKey
+		idless := k.UnmarshalText([]byte(key)) != nil && !anySessionID.Match(f.raw)
+		if idless || slices.ContainsFunc(sessions, func(id ids.SessionID) bool { return f.names(key, id) }) {
+			return nil, fmt.Errorf("reading Claude Code's roster, %s: %w", f.where, f.err)
+		}
 	}
-	if err != nil {
-		return nil, fmt.Errorf("reading Claude Code's roster: %w", err)
-	}
-	var r rosterFile
-	if err := json.Unmarshal(b, &r); err != nil {
-		return nil, fmt.Errorf("reading Claude Code's roster: %w", err)
-	}
-	out := make([]Worker, 0, len(r.Workers))
-	for key, w := range r.Workers {
-		out = append(out, Worker{Short: key, SessionID: w.SessionID, PID: w.PID, ReplPID: w.ReplPID,
-			Fork: w.Dispatch.Launch.Fork, LaunchID: ids.SessionID(w.Dispatch.Launch.SessionID)})
+	var out []Worker
+	for _, w := range r.workers {
+		if slices.Contains(sessions, w.SessionID) || (w.Fork && slices.Contains(sessions, w.LaunchID)) {
+			out = append(out, w)
+		}
 	}
 	return out, nil
+}
+
+// rosterKeyPrefix names a roster entry in an error, by its key.
+const rosterKeyPrefix = "worker "
+
+// readRoster reads the roster. No file is no workers; a file that cannot
+// be read, or is not a map of workers, is an error, which every launcher
+// treats as "do not launch": an unknown roster may hold a worker a launch
+// would fork. A worker's entry that does not parse is kept for For.
+func readRoster(claudeDir string) (Roster, error) {
+	b, err := os.ReadFile(filepath.Join(claudeDir, "daemon", "roster.json")) //nolint:gosec // path under the user's own config dir
+	if errors.Is(err, fs.ErrNotExist) {
+		return Roster{}, nil
+	}
+	if err != nil {
+		return Roster{}, fmt.Errorf("reading Claude Code's roster: %w", err)
+	}
+	var file struct {
+		Workers map[string]json.RawMessage `json:"workers"`
+	}
+	if err := json.Unmarshal(b, &file); err != nil {
+		return Roster{}, fmt.Errorf("reading Claude Code's roster: %w", err)
+	}
+	var r Roster
+	for key, raw := range file.Workers {
+		var k ids.WorkerKey
+		var w rosterEntry
+		err := k.UnmarshalText([]byte(key))
+		if err == nil {
+			err = json.Unmarshal(raw, &w)
+		}
+		if err != nil {
+			r.failed = append(r.failed, failedEntry{where: rosterKeyPrefix + key, raw: raw, err: err})
+			continue
+		}
+		r.workers = append(r.workers, Worker{Short: k, SessionID: w.SessionID, PID: w.PID, ReplPID: w.ReplPID,
+			Fork: w.Dispatch.Launch.Fork, LaunchID: ids.SessionID(w.Dispatch.Launch.SessionID)})
+	}
+	return r, nil
 }
 
 // Sessions is what a launcher needs from Claude Code to keep one worker per
 // PR under the PR's fixed session id. Every function is a variable so tests
 // drive a fake roster.
 type Sessions struct {
-	Roster   func() ([]Worker, error)
+	Roster   func() (Roster, error)
 	JobState func(id ids.SessionID) string
 	// Window is a live process sessions/ lists for id, or 0: a legacy
-	// interactive window, a `claude -p`, or a worker's own repl.
-	Window func(id ids.SessionID) int
-	Alive  func(pid int) bool
+	// interactive window, a `claude -p`, or a worker's own repl. An error
+	// is unknown for id: a sessions/ file that did not parse names it.
+	Window func(id ids.SessionID) (int, error)
+	// Unparsed names every live sessions/ file that did not parse, or is
+	// nil. A pass where it is not nil closes no window.
+	Unparsed func() error
+	Alive    func(pid int) bool
 	// Stop runs `claude stop <key>`; it returns before the pid ends.
 	Stop  func(key ids.WorkerKey) error
 	Sleep func(time.Duration)
@@ -122,20 +188,13 @@ func readSaved(claudeDir string, id ids.SessionID) ([]string, bool, error) {
 	if id.IsZero() {
 		return nil, false, errors.New("no session id")
 	}
-	b, err := os.ReadFile(filepath.Join(claudeDir, "jobs", id.Key().String(), "state.json")) //nolint:gosec // path under the user's own config dir
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, false, nil
-	}
-	if err != nil {
-		return nil, true, err
-	}
-	var j struct {
-		RespawnFlags *[]string `json:"respawnFlags"`
-	}
-	if err := json.Unmarshal(b, &j); err != nil {
+	j, ok, err := readJobFile(claudeDir, id)
+	switch {
+	case err != nil:
 		return nil, true, fmt.Errorf("reading the session's saved options: %w", err)
-	}
-	if j.RespawnFlags == nil {
+	case !ok:
+		return nil, false, nil
+	case j.RespawnFlags == nil:
 		return nil, true, errors.New("the session's job records no saved options")
 	}
 	return *j.RespawnFlags, true, nil
@@ -280,16 +339,20 @@ const (
 	listedWaitPolls = 240 // 60 s
 )
 
-// workersFor are the live workers that belong to id: its own, and any fork
-// of it.
-func (s Sessions) workersFor(id ids.SessionID, all []Worker) []Worker {
+// workersFor are the live workers that belong to any of the ids: their
+// own, and any fork of one. An error is unknown for them (Roster.For).
+func (s Sessions) workersFor(r Roster, sessions ...ids.SessionID) ([]Worker, error) {
+	listed, err := r.For(sessions...)
+	if err != nil {
+		return nil, err
+	}
 	var out []Worker
-	for _, w := range all {
-		if (w.SessionID == id || (w.Fork && w.LaunchID == id)) && w.PID > 0 && s.Alive(w.PID) {
+	for _, w := range listed {
+		if w.PID > 0 && s.Alive(w.PID) {
 			out = append(out, w)
 		}
 	}
-	return out
+	return out, nil
 }
 
 // Relaunch starts the next round in id's one background worker, the only
@@ -323,12 +386,19 @@ func (s Sessions) Relaunch(id ids.SessionID, settle, launch func() error) (Relau
 // settled and stopped. A non-zero Kind is why no launch may follow.
 func (s Sessions) clear(id ids.SessionID, settle func() error) (RelaunchResult, error) {
 	all, err := s.Roster()
+	var mine []Worker
+	if err == nil {
+		mine, err = s.workersFor(all, id)
+	}
+	var pid int
+	if err == nil {
+		pid, err = s.Window(id)
+	}
 	if err != nil {
 		// Unknown is an outcome, not a failure: the caller skips the PR.
 		return RelaunchResult{Kind: relaunchUnknown, Detail: err.Error()}, nil //nolint:nilerr // see above
 	}
-	mine := s.workersFor(id, all)
-	if pid := s.Window(id); pid > 0 && !ownedBy(pid, mine) {
+	if pid > 0 && !ownedBy(pid, mine) {
 		return RelaunchResult{Kind: relaunchWindow, Detail: fmt.Sprintf("pid %d", pid)}, nil
 	}
 	if forked(id, mine) {
@@ -352,12 +422,14 @@ func (s Sessions) clear(id ids.SessionID, settle func() error) (RelaunchResult, 
 // is the only one.
 func (s Sessions) awaitListed(id ids.SessionID) (RelaunchResult, error) {
 	for range listedWaitPolls {
-		if all, err := s.Roster(); err == nil {
-			mine := s.workersFor(id, all)
-			if forked(id, mine) {
+		all, err := s.Roster()
+		if err == nil {
+			var mine []Worker
+			mine, err = s.workersFor(all, id)
+			if err == nil && forked(id, mine) {
 				return s.stopAll(mine, "the launch left a second or forked worker")
 			}
-			if len(mine) == 1 {
+			if err == nil && len(mine) == 1 {
 				return RelaunchResult{Kind: relaunched}, nil
 			}
 		}
@@ -406,16 +478,45 @@ func (s Sessions) stopAndWait(w Worker) error {
 	return fmt.Errorf("worker %s (pid %d) still runs after `claude stop`", w.Short, w.PID)
 }
 
-// WindowOpen reports a live session for id that is no worker's: a legacy
-// interactive window (or a `claude -p` mid-turn). An unreadable roster
-// cannot rule a window out, so it counts as one.
-func (s Sessions) WindowOpen(id ids.SessionID) bool {
-	pid := s.Window(id)
+// WindowState is what Claude Code's files say about a window on a PR or a
+// session. Unknown holds the PR's launches for the pass and is never
+// stored; the zero value is Unknown, so nothing unset reads as Closed.
+type WindowState int
+
+const (
+	winUnknown WindowState = iota
+	winClosed
+	winOpen
+)
+
+func (w WindowState) String() string {
+	return [...]string{winUnknown: "Unknown", winClosed: "Closed", winOpen: "Open"}[w]
+}
+
+// WindowOf is a live session for id that is no worker's: a legacy
+// interactive window (or a `claude -p` mid-turn). A sessions/ file or a
+// roster entry that did not parse and names id cannot rule one out, nor
+// in: Unknown.
+func (s Sessions) WindowOf(id ids.SessionID) WindowState {
+	pid, err := s.Window(id)
+	if err != nil {
+		return winUnknown
+	}
 	if pid <= 0 {
-		return false
+		return winClosed
 	}
 	all, err := s.Roster()
-	return err != nil || !ownedBy(pid, s.workersFor(id, all))
+	if err != nil {
+		return winUnknown
+	}
+	mine, err := s.workersFor(all, id)
+	switch {
+	case err != nil:
+		return winUnknown
+	case ownedBy(pid, mine):
+		return winClosed
+	}
+	return winOpen
 }
 
 // stopArgv is `claude stop <key>` under a pty: it refuses to run without
@@ -435,9 +536,10 @@ func stopArgv(goos string, key ids.WorkerKey) ([]string, error) {
 // for PATH).
 func realSessions(claudeDir, goos string, run func(dir string, argv []string) (string, error)) Sessions {
 	return Sessions{
-		Roster:   func() ([]Worker, error) { return readRoster(claudeDir) },
+		Roster:   func() (Roster, error) { return readRoster(claudeDir) },
 		JobState: func(id ids.SessionID) string { return JobState(claudeDir, id) },
-		Window:   func(id ids.SessionID) int { return sessionPID(claudeDir, id) },
+		Window:   func(id ids.SessionID) (int, error) { return sessionPID(claudeDir, id) },
+		Unparsed: func() error { return scanSessions(claudeDir).unparsed() },
 		Alive:    func(pid int) bool { return processAlive(pid) },
 		Stop: func(key ids.WorkerKey) error {
 			argv, err := stopArgv(goos, key)

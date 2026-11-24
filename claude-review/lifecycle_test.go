@@ -24,6 +24,9 @@ type fakeSessions struct {
 	dead       map[int]bool
 	window     int
 	windowID   ids.SessionID // when set, the window holds only this id
+	windowErr  map[ids.SessionID]error
+	unparsed   error         // what Unparsed reports
+	failed     []failedEntry // roster entries that did not parse
 	stopErr    error
 	pidLinger  int // polls a stopped worker's pid stays alive
 	lingering  map[int]int
@@ -43,19 +46,23 @@ func newFakeSessions() *fakeSessions {
 
 func (f *fakeSessions) sessions() Sessions {
 	return Sessions{
-		Roster: func() ([]Worker, error) {
+		Roster: func() (Roster, error) {
 			if f.unreadable {
-				return nil, errors.New("unexpected end of JSON input")
+				return Roster{}, errors.New("unexpected end of JSON input")
 			}
-			return slices.Clone(f.workers), nil
+			return Roster{workers: slices.Clone(f.workers), failed: slices.Clone(f.failed)}, nil
 		},
 		JobState: func(id ids.SessionID) string { return f.states[id] },
-		Window: func(id ids.SessionID) int {
-			if !f.windowID.IsZero() && id != f.windowID {
-				return 0
+		Window: func(id ids.SessionID) (int, error) {
+			if err := f.windowErr[id]; err != nil {
+				return 0, err
 			}
-			return f.window
+			if !f.windowID.IsZero() && id != f.windowID {
+				return 0, nil
+			}
+			return f.window, nil
 		},
+		Unparsed: func() error { return f.unparsed },
 		Alive: func(pid int) bool {
 			if n, ok := f.lingering[pid]; ok {
 				if n <= 0 {
@@ -122,26 +129,43 @@ func workerFor(id ids.SessionID, pid int) Worker {
 	return Worker{Short: id.Key(), SessionID: id, PID: pid, LaunchID: id}
 }
 
+// rosterOf is a roster listing ws.
+func rosterOf(ws ...Worker) Roster { return Roster{workers: ws} }
+
+// rosterAll is every worker r lists under sid or forkID, the ids these
+// tests use.
+func rosterAll(t *testing.T, r Roster) []Worker {
+	t.Helper()
+	ws, err := r.For(sid, forkID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ws
+}
+
 func TestRosterIsThreeValued(t *testing.T) {
 	dir := t.TempDir()
-	if ws, err := readRoster(dir); err != nil || len(ws) != 0 {
-		t.Errorf("absent roster: %v %v, want no workers and no error", ws, err)
+	if r, err := readRoster(dir); err != nil || len(rosterAll(t, r)) != 0 {
+		t.Errorf("absent roster: %v %v, want no workers and no error", r, err)
 	}
 	writeRoster(t, dir, "{not json")
 	if _, err := readRoster(dir); err == nil {
 		t.Error("an unreadable roster read as empty")
 	}
 	writeRoster(t, dir, `{"workers":{"x; rm -rf ~": {"pid": 5, "sessionId": "x"}}}`)
-	if _, err := readRoster(dir); err == nil {
-		t.Error("a roster key that is no worker id was read")
+	if r, err := readRoster(dir); err != nil {
+		t.Fatal(err)
+	} else if ws, err := r.For(sid); err == nil || !strings.Contains(err.Error(), "x; rm -rf ~") {
+		t.Errorf("a roster key that is no worker id was read: %+v %v", ws, err)
 	}
 	writeRoster(t, dir, fmt.Sprintf(`{"workers":{
 	  "188e19ec": {"pid": 5, "replPid": 6, "sessionId": %q, "dispatch": {"launch": {"sessionId": %q, "fork": true}}},
 	  "d2cc10f2": {"pid": 7, "sessionId": %q, "dispatch": {"launch": {"sessionId": %q, "fork": false}}}}}`, forkID, sid, sid, sid))
-	ws, err := readRoster(dir)
+	r, err := readRoster(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
+	ws := rosterAll(t, r)
 	slices.SortFunc(ws, func(a, b Worker) int { return strings.Compare(a.Short.String(), b.Short.String()) })
 	want := []Worker{
 		{Short: forkID.Key(), SessionID: forkID, PID: 5, ReplPID: 6, Fork: true, LaunchID: sid},
@@ -158,7 +182,7 @@ func TestRelaunchWithNoWorkerLaunchesAndHoldsUntilListed(t *testing.T) {
 	polls := 0
 	s := f.sessions()
 	roster := s.Roster
-	s.Roster = func() ([]Worker, error) {
+	s.Roster = func() (Roster, error) {
 		polls++
 		if polls == 4 {
 			f.workers = []Worker{workerFor(sid, 700)}
@@ -533,22 +557,27 @@ func TestEveryLaunchResultLandsTheSameOnBothPaths(t *testing.T) {
 // that session's transcript path, not its id. One such worker, which is not
 // this tool's, made the whole roster unreadable and so held every launch
 // and close-out (2026-11-23). The path's file name is the id; any other
-// shape stays an unreadable roster.
+// shape leaves that worker's entry unknown for the sessions it names.
 func TestRosterReadsALaunchRecordedAsATranscriptPath(t *testing.T) {
 	dir := t.TempDir()
 	writeRoster(t, dir, fmt.Sprintf(`{"workers":{"188e19ec": {"pid": 5, "sessionId": %q,
 	  "dispatch": {"launch": {"sessionId": "/home/u/.claude/projects/-home-u-p/%s.jsonl", "fork": true}}}}}`, forkID, sid))
-	ws, err := readRoster(dir)
+	r, err := readRoster(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
+	ws := rosterAll(t, r)
 	if len(ws) != 1 || ws[0].LaunchID != sid || !ws[0].Fork {
 		t.Errorf("roster: %+v, want one fork of %s", ws, sid)
 	}
 	for _, bad := range []string{"/home/u/notes.jsonl", "/home/u/" + sid.String() + ".txt", "x" + sid.String() + ".jsonl"} {
 		writeRoster(t, dir, fmt.Sprintf(`{"workers":{"188e19ec": {"pid": 5, "sessionId": %q,
 		  "dispatch": {"launch": {"sessionId": %q}}}}}`, forkID, bad))
-		if _, err := readRoster(dir); err == nil {
+		r, err := readRoster(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := r.For(forkID); err == nil {
 			t.Errorf("launch %q read as a session", bad)
 		}
 	}

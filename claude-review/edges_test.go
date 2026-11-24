@@ -112,7 +112,7 @@ func TestEightCharacterSessionIDs(t *testing.T) {
 
 func TestWorkersForSkipsPidZero(t *testing.T) {
 	s := Sessions{Alive: func(int) bool { return true }} // kill(0, 0) succeeds: it signals the process group
-	if got := s.workersFor(sid, []Worker{workerFor(sid, 0)}); len(got) != 0 {
+	if got, err := s.workersFor(rosterOf(workerFor(sid, 0)), sid); err != nil || len(got) != 0 {
 		t.Errorf("pid 0 counted as a live worker: %+v", got)
 	}
 }
@@ -122,10 +122,10 @@ func TestWindowOpenIsNoWorkersOwnProcess(t *testing.T) {
 	w := workerFor(sid, 500)
 	w.ReplPID = 501
 	f.workers = []Worker{w}
-	for pid, want := range map[int]bool{500: false, 501: false, 999: true} {
+	for pid, want := range map[int]WindowState{500: winClosed, 501: winClosed, 999: winOpen} {
 		f.window = pid
-		if got := f.sessions().WindowOpen(sid); got != want {
-			t.Errorf("window pid %d: open %v, want %v", pid, got, want)
+		if got := f.sessions().WindowOf(sid); got != want {
+			t.Errorf("window pid %d: %v, want %v", pid, got, want)
 		}
 	}
 }
@@ -168,10 +168,10 @@ func TestWorkerPIDSkipsPidZeroEntries(t *testing.T) {
 	defer func() { processAlive = old }()
 	processAlive = func(int) bool { return true }
 	dir := t.TempDir()
-	writeRoster(t, dir, fmt.Sprintf(`{"workers":{"aa": {"sessionId": %q, "pid": 0}, "bb": {"sessionId": %q, "pid": 100}}}`, sid, sid))
+	writeRoster(t, dir, fmt.Sprintf(`{"workers":{"aaaaaaaa": {"sessionId": %q, "pid": 0}, "bbbbbbbb": {"sessionId": %q, "pid": 100}}}`, sid, sid))
 	for range 64 {
-		if got := workerPID(dir, sid); got != 100 {
-			t.Fatalf("got %d, want the live worker 100", got)
+		if got, err := workerPID(dir, sid); err != nil || got != 100 {
+			t.Fatalf("got %d %v, want the live worker 100", got, err)
 		}
 	}
 }
@@ -184,8 +184,8 @@ func TestSessionPIDSkipsPidZeroFiles(t *testing.T) {
 	dir := t.TempDir()
 	writeLive(t, dir, 0, fmt.Sprintf(`{"pid":0,"sessionId":%q}`, sid)) // sorts before 100.json
 	writeLive(t, dir, 100, fmt.Sprintf(`{"pid":100,"sessionId":%q}`, sid))
-	if got := sessionPID(dir, sid); got != 100 {
-		t.Errorf("got %d, want 100", got)
+	if got, err := sessionPID(dir, sid); err != nil || got != 100 {
+		t.Errorf("got %d %v, want 100", got, err)
 	}
 }
 

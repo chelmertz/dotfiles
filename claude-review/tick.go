@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"slices"
 	"strings"
 	"time"
 
@@ -346,7 +345,15 @@ func (h tickHost) sweep() error {
 	}
 	for _, u := range urls {
 		pr, err := ParseTarget(u)
-		if err != nil || (len(unread[u]) == 0 && len(h.workersOf(pr, all)) == 0) {
+		if err != nil {
+			continue
+		}
+		mine, err := h.workersOf(pr, all)
+		if err != nil {
+			fmt.Fprintf(h.out, "claude-review tick: %s: no worker stopped: %v\n", pr.URL(), err)
+			continue
+		}
+		if len(unread[u]) == 0 && len(mine) == 0 {
 			continue
 		}
 		_, open, err := h.gh.Base(pr)
@@ -361,17 +368,10 @@ func (h tickHost) sweep() error {
 }
 
 // workersOf are pr's live workers under any id it ever ran under, forks
-// included.
-func (h tickHost) workersOf(pr PR, all []Worker) []Worker {
-	var out []Worker
-	for _, id := range pr.workerIDs() {
-		for _, w := range h.sess.workersFor(id, all) {
-			if !slices.ContainsFunc(out, func(o Worker) bool { return o.Short == w.Short }) {
-				out = append(out, w)
-			}
-		}
-	}
-	return out
+// included. An error is unknown for pr: a roster entry naming it did not
+// parse.
+func (h tickHost) workersOf(pr PR, all Roster) ([]Worker, error) {
+	return h.sess.workersFor(all, pr.workerIDs()...)
 }
 
 // closeOut stops closed pr's workers and settles its unread rounds the way
@@ -390,7 +390,11 @@ func (h tickHost) closeOut(pr PR, rounds []Round) error {
 	if err != nil {
 		return err
 	}
-	for _, w := range h.workersOf(pr, all) {
+	mine, err := h.workersOf(pr, all)
+	if err != nil {
+		return err
+	}
+	for _, w := range mine {
 		if err := h.do(fmt.Sprintf("stop worker %s on %s: the PR is merged or closed", w.Short, pr.URL()), func() error { return h.sess.stopAndWait(w) }); err != nil {
 			return err
 		}
@@ -806,9 +810,13 @@ func (h tickHost) startOne(p Planned, running int) (skip, error) {
 		return "", err
 	}
 	defer lk.Unlock()
-	if windowOpen(h.sess, h.ledger, p.PR) {
+	switch windowOf(h.sess, h.ledger, p.PR) {
+	case winOpen:
 		_, err := h.move(lk, p.PR, Event{Kind: evWindowOpened})
 		return skipWindowOpen, err
+	case winUnknown:
+		return skipWindowUnknown, nil
+	case winClosed:
 	}
 	if busy, err := h.roundRuns(p.PR); err != nil || busy {
 		return skipRunning, err
@@ -1230,7 +1238,7 @@ func (h tickHost) refreshOne(lk prlock.Locked, pr PR, s PRState, hold Hold, upda
 // updated is the PR's last update as elly saw it, zero when elly does not
 // list it.
 func (h tickHost) evidence(lk prlock.Locked, pr PR, s PRState, updated time.Time) (PRState, error) {
-	if (s.State == stHeld && s.Kind == kindWindow || windowBelow(s)) && !windowOpen(h.sess, h.ledger, pr) {
+	if (s.State == stHeld && s.Kind == kindWindow || windowBelow(s)) && h.windowClosed(pr) {
 		// The head, so the restore drops what was judged at an older one;
 		// unreadable, the restore stands as before.
 		_, head, _, _ := h.gh.Standing(pr)

@@ -104,8 +104,12 @@ func (c selfChecker) cleanup(id ids.SessionID) error {
 	if err != nil {
 		return err
 	}
+	mine, err := c.sess.workersFor(all, id)
+	if err != nil {
+		return err
+	}
 	var errs []error
-	for _, w := range c.sess.workersFor(id, all) {
+	for _, w := range mine {
 		errs = append(errs, c.sess.stopAndWait(w))
 	}
 	return errors.Join(errs...)

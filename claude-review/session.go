@@ -2,6 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,23 +25,14 @@ func SessionExists(claudeDir string, id ids.SessionID) bool {
 	return len(matches) > 0
 }
 
-// roster is the part of ~/.claude/daemon/roster.json the window path reads:
-// the background workers the supervisor currently runs. The file is Claude
-// Code's own and may change shape; here every failure to read it means "not
-// running", which only costs a forked copy. Rounds go through readRoster
-// instead, where an unreadable roster means no launch.
-type roster struct {
-	Workers map[string]struct {
-		SessionID ids.SessionID `json:"sessionId"`
-		PID       int           `json:"pid"`
-	} `json:"workers"`
-}
-
 // Live is the process that holds a session open; PID 0 means none does.
 type Live struct {
 	PID int
 	// Background is a supervisor worker, which `claude attach` opens.
 	Background bool
+	// Err: Claude Code's files cannot say, for an entry naming the
+	// session did not parse. Nothing may start a copy of it.
+	Err error
 }
 
 // SessionRunning reports the live process for id. `--resume` on a session
@@ -48,28 +42,35 @@ type Live struct {
 // sessions/. A worker wins: it may have its own sessions/ entry too, and it
 // is the one kind that can be attached to.
 func SessionRunning(claudeDir string, id ids.SessionID) Live {
-	if pid := workerPID(claudeDir, id); pid > 0 {
+	pid, err := workerPID(claudeDir, id)
+	if err != nil {
+		return Live{Err: err}
+	}
+	if pid > 0 {
 		return Live{PID: pid, Background: true}
 	}
-	return Live{PID: sessionPID(claudeDir, id)}
+	pid, err = sessionPID(claudeDir, id)
+	return Live{PID: pid, Err: err}
 }
 
 // workerPID is the live background worker for id from the roster, or 0.
-func workerPID(claudeDir string, id ids.SessionID) int {
-	b, err := os.ReadFile(filepath.Join(claudeDir, "daemon", "roster.json")) //nolint:gosec // path under the user's own config dir
+// No roster is none; one that cannot be read, or an entry naming id that
+// does not parse, is an error.
+func workerPID(claudeDir string, id ids.SessionID) (int, error) {
+	r, err := readRoster(claudeDir)
 	if err != nil {
-		return 0
+		return 0, err
 	}
-	var r roster
-	if json.Unmarshal(b, &r) != nil {
-		return 0
+	ws, err := r.For(id)
+	if err != nil {
+		return 0, err
 	}
-	for _, w := range r.Workers {
+	for _, w := range ws {
 		if w.SessionID == id && w.PID > 0 && processAlive(w.PID) {
-			return w.PID
+			return w.PID, nil
 		}
 	}
-	return 0
+	return 0, nil
 }
 
 // liveSession is the part of ~/.claude/sessions/<pid>.json this tool reads.
@@ -84,33 +85,82 @@ type liveSession struct {
 	Kind      string        `json:"kind"`
 }
 
-// sessionPID is the live process sessions/ lists for id, or 0. Like the
-// roster, anything unreadable counts as not running.
-func sessionPID(claudeDir string, id ids.SessionID) int {
-	pid, _ := liveSessionOf(claudeDir, id)
-	return pid
+// sessionScan is one read of sessions/: each file parsed on its own.
+type sessionScan struct {
+	live   []liveSession
+	failed []failedEntry
 }
 
-// liveSessionOf is sessionPID with the session's kind: "bg" for a
-// background worker, whether or not the roster lists it.
-func liveSessionOf(claudeDir string, id ids.SessionID) (int, string) {
+// scanSessions reads every sessions/ file. A file whose pid is dead is
+// ignored, as is one whose pid was recycled since it was written. A file
+// that does not parse, or parses without a session id, is kept as failed
+// unless its name is a dead pid: Claude Code names each file by its pid.
+func scanSessions(claudeDir string) sessionScan {
+	var scan sessionScan
 	files, _ := filepath.Glob(filepath.Join(claudeDir, "sessions", "*.json"))
 	for _, f := range files {
 		b, err := os.ReadFile(f) //nolint:gosec // path under the user's own config dir
+		var s liveSession
+		if err == nil {
+			err = json.Unmarshal(b, &s)
+		}
+		if err == nil && s.SessionID.IsZero() {
+			err = errors.New("no session id")
+		}
 		if err != nil {
+			if n, perr := strconv.Atoi(strings.TrimSuffix(filepath.Base(f), ".json")); perr == nil && (n <= 0 || !processAlive(n)) {
+				continue
+			}
+			scan.failed = append(scan.failed, failedEntry{where: f, raw: b, err: err})
 			continue
 		}
-		var s liveSession
-		if json.Unmarshal(b, &s) != nil || s.SessionID != id || s.PID <= 0 || !processAlive(s.PID) {
+		if s.PID <= 0 || !processAlive(s.PID) {
 			continue
 		}
 		// Claude Code's own rule: no recorded start time, or none readable
 		// now, trusts the live pid.
 		if now := procStart(s.PID); s.ProcStart == "" || now == "" || now == s.ProcStart {
-			return s.PID, s.Kind
+			scan.live = append(scan.live, s)
 		}
 	}
-	return 0, ""
+	return scan
+}
+
+// of is the live session for id and its kind ("bg" for a background
+// worker, whether or not the roster lists it), or 0. An error names the
+// files that did not parse and name id.
+func (scan sessionScan) of(id ids.SessionID) (int, string, error) {
+	var errs []error
+	for _, f := range scan.failed {
+		if f.names("", id) {
+			errs = append(errs, fmt.Errorf("reading Claude Code's session file %s: %w", f.where, f.err))
+		}
+	}
+	if len(errs) > 0 {
+		return 0, "", errors.Join(errs...)
+	}
+	for _, s := range scan.live {
+		if s.SessionID == id {
+			return s.PID, s.Kind, nil
+		}
+	}
+	return 0, "", nil
+}
+
+// unparsed names every file that did not parse, or is nil.
+func (scan sessionScan) unparsed() error {
+	var errs []error
+	for _, f := range scan.failed {
+		errs = append(errs, fmt.Errorf("reading Claude Code's session file %s: %w", f.where, f.err))
+	}
+	return errors.Join(errs...)
+}
+
+// sessionPID is the live process sessions/ lists for id, or 0; an error is
+// unknown for id.
+func sessionPID(claudeDir string, id ids.SessionID) (int, error) {
+	pid, _, err := scanSessions(claudeDir).of(id)
+	return pid, err
 }
 
 // procStart is the start time Claude Code records as procStart for pid, so a
@@ -158,7 +208,8 @@ var processAlive = func(pid int) bool {
 
 // JobState is Claude Code's state for a background session's job, from
 // jobs/<short id>/state.json: "working", "blocked", "done", "stopped", or ""
-// when there is no readable job. Observed on 2.1.314.
+// when there is no readable job, which no caller reads as done or blocked.
+// Observed on 2.1.314.
 func JobState(claudeDir string, id ids.SessionID) string {
 	return readJob(claudeDir, id).State
 }
@@ -177,12 +228,17 @@ func BlockedOn(claudeDir string, id ids.SessionID) (string, bool) {
 	return j.Detail, true
 }
 
+// job is the part of jobs/<short id>/state.json this tool reads; the file
+// is named by the session id's key, so one that does not parse is unknown
+// for that session alone.
 type job struct {
 	State     string    `json:"state"`
 	Detail    string    `json:"detail"`
 	Needs     string    `json:"needs"`
 	Tempo     string    `json:"tempo"`
 	UpdatedAt time.Time `json:"updatedAt"`
+	// RespawnFlags are the options a background launch saved (readSaved).
+	RespawnFlags *[]string `json:"respawnFlags"`
 }
 
 // idleEnded is how long a job may sit at working, idle and unchanged before
@@ -195,16 +251,31 @@ func (j job) stale() bool {
 	return j.State == "working" && j.Tempo == "idle" && !j.UpdatedAt.IsZero() && jobNow().Sub(j.UpdatedAt) >= idleEnded
 }
 
-// readJob is the zero job when there is none or it cannot be read.
-func readJob(claudeDir string, id ids.SessionID) job {
+// readJobFile is the one parser of a job file. ok is false when there is
+// none; an error names the file.
+func readJobFile(claudeDir string, id ids.SessionID) (job, bool, error) {
 	var j job
-	if id.IsZero() {
-		return j
+	path := filepath.Join(claudeDir, "jobs", id.Key().String(), "state.json")
+	b, err := os.ReadFile(path) //nolint:gosec // path under the user's own config dir
+	if errors.Is(err, fs.ErrNotExist) {
+		return j, false, nil
 	}
-	b, err := os.ReadFile(filepath.Join(claudeDir, "jobs", id.Key().String(), "state.json")) //nolint:gosec // path under the user's own config dir
-	if err != nil || json.Unmarshal(b, &j) != nil {
+	if err == nil {
+		err = json.Unmarshal(b, &j)
+	}
+	if err != nil {
+		return job{}, true, fmt.Errorf("%s: %w", path, err)
+	}
+	return j, true, nil
+}
+
+// readJob is the zero job when there is none or it cannot be read: unknown,
+// which no caller reads as done or blocked.
+func readJob(claudeDir string, id ids.SessionID) job {
+	if id.IsZero() {
 		return job{}
 	}
+	j, _, _ := readJobFile(claudeDir, id)
 	return j
 }
 
@@ -214,18 +285,22 @@ func readJob(claudeDir string, id ids.SessionID) job {
 // stale working job are not running; no readable state, or one never seen,
 // counts as running. A background session is one the roster lists or whose
 // session file says bg: the roster can drop a worker Claude Code keeps alive.
-// An unreadable roster counts as running too. Any other live session, a
-// window or a `claude -p`, is running.
+// An unreadable roster, or a roster entry or session file naming id that
+// does not parse, counts as running too. Any other live session, a window
+// or a `claude -p`, is running.
 func RoundRunning(claudeDir string, id ids.SessionID) bool {
 	if _, err := readRoster(claudeDir); err != nil {
 		return true
 	}
 	live := SessionRunning(claudeDir, id)
+	if live.Err != nil {
+		return true
+	}
 	if live.PID == 0 {
 		return false
 	}
 	if !live.Background {
-		if _, kind := liveSessionOf(claudeDir, id); kind != "bg" {
+		if _, kind, err := scanSessions(claudeDir).of(id); err != nil || kind != "bg" {
 			return true
 		}
 	}

@@ -148,13 +148,13 @@ func newHost(t *testing.T, cfgJSON string, repoFound bool, exists bool) *fakeHos
 	// A background launch lists the PR's worker, as Claude Code would.
 	fs := newFakeSessions()
 	h.d.Sessions = fs.sessions()
-	h.d.Sessions.Roster = func() ([]Worker, error) {
+	h.d.Sessions.Roster = func() (Roster, error) {
 		for _, argv := range h.outputs {
 			if strings.Contains(argv[len(argv)-1], "'--bg'") {
-				return []Worker{workerFor(testPR.RoundSessionID(), 700)}, nil
+				return rosterOf(workerFor(testPR.RoundSessionID(), 700)), nil
 			}
 		}
-		return nil, nil
+		return Roster{}, nil
 	}
 	return h
 }

@@ -41,7 +41,7 @@ func (h tickHost) recheckLaunches() error {
 		unread[r.PR] = true
 	}
 	for _, pr := range pending {
-		if unread[pr.URL()] || len(h.workersOf(pr, all)) > 0 {
+		if unread[pr.URL()] || h.mayHaveWorkers(pr, all) {
 			continue
 		}
 		lk, err := lockPR(pr, h.lock)
@@ -133,8 +133,20 @@ func (h tickHost) startingOutcome(pr PR, s PRState) (Event, error) {
 		// Unknown is an outcome: the roster re-check resolves it later.
 		return Event{Kind: evFailedToStart, Class: launchUnknown}, nil //nolint:nilerr // see above
 	}
-	if len(h.workersOf(pr, all)) > 0 {
+	mine, err := h.workersOf(pr, all)
+	if err != nil {
+		// Unknown for this PR alone: the roster re-check resolves it later.
+		return Event{Kind: evFailedToStart, Class: launchUnknown}, nil //nolint:nilerr // see above
+	}
+	if len(mine) > 0 {
 		return Event{Kind: evFailedToStart, Class: launchUnlisted}, nil
 	}
 	return Event{Kind: evAbandoned}, nil
+}
+
+// mayHaveWorkers: the roster lists a live worker for pr, or an entry naming
+// pr did not parse.
+func (h tickHost) mayHaveWorkers(pr PR, all Roster) bool {
+	mine, err := h.workersOf(pr, all)
+	return err != nil || len(mine) > 0
 }

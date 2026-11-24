@@ -344,8 +344,12 @@ func (h tickHost) refuseUnderWindow(lk prlock.Locked, pr PR) error {
 	if windowInChain(cur) {
 		return fmt.Errorf("claude-review: %s: %s", pr.URL(), windowNote)
 	}
-	if !windowOpen(h.sess, h.ledger, pr) {
+	switch windowOf(h.sess, h.ledger, pr) {
+	case winClosed:
 		return nil
+	case winUnknown:
+		return fmt.Errorf("claude-review: %s: %s", pr.URL(), windowUnknownNote)
+	case winOpen:
 	}
 	_, err = h.move(lk, pr, Event{Kind: evWindowOpened})
 	return errors.Join(err, fmt.Errorf("claude-review: %s: %s", pr.URL(), windowNote))
@@ -417,6 +421,9 @@ func planClick(d Deps, cfg Config, pr PR, remote string) (click, error) {
 	live := d.SessionRunning(d.ClaudeDir, id)
 	detached := cfg.Terminal.Disabled
 	switch {
+	case live.Err != nil:
+		// Unknown: a resume beside a session it cannot see starts a copy.
+		return click{}, fmt.Errorf("claude-review: %s: %w", pr.URL(), live.Err)
 	case live.PID > 0 && !live.Background:
 		// A terminal window, or another click's bootstrap mid-turn. Neither
 		// takes an attach; the window is where the next round is asked for.

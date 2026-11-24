@@ -111,8 +111,12 @@ func openFork(d Deps, cfg Config, lk prlock.Locked, pr PR) int {
 		tell(d, "Claude has not looked at "+pr.URL()+" yet; start a review first")
 		return 0
 	}
-	if windowOpen(d.Sessions, l, pr) {
+	switch windowOf(d.Sessions, l, pr) {
+	case winOpen:
 		return fail(d, fmt.Errorf("claude-review: %s is already open in a window", pr.URL()))
+	case winUnknown:
+		return fail(d, fmt.Errorf("claude-review: %s: %s", pr.URL(), windowUnknownNote))
+	case winClosed:
 	}
 	// The newest round's session, as its row recorded it.
 	session, err := l.RoundSession(pr)
@@ -185,18 +189,55 @@ func stateName(s PRState) string {
 	return string(s.State) + "{" + s.Kind + "}"
 }
 
-// windowOpen is a window on pr: any id its workers may run under, older
-// policy versions' included, held by a non-worker session, or the last
-// fork's recorded id held by any live session.
-func windowOpen(s Sessions, l *Ledger, pr PR) bool {
+// windowUnknownNote is why a PR is held when Claude Code's files cannot
+// say whether its window is open.
+const windowUnknownNote = "a Claude Code session file naming it could not be read; whether its window is open is unknown"
+
+// windowOf is the window on pr: Open when any id its workers may run
+// under, older policy versions' included, is held by a non-worker session,
+// or the last fork's recorded id by any live session. Unknown when no id
+// is open and one of them cannot be read, or the fork's record cannot be.
+// Unknown holds the PR's launches this pass and is never stored. Step 7's
+// wantToken has to read it as not Closed, so an Approve link hides under
+// it; until then minting does not consult the window.
+func windowOf(s Sessions, l *Ledger, pr PR) WindowState {
+	st := winClosed
 	for _, id := range pr.workerIDs() {
-		if s.WindowOpen(id) {
-			return true
+		switch s.WindowOf(id) {
+		case winOpen:
+			return winOpen
+		case winUnknown:
+			st = winUnknown
+		case winClosed:
 		}
 	}
 	fid, ok, err := l.ForkSession(pr)
-	if err != nil {
-		return true // an unreadable record cannot rule a window out
+	switch {
+	case err != nil:
+		return winUnknown
+	case !ok:
+		return st
 	}
-	return ok && s.Window(fid) > 0
+	pid, err := s.Window(fid)
+	switch {
+	case err != nil:
+		return winUnknown
+	case pid > 0:
+		return winOpen
+	}
+	return st
+}
+
+// windowClosed: pr's window reads Closed on a pass where every sessions/
+// file parsed. A file that did not parse may be the window's own, written
+// under an id no record names, so such a pass closes no window.
+func (h tickHost) windowClosed(pr PR) bool {
+	if windowOf(h.sess, h.ledger, pr) != winClosed {
+		return false
+	}
+	if err := h.sess.Unparsed(); err != nil {
+		fmt.Fprintf(h.out, "claude-review tick: %s: no window closed this pass: %v\n", pr.URL(), err)
+		return false
+	}
+	return true
 }

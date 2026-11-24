@@ -56,15 +56,15 @@ func TestARoundStartedUnderTheLastVersionIsReadUnderTheNext(t *testing.T) {
 func TestAWindowOnTheLastVersionsSessionIsOpen(t *testing.T) {
 	old := oldVersionSession(widgetsPR)
 	s := Sessions{
-		Roster: func() ([]Worker, error) { return nil, nil },
-		Window: func(id ids.SessionID) int {
+		Roster: func() (Roster, error) { return Roster{}, nil },
+		Window: func(id ids.SessionID) (int, error) {
 			if id == old {
-				return 100
+				return 100, nil
 			}
-			return 0
+			return 0, nil
 		},
 	}
-	if !windowOpen(s, openTestLedger(t), widgetsPR) {
+	if windowOf(s, openTestLedger(t), widgetsPR) != winOpen {
 		t.Error("a window on the last version's round session read as closed")
 	}
 }
