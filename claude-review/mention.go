@@ -4,8 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/chelmertz/dotfiles/claude-review/prlock"
@@ -108,34 +106,6 @@ func wantToken(s PRState, window WindowState, gate MentionGate, dismissing bool)
 // errNotOffered: the stored state no longer offers Approve at the link's
 // commit (a click, a push or a window moved it), so its token is refused.
 var errNotOffered = errors.New("the PR no longer offers Approve at that commit; use the row elly shows now")
-
-var inlineCode = regexp.MustCompile("`[^`\n]*`")
-
-// mentionedIn says whether body names @user outside quoted lines, code
-// fences and code spans, word-bounded on both sides. elly's
-// github.mentionedIn is the same rule (it decides which mentions are
-// open); each side pins it with the same cases.
-func mentionedIn(body, user string) bool {
-	if user == "" {
-		return false
-	}
-	at := regexp.MustCompile(`(?i)(^|[^\w@.])@` + regexp.QuoteMeta(user) + `($|[^\w-])`)
-	fenced := false
-	for _, line := range strings.Split(body, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			fenced = !fenced
-			continue
-		}
-		if fenced || strings.HasPrefix(trimmed, ">") {
-			continue
-		}
-		if at.MatchString(inlineCode.ReplaceAllString(line, "")) {
-			return true
-		}
-	}
-	return false
-}
 
 // staleMention is how long a PR may sit untouched before its open mentions
 // stop counting: elly's icebox. A months-old question answered now helps

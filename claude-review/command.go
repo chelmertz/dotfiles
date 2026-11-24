@@ -38,8 +38,31 @@ const cleanRound = "\n\nOpen the summary with a one-line verdict for the author:
 // mentionRound: colleagues' @-mentions of the user are questions to the
 // user. A round answers what the code settles and routes the rest to the
 // user through its question line; tick starts a round for a mention no
-// round has seen (Mentioned), and an open one withholds Approve.
-const mentionRound = "\n\n`claude-review threads {url}` ends by listing the comments that @-mention the account you post as. Each one that account has not answered yet (no later reply by it in that thread; for a PR-level comment, no later PR comment by it) is a colleague's question to the user. Answer it only with what the code at the PR head shows, linking the file at that commit, with `claude-review post {url} reply --to <id>` for an inline comment, or `claude-review post {url} comment --body TEXT` that links the comment for a PR-level one. Do not answer anything about safety, auth, correctness, approval or merge readiness, intent, something being absent, or other repositories: put it in your question line instead. Never @-mention anyone in an answer."
+// round has seen (Mentioned), and an open one withholds Approve. Which
+// mentions wait on the user is elly's rule alone (its github.mentionedIn
+// and mentions): the round is handed elly's open ones by URL, from the
+// PR's stored gate g, and answers no other. With none open it is told so
+// rather than left to judge the threads itself, which would be a second
+// copy of the rule. An unreadable gate answers none, as it withholds
+// Approve. nil (no gate read) says nothing.
+func mentionRound(g *MentionGate) string {
+	switch {
+	case g == nil:
+		return ""
+	case g.Unreadable:
+		return "\n\nelly could not list the comments that @-mention the account you post as this time, so answer none of them, even one you see in `claude-review threads {url}`, and say in your question line that the mentions could not be listed."
+	case len(g.Open) == 0:
+		return "\n\nelly lists no comment that @-mentions the account you post as and waits on the user: answer no @-mention this round, even one you see in `claude-review threads {url}`."
+	}
+	urls := make([]string, len(g.Open))
+	for i, m := range g.Open {
+		urls[i] = m.Url
+	}
+	return "\n\nThese comments @-mention the account you post as and wait on the user:\n" + strings.Join(urls, "\n") + "\nFind each in `claude-review threads {url}` by its id, the number at the end of its URL; each is a colleague's question to the user, and no other comment is. " + mentionAnswer
+}
+
+// mentionAnswer is how a round answers a listed mention.
+const mentionAnswer = "Answer it only with what the code at the PR head shows, linking the file at that commit, with `claude-review post {url} reply --to <id>` for an inline comment, or `claude-review post {url} comment --body TEXT` that links the comment for a PR-level one. Do not answer anything about safety, auth, correctness, approval or merge readiness, intent, something being absent, or other repositories: put it in your question line instead. Never @-mention anyone in an answer."
 
 // mentionsOnlyPreface opens an OwnMention round: the user's own PR, where
 // a review by its author makes no sense. post enforces the same limits.
@@ -81,7 +104,7 @@ func fill(pr PR, remote, s string) string {
 // remote for the PR's repository.
 func BuildPrompt(cfg Config, pr PR, remote string, resume bool) string {
 	if cfg.MentionsOnly {
-		return fill(pr, remote, mentionsOnlyPreface+mentionRound+questionRound)
+		return fill(pr, remote, mentionsOnlyPreface+mentionRound(cfg.Mentions)+questionRound)
 	}
 	body := cfg.ReviewPrompt
 	if body == "" {
@@ -92,7 +115,7 @@ func BuildPrompt(cfg Config, pr PR, remote string, resume bool) string {
 	} else {
 		body += postAsk
 	}
-	body += otherReviewers + cleanRound + mentionRound + questionRound
+	body += otherReviewers + cleanRound + mentionRound(cfg.Mentions) + questionRound
 	if resume {
 		body = rereviewPreface + body
 	}

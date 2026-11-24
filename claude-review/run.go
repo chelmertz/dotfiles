@@ -315,8 +315,8 @@ func backgroundClick(d Deps, cfg Config, lk prlock.Locked, c clickTarget, sw *st
 			say(err)
 		}
 	}()
-	if err := d.Trust(dir); err != nil {
-		return fail(d, fmt.Errorf("claude-review: trusting %s for Claude Code: %w", dir, err))
+	if cfg, err = h.prepareClick(d, cfg, lk, pr, dir); err != nil {
+		return fail(d, err)
 	}
 	settle := func() error {
 		user, err := githubUser(d, cfg)
@@ -342,6 +342,17 @@ func backgroundClick(d Deps, cfg Config, lk prlock.Locked, c clickTarget, sw *st
 	not, err := h.afterRelaunch(lk, pr, res, err, rec)
 	started = not == "" && err == nil
 	return clickOutcome(d, pr, res, started, err, before)
+}
+
+// prepareClick trusts dir for Claude Code and reads pr's mention gate into
+// the round's cfg, under pr's lock lk.
+func (h tickHost) prepareClick(d Deps, cfg Config, lk prlock.Locked, pr PR, dir string) (Config, error) {
+	if err := d.Trust(dir); err != nil {
+		return cfg, fmt.Errorf("claude-review: trusting %s for Claude Code: %w", dir, err)
+	}
+	g, err := h.roundMentions(lk, pr)
+	cfg.Mentions = g
+	return cfg, err
 }
 
 // refuseUnderWindow refuses a click while a window is open on pr, recorded

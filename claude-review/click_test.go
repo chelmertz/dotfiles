@@ -83,7 +83,7 @@ func TestClickOnAReviewRepoRunsInTheBackground(t *testing.T) {
 		if code := run([]string{target}, h.d); code != 0 {
 			t.Fatalf("exists=%v: exit %d: %s", exists, code, h.stderr)
 		}
-		want := viaInteractiveShell(shellLine(cloneOf, RoundArgs(h.cfg(t), testPR, upstream, exists)))
+		want := viaInteractiveShell(shellLine(cloneOf, RoundArgs(withNoMentions(h.cfg(t)), testPR, upstream, exists)))
 		if !slices.ContainsFunc(h.outputs, func(argv []string) bool { return slices.Equal(argv, want) }) {
 			t.Errorf("exists=%v: no pinned background launch in %q", exists, h.outputs)
 		}
@@ -238,7 +238,7 @@ func TestClickResumesFlaglessUnderTheSavedPolicy(t *testing.T) {
 	if code := run([]string{target}, h.d); code != 0 {
 		t.Fatalf("exit %d: %s", code, h.stderr)
 	}
-	want := viaInteractiveShell(shellLine(cloneOf, ResumeArgs(h.cfg(t), testPR, upstream, true)))
+	want := viaInteractiveShell(shellLine(cloneOf, ResumeArgs(withNoMentions(h.cfg(t)), testPR, upstream, true)))
 	if !slices.ContainsFunc(h.outputs, func(argv []string) bool { return slices.Equal(argv, want) }) {
 		t.Errorf("no flagless resume in %d commands", len(h.outputs))
 	}

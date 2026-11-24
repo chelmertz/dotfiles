@@ -78,3 +78,10 @@ func freeLock(t testing.TB, pr PR) prlock.Locked {
 	t.Helper()
 	return mustLock(t, tickHost{lock: func(string) (func(), error) { return func() {}, nil }}, pr)
 }
+
+// withNoMentions is cfg as a round on a PR with no open mention gets it:
+// the launch reads the PR's stored gate into the prompt.
+func withNoMentions(cfg Config) Config {
+	cfg.Mentions = &MentionGate{}
+	return cfg
+}

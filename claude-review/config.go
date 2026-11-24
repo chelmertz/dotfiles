@@ -17,6 +17,11 @@ type Config struct {
 	// MentionsOnly is set by tick, never read from the file: the round
 	// answers mentions and reviews nothing (an OwnMention round).
 	MentionsOnly bool `json:"-"`
+	// Mentions is the PR's stored mention gate, set by whoever prepares a
+	// round under the PR's lock, never read from the file: the prompt names
+	// the open mentions elly listed. nil means no gate was read (a window
+	// round outside review_repos), and the prompt says nothing of mentions.
+	Mentions *MentionGate `json:"-"`
 	// Terminal is one of three things: absent (per-OS default), false (no
 	// terminal, run the session detached with --bg) or a command template
 	// with {dir} and {script} placeholders. One key, so "custom command but no

@@ -911,11 +911,13 @@ nor by a reaction. It sends URLs, authors and times, never text.
 
 - **A round.** A mention no round has seen yet (written after the PR's last
   round started) is owed, after a request and replies, as `mentioned`; with
-  `auto_start` it also accepts the PR. Every round's prompt has it answer
-  what the code at the head shows, in the thread, signed, and route the
-  rest (safety, intent, merge readiness, absence, other repos) to its
-  question line. `claude-review threads` ends by listing the comments that
-  mention the account the round posts as.
+  `auto_start` it also accepts the PR. Every round's prompt on a PR in
+  `review_repos` names the mentions elly lists as open, by URL, and has
+  the round answer those and no others: what the code at the head shows,
+  in the thread, signed, with the rest (safety, intent, merge readiness,
+  absence, other repos) routed to its question line. With none open the prompt says so; when elly could
+  not say, the round answers none and says so in its question line. Which
+  comments wait on you is elly's rule alone; claude-review keeps no copy.
 - **Your own PRs.** With `auto_start`, a mention no round has seen on a PR
   you wrote starts an `own_mention` round, and nothing else ever does. Its
   prompt answers mentions and reviews nothing, and `post` holds it to that:

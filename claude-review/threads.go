@@ -11,7 +11,9 @@ import (
 // runThreads is `claude-review threads <pr>`: everything already said on
 // the PR, so a later round can answer threads instead of repeating them.
 // Read-only, and the one GitHub read a session gets besides `gh pr view`
-// and `gh pr diff`, because `gh api` is denied (see denyRules).
+// and `gh pr diff`, because `gh api` is denied (see denyRules). It does not
+// say which comments wait on the user: that is elly's rule, and the round's
+// prompt names elly's open mentions (mentionRound).
 func runThreads(args []string, gh Gh, stdout, stderr io.Writer) int {
 	if len(args) != 1 {
 		fmt.Fprintln(stderr, "usage: claude-review threads <pr>")
@@ -23,51 +25,23 @@ func runThreads(args []string, gh Gh, stdout, stderr io.Writer) int {
 		return 2
 	}
 	api := fmt.Sprintf("repos/%s/%s/", pr.Owner, pr.Repo)
-	var seen []printed
-	for _, list := range []func() ([]printed, error){
-		func() ([]printed, error) {
+	for _, list := range []func() error{
+		func() error {
 			return printItems[ids.IssueCommentID](gh, stdout, kindComment, api+fmt.Sprintf(issueComments, pr.Number))
 		},
-		func() ([]printed, error) {
+		func() error {
 			return printItems[ids.ReviewID](gh, stdout, kindReview, api+fmt.Sprintf(reviews, pr.Number))
 		},
-		func() ([]printed, error) {
+		func() error {
 			return printItems[ids.CommentID](gh, stdout, kindInline, api+fmt.Sprintf(reviewComments, pr.Number))
 		},
 	} {
-		items, err := list()
-		if err != nil {
+		if err := list(); err != nil {
 			fmt.Fprintln(stderr, "claude-review threads:", err)
 			return 1
 		}
-		seen = append(seen, items...)
 	}
-	printMentions(gh, stdout, seen)
 	return 0
-}
-
-// printed is what threads keeps of an item to list the mentions after it.
-type printed struct{ head, author, body string }
-
-// printMentions names, after everything, the items by someone else that
-// @-mention the account the round posts as. Without the login (gh failed)
-// it prints nothing: the prompt's mention step then rests on the listing.
-func printMentions(gh Gh, stdout io.Writer, items []printed) {
-	out, err := gh("api", "user", "--jq", ".login")
-	login := strings.TrimSpace(out)
-	if err != nil || login == "" {
-		return
-	}
-	var heads []string
-	for _, it := range items {
-		if !strings.EqualFold(it.author, login) && mentionedIn(it.body, login) {
-			heads = append(heads, it.head)
-		}
-	}
-	if len(heads) == 0 {
-		return
-	}
-	fmt.Fprintf(stdout, "--- you post as %s; these mention you:\n    %s\n", login, strings.Join(heads, "\n    "))
 }
 
 // ghID is what threads needs of an item's id: how to print it, and whether
@@ -78,12 +52,11 @@ type ghID interface {
 }
 
 // printItems prints the items at endpoint, each under its header.
-func printItems[I ghID](gh Gh, stdout io.Writer, kind, endpoint string) ([]printed, error) {
+func printItems[I ghID](gh Gh, stdout io.Writer, kind, endpoint string) error {
 	items, err := ghList[I](gh, endpoint)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	var out []printed
 	for _, c := range items {
 		if c.Body == "" {
 			continue // a bare approval, or a review that only carries inline comments
@@ -92,9 +65,8 @@ func printItems[I ghID](gh Gh, stdout io.Writer, kind, endpoint string) ([]print
 		// the next item's header.
 		body := "    " + strings.ReplaceAll(strings.TrimSpace(c.Body), "\n", "\n    ")
 		fmt.Fprintf(stdout, "--- %s\n%s\n\n", header(kind, c), body)
-		out = append(out, printed{head: header(kind, c), author: c.User.Login, body: c.Body})
 	}
-	return out, nil
+	return nil
 }
 
 // header is one item's first line: kind, id, author and where it sits.

@@ -165,40 +165,20 @@ func TestTickApproveWaitsForAnOpenMention(t *testing.T) {
 	}
 }
 
-func TestThreadsListsMentionsOfThePostingAccount(t *testing.T) {
+// threads lists what is on the PR and nothing about mentions: which ones
+// wait on the user is elly's rule, and the prompt names them.
+func TestThreadsListsNoMentions(t *testing.T) {
 	g := &fakeGh{outs: []string{
-		`[{"id":1,"body":"@me can you check","user":{"login":"ada"}},{"id":2,"body":"@me noted","user":{"login":"me"}}]`,
+		`[{"id":1,"body":"@me can you check","user":{"login":"ada"}}]`,
 		`[]`,
-		`[{"id":4,"body":"> @me quoted only","path":"a.go","line":7,"user":{"login":"cy"}}]`,
-		"me\n",
+		`[]`,
 	}}
 	var out, errb bytes.Buffer
 	if code := runThreads([]string{prURL}, g.run, &out, &errb); code != 0 {
 		t.Fatalf("code %d: %s", code, errb.String())
 	}
-	got := out.String()
-	if !strings.Contains(got, "--- you post as me; these mention you:\n    comment 1 by ada\n") || strings.Contains(got, "\n    comment 2 by me\n") || strings.Contains(got, "\n    inline 4") {
-		t.Errorf("got\n%s", got)
-	}
-}
-
-// The same cases as elly's TestMentionedIn: the two rules are one contract.
-func TestMentionedIn(t *testing.T) {
-	cases := map[string]bool{
-		"@me can you check":           true,
-		"hey @Me, thoughts?":          true,
-		"cc @me.":                     true,
-		"@meow is someone else":       false,
-		"mail me@me.com":              false,
-		"> @me quoted\nno ask":        false,
-		"see `@me` in code":           false,
-		"```\n@me\n```\nfenced":       false,
-		"quote\n> old @me\n\n@me new": true,
-	}
-	for body, want := range cases {
-		if got := mentionedIn(body, "me"); got != want {
-			t.Errorf("mentionedIn(%q) = %v", body, got)
-		}
+	if got := out.String(); got != "--- comment 1 by ada\n    @me can you check\n\n" || len(g.calls) != 3 {
+		t.Errorf("got %d calls,\n%s", len(g.calls), got)
 	}
 }
 
@@ -275,6 +255,59 @@ func TestMentionsOnlyPrompt(t *testing.T) {
 	}
 }
 
+// The round answers exactly the mentions elly lists as open, by URL; with
+// none it answers none, and when elly could not say it answers none and
+// says so in its question line. A prompt built with no gate read (a window
+// round outside review_repos) says nothing about mentions.
+func TestBuildPromptNamesEllysOpenMentions(t *testing.T) {
+	second := EllyMention{Url: widgetsPR.URL() + "#issuecomment-9", Author: "bea", At: t0}
+	rules := "Answer it only with what the code at the PR head shows, linking the file at that commit, with `claude-review post " + widgetsPR.URL() + " reply --to <id>` for an inline comment"
+	for _, mentionsOnly := range []bool{false, true} {
+		cfg := Config{MentionsOnly: mentionsOnly, PostWithoutAsking: true}
+		cfg.Mentions = &MentionGate{Open: []EllyMention{openMention, second}}
+		p := BuildPrompt(cfg, widgetsPR, "upstream", true)
+		if !strings.Contains(p, "These comments @-mention the account you post as and wait on the user:\n"+openMention.Url+"\n"+second.Url+"\n") ||
+			!strings.Contains(p, "Find each in `claude-review threads "+widgetsPR.URL()+"` by its id") || !strings.Contains(p, rules) {
+			t.Errorf("mentionsOnly=%v: open mentions not named: %s", mentionsOnly, p)
+		}
+		if strings.Contains(p, "ends by listing") {
+			t.Errorf("mentionsOnly=%v: prompt still points at the threads listing: %s", mentionsOnly, p)
+		}
+
+		cfg.Mentions = &MentionGate{}
+		p = BuildPrompt(cfg, widgetsPR, "upstream", true)
+		if !strings.Contains(p, "elly lists no comment that @-mentions the account you post as") || strings.Contains(p, rules) {
+			t.Errorf("mentionsOnly=%v: no open mention: %s", mentionsOnly, p)
+		}
+
+		cfg.Mentions = &MentionGate{Unreadable: true, Open: []EllyMention{openMention}}
+		p = BuildPrompt(cfg, widgetsPR, "upstream", true)
+		if !strings.Contains(p, "elly could not list") || !strings.Contains(p, "answer none of them") || strings.Contains(p, openMention.Url) || strings.Contains(p, rules) {
+			t.Errorf("mentionsOnly=%v: unreadable gate: %s", mentionsOnly, p)
+		}
+	}
+	if p := BuildPrompt(Config{}, widgetsPR, "upstream", false); strings.Contains(p, "@-mention") {
+		t.Errorf("no gate read, yet the prompt speaks of mentions: %s", p)
+	}
+}
+
+// A click reads the PR's stored gate into the round's prompt.
+func TestClickPromptNamesTheStoredMentions(t *testing.T) {
+	h, _ := clickHost(t, true)
+	if err := h.ledger(t).SetMentionGate(freeLock(t, testPR), testPR, MentionGate{Open: []EllyMention{{Url: testPR.URL() + "#discussion_r3", Author: "adam", At: t0}}}); err != nil {
+		t.Fatal(err)
+	}
+	if code := run([]string{target}, h.d); code != 0 {
+		t.Fatalf("exit %d: %s", code, h.stderr)
+	}
+	for _, argv := range h.outputs {
+		if strings.Contains(argv[len(argv)-1], testPR.URL()+"#discussion_r3") {
+			return
+		}
+	}
+	t.Errorf("no launch names the stored mention: %q", h.outputs)
+}
+
 // A tick on the user's own mentioned PR launches with the mentions-only
 // prompt, and its round is recorded as OwnMention for post's gate.
 func TestTickRunsAMentionsOnlyRoundOnTheUsersOwnPR(t *testing.T) {
@@ -285,7 +318,8 @@ func TestTickRunsAMentionsOnlyRoundOnTheUsersOwnPR(t *testing.T) {
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if len(w.started) != 1 || !strings.Contains(strings.Join(w.started[0], " "), "Do not review it") {
+	if len(w.started) != 1 || !strings.Contains(strings.Join(w.started[0], " "), "Do not review it") ||
+		!strings.Contains(strings.Join(w.started[0], " "), ownMentionedPR().Url+"#issuecomment-5") {
 		t.Fatalf("started %q", w.started)
 	}
 	pr := PR{Owner: "acme", Repo: "widgets", Number: 42}

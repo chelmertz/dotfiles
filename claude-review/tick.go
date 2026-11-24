@@ -993,6 +993,9 @@ func (h tickHost) launch(lk prlock.Locked, pr PR, trigger Trigger, settle func()
 	at := h.now()
 	cfg := h.cfg
 	cfg.MentionsOnly = mentionsOnly(trigger)
+	if cfg.Mentions, err = h.roundMentions(lk, pr); err != nil {
+		return "", err
+	}
 	// The re-review prompt diffs from the last round; on a PR no round and
 	// no click has seen (auto_start accepts at the current head) that diff
 	// is empty, and the round would post nothing without reading the PR.
@@ -1008,6 +1011,19 @@ func (h tickHost) launch(lk prlock.Locked, pr PR, trigger Trigger, settle func()
 		return "", err
 	}
 	return h.afterRelaunch(lk, pr, res, err, rec)
+}
+
+// roundMentions is pr's stored mention gate, which a round's prompt names
+// (mentionRound), read under pr's lock lk, which every round launch holds.
+func (h tickHost) roundMentions(lk prlock.Locked, pr PR) (*MentionGate, error) {
+	if err := lk.Check(prKey(pr)); err != nil {
+		return nil, err
+	}
+	g, err := h.ledger.MentionGate(pr)
+	if err != nil {
+		return nil, err
+	}
+	return &g, nil
 }
 
 // starter starts rounds the way a click does, through h.start.

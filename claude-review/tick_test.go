@@ -259,7 +259,7 @@ func TestTickStartsAnOwedRoundLockedDownAndCapped(t *testing.T) {
 	if len(w.started) != 1 {
 		t.Fatalf("started %v", w.started)
 	}
-	want := append([]string{"capped"}, RoundArgs(Config{}, pr, "upstream", true)...)
+	want := append([]string{"capped"}, RoundArgs(withNoMentions(Config{}), pr, "upstream", true)...)
 	if !slices.Equal(w.started[0], want) {
 		t.Errorf("round command:\n%q\nwant\n%q", w.started[0], want)
 	}
@@ -977,7 +977,7 @@ func TestTickResumesFlaglessUnderTheSavedPolicy(t *testing.T) {
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if len(w.started) != 2 || !slices.Equal(w.started[0], RoundBootstrapArgs(pr)) || !slices.Equal(w.started[1], append([]string{"capped"}, RoundArgs(Config{}, pr, "upstream", true)...)) {
+	if len(w.started) != 2 || !slices.Equal(w.started[0], RoundBootstrapArgs(pr)) || !slices.Equal(w.started[1], append([]string{"capped"}, RoundArgs(withNoMentions(Config{}), pr, "upstream", true)...)) {
 		t.Fatalf("first round: %d commands", len(w.started))
 	}
 	if !slices.Equal(w.fs.saved[pr.RoundSessionID()], PolicyFlags(pr, "upstream")) {
@@ -990,7 +990,7 @@ func TestTickResumesFlaglessUnderTheSavedPolicy(t *testing.T) {
 	if err := w.h.tick(); err != nil {
 		t.Fatal(err)
 	}
-	if len(w.started) != 3 || !slices.Equal(w.started[2], append([]string{"capped"}, ResumeArgs(Config{}, pr, "upstream", true)...)) {
+	if len(w.started) != 3 || !slices.Equal(w.started[2], append([]string{"capped"}, ResumeArgs(withNoMentions(Config{}), pr, "upstream", true)...)) {
 		t.Errorf("later round: %q", w.started[2:])
 	}
 
