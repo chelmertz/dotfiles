@@ -411,3 +411,35 @@ func TestRefreshStoresAGateAClickHeldBack(t *testing.T) {
 		t.Errorf("the row ignores the mention: %+v", got)
 	}
 }
+
+// A mentions-only round on the user's own PR keeps the daily cap's pause,
+// and drops a fresh-look gate, since it reviews nothing.
+func TestPlanOwnKeepsThePauseAndDropsTheFreshLook(t *testing.T) {
+	p := ownMentionedPR()
+	pr, _ := ParseTarget(p.Url)
+	for name, c := range map[string]struct {
+		cap  int
+		gate fakeGate
+		want string
+	}{
+		"cap reached":   {1, fakeGate{descends: true, base: "main"}, gatePaused},
+		"new base":      {6, fakeGate{descends: true, base: "release"}, ""},
+		"under the cap": {6, fakeGate{descends: true, base: "main"}, ""},
+	} {
+		l := openTestLedger(t)
+		if err := l.Accept(pr, p.HeadRefOid, "main", t0.Add(-2*time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := l.StartRound(pr, "hx", NewHead{}, t0.Add(-time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		cfg := TickConfig{ReviewRepos: []string{"acme/widgets"}, User: "me", DailyCap: c.cap, AutoStart: true}
+		got, err := planTick([]EllyPR{p}, cfg, l, c.gate, t0)
+		if err != nil || len(got) != 1 {
+			t.Fatalf("%s: %+v %v", name, got, err)
+		}
+		if got[0].Gate != c.want {
+			t.Errorf("%s: gate %q, want %q", name, got[0].Gate, c.want)
+		}
+	}
+}

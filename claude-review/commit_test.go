@@ -269,3 +269,20 @@ func TestFactsVariantsCarryTheirSourcesEvents(t *testing.T) {
 		}
 	}
 }
+
+// planStep with no events plans nothing, so it is not a step.
+func TestPlanStepWithoutEventsIsNoStep(t *testing.T) {
+	if _, ok := planStep(PRState{State: stIdle}, t0); ok {
+		t.Error("planStep with no events reported a step")
+	}
+}
+
+// hashed keeps empty text empty and never returns the text itself.
+func TestHashedKeepsEmptyAndHidesText(t *testing.T) {
+	if got := hashed(""); got != "" {
+		t.Errorf("hashed(\"\") = %q, want empty", got)
+	}
+	if got := hashed("is this safe?"); got == "" || got == "is this safe?" || got != hashOf("is this safe?") {
+		t.Errorf("hashed(text) = %q, want its hash", got)
+	}
+}

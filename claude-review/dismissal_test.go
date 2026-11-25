@@ -315,3 +315,31 @@ func TestTheApprovalBeingDismissedDoesNotClearTheRow(t *testing.T) {
 		t.Errorf("a later approval did not act: %+v", s)
 	}
 }
+
+// Settling a dismissal sends the PR's row again itself, without waiting for
+// the rest of tick, and one settled record does not end the pass.
+func TestSettleDismissalsResendsTheRowAndSettlesEveryRecord(t *testing.T) {
+	w := newTickWorld(t)
+	pr := approvalRound(t, w)
+	if _, err := w.h.ledger.MintToken(pr, "h1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	other := w.accept(t, 43)
+	if err := w.h.ledger.AddDismissal(other, reviewID(8), t0); err != nil {
+		t.Fatal(err)
+	}
+	delete(w.elly.put, pr.URL())
+	w.gh.status = DismissalStatus{Dismissed: true}
+	if err := w.h.settleDismissals(); err != nil {
+		t.Fatal(err)
+	}
+	if all := pending(t, w); len(all) != 0 {
+		t.Errorf("pending after one pass: %+v", all)
+	}
+	if a, ok := w.elly.put[pr.URL()]; !ok || a.Note != noteDismissed {
+		t.Errorf("row %+v (sent %v), want %q", a, ok, noteDismissed)
+	}
+}

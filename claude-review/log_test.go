@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"slices"
 	"strings"
@@ -293,6 +294,21 @@ func TestTickPrunesDecisionsOlderThan90Days(t *testing.T) {
 	want := []int64{boundary.UnixMilli(), boundary.Add(time.Millisecond).UnixMilli(), now.UnixMilli()}
 	if got := decisionTimes(t, w.h.ledger); !slices.Equal(got, want) {
 		t.Errorf("rows at %v, want %v", got, want)
+	}
+	if out := w.h.out.(*bytes.Buffer).String(); !strings.Contains(out, "pruned 2 decision rows older than 90 days") {
+		t.Errorf("tick said %q, want the two pruned rows named", out)
+	}
+}
+
+// A tick with nothing old enough says nothing about pruning.
+func TestTickWithNothingToPruneSaysNothing(t *testing.T) {
+	w := newTickWorld(t)
+	insertDecisionAt(t, w.h.ledger, w.h.now())
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if out := w.h.out.(*bytes.Buffer).String(); strings.Contains(out, "pruned") {
+		t.Errorf("tick said %q with nothing pruned", out)
 	}
 }
 
