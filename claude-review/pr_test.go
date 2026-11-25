@@ -163,3 +163,14 @@ func TestParseTarget_AcceptsAnEntrySource(t *testing.T) {
 		}
 	}
 }
+
+// shape names a scheme of up to 20 characters, and only "no scheme" past that.
+func TestShapeNamesSchemesUpToTwentyCharacters(t *testing.T) {
+	twenty := strings.Repeat("a", 20)
+	if got := shape(twenty + "://x"); !strings.HasPrefix(got, "a "+twenty+":// link") {
+		t.Errorf("20: %q", got)
+	}
+	if got := shape(twenty + "a://x"); !strings.HasPrefix(got, "no scheme") {
+		t.Errorf("21: %q", got)
+	}
+}

@@ -130,3 +130,30 @@ func TestAPassWhereEveryGhCallTimedOutFails(t *testing.T) {
 		t.Error("one answered call still counted as all timed out")
 	}
 }
+
+// A trailing -X with no method after it is not a write, and does not panic.
+func TestGhWritesWithATrailingMethodFlag(t *testing.T) {
+	if ghWrites([]string{"api", "-X"}) || ghWrites([]string{"api", "--method"}) {
+		t.Error("a method flag with no method read as a write")
+	}
+}
+
+// A child that left the process group and holds the output pipe does not
+// hold the run past WaitDelay: the group kill cannot reach it.
+func TestABoundedCommandDoesNotWaitOnAnEscapedChild(t *testing.T) {
+	if _, err := exec.LookPath("setsid"); err != nil {
+		t.Skip("no setsid")
+	}
+	cmd, cancel, _ := boundedCommand(200*time.Millisecond, "sh", "-c", "setsid sleep 8 & sleep 8")
+	defer cancel()
+	var out strings.Builder
+	cmd.Stdout = &out
+	start := time.Now()
+	err := within(t, 15*time.Second, cmd.Run)
+	if err == nil {
+		t.Error("the bounded run succeeded")
+	}
+	if d := time.Since(start); d > 5*time.Second {
+		t.Errorf("returned after %s, want within the 2 s WaitDelay", d)
+	}
+}

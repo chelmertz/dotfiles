@@ -37,8 +37,9 @@ jobs:
 
   mutation:
     runs-on: ubuntu-latest
-    # Four workers on the runner's four cores; one worker took over 110 min.
-    timeout-minutes: 90
+    # Four workers on the runner's four cores: on 2026-11-25 they got
+    # through 1373 of about 1730 mutants in 90 min.
+    timeout-minutes: 180
     permissions:
       contents: read
     defaults:

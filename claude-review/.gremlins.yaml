@@ -4,10 +4,18 @@
 # disables the check. The run fails when a value is at or below its
 # threshold, so each sits just under the last measured run.
 #
-# Efficacy is below 100 because five surviving mutants are equivalent: a
-# boundary on a monotonic id or on time.Since, which never lands exactly on
-# the limit, and guards whose other branch reaches the same result. One new
-# survivor takes efficacy under the threshold.
+# Efficacy is below 100 because these surviving mutants are equivalent:
+# the mutated code behaves the same on every input. Measured 2026-11-25:
+#   boundaries on time.Since, which never lands exactly on the limit:
+#     post.go 514 (both)
+#   a bound the next check makes unreachable: pr.go 71:37 (an empty scheme
+#     fails schemeName), graphqlvars.go 18 (two args pass no variable)
+#   a chain's depth 0 is the state itself, never a question while it is
+#     starting: maybealive.go 127
+#   the window read for the commit's mint: show mints the same token under
+#     the same lock right after the commit, and nothing reads a token before
+#     a row shows it: flow.go 92 (both)
+# One new survivor takes efficacy under the threshold; kill it or add it here.
 unleash:
   threshold:
     efficacy: 99.4

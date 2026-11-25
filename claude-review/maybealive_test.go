@@ -481,3 +481,58 @@ func TestTheChainDepthIsPinned(t *testing.T) {
 		t.Errorf("deepest chain %d, pinned 3: %s", deepest, deepestChain)
 	}
 }
+
+// A starting exactly startingLifetime old is past it and recovered.
+func TestRecoverStartingAtExactlyItsLifetime(t *testing.T) {
+	posted := PRState{State: stHandled, Kind: kindPosted, Head: "h1"}
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	if err := w.h.ledger.SetPRState(pr, PRState{State: stStarting, Kind: kindClick, Head: "h1", Since: t0, Prev: &posted}); err != nil {
+		t.Fatal(err)
+	}
+	w.h.now = func() time.Time { return t0.Add(startingLifetime) }
+	if err := w.h.recoverStarting(); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := w.h.peekState(pr); s.State != stHandled {
+		t.Errorf("got %+v, want the handled state back", s)
+	}
+}
+
+// closingLock is a lock that closes the ledger as it is taken, so the
+// first read under it fails.
+func closingLock(w *tickWorld) func(string) (func(), error) {
+	return func(string) (func(), error) {
+		_ = w.h.ledger.db.Close()
+		return func() {}, nil
+	}
+}
+
+// A PR whose recovery fails under its lock is said, not dropped silently.
+func TestRecoverStartingSaysAFailedRecovery(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	if err := w.h.ledger.SetPRState(pr, PRState{State: stStarting, Kind: kindClick, Head: "h1", Since: t0}); err != nil {
+		t.Fatal(err)
+	}
+	w.h.now = func() time.Time { return t0.Add(5 * time.Minute) }
+	w.h.lock = closingLock(w)
+	_ = w.h.recoverStarting()
+	if !strings.Contains(w.out.String(), pr.URL()) {
+		t.Errorf("out %q, want the failure named with the PR", w.out)
+	}
+}
+
+// A launch re-check that fails under the PR's lock is said too.
+func TestRecheckLaunchesSaysAFailedMove(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	if err := w.h.ledger.SetPRState(pr, PRState{State: stHeld, Kind: kindLaunch, Detail: launchUnlisted, Head: "h1"}); err != nil {
+		t.Fatal(err)
+	}
+	w.h.lock = closingLock(w)
+	_ = w.h.recheckLaunches()
+	if !strings.Contains(w.out.String(), pr.URL()) {
+		t.Errorf("out %q, want the failure named with the PR", w.out)
+	}
+}

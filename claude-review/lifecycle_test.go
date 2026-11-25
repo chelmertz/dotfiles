@@ -582,3 +582,16 @@ func TestRosterReadsALaunchRecordedAsATranscriptPath(t *testing.T) {
 		}
 	}
 }
+
+// splitMode refuses a --permission-mode with no value after it, or two.
+func TestSplitModeRefusesAMissingOrRepeatedMode(t *testing.T) {
+	for _, flags := range [][]string{{"--x", flagMode}, {flagMode, "auto", flagMode, "plan"}, {"--x"}} {
+		if _, _, ok := splitMode(flags); ok {
+			t.Errorf("%q split", flags)
+		}
+	}
+	mode, rest, ok := splitMode([]string{"--x", flagMode, "auto", "--y"})
+	if !ok || mode != "auto" || !slices.Equal(rest, []string{"--x", "--y"}) {
+		t.Errorf("got %q %q %v", mode, rest, ok)
+	}
+}

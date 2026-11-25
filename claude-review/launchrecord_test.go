@@ -175,3 +175,26 @@ func TestABreakerTripOutlivesAFailedPRCommit(t *testing.T) {
 		t.Errorf("global rows: %d (%v), want 1", n, err)
 	}
 }
+
+// A click's round listed after settling moved the PR off starting (here,
+// to handled) still lands as running: the click is replayed first.
+func TestAClickListedOffStartingReplaysTheClick(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	if err := w.h.ledger.SetPRState(pr, PRState{State: stHandled, Kind: kindPosted, Head: "h1"}); err != nil {
+		t.Fatal(err)
+	}
+	lk := mustLock(t, w.h, pr)
+	defer lk.Unlock()
+	rec := w.h.clickRecord(lk, clickTarget{pr: pr, head: "h1", from: "elly"})
+	id, err := rec.record(t0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := rec.listed(id); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := w.h.peekState(pr); s.State != stRunning {
+		t.Errorf("got %s, want running", describe(s))
+	}
+}

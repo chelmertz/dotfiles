@@ -506,6 +506,7 @@ func TestSecretShapeRefusesTokenShapedText(t *testing.T) {
 		"fixed in " + sha + " and " + sha:                     false,
 		sha + " " + sha:                                       false,
 		"fixed in " + sha + " a bad":                          false,
+		"fixed in " + sha + ", see " + tok:                    true,
 		"ids 123e4567-e89b-12d3-a456-426614174000, 123e4567-e89b-12d3-a456-426614174001": false,
 		"short shas: abc1234, def5678, 0a1b2c3, 9f8e7d6, 1234567, 89abcde, fedcba9":      false,
 		"a bad cafe face, nothing to see":                                                false,

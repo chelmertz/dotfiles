@@ -443,3 +443,21 @@ func TestPlanOwnKeepsThePauseAndDropsTheFreshLook(t *testing.T) {
 		}
 	}
 }
+
+// Through the command: in a mentions-only round with no draft review, a
+// review has no queued replies to send and is refused.
+func TestPostReviewWithoutADraftRefusedInAMentionsOnlyRound(t *testing.T) {
+	h := verbHost(t)
+	l, err := OpenLedger(LedgerPath(h.d.StateDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.StartRound(widgetsPR, sha, OwnMention{Url: widgetsPR.URL() + "#issuecomment-5", At: t0}, t0); err != nil {
+		t.Fatal(err)
+	}
+	_ = l.Close()
+	code := run([]string{"post", widgetsPR.URL(), "review", "--at", sha, "--body", "summary"}, h.d)
+	if code == 0 || !strings.Contains(h.stderr.String(), "posts no review") {
+		t.Errorf("exit %d: %s", code, h.stderr.String())
+	}
+}

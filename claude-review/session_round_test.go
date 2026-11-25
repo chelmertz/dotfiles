@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 
 	"github.com/chelmertz/dotfiles/claude-review/ids"
 )
@@ -66,5 +67,33 @@ func TestAWindowOnTheLastVersionsSessionIsOpen(t *testing.T) {
 	}
 	if windowOf(s, openTestLedger(t), widgetsPR) != winOpen {
 		t.Error("a window on the last version's round session read as closed")
+	}
+}
+
+// A ledger that cannot be read fails the round session rather than reading
+// as "no round yet", which would name today's id beside a live worker.
+func TestRoundSessionFailsOnAnUnreadableLedger(t *testing.T) {
+	l := openTestLedger(t)
+	if err := l.db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := l.RoundSession(widgetsPR); err == nil {
+		t.Errorf("a closed ledger read as session %s", got)
+	}
+}
+
+// LastRoundStart is the newest round's start, to the second.
+func TestLastRoundStart(t *testing.T) {
+	l := openTestLedger(t)
+	if got, err := l.LastRoundStart(widgetsPR); err != nil || !got.IsZero() {
+		t.Errorf("no round: %v %v", got, err)
+	}
+	for _, at := range []time.Time{t0.Add(-2 * time.Hour), t0.Add(-time.Hour)} {
+		if _, err := l.StartRound(widgetsPR, "h1", NewHead{}, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, err := l.LastRoundStart(widgetsPR); err != nil || !got.Equal(t0.Add(-time.Hour)) {
+		t.Errorf("got %v %v, want %v", got, err, t0.Add(-time.Hour))
 	}
 }
