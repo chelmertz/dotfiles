@@ -17,9 +17,11 @@
 #     the same lock right after the commit, and nothing reads a token before
 #     a row shows it: flow.go 92 (both)
 #   a curve's control offset is 80 or -80, never 0: states.go 195
-# The full run on 2026-11-25 measured 99.49% efficacy (1750 killed, these 9
-# lived) and 91.33% mutant coverage. Two new survivors take efficacy under
-# the threshold; kill them or add them here.
+# The run on 2026-11-25 measured 99.66% efficacy (1753 killed, 6 lived) and
+# 91.33% mutant coverage; post.go 503 and states.go 195 were killed in it,
+# the post.go pair only as timing allows. Threshold 99.4 leaves room for
+# those three and one more; a further survivor fails the run: kill it or
+# add it here.
 #
 # Mutant coverage is below 100 because go's cover tool gives two kinds of
 # code no block, so gremlins never runs their mutants, however well tested:
