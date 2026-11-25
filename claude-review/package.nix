@@ -20,10 +20,9 @@ buildGoModule {
       ./go.mod
       ./go.sum
       (lib.fileset.fileFilter (f: f.hasExt "go") ./.)
-      # TestRowsFixtureMatchesRender reads it; elly holds a copy.
-      ./testdata/rows.json
-      # TestStatesPageMatchesItsFixture reads it.
-      ./testdata/states.html
+      # Every fixture the tests read, whole: a file listed one by one is a
+      # file missed, and a glob over a missing directory passes on nothing.
+      ./testdata
     ];
   };
 
