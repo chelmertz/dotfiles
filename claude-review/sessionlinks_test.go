@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +23,8 @@ func TestActedOnCountsWritesOnly(t *testing.T) {
 		{"gh api -X PATCH repos/acme/widgets/issues/42 -f state=closed", []string{pr}},
 		{"gh api --method POST repos/acme/widgets/pulls/42/reviews --input r.json", []string{pr}},
 		{"cd x && gh pr review " + pr + " -c -b y", []string{pr}},
+		{"gh pr view " + pr + " && gh pr review " + pr + " -c -b y", []string{pr}},
+		{"gh pr review " + pr + " -c -b y; gh pr comment 7 -R acme/gadgets -b z", []string{pr, "https://github.com/acme/gadgets/pull/7"}},
 		// reads
 		{"gh pr view " + pr + " --comments", nil},
 		{"gh pr diff " + pr, nil},
@@ -119,5 +122,34 @@ func TestLinkSessions(t *testing.T) {
 	}
 	if len(e.sourced) != 1 {
 		t.Errorf("linked PRs that are not listed or have no session: %+v", e.sourced)
+	}
+}
+
+// A PR the session only opened (its pr-link record), after a line that
+// names nothing, links it.
+func TestIndexSessionsReadsPastTheFirstLineToAPRLink(t *testing.T) {
+	const author = "11111111-1111-1111-1111-111111111111"
+	pr := widgetsPR.URL()
+	dir := t.TempDir()
+	writeTranscript(t, filepath.Join(dir, "projects", "-a", author+".jsonl"),
+		transcriptLine(t, map[string]any{"type": "user", "sessionId": author, "timestamp": "2026-11-01T09:00:00Z", "message": map[string]any{"content": "hi"}}),
+		transcriptLine(t, map[string]any{"type": "pr-link", "sessionId": author, "prUrl": pr, "timestamp": "2026-11-01T10:00:00Z"}))
+	hits, err := IndexSessions(dir, isRoundSession)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h := hits[pr]; h.ID != mustSession(author) {
+		t.Errorf("got %+v, want the session that opened the PR", hits)
+	}
+}
+
+// An index that cannot be read is said.
+func TestLinkSessionsSaysAFailedIndex(t *testing.T) {
+	out := &strings.Builder{}
+	h := tickHost{elly: &fakeElly{}, now: time.Now, out: out,
+		sessionIndex: func() (map[string]SessionHit, error) { return nil, errors.New("disk gone") }}
+	h.linkSessions([]EllyPR{{Url: widgetsPR.URL()}})
+	if !strings.Contains(out.String(), "session links: disk gone") {
+		t.Errorf("out %q", out)
 	}
 }

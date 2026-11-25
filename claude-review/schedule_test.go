@@ -51,3 +51,16 @@ func TestTheNixTimerMatchesNextTick(t *testing.T) {
 		}
 	}
 }
+
+// Working ticks run on weekdays from 08:00 through the 22:00 hour.
+func TestWorkingTickHours(t *testing.T) {
+	mon := func(h, m int) time.Time { return time.Date(2026, 11, 23, h, m, 0, 0, time.Local) }
+	for at, want := range map[time.Time]bool{
+		mon(7, 59): false, mon(8, 0): true, mon(22, 59): true, mon(23, 0): false,
+		time.Date(2026, 11, 28, 12, 0, 0, 0, time.Local): false, // Saturday
+	} {
+		if got := workingTick(at); got != want {
+			t.Errorf("%s: %v, want %v", at.Format("Mon 15:04"), got, want)
+		}
+	}
+}

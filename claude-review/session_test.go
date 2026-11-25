@@ -415,3 +415,29 @@ func TestRoundRunningIdleBackgroundOutsideTheRoster(t *testing.T) {
 		t.Error("a window on the session must count as running whatever its old job says")
 	}
 }
+
+// A job idle at working for exactly idleEnded is stale.
+func TestAJobIdleExactlyIdleEndedIsStale(t *testing.T) {
+	old := jobNow
+	defer func() { jobNow = old }()
+	at := time.Date(2026, 11, 20, 13, 0, 0, 0, time.UTC)
+	jobNow = func() time.Time { return at.Add(idleEnded) }
+	if !(job{State: "working", Tempo: "idle", UpdatedAt: at}).stale() {
+		t.Error("idle for exactly idleEnded read as not stale")
+	}
+}
+
+// A session file named 0 that does not parse names no live process, so it
+// is skipped rather than failing the scan.
+func TestScanSessionsSkipsABrokenFileNamedZero(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "sessions"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sessions", "0.json"), []byte(`{`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if scan := scanSessions(dir); len(scan.failed) != 0 {
+		t.Errorf("failed %+v", scan.failed)
+	}
+}
