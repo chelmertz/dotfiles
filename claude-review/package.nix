@@ -22,6 +22,8 @@ buildGoModule {
       (lib.fileset.fileFilter (f: f.hasExt "go") ./.)
       # TestRowsFixtureMatchesRender reads it; elly holds a copy.
       ./testdata/rows.json
+      # TestStatesPageMatchesItsFixture reads it.
+      ./testdata/states.html
     ];
   };
 
