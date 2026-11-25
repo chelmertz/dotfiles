@@ -207,3 +207,30 @@ func TestGitHubRoundFactsFailsOnAFailedGraphQLRead(t *testing.T) {
 		t.Errorf("every read answered: %v", err)
 	}
 }
+
+// Unsent drafts count the signed comments in the account's draft review,
+// the round's own; a comment the user wrote there by hand is not one.
+func TestGitHubRoundFactsCountsSignedDrafts(t *testing.T) {
+	g := &routeGh{routes: map[string]string{
+		"repos/acme/widgets/pulls/42":           `{"state":"open","user":{"login":"bob"},"head":{"sha":"h2"},"base":{"ref":"main"}}`,
+		"repos/acme/widgets/pulls/42/reviews":   `[]`,
+		"repos/acme/widgets/pulls/42/comments":  `[]`,
+		"repos/acme/widgets/issues/42/comments": `[]`,
+		"reviewThreads":                         `{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}`,
+		"states: PENDING": `{"data":{"repository":{"pullRequest":{"id":"P","reviews":{"nodes":[{"id":"R","comments":{"nodes":[` +
+			`{"body":"nit\n\n` + signature + `"},{"body":"mine"},{"body":"also\n` + signature + `"}]}}]}}}}}`,
+	}}
+	f, err := GitHub{Gh: g.run, User: "me"}.RoundFacts(widgetsPR, Round{Head: "h2", StartedAt: t0})
+	if err != nil || f.UnsentDrafts != 2 {
+		t.Errorf("unsent drafts %d, want 2 (%v)", f.UnsentDrafts, err)
+	}
+}
+
+// A failed read of the review comments fails the check rather than reading
+// as "no reply".
+func TestRepliedInRoundThreadFailsOnAFailedRead(t *testing.T) {
+	g := &routeGh{routes: map[string]string{}}
+	if _, err := (GitHub{Gh: g.run, User: "me"}).RepliedInRoundThread(widgetsPR, t0, t0.Add(time.Hour)); err == nil {
+		t.Error("no error")
+	}
+}

@@ -198,3 +198,26 @@ func TestAClickListedOffStartingReplaysTheClick(t *testing.T) {
 		t.Errorf("got %s, want running", describe(s))
 	}
 }
+
+// A click whose launch happened but whose listing step never committed is
+// listed by settle as the click's launch: running on that round.
+func TestSettleListsAnUnlistedClickRound(t *testing.T) {
+	g := newGenWorldT(t, 1)
+	g.crash.arm(crashAfterLaunch, 1)
+	_ = g.click(1)
+	if !g.crash.isDead() {
+		t.Fatal("the click's launch did not crash")
+	}
+	if err := g.restart(); err != nil {
+		t.Fatal(err)
+	}
+	rounds, err := g.h.ledger.UnreadRounds()
+	if err != nil || len(rounds) != 1 || rounds[0].Listed {
+		t.Fatalf("after the crash: %+v %v, want one unlisted round", rounds, err)
+	}
+	id := rounds[0].ID
+	g.passes(t, 1)
+	if s := g.state(t, 1); s.State != stRunning || s.Round != id {
+		t.Errorf("settle left %s on round %s, want running on %s", describe(s), s.Round, id)
+	}
+}

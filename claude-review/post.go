@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -342,27 +341,17 @@ func (in postInput) sameAs(c ghItem[ids.CommentID], root ids.CommentID) bool {
 	return c.Path == in.path && c.OriginalCommitID == in.at && c.OriginalLine == in.line && c.Side == in.side && c.InReplyTo.IsZero()
 }
 
-// send performs the gh calls for one post and returns gh's last output.
+// send performs the gh call for a PR comment or a summary review with no
+// draft; viaDraft takes every inline comment and reply first.
 func (in postInput) send(gh Gh) (string, error) {
 	api := fmt.Sprintf("repos/%s/%s", in.pr.Owner, in.pr.Repo)
-	switch in.kind {
-	case kindComment:
+	if in.kind == kindComment {
 		return gh("api", "-X", "POST", fmt.Sprintf("%s/issues/%d/comments", api, in.pr.Number), "-f", "body="+in.body)
-	case kindReview:
-		// Always a COMMENT review: approving or requesting changes is the
-		// human's call, and this command runs without a prompt.
-		// Attached to the reviewed commit, so a push during the round does
-		// not look reviewed.
-		return gh("api", "-X", "POST", fmt.Sprintf("%s/pulls/%d/reviews", api, in.pr.Number), "-f", "body="+in.body, "-f", "event=COMMENT", "-f", "commit_id="+in.at)
-	case kindInline:
-		// The line number belongs to the reviewed commit; anchoring on the
-		// head instead would land it on other code after a push.
-		return gh("api", "-X", "POST", fmt.Sprintf("%s/pulls/%d/comments", api, in.pr.Number),
-			"-f", "body="+in.body, "-f", "commit_id="+in.at, "-f", "path="+in.path,
-			"-F", "line="+strconv.Itoa(in.line), "-f", "side="+in.side)
-	default: // reply; validate admits nothing else
-		return gh("api", "-X", "POST", fmt.Sprintf("%s/pulls/%d/comments/%s/replies", api, in.pr.Number, in.to), "-f", "body="+in.body)
 	}
+	// Always a COMMENT review: approving or requesting changes is the
+	// human's call, and this command runs without a prompt. Attached to the
+	// reviewed commit, so a push during the round does not look reviewed.
+	return gh("api", "-X", "POST", fmt.Sprintf("%s/pulls/%d/reviews", api, in.pr.Number), "-f", "body="+in.body, "-f", "event=COMMENT", "-f", "commit_id="+in.at)
 }
 
 // secretName is an environment variable whose value must never be posted.

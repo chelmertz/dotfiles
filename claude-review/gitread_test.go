@@ -160,3 +160,24 @@ func TestGitReadCapsOutput(t *testing.T) {
 		t.Errorf("got %q", b.String())
 	}
 }
+
+// The read commands' diff base comes from the ledger under the state dir;
+// with no ledger there it is an error, not "no base".
+func TestPRReaderDiffBaseReadsTheLedger(t *testing.T) {
+	dir := t.TempDir()
+	r := newPRReader(Deps{StateDir: dir})
+	if _, _, err := r.diffBase(widgetsPR); err == nil {
+		t.Error("no ledger read as a base")
+	}
+	l, err := OpenLedger(LedgerPath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Accept(widgetsPR, "h0", "main", t0); err != nil {
+		t.Fatal(err)
+	}
+	_ = l.Close()
+	if base, ok, err := r.diffBase(widgetsPR); err != nil || !ok || base != "h0" {
+		t.Errorf("base %q ok %v err %v, want the accepted head", base, ok, err)
+	}
+}

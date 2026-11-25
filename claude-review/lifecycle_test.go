@@ -595,3 +595,21 @@ func TestSplitModeRefusesAMissingOrRepeatedMode(t *testing.T) {
 		t.Errorf("got %q %q %v", mode, rest, ok)
 	}
 }
+
+// Stop runs claude stop for the worker through run, and a failed run fails
+// the stop, naming the last line it printed.
+func TestRealSessionsStop(t *testing.T) {
+	var ran []string
+	ok := func(_ string, argv []string) (string, error) { ran = argv; return "", nil }
+	key := sid.Key()
+	if err := realSessions(t.TempDir(), "linux", ok).Stop(key); err != nil || !strings.Contains(strings.Join(ran, " "), "stop "+key.String()) {
+		t.Errorf("ran %q: %v", ran, err)
+	}
+	failing := func(string, []string) (string, error) { return "a\nno such worker\n", errors.New("exit 1") }
+	if err := realSessions(t.TempDir(), "linux", failing).Stop(key); err == nil || err.Error() != "no such worker" {
+		t.Errorf("err %v, want the last line", err)
+	}
+	if err := realSessions(t.TempDir(), "linux", ok).Stop(ids.WorkerKey{}); err == nil {
+		t.Error("a stop with no worker id ran")
+	}
+}
