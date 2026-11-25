@@ -1,0 +1,19 @@
+# 2026/11/25 17:29:23.194908 [TestPropOutcomeIsTheRankingOfItsEnding] [rapid] draw prose: []string{}
+# 2026/11/25 17:29:23.194914 [TestPropOutcomeIsTheRankingOfItsEnding] [rapid] draw approve line: true
+# 2026/11/25 17:29:23.194916 [TestPropOutcomeIsTheRankingOfItsEnding] [rapid] draw approve at: 0
+# 2026/11/25 17:29:23.194922 [TestPropOutcomeIsTheRankingOfItsEnding] [rapid] draw ending: []string{"claude-review: nothing to post"}
+# 2026/11/25 17:29:23.194929 [TestPropOutcomeIsTheRankingOfItsEnding] [rapid] draw separator: "\n"
+# 2026/11/25 17:29:23.194932 [TestPropOutcomeIsTheRankingOfItsEnding] "You can approve with `! claude-review approve https://github.com/acme/widgets/pull/7 --at 0123456789abcdef0123456789abcdef01234567`\nclaude-review: nothing to post": got {Kind:3 PrURL: SHA: Question:}, want {Kind:1 PrURL:https://github.com/acme/widgets/pull/7 SHA:0123456789abcdef0123456789abcdef01234567 Question:}
+# 
+v0.4.8#8570715673659282088
+0x0
+0x1
+0x0
+0x0
+0x0
+0xccccccccccccd
+0x0
+0x1
+0x0
+0x0
+0x0

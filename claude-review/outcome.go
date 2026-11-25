@@ -2,6 +2,7 @@ package main
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -51,45 +52,38 @@ const ellyMaxNote = 300
 
 var approveLine = regexp.MustCompile(`claude-review approve (https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/pull/[1-9][0-9]*) --at ([0-9a-f]{40})\b`)
 
-// ReadOutcome reads a round's last message. The question and nothing lines
-// count only as the message's last non-empty line, or the question line
-// just above a last nothing line: a re-review asks for both, and a round
-// that printed both still waits on its question. The question beats an
-// approve line, since it needs the user either way; an approve line beats
-// the nothing line, which only says nothing was posted.
+// markerLines are the lines a prompt may ask a round to end on, each alone
+// on its line. A test holds every prompt to this list.
+var markerLines = []string{questionLine, nothingLine}
+
+// ReadOutcome reads a round's last message. Its ending is the run of
+// marker lines (and blank lines) at the end; a marker anywhere else is
+// prose. The approve line is a sentence and counts anywhere. Which marker
+// came last does not matter: a prompt may ask for several, so the outcome
+// is one ranking over what is there. The question first, since it needs
+// the user whatever else the round said; then the approve line, the verdict
+// decide checks against GitHub; then nothing, which only says nothing was
+// posted.
 func ReadOutcome(msg string) Outcome {
-	lines := nonEmptyTail(strings.Split(strings.TrimSpace(msg), "\n"))
-	last := strings.TrimSpace(lines[len(lines)-1])
-	if last == nothingLine {
-		if q := nonEmptyTail(lines[:len(lines)-1]); len(q) > 0 && strings.TrimSpace(q[len(q)-1]) == questionLine {
-			lines, last = q, questionLine
+	lines := strings.Split(strings.TrimSpace(msg), "\n")
+	end, ending := len(lines), map[string]bool{}
+	for ; end > 0; end-- {
+		l := strings.TrimSpace(lines[end-1])
+		if l != "" && !slices.Contains(markerLines, l) {
+			break
 		}
+		ending[l] = true
 	}
-	switch last {
-	case questionLine:
-		return Outcome{Kind: OutcomeQuestion, Question: lastParagraph(lines[:len(lines)-1])}
-	case nothingLine:
-		// Nothing says the round posted nothing; an approve line beside it
-		// is still the verdict, and decide checks it against GitHub.
-		if m := approveLine.FindStringSubmatch(msg); m != nil {
-			return Outcome{Kind: OutcomeApprove, PrURL: m[1], SHA: m[2]}
-		}
-		return Outcome{Kind: OutcomeNothing}
+	if ending[questionLine] {
+		return Outcome{Kind: OutcomeQuestion, Question: lastParagraph(lines[:end])}
 	}
 	if m := approveLine.FindStringSubmatch(msg); m != nil {
 		return Outcome{Kind: OutcomeApprove, PrURL: m[1], SHA: m[2]}
 	}
-	return Outcome{Kind: OutcomeOther}
-}
-
-// nonEmptyTail is lines without its trailing blank ones; a message with no
-// text keeps one empty line.
-func nonEmptyTail(lines []string) []string {
-	end := len(lines)
-	for end > 1 && strings.TrimSpace(lines[end-1]) == "" {
-		end--
+	if ending[nothingLine] {
+		return Outcome{Kind: OutcomeNothing}
 	}
-	return lines[:end]
+	return Outcome{Kind: OutcomeOther}
 }
 
 // lastParagraph is the last paragraph of lines that has text, its

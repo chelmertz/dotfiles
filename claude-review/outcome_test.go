@@ -1,9 +1,13 @@
 package main
 
 import (
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"pgregory.net/rapid"
 )
 
 const sha = "0123456789abcdef0123456789abcdef01234567"
@@ -25,16 +29,6 @@ func TestReadOutcome(t *testing.T) {
 		{"question line alone has no text", questionLine, Outcome{Kind: OutcomeQuestion}},
 		{"findings posted", "Posted 3 inline comments and a summary.", Outcome{Kind: OutcomeOther}},
 		{"short sha is not an approve line", "`! claude-review approve https://github.com/acme/widgets/pull/7 --at 0123456`", Outcome{Kind: OutcomeOther}},
-		{"question marker quoted mid-message does not count", "I will end with " + questionLine + " if needed.\nPosted 2 comments.", Outcome{Kind: OutcomeOther}},
-		{"both: the question wins", "approve with `! claude-review approve https://github.com/acme/widgets/pull/7 --at " + sha + "`\n\nWhich one?\n" + questionLine, Outcome{Kind: OutcomeQuestion, Question: "Which one?"}},
-		{"nothing line", "Head unchanged, no replies.\n\n" + nothingLine + "\n", Outcome{Kind: OutcomeNothing}},
-		// A re-review round with nothing new still offers Approve when it
-		// would approve: both prompt rules apply, and the round printed both
-		// (https://github.com/eversport/ai-platform/pull/71, 2026-11-20).
-		// Nothing only means it posted nothing; the approve line is the verdict.
-		{"both: the approve line wins over nothing", "Every thread settled.\n\nYou can still approve with `! claude-review approve https://github.com/acme/widgets/pull/7 --at " + sha + "`\n\n" + nothingLine,
-			Outcome{Kind: OutcomeApprove, PrURL: "https://github.com/acme/widgets/pull/7", SHA: sha}},
-		{"nothing line quoted mid-message does not count", "Would have ended with " + nothingLine + ".\nPosted 1 reply.", Outcome{Kind: OutcomeOther}},
 		{"empty", "", Outcome{Kind: OutcomeOther}},
 	}
 	for _, c := range cases {
@@ -85,48 +79,78 @@ func TestReadOutcomeCapsTheQuestion(t *testing.T) {
 	}
 }
 
-// The outcome contract: which ending lines each prompt asks for, and what
-// ReadOutcome makes of every combination of them, in either order of the
-// two last-line markers. The question needs the user whatever else the
-// round printed, so it wins wherever it ends the message's lines; an approve
-// line beats nothing, which only says nothing was posted.
-func TestOutcomeContract(t *testing.T) {
-	const approve = "You can approve with `! claude-review approve https://github.com/acme/widgets/pull/7 --at " + sha + "`"
-	asks := map[string]struct {
-		prompt                     string
-		approve, question, nothing bool
-	}{
-		"first look": {BuildPrompt(withNoMentions(Config{PostWithoutAsking: true}), widgetsPR, "upstream", false), true, true, false},
-		"re-review":  {BuildPrompt(withNoMentions(Config{PostWithoutAsking: true}), widgetsPR, "upstream", true), true, true, true},
-		"mentions":   {BuildPrompt(withNoMentions(Config{MentionsOnly: true, PostWithoutAsking: true}), widgetsPR, "upstream", true), false, true, true},
-	}
-	for name, a := range asks {
-		for line, want := range map[string]bool{"claude-review approve": a.approve, questionLine: a.question, nothingLine: a.nothing} {
-			if got := strings.Contains(a.prompt, line); got != want {
-				t.Errorf("%s prompt names %q: %v, want %v", name, line, got, want)
+// Every marker line a prompt asks a round to end on ("end with a line
+// containing only `…`") is one ReadOutcome reads, and every one it reads is
+// asked for by some prompt: a prompt and the parser cannot drift apart on a
+// marker.
+func TestPromptsAndReadOutcomeShareTheMarkers(t *testing.T) {
+	asked := regexp.MustCompile("end with a line containing only `([^`]+)`")
+	used := map[string]bool{}
+	for _, mentionsOnly := range []bool{false, true} {
+		for _, auto := range []bool{false, true} {
+			for _, resume := range []bool{false, true} {
+				p := BuildPrompt(withNoMentions(Config{MentionsOnly: mentionsOnly, PostWithoutAsking: auto}), widgetsPR, "upstream", resume)
+				for _, m := range asked.FindAllStringSubmatch(p, -1) {
+					if !slices.Contains(markerLines, m[1]) {
+						t.Errorf("a prompt asks for %q, which ReadOutcome does not read", m[1])
+					}
+					used[m[1]] = true
+				}
 			}
 		}
 	}
-	approved := Outcome{Kind: OutcomeApprove, PrURL: "https://github.com/acme/widgets/pull/7", SHA: sha}
-	question := Outcome{Kind: OutcomeQuestion, Question: "Which one?"}
-	for _, c := range []struct {
-		lines []string
-		want  Outcome
-	}{
-		{[]string{"Posted 2 comments."}, Outcome{Kind: OutcomeOther}},
-		{[]string{approve}, approved},
-		{[]string{"Which one?", questionLine}, question},
-		{[]string{nothingLine}, Outcome{Kind: OutcomeNothing}},
-		{[]string{approve, "Which one?", questionLine}, question},
-		{[]string{approve, nothingLine}, approved},
-		{[]string{"Which one?", questionLine, nothingLine}, question},
-		{[]string{nothingLine, "Which one?", questionLine}, question},
-		{[]string{approve, "Which one?", questionLine, nothingLine}, question},
-		{[]string{approve, nothingLine, "Which one?", questionLine}, question},
-	} {
-		msg := strings.Join(c.lines, "\n\n")
-		if got := ReadOutcome(msg); got != c.want {
-			t.Errorf("%q: got %+v, want %+v", msg, got, c.want)
+	for _, l := range markerLines {
+		if !used[l] {
+			t.Errorf("ReadOutcome reads %q, which no prompt asks for", l)
 		}
 	}
+}
+
+// A round's outcome is one ranking over its message, whatever the prose and
+// whatever order its ending's markers come in: a question in the ending,
+// else an approve line anywhere, else nothing in the ending, else other. A
+// marker quoted in prose is prose.
+func TestPropOutcomeIsTheRankingOfItsEnding(t *testing.T) {
+	const approve = "You can approve with `! claude-review approve https://github.com/acme/widgets/pull/7 --at " + sha + "`"
+	prose := []string{
+		"Posted 2 inline comments.",
+		"Which retry limit did you mean?",
+		"I would have ended with " + questionLine + " here.",
+		"Earlier I said " + nothingLine + ".",
+		"Head unchanged, no replies.",
+	}
+	rapid.Check(t, func(rt *rapid.T) {
+		paras := rapid.SliceOfN(rapid.SampledFrom(prose), 0, 3).Draw(rt, "prose")
+		withApprove := rapid.Bool().Draw(rt, "approve line")
+		if withApprove {
+			at := rapid.IntRange(0, len(paras)).Draw(rt, "approve at")
+			paras = slices.Insert(slices.Clone(paras), at, approve)
+		}
+		ending := rapid.SliceOfN(rapid.SampledFrom(markerLines), 0, 3).Draw(rt, "ending")
+		sep := rapid.SampledFrom([]string{"\n", "\n\n", "\n \n"}).Draw(rt, "separator")
+		msg := strings.Join(append(slices.Clone(paras), ending...), sep)
+
+		var want Outcome
+		switch {
+		case slices.Contains(ending, questionLine):
+			want = Outcome{Kind: OutcomeQuestion}
+			if len(paras) > 0 && sep != "\n" {
+				want.Question = paras[len(paras)-1]
+			}
+		case withApprove:
+			want = Outcome{Kind: OutcomeApprove, PrURL: "https://github.com/acme/widgets/pull/7", SHA: sha}
+		case slices.Contains(ending, nothingLine):
+			want = Outcome{Kind: OutcomeNothing}
+		default:
+			want = Outcome{Kind: OutcomeOther}
+		}
+		got := ReadOutcome(msg)
+		if sep == "\n" && want.Kind == OutcomeQuestion {
+			// One paragraph: the question is all the prose, joined.
+			got.Question, want.Question = "", ""
+		}
+		if got != want {
+			rt.Fatalf("%q: got %+v, want %+v", msg, got, want)
+		}
+	})
 }

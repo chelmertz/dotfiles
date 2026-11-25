@@ -1,0 +1,18 @@
+# 2026/11/25 17:29:19.604425 [TestPropOutcomeIsTheRankingOfItsEnding] [rapid] draw prose: []string{}
+# 2026/11/25 17:29:19.604430 [TestPropOutcomeIsTheRankingOfItsEnding] [rapid] draw approve line: false
+# 2026/11/25 17:29:19.604432 [TestPropOutcomeIsTheRankingOfItsEnding] [rapid] draw ending: []string{"claude-review: question for the user", "claude-review: question for the user"}
+# 2026/11/25 17:29:19.604442 [TestPropOutcomeIsTheRankingOfItsEnding] [rapid] draw separator: "\n\n"
+# 2026/11/25 17:29:19.604446 [TestPropOutcomeIsTheRankingOfItsEnding] "claude-review: question for the user\n\nclaude-review: question for the user": got {Kind:2 PrURL: SHA: Question:claude-review: question for the user}, want {Kind:2 PrURL: SHA: Question:}
+# 
+v0.4.8#1968243950032653269
+0x0
+0x0
+0xccccccccccccd
+0x0
+0x0
+0xccccccccccccd
+0x0
+0x0
+0x0
+0x0
+0x1
