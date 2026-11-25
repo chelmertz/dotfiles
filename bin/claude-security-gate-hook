@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Refuse `gh pr create` until the branch has had the review its diff calls for.
 
-A branch that changes code needs /security-review. A branch that changes only
+A branch that changes code needs /security-review, /code-review, and a full,
+unfiltered test run at its current head; when the session's ~/p project holds
+a `*-design.md` newer than the branch's fork point, it needs /persona-review
+too, so the diff is checked against what the design decided. A branch that
+changes only
 specs and docs (`*.md`, anything under `openspec/`) needs /persona-review
 instead, or /security-review: the code-level review excludes documentation by
 its own rules, so on a spec-only branch it is a formality and the design-level
@@ -9,10 +13,19 @@ persona review is the one that finds things. On
 https://github.com/eversport/ai-platform/pull/24 (specs only) a reviewer found
 six design problems a /security-review could not have.
 
-Two registrations, one script:
+Three registrations, one script:
     PreToolUse  (matcher: Bash)  blocks `gh pr create` on an unreviewed branch
-    PostToolUse (matcher: Skill) records the branch when security-review or
-                                 persona-review loads
+    PostToolUse (matcher: Skill) records the branch when security-review,
+                                 code-review or persona-review loads
+    PostToolUse (matcher: Bash)  records the head a test command passed at
+
+https://github.com/matchiapp/matchi-backend/pull/4489 opened with 16 findings
+that the CI bot and a review found in one round: an API role matched by a name
+wildcard although its design note decided the exact ARN, a deny list missing
+encryption and requester pays, a rerun path that could not work, and a
+pipeline test that failed because only targeted tests had run locally.
+/security-review had run and passed; a code review, a design-conformance
+review and the full tests would each have caught part of it.
 
 https://github.com/matchiapp/matchi-backend/pull/3999 reached review with
 Metabase granted SELECT on password hashes, OAuth client secrets and
@@ -21,11 +34,13 @@ and a role password sent to Postgres in plaintext. All of them were caught
 by a reviewer or the CI bot, a round each, and a review before the PR was
 opened would likely have caught them first.
 
-The record is `git config branch.<name>.claudeSecurityReviewed <sha>` (or
-`claudePersonaReviewed` for /persona-review) in the clone, set when the skill is invoked, so it proves the review was started on
-that branch, not that its findings were fixed. Commits after the review do
-not re-arm the gate: fixing the findings is the expected next step, and a
-gate keyed on HEAD would demand a new review for every fix.
+The records are `git config branch.<name>.claude{Security,Code,Persona}Reviewed
+<sha>` in the clone, set when the skill is invoked, so they prove the review was
+started on that branch, not that its findings were fixed. Commits after a
+review do not re-arm the gate: fixing the findings is the expected next step.
+`claudeTestsPassed <sha>` is different: a test pass says nothing about a later
+commit, so it must equal the branch head. PostToolUse fires only for a command
+that succeeded, so being called is the pass.
 
 Blocked (on a branch with no record):
     gh pr create --title ...
@@ -48,7 +63,14 @@ CD = re.compile(SEG + r"cd\s+(\"[^\"]+\"|'[^']+'|\S+)", re.MULTILINE)
 HEAD_FLAG = re.compile(r"(?:--head|-H)[=\s]+(\S+)")
 KEY = "claudeSecurityReviewed"
 PERSONA_KEY = "claudePersonaReviewed"
-SKILL_KEYS = {"security-review": KEY, "persona-review": PERSONA_KEY}
+CODE_KEY = "claudeCodeReviewed"
+TESTS_KEY = "claudeTestsPassed"
+SKILL_KEYS = {"security-review": KEY, "persona-review": PERSONA_KEY, "code-review": CODE_KEY}
+# A test command over whole packages. A name filter or a single file is a
+# targeted run, which is how the pipeline test in 4489 was missed.
+TEST_CMD = re.compile(SEG + r"(?:capped\s+)?(?:go\s+test|cargo\s+test|npm\s+(?:run\s+)?test|pnpm\s+(?:run\s+)?test"
+                      r"|yarn\s+test|make\s+test|\./gradlew\b[^;&|\n]*\btest\b)([^;&|\n]*)", re.MULTILINE)
+FILTERED = re.compile(r"(?:\s-run[=\s]|\s--tests?[=\s]|\s-t\s|\.test\.[jt]sx?\b|_test\.go\b)")
 # Paths a code-level review has nothing to say about.
 DOC_PATH = re.compile(r"(\.md$|^openspec/)")
 
@@ -102,6 +124,35 @@ def repo_for(command, cwd, end):
     return path
 
 
+def p_project(cwd):
+    """The ~/p/<ns>/<project> folder cwd is in, or None."""
+    root = os.path.realpath(os.environ.get("CLAUDE_P_ROOT") or os.path.expanduser("~/p"))
+    rel = os.path.relpath(os.path.realpath(cwd), root)
+    parts = rel.split(os.sep)
+    if rel.startswith("..") or len(parts) < 2:
+        return None
+    return os.path.join(root, parts[0], parts[1])
+
+
+def newer_design_notes(project, repo, branch):
+    """The project's *-design.md files changed after the branch forked."""
+    if not project or not os.path.isdir(project):
+        return []
+    base = git(repo, "rev-parse", "--abbrev-ref", "origin/HEAD") or "origin/main"
+    fork = git(repo, "merge-base", base, branch)
+    since = int(git(repo, "log", "-1", "--format=%ct", fork) or 0) if fork else 0
+    return sorted(f for f in os.listdir(project)
+                  if f.endswith("-design.md") and os.path.getmtime(os.path.join(project, f)) > since)
+
+
+MISSING_GUIDANCE = {
+    "security-review": 'the Skill "security-review", with args naming the clone ({repo}) and branch ({branch})',
+    "code-review": 'the Skill "code-review" at level high on the branch, from the clone ({repo})',
+    "tests": "the full test command of every package the branch touches, unfiltered (no -run, no single file), at its head",
+    "persona-review": 'the Skill "persona-review" in PR mode against {notes}: does the diff do what the design decided?',
+}
+
+
 def gate(payload):
     command = (payload.get("tool_input") or {}).get("command") or ""
     m = PR_CREATE.search(command)
@@ -112,17 +163,27 @@ def gate(payload):
     branch = head.group(1).split(":")[-1] if head else git(repo, "branch", "--show-current")
     if not branch or not git(repo, "rev-parse", "--git-dir"):
         return  # not a clone we can read: fail open, like the sibling hooks
-    if git(repo, "config", f"branch.{branch}.{KEY}"):
-        return
     toplevel = git(repo, "rev-parse", "--show-toplevel")
+    recorded = lambda key: git(repo, "config", f"branch.{branch}.{key}")  # noqa: E731
     if docs_only(changed_paths(repo, branch)):
-        if git(repo, "config", f"branch.{branch}.{PERSONA_KEY}"):
+        if recorded(KEY) or recorded(PERSONA_KEY):
             return
         print(f"[claude-security-gate-hook]: no persona review recorded for {branch}.", file=sys.stderr)
         print(DOC_GUIDANCE.format(repo=toplevel, branch=branch), file=sys.stderr)
         sys.exit(2)
-    print(f"[claude-security-gate-hook]: no security review recorded for {branch}.", file=sys.stderr)
-    print(GUIDANCE.format(repo=toplevel, branch=branch), file=sys.stderr)
+    missing = [name for name, key in (("security-review", KEY), ("code-review", CODE_KEY)) if not recorded(key)]
+    if recorded(TESTS_KEY) != git(repo, "rev-parse", branch):
+        missing.append("tests")
+    notes = newer_design_notes(p_project(payload.get("cwd") or repo), repo, branch)
+    if notes and not recorded(PERSONA_KEY):
+        missing.append("persona-review")
+    if not missing:
+        return
+    print(f"[claude-security-gate-hook]: {branch} is not ready for a PR. Missing: {', '.join(missing)}", file=sys.stderr)
+    for name in missing:
+        print("- " + MISSING_GUIDANCE[name].format(repo=toplevel, branch=branch, notes=", ".join(notes)), file=sys.stderr)
+    print("Reviews are recorded when the skill starts; tests when the command succeeds at the branch head.\n"
+          "User escape hatch: CLAUDE_SECURITY_GATE=0.", file=sys.stderr)
     sys.exit(2)
 
 
@@ -142,6 +203,18 @@ def record(payload):
         git(repo, "config", f"branch.{branch}.{key}", git(repo, "rev-parse", "HEAD"))
 
 
+def record_tests(payload):
+    """Record the head a whole-package test command passed at."""
+    command = (payload.get("tool_input") or {}).get("command") or ""
+    m = TEST_CMD.search(command)
+    if not m or FILTERED.search(" " + m.group(1)):
+        return
+    repo = repo_for(command, payload.get("cwd") or os.getcwd(), m.start())
+    branch = git(repo, "branch", "--show-current")
+    if branch:
+        git(repo, "config", f"branch.{branch}.{TESTS_KEY}", git(repo, "rev-parse", "HEAD"))
+
+
 def main():
     if os.environ.get("CLAUDE_SECURITY_GATE") == "0":
         return
@@ -151,6 +224,8 @@ def main():
         return
     if payload.get("tool_name") == "Bash" and payload.get("hook_event_name") == "PreToolUse":
         gate(payload)
+    elif payload.get("tool_name") == "Bash" and payload.get("hook_event_name") == "PostToolUse":
+        record_tests(payload)
     elif payload.get("tool_name") == "Skill" and payload.get("hook_event_name") == "PostToolUse":
         record(payload)
 

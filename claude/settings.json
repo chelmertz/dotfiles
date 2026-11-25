@@ -168,6 +168,15 @@
             "command": "claude-security-gate-hook"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-security-gate-hook"
+          }
+        ]
       }
     ],
     "CwdChanged": [
