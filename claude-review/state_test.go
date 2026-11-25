@@ -255,3 +255,43 @@ func TestAMoveLeavingNoApproveRevokesTokens(t *testing.T) {
 		t.Error("the rule table's effects were changed in place")
 	}
 }
+
+// Only a window opening drops an older window off the chain; any other
+// remembering move keeps it.
+func TestRememberedKeepsAWindowExceptForANewOne(t *testing.T) {
+	approve := PRState{State: stAwaiting, Kind: kindApprove, Head: "h1"}
+	window := PRState{State: stHeld, Kind: kindWindow, Head: "h1", Prev: &approve}
+	if got := remembered(window, Event{Kind: evPush, Head: "h2"}); got == nil || !isWindow(*got) {
+		t.Errorf("a push remembered %+v, want the window", got)
+	}
+	if got := remembered(window, Event{Kind: evWindowOpened}); got == nil || isWindow(*got) {
+		t.Errorf("a new window remembered %+v, want what the old one stood over", got)
+	}
+}
+
+// A window on top is not a window below it.
+func TestWindowBelowIgnoresTheTop(t *testing.T) {
+	approve := PRState{State: stAwaiting, Kind: kindApprove, Head: "h1"}
+	if windowBelow(PRState{State: stHeld, Kind: kindWindow, Head: "h1", Prev: &approve}) {
+		t.Error("the top window read as one below")
+	}
+	window := PRState{State: stHeld, Kind: kindWindow, Head: "h1", Prev: &approve}
+	if !windowBelow(PRState{State: stRunning, Kind: kindTick, Head: "h1", Prev: &window}) {
+		t.Error("a window under running not seen")
+	}
+}
+
+// One open mention is named alone; more say which of how many.
+func TestMentionRowCountsOnlySeveral(t *testing.T) {
+	pr := widgetsPR
+	s := Typed{V: AwaitingApprove{}, Head: "h1"}
+	one := []EllyMention{{Url: pr.URL() + "#discussion_r1", Author: "adam"}}
+	a, ok := mentionRow(pr, s, View{Mentions: MentionGate{Open: one}})
+	if !ok || strings.Contains(a.Note, "of") {
+		t.Errorf("one: %q %v", a.Note, ok)
+	}
+	a, _ = mentionRow(pr, s, View{Mentions: MentionGate{Open: append(one, EllyMention{Url: pr.URL() + "#discussion_r2", Author: "bo"})}})
+	if !strings.Contains(a.Note, "(1 of 2)") {
+		t.Errorf("two: %q", a.Note)
+	}
+}

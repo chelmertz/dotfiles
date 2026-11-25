@@ -7,7 +7,8 @@
 # Efficacy is below 100 because these surviving mutants are equivalent:
 # the mutated code behaves the same on every input. Measured 2026-11-25:
 #   boundaries on time.Since, which never lands exactly on the limit:
-#     post.go 514 (both)
+#     post.go 503 (both)
+#   slicing a 9-character sha to 9 leaves it as it is: state.go 797
 #   a bound the next check makes unreachable: pr.go 71:37 (an empty scheme
 #     fails schemeName), graphqlvars.go 18 (two args pass no variable)
 #   a chain's depth 0 is the state itself, never a question while it is
@@ -16,7 +17,9 @@
 #     the same lock right after the commit, and nothing reads a token before
 #     a row shows it: flow.go 92 (both)
 #   a curve's control offset is 80 or -80, never 0: states.go 195
-# One new survivor takes efficacy under the threshold; kill it or add it here.
+# The full run on 2026-11-25 measured 99.49% efficacy (1750 killed, these 9
+# lived) and 91.33% mutant coverage. Two new survivors take efficacy under
+# the threshold; kill them or add them here.
 #
 # Mutant coverage is below 100 because go's cover tool gives two kinds of
 # code no block, so gremlins never runs their mutants, however well tested:

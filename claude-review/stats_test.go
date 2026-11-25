@@ -10,7 +10,8 @@ func TestStatsPrintsRoundsPerSource(t *testing.T) {
 	h, _ := clickHost(t, true)
 	l := h.ledger(t)
 	now := time.Now()
-	for _, tr := range []Trigger{Click{At: now, From: "thunderbird"}, Click{At: now, From: "thunderbird"}, Click{At: now, From: "elly"}, NewHead{}} {
+	for _, tr := range []Trigger{Click{At: now, From: "thunderbird"}, Click{At: now, From: "thunderbird"}, Click{At: now, From: "elly"}, NewHead{},
+		Click{At: now, From: "zed"}, Click{At: now, From: "zed"}, Click{At: now, From: "zed"}, Click{At: now, From: "abc"}, Click{At: now, From: "abc"}} {
 		if _, err := l.StartRound(testPR, "h", tr, now); err != nil {
 			t.Fatal(err)
 		}
@@ -18,7 +19,7 @@ func TestStatsPrintsRoundsPerSource(t *testing.T) {
 	if code := run([]string{"stats", "-days", "7"}, h.d); code != 0 {
 		t.Fatalf("exit %d: %s", code, h.stderr)
 	}
-	want := "thunderbird  2\nelly         1\ntick         1\n"
+	want := "zed          3\nabc          2\nthunderbird  2\nelly         1\ntick         1\n"
 	if got := h.stdout.String(); got != want {
 		t.Errorf("got\n%s\nwant\n%s", got, want)
 	}
