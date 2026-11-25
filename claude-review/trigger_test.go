@@ -149,3 +149,10 @@ func TestRanAtKeepsBothHalves(t *testing.T) {
 		t.Error("an older round of another kind suppressed a request")
 	}
 }
+
+// A mention's trigger text is its kind and when.
+func TestMentionedText(t *testing.T) {
+	if got := (Mentioned{Url: "u", At: t0}).Text(); !strings.HasPrefix(got, "mentioned@") || got == "mentioned@" {
+		t.Errorf("got %q", got)
+	}
+}

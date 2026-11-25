@@ -70,3 +70,10 @@ func TestTheConverterNormalisesOddRows(t *testing.T) {
 		t.Errorf("prev %+v", got.Prev)
 	}
 }
+
+// Zero drafts is a count, not a broken detail.
+func TestAwaitingZeroDraftsIsACount(t *testing.T) {
+	if v := variantOf(PRState{State: stAwaiting, Kind: kindDrafts, Detail: "0"}); v != (AwaitingDrafts{Count: 0}) {
+		t.Errorf("got %#v", v)
+	}
+}

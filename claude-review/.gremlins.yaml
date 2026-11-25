@@ -15,13 +15,15 @@
 #   the window read for the commit's mint: show mints the same token under
 #     the same lock right after the commit, and nothing reads a token before
 #     a row shows it: flow.go 92 (both)
+#   a curve's control offset is 80 or -80, never 0: states.go 195
 # One new survivor takes efficacy under the threshold; kill it or add it here.
 #
 # Mutant coverage is below 100 because go's cover tool gives two kinds of
 # code no block, so gremlins never runs their mutants, however well tested:
-# the expression of a case clause (`case err != nil:`), and a constant
+# the expression of a case clause (`case err != nil:`), a constant
 # expression (`const retryWindow = 10 * time.Minute`, the `+` joining a
-# const string). Of the 143 not covered on 2026-11-25, 74 were in case
+# const string) or a package-level initializer, and the condition after a
+# func literal that spans lines in an if header (`}); err != nil {`). Of the 143 not covered on 2026-11-25, 74 were in case
 # clauses and 53 in constants; the other 16 got tests or, in post.go's
 # send, were dead code and went.
 unleash:

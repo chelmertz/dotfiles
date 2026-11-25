@@ -57,7 +57,7 @@ func TestLastMessageFrom(t *testing.T) {
 	for _, c := range []struct {
 		from int64
 		want string
-	}{{0, "First round."}, {from, ""}, {from - int64(len(first)) + 3, ""}} {
+	}{{0, "First round."}, {from, ""}, {from - int64(len(first)) + 3, ""}, {TranscriptSize(dir, id), ""}} {
 		if got, err := LastMessage(dir, id, c.from); got != c.want || err != nil {
 			t.Errorf("from %d: %q %v, want %q", c.from, got, err, c.want)
 		}

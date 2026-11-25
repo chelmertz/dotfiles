@@ -1543,3 +1543,182 @@ func TestTickFirstLookGetsTheFirstReviewPrompt(t *testing.T) {
 		})
 	}
 }
+
+// A trip names its cause and how it clears; no reason is no error.
+func TestBreakerError(t *testing.T) {
+	if err := breakerError(""); err != nil {
+		t.Errorf("no reason: %v", err)
+	}
+	if err := breakerError("loop"); err == nil || !strings.Contains(err.Error(), "--reset") {
+		t.Errorf("a reason: %v", err)
+	}
+}
+
+// Rounds whose trigger no parser reads are said: they count toward caps.
+func TestTickSaysUnparsedRounds(t *testing.T) {
+	w := newTickWorld(t)
+	w.h.ledger.Unparsed = 2
+	_ = w.h.tick()
+	if !strings.Contains(w.out.String(), "2 recorded rounds have a trigger no parser reads") {
+		t.Errorf("out %q", w.out)
+	}
+}
+
+// A pr_state migration that skipped a PR a click holds says it runs again.
+func TestTickSaysAMigrationHeldBack(t *testing.T) {
+	w := newTickWorldOn(openTestLedger(t))
+	pr := w.accept(t, 42)
+	w.locked[pr.SessionID().String()] = true
+	_ = w.h.tick()
+	if !strings.Contains(w.out.String(), "1 PRs held by a click; the pr_state migration runs again") {
+		t.Errorf("out %q", w.out)
+	}
+}
+
+// An elly whose rows carry no Asked this build reads is said, and nothing
+// is planned.
+func TestTickSaysAnUnreadableAsked(t *testing.T) {
+	w := newTickWorld(t)
+	p := requestedPR(1)
+	p.Asked = nil
+	w.elly.prs = []EllyPR{p}
+	_ = w.h.tick()
+	if !strings.Contains(w.out.String(), "elly sent no Asked this build reads") {
+		t.Errorf("out %q", w.out)
+	}
+}
+
+// An elly that refuses the Start offer is said.
+func TestTickSaysARefusedStartOffer(t *testing.T) {
+	w := newTickWorld(t)
+	w.elly.prs = []EllyPR{requestedPR(1)}
+	w.elly.putErr = errors.New("elly down")
+	_ = w.h.tick()
+	if !strings.Contains(w.out.String(), "offering Start: elly down") {
+		t.Errorf("out %q", w.out)
+	}
+}
+
+// A breaker that cannot be read at the end of a pass fails the pass.
+func TestTickFailsOnABreakerUnreadableAtTheEnd(t *testing.T) {
+	w := newTickWorld(t)
+	w.h.sessionIndex = func() (map[string]SessionHit, error) {
+		_ = w.h.ledger.db.Close() // the last step before the breaker's read
+		return nil, nil
+	}
+	if err := w.h.tick(); err == nil {
+		t.Error("a closed ledger read as no breaker")
+	}
+}
+
+// A retry a window holds back says why it left the PR.
+func TestARetryHeldBackSaysWhy(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 1)
+	if _, err := w.h.ledger.StartRound(pr, "h1", NewHead{}, t0); err != nil {
+		t.Fatal(err)
+	}
+	w.gh.facts = RoundFacts{State: "open", Head: "h1"}
+	w.fs.window, w.fs.windowID = 4242, pr.RoundSessionID()
+	_ = w.h.tick()
+	if !strings.Contains(w.out.String(), "leave "+pr.URL()+": "+string(skipWindowOpen)) {
+		t.Errorf("out %q", w.out)
+	}
+}
+
+// recordMentions fails when a PR's gate cannot be stored.
+func TestRecordMentionsFailsOnAFailedWrite(t *testing.T) {
+	w := newTickWorld(t)
+	w.h.lock = closingLock(w)
+	if _, err := w.h.recordMentions([]EllyPR{requestedPR(1)}); err == nil {
+		t.Error("a gate that was not stored read as stored")
+	}
+}
+
+// A cap trip less than healLatchWindow after the last heal latches, said
+// once by the breaker itself; one exactly that long after heals again.
+func TestHealBreakerLatchesInsideTheWindowOnly(t *testing.T) {
+	for name, c := range map[string]struct {
+		since   time.Duration
+		latched bool
+	}{"a minute inside": {healLatchWindow - time.Minute, true}, "exactly at": {healLatchWindow, false}} {
+		w := newTickWorld(t)
+		w.h.tcfg.TotalDailyCap = 5
+		if err := w.h.ledger.Trip(originTick, breakerCap+"too many"); err != nil {
+			t.Fatal(err)
+		}
+		if err := w.h.ledger.SetMeta(metaBreakerHealed, w.h.now().Add(-c.since).Format(time.RFC3339)); err != nil {
+			t.Fatal(err)
+		}
+		if err := w.h.healBreaker(); err != nil {
+			t.Fatal(err)
+		}
+		reason, _ := w.h.ledger.Tripped()
+		if latched := reason != ""; latched != c.latched {
+			t.Errorf("%s: tripped %q, want latched %v", name, reason, c.latched)
+		}
+		said := slices.ContainsFunc(w.notified, func(m string) bool { return strings.Contains(m, "tripped twice in a week") })
+		if said != c.latched {
+			t.Errorf("%s: notified %q", name, w.notified)
+		}
+	}
+}
+
+// A paused PR is held and said; a first-look move that fails fails the hold.
+func TestHoldSaysAPauseAndFailsAFailedMove(t *testing.T) {
+	w := newTickWorld(t)
+	held := map[string]Hold{}
+	p := Planned{PR: widgetsPR, Head: "h1", Trigger: Requested{At: t0}, Gate: gatePaused}
+	if ok, err := w.h.hold(p, held); err != nil || !ok {
+		t.Fatalf("paused: held %v err %v", ok, err)
+	}
+	if !strings.Contains(w.out.String(), "hold "+widgetsPR.URL()+": ") {
+		t.Errorf("out %q", w.out)
+	}
+	w.h.lock = closingLock(w)
+	p.Gate = gateFreshLook
+	if _, err := w.h.hold(p, held); err == nil {
+		t.Error("a first-look move that failed read as held")
+	}
+}
+
+// A row elly refuses on refresh is said; so is a stale row it will not drop.
+func TestRefreshSaysWhatEllyRefused(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	if err := w.h.ledger.SetPRState(pr, PRState{State: stHandled, Kind: kindPosted, Head: "h1"}); err != nil {
+		t.Fatal(err)
+	}
+	w.elly.putErr = errors.New("elly refused")
+	_ = w.h.tick()
+	if !strings.Contains(w.out.String(), pr.URL()+": elly refused") {
+		t.Errorf("put: out %q", w.out)
+	}
+	w2 := newTickWorld(t)
+	other := PR{Owner: "acme", Repo: "widgets", Number: 43}
+	if err := w2.h.ledger.SetAnnotation(other, Annotation{State: stateHandled, Note: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	w2.elly.delErr = errors.New("elly kept it")
+	_ = w2.h.tick()
+	if !strings.Contains(w2.out.String(), other.URL()+": ") || !strings.Contains(w2.out.String(), "elly kept it") {
+		t.Errorf("clear: out %q", w2.out)
+	}
+}
+
+// Closing a PR stops each of its workers, every one named in the journal.
+func TestClosingAPRStopsEveryWorker(t *testing.T) {
+	w := newTickWorld(t)
+	pr := w.accept(t, 42)
+	if _, err := w.h.ledger.StartRound(pr, "h1", NewHead{}, t0); err != nil {
+		t.Fatal(err)
+	}
+	w.fs.workers = []Worker{workerFor(pr.RoundSessionID(), 100), workerFor(pr.SessionID(), 101)}
+	w.gh.state, w.gh.closed = "closed", true
+	if err := w.h.tick(); err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(w.out.String(), "the PR is merged or closed"); n != 2 {
+		t.Errorf("%d stops journaled, want 2: %q", n, w.out)
+	}
+}

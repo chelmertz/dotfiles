@@ -151,3 +151,38 @@ func TestClickRequestsTheUsersOwnReview(t *testing.T) {
 		})
 	}
 }
+
+// The machine's start fails a launch whose command failed, naming the last
+// line it printed, and keeps a timeout matchable.
+func TestNewTickHostStartFailures(t *testing.T) {
+	h := verbHost(t)
+	h.d.Output = func(string, []string) (string, error) { return "a\nno such flag\n", errors.New("exit 1") }
+	th := newTickHost(h.d, Config{}, nil, "me")
+	if err := th.start("/clone", []string{"claude"}); err == nil || !strings.Contains(err.Error(), "no such flag") {
+		t.Errorf("failed: %v", err)
+	}
+	h.d.Output = func(string, []string) (string, error) { return "", errTimedOut }
+	th = newTickHost(h.d, Config{}, nil, "me")
+	if err := th.start("/clone", []string{"claude"}); !errors.Is(err, errTimedOut) {
+		t.Errorf("timed out: %v", err)
+	}
+	h.d.Output = func(string, []string) (string, error) { return "", nil }
+	th = newTickHost(h.d, Config{}, nil, "me")
+	if err := th.start("/clone", []string{"claude"}); err != nil {
+		t.Errorf("ok: %v", err)
+	}
+}
+
+// tick --reset clears a tripped breaker.
+func TestTickResetClearsTheBreaker(t *testing.T) {
+	h := verbHost(t)
+	if err := h.ledger(t).Trip(originTick, "too many"); err != nil {
+		t.Fatal(err)
+	}
+	if code := runTick([]string{"--reset"}, h.d); code != 0 {
+		t.Fatalf("exit %d: %s", code, h.stderr)
+	}
+	if reason, _ := h.ledger(t).Tripped(); reason != "" {
+		t.Errorf("still tripped: %q", reason)
+	}
+}

@@ -93,3 +93,12 @@ func TestEnsureTrustedRefusesWhatItCannotRead(t *testing.T) {
 		t.Errorf("a missing file: %v", err)
 	}
 }
+
+// A trust that does not read back fails, here a folder name that is not
+// UTF-8: JSON stores it with U+FFFD, so the read-back finds another key.
+func TestEnsureTrustedFailsWhenTheTrustDoesNotReadBack(t *testing.T) {
+	p := writeClaudeJSON(t, claudeJSONBody)
+	if err := ensureTrusted(p, "/h/code/\xff"); err == nil || !strings.Contains(err.Error(), "did not hold") {
+		t.Errorf("err %v, want the read-back to fail", err)
+	}
+}

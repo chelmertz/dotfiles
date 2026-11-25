@@ -167,3 +167,24 @@ func TestUnknownVerbIsRefused(t *testing.T) {
 		}
 	}
 }
+
+// The Approve refusal says which: a window open, or one that cannot be read.
+func TestApproveWindowRefusalNamesTheWindow(t *testing.T) {
+	if err := approveWindowRefusal(widgetsPR, winOpen); !strings.Contains(err.Error(), "open in a window") {
+		t.Errorf("open: %v", err)
+	}
+	if err := approveWindowRefusal(widgetsPR, winUnknown); strings.Contains(err.Error(), "open in a window") || !strings.Contains(err.Error(), windowUnknownNote) {
+		t.Errorf("unknown: %v", err)
+	}
+}
+
+// stats takes -days 1, and refuses 0.
+func TestStatsDaysBound(t *testing.T) {
+	h := verbHost(t)
+	if code := run([]string{"stats", "-days", "1"}, h.d); code != 0 {
+		t.Errorf("-days 1: exit %d: %s", code, h.stderr)
+	}
+	if code := run([]string{"stats", "-days", "0"}, h.d); code != 2 {
+		t.Errorf("-days 0: exit %d", code)
+	}
+}

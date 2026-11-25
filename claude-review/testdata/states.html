@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>claude-review states</title>
+<style>
+:root { --bg:#fafafa; --fg:#1f2328; --muted:#656d76; --line:#8c959f; --box:#fff; --cur:#f6c344; --pseudo:#eef1f5; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0d1117; --fg:#e6edf3; --muted:#8d96a0; --line:#6e7681; --box:#161b22; --cur:#9e6a03; --pseudo:#21262d; } }
+body { margin:0; padding:16px; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, sans-serif; }
+h1 { font-size:18px; margin:0 0 4px; } p { color:var(--muted); margin:0 0 12px; }
+.svg { overflow-x:auto; border:1px solid var(--line); border-radius:8px; background:var(--bg); }
+svg text { fill:var(--fg); font:12px system-ui, sans-serif; } svg .kind { fill:var(--muted); font-size:11px; }
+svg rect { fill:var(--box); stroke:var(--line); } svg rect.cur { fill:color-mix(in srgb, var(--cur) 35%, var(--box)); stroke-width:2; } svg .curkind { fill:var(--fg); font-weight:700; } svg rect.pseudo { fill:var(--pseudo); stroke-dasharray:4 3; }
+svg path { fill:none; stroke:var(--line); stroke-width:1; marker-end:url(#a); } svg .lbl { fill:var(--muted); font-size:10px; }
+table { border-collapse:collapse; margin-top:16px; width:100%; } td, th { text-align:left; vertical-align:top; padding:6px 8px; border-top:1px solid var(--line); }
+tr.cur td { background:color-mix(in srgb, var(--cur) 30%, transparent); } code { font-size:12px; } ul { margin:0; padding-left:16px; }
+</style></head><body>
+<h1>claude-review states</h1>
+<p>https://github.com/o/r/pull/1: <b>awaiting{question}</b>, highlighted. Drawn from the rules the code runs; a move with no arrow returns to the state before.</p>
+<div class="svg"><svg width="1220" height="470" viewBox="0 0 1220 470" role="img" aria-label="state diagram">
+<defs><marker id="a" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--line);stroke:none"/></marker></defs>
+<path d="M230 44 C310 44 940 194 1020 194"/><text class="lbl" x="625" y="115" text-anchor="middle">changed_under_first_look</text>
+<path d="M230 44 C310 44 280 146 360 146"/><text class="lbl" x="295" y="91" text-anchor="middle">owed</text>
+<path d="M230 44 C310 44 940 76 1020 76"/><text class="lbl" x="625" y="56" text-anchor="middle">blocked</text>
+<path d="M230 44 C310 44 610 44 690 44"/><text class="lbl" x="460" y="40" text-anchor="middle">ended</text>
+<path d="M560 52 C640 52 640 146 560 146"/><text class="lbl" x="630" y="99" text-anchor="middle">launched</text>
+<path d="M560 52 C640 52 940 194 1020 194"/><text class="lbl" x="790" y="119" text-anchor="middle">failed_to_start</text>
+<path d="M560 146 C640 146 940 76 1020 76"/><text class="lbl" x="790" y="107" text-anchor="middle">blocked</text>
+<path d="M560 146 C640 146 610 44 690 44"/><text class="lbl" x="625" y="91" text-anchor="middle">ended</text>
+<path d="M1020 76 C940 76 310 44 230 44"/><text class="lbl" x="980" y="70" text-anchor="middle">user_approved, push</text>
+<path d="M1220 76 C1300 76 1300 194 1220 194"/><text class="lbl" x="1290" y="135" text-anchor="middle">failed_to_start, changed_under_first_look</text>
+<path d="M1020 76 C940 76 640 146 560 146"/><text class="lbl" x="980" y="84" text-anchor="middle">owed</text>
+<path d="M1020 76 C940 76 970 44 890 44"/><text class="lbl" x="980" y="98" text-anchor="middle">ended</text>
+<path d="M1220 166 C1280 166 1280 222 1220 222"/><text class="lbl" x="1270" y="194" text-anchor="middle">failed_to_start, launch_cleared</text>
+<path d="M1020 194 C940 194 640 146 560 146"/><text class="lbl" x="980" y="188" text-anchor="middle">owed</text>
+<path d="M1020 194 C940 194 970 44 890 44"/><text class="lbl" x="980" y="202" text-anchor="middle">ended</text>
+<path d="M1020 296 C940 296 640 146 560 146"/><text class="lbl" x="980" y="290" text-anchor="middle">owed</text>
+<path d="M1220 398 C1300 398 1300 194 1220 194"/><text class="lbl" x="1290" y="296" text-anchor="middle">changed_under_first_look</text>
+<path d="M1020 398 C940 398 640 146 560 146"/><text class="lbl" x="980" y="392" text-anchor="middle">owed</text>
+<path d="M690 44 C610 44 310 44 230 44"/>
+<path d="M890 44 C970 44 940 194 1020 194"/>
+<path d="M690 44 C610 44 640 146 560 146"/>
+<path d="M890 44 C970 44 940 76 1020 76"/>
+<path d="M890 44 C970 44 940 296 1020 296"/>
+<path d="M890 44 C970 44 940 398 1020 398"/>
+<g><title>idle</title><rect x="30" y="30" width="200" height="28" rx="6"/><text x="30" y="30" dx="10" dy="19" font-weight="600">idle</text></g>
+<g><title>starting</title><rect x="360" y="30" width="200" height="44" rx="6"/><text x="360" y="30" dx="10" dy="19" font-weight="600">starting</text><text class="kind" x="378" y="68">click</text></g>
+<g><title>running</title><rect x="360" y="108" width="200" height="76" rx="6"/><text x="360" y="108" dx="10" dy="19" font-weight="600">running</text><text class="kind" x="378" y="146">tick</text><text class="kind" x="378" y="162">click</text><text class="kind" x="378" y="178">retry</text></g>
+<g><title>decide reads the finished round on GitHub</title><rect x="690" y="30" width="200" height="28" rx="6" class="pseudo"/><text x="690" y="30" dx="10" dy="19" font-weight="600">the round&#39;s result</text></g>
+<g><title>awaiting</title><rect x="1020" y="30" width="200" height="92" rx="6" class="cur"/><text x="1020" y="30" dx="10" dy="19" font-weight="600">awaiting</text><text class="kind curkind" x="1038" y="68">question</text><text class="kind" x="1038" y="84">approve</text><text class="kind" x="1038" y="100">drafts</text><text class="kind" x="1038" y="116">dismissed</text></g>
+<g><title>held</title><rect x="1020" y="156" width="200" height="76" rx="6"/><text x="1020" y="156" dx="10" dy="19" font-weight="600">held</text><text class="kind" x="1038" y="194">fresh_look</text><text class="kind" x="1038" y="210">window</text><text class="kind" x="1038" y="226">launch_failed</text></g>
+<g><title>stuck</title><rect x="1020" y="266" width="200" height="60" rx="6"/><text x="1020" y="266" dx="10" dy="19" font-weight="600">stuck</text><text class="kind" x="1038" y="304">post_refused</text><text class="kind" x="1038" y="320">failed_twice</text></g>
+<g><title>handled</title><rect x="1020" y="360" width="200" height="76" rx="6"/><text x="1020" y="360" dx="10" dy="19" font-weight="600">handled</text><text class="kind" x="1038" y="398">posted</text><text class="kind" x="1038" y="414">nothing</text><text class="kind" x="1038" y="430">approval_stands</text></g>
+</svg></div>
+<table><tr><th>From any state</th><th>to</th><th>effects</th></tr>
+<tr><td>closed, from any state</td><td>deleted, with its row</td><td>stop_workers, rounds_read</td></tr><tr><td>user_approved (no window, worker or unclear launch in the chain), from any state but starting, running</td><td>idle</td><td>revoke_tokens</td></tr><tr><td>click (no worker may be alive, no window open), from any state but starting, running</td><td>starting{click}</td><td></td></tr><tr><td>failed_to_start (a launch class), from any state</td><td>held{launch_failed}</td><td></td></tr><tr><td>window_opened, from any state but held</td><td>held{window}</td><td>revoke_tokens</td></tr><tr><td>window_closed (a window below), from any state</td><td>the same, without the window</td><td></td></tr></table>
+<table><tr><th>state</th><th>elly row</th><th>moves</th></tr>
+<tr><td><code>idle</code></td><td>no row</td>
+<td><ul><li>changed_under_first_look → held{fresh_look}</li><li>owed → running{tick}</li><li>blocked → awaiting{question}</li><li>ended (decide: retry) → the round&#39;s result</li><li>ended (decide) → the round&#39;s result <small>(rounds_read)</small></li></ul></td></tr>
+<tr><td><code>starting{click}</code></td><td>running: starting (a click from …)<br><small>?</small></td>
+<td><ul><li>launched → running{click}</li><li>failed_to_start (a worker below, a launch class) → held{launch_failed} <small>(stop_workers, rounds_read)</small></li><li>abandoned → back to the state before</li></ul></td></tr>
+<tr><td><code>running{tick}</code></td><td>running: started by tick<br><small>Open Claude · ?</small></td>
+<td><ul><li>blocked → awaiting{question}</li><li>ended (decide: retry) → the round&#39;s result</li><li>ended (decide) → the round&#39;s result <small>(rounds_read)</small></li></ul></td></tr>
+<tr><td><code>running{click}</code></td><td>running: started by a click<br><small>Open Claude · ?</small></td>
+<td><ul><li>blocked → awaiting{question}</li><li>ended (decide: retry) → the round&#39;s result</li><li>ended (decide) → the round&#39;s result <small>(rounds_read)</small></li></ul></td></tr>
+<tr><td><code>running{retry}</code></td><td>running: started by tick (retry)<br><small>Open Claude · ?</small></td>
+<td><ul><li>blocked → awaiting{question}</li><li>ended (decide: retry) → the round&#39;s result</li><li>ended (decide) → the round&#39;s result <small>(rounds_read)</small></li></ul></td></tr>
+<tr class="cur"><td><code>awaiting{question}</code></td><td>needs_you: Claude has a question for you: …<br><small>Answer (button) · ?</small></td>
+<td><ul><li>user_approved (no window, worker or unclear launch in the chain) → idle <small>(stop_workers, revoke_tokens, rounds_read)</small></li><li>failed_to_start (a launch class) → held{launch_failed} <small>(stop_workers, rounds_read)</small></li><li>changed_under_first_look → held{fresh_look} <small>(stop_workers, rounds_read)</small></li><li>owed → running{tick}</li><li>push → idle <small>(stop_workers, revoke_tokens)</small></li><li>resumed (the worker works again) → back to the state before</li><li>ended (decide: retry) → the round&#39;s result</li><li>ended (decide) → the round&#39;s result <small>(rounds_read)</small></li></ul></td></tr>
+<tr><td><code>awaiting{approve}</code></td><td>needs_you: LGTM at 012345678; Approve waits: a Claude window on this PR is open, or its session files could not be read<br><small>Open Claude (button) · ?</small></td>
+<td><ul><li>changed_under_first_look → held{fresh_look}</li><li>owed → running{tick}</li><li>push → idle <small>(stop_workers, revoke_tokens)</small></li></ul></td></tr>
+<tr><td><code>awaiting{drafts}</code></td><td>stuck: Claude stopped; open it to see why<br><small>Open Claude (button) · ?</small></td>
+<td><ul><li>changed_under_first_look → held{fresh_look}</li><li>owed → running{tick}</li><li>push → idle <small>(stop_workers, revoke_tokens)</small></li></ul></td></tr>
+<tr><td><code>awaiting{dismissed}</code></td><td>needs_you: new findings after your approval; your approval was dismissed<br><small>Open Claude (button) · ?</small></td>
+<td><ul><li>changed_under_first_look → held{fresh_look}</li><li>owed → running{tick}</li><li>push → idle <small>(stop_workers, revoke_tokens)</small></li></ul></td></tr>
+<tr><td><code>held{fresh_look}</code></td><td>needs_you: the PR changed under its first look (force-push or new base); click claude review to look again<br><small>Look again (button) · Open Claude · ?</small></td>
+<td><ul></ul></td></tr>
+<tr><td><code>held{window}</code></td><td>needs_you: Claude window open; close it to let reviews run<br><small>Open Claude (button) · ?</small></td>
+<td><ul><li>window_closed → back to the state before</li></ul></td></tr>
+<tr><td><code>held{launch_failed}</code></td><td>needs_you: the session list could not be read; a review may be running, check before starting again<br><small>Open Claude (button) · ?</small></td>
+<td><ul><li>failed_to_start (nothing started, a launch class) → held{launch_failed}</li><li>owed (nothing started) → running{tick}</li><li>ended (a worker may be alive; decide: retry) → the round&#39;s result</li><li>ended (a worker may be alive; decide) → the round&#39;s result <small>(rounds_read)</small></li><li>launch_cleared (a worker may have been alive) → held{launch_failed}</li></ul></td></tr>
+<tr><td><code>stuck{post_refused}</code></td><td>stuck: a post was refused over the limit; no more reviews on this PR until you start one again<br><small>Start again (button) · Open Claude · ?</small></td>
+<td><ul><li>owed (a request) → running{tick}</li></ul></td></tr>
+<tr><td><code>stuck{failed_twice}</code></td><td>stuck: Claude stopped; open it to see why<br><small>Open Claude (button) · ?</small></td>
+<td><ul><li>owed (a request) → running{tick}</li></ul></td></tr>
+<tr><td><code>handled{posted}</code></td><td>handled: Claude posted its review<br><small>Open Claude · ?</small></td>
+<td><ul><li>changed_under_first_look → held{fresh_look}</li><li>owed → running{tick}</li></ul></td></tr>
+<tr><td><code>handled{nothing}</code></td><td>handled: Claude found nothing to post<br><small>Open Claude · ?</small></td>
+<td><ul><li>changed_under_first_look → held{fresh_look}</li><li>owed → running{tick}</li></ul></td></tr>
+<tr><td><code>handled{approval_stands}</code></td><td>handled: Claude found nothing new; your approval stands<br><small>Open Claude · ?</small></td>
+<td><ul><li>changed_under_first_look → held{fresh_look}</li><li>owed → running{tick}</li></ul></td></tr>
+</table>
+</body></html>

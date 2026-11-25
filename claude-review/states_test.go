@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"html"
 	"os"
 	"path/filepath"
@@ -128,5 +129,32 @@ func TestStatesColumnsHoldEveryState(t *testing.T) {
 		if seen[string(k.State)] != 1 {
 			t.Errorf("%s is in %d columns, want 1", k.State, seen[string(k.State)])
 		}
+	}
+}
+
+var updateStates = flag.Bool("update-states", false, "rewrite testdata/states.html from statesPage")
+
+// The page as drawn, boxes and arrows to the pixel, is testdata/states.html:
+// a layout change shows up as a diff to look at. After a rule or layout
+// change: go test -run StatesPageMatchesItsFixture . -args -update-states
+func TestStatesPageMatchesItsFixture(t *testing.T) {
+	pr := PR{Owner: "o", Repo: "r", Number: 1}
+	cur := PRState{State: stAwaiting, Kind: kindQuestion}
+	page, err := statesPage(&pr, &cur)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join("testdata", "states.html")
+	if *updateStates {
+		if err := os.WriteFile(path, []byte(page), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(path) //nolint:gosec // a fixture in the package
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page != string(want) {
+		t.Error("the states page differs from testdata/states.html; if the change is meant, rerun with -args -update-states and read the diff")
 	}
 }
