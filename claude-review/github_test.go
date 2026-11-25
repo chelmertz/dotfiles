@@ -180,3 +180,30 @@ func TestRepliedInRoundThread(t *testing.T) {
 		}
 	}
 }
+
+// A failed read of the unresolved threads or of the draft review fails the
+// facts: a zero count would read as "nothing left to do".
+func TestGitHubRoundFactsFailsOnAFailedGraphQLRead(t *testing.T) {
+	routes := func(drop string) map[string]string {
+		m := map[string]string{
+			"repos/acme/widgets/pulls/42":           `{"state":"open","user":{"login":"bob"},"head":{"sha":"h2"},"base":{"ref":"main"}}`,
+			"repos/acme/widgets/pulls/42/reviews":   `[]`,
+			"repos/acme/widgets/pulls/42/comments":  `[]`,
+			"repos/acme/widgets/issues/42/comments": `[]`,
+			"reviewThreads":                         `{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}`,
+			"states: PENDING":                       `{"data":{"repository":{"pullRequest":{"id":"P","reviews":{"nodes":[]}}}}}`,
+		}
+		delete(m, drop)
+		return m
+	}
+	for _, drop := range []string{"reviewThreads", "states: PENDING"} {
+		g := &routeGh{routes: routes(drop)}
+		if _, err := (GitHub{Gh: g.run, User: "me"}).RoundFacts(widgetsPR, Round{Head: "h2", StartedAt: t0}); err == nil {
+			t.Errorf("without %q: no error", drop)
+		}
+	}
+	g := &routeGh{routes: routes("")}
+	if _, err := (GitHub{Gh: g.run, User: "me"}).RoundFacts(widgetsPR, Round{Head: "h2", StartedAt: t0}); err != nil {
+		t.Errorf("every read answered: %v", err)
+	}
+}

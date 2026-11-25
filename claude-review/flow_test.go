@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -65,5 +68,45 @@ func TestTickStuckLiftsOnlyOnARerequest(t *testing.T) {
 	}
 	if s, _ := w.h.peekState(pr); len(w.started) != 1 || s.State != stRunning {
 		t.Fatalf("a re-request did not lift stuck: started %q, state %+v", w.started, s)
+	}
+}
+
+// The journal line names what a step did: the move, its own writes after
+// it, or the writes alone when the state stays.
+func TestStepJournalLineNamesTheMoveAndTheWrites(t *testing.T) {
+	note := ledgerWrite{"note it", func(querier, time.Time) error { return nil }}
+	owed := must(Event{Kind: evOwed, Head: "h1", Trigger: Requested{At: t0}})
+	for name, c := range map[string]struct {
+		writes []ledgerWrite
+		events []folded
+		want   string
+		not    string
+	}{
+		"move only":   {nil, []folded{owed}, "move " + widgetsPR.URL() + " from idle", "; "},
+		"writes only": {[]ledgerWrite{note}, nil, "note it of " + widgetsPR.URL(), "move "},
+		"both":        {[]ledgerWrite{note}, []folded{owed}, " on owed; note it", "note it of"},
+	} {
+		w := newTickWorld(t)
+		out := &bytes.Buffer{}
+		w.h.out = out
+		lk := mustLock(t, w.h, widgetsPR)
+		if _, ok, err := w.h.step(lk, widgetsPR, c.writes, c.events...); err != nil || !ok {
+			t.Fatalf("%s: ok %v err %v", name, ok, err)
+		}
+		lk.Unlock()
+		if got := out.String(); !strings.Contains(got, c.want) || strings.Contains(got, c.not) {
+			t.Errorf("%s: journal %q, want %q and no %q", name, got, c.want, c.not)
+		}
+	}
+}
+
+// A worker that will not stop fails the stop, so the step it guards does
+// not commit over a live worker.
+func TestStopWorkersFailsWhenAWorkerWillNotStop(t *testing.T) {
+	w := newTickWorld(t)
+	w.fs.workers = []Worker{workerFor(widgetsPR.SessionID(), 100)}
+	w.fs.stopErr = errors.New("no tty")
+	if err := w.h.stopWorkers(widgetsPR); err == nil || !strings.Contains(err.Error(), "no tty") {
+		t.Errorf("err %v, want the stop's failure", err)
 	}
 }

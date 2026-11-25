@@ -192,3 +192,17 @@ func TestCommentIDFlag(t *testing.T) {
 		t.Error("Before does not order by GitHub's numbering")
 	}
 }
+
+// A stored 0 is no round and reads back; a negative id is refused.
+func TestRoundIDUnmarshalJSON(t *testing.T) {
+	var r ids.RoundID
+	if err := r.UnmarshalJSON([]byte("0")); err != nil || !r.IsZero() {
+		t.Errorf("0: %v %v", r, err)
+	}
+	if err := r.UnmarshalJSON([]byte("7")); err != nil || r.String() != "7" {
+		t.Errorf("7: %v %v", r, err)
+	}
+	if err := r.UnmarshalJSON([]byte("-1")); err == nil {
+		t.Error("-1 read as a round id")
+	}
+}

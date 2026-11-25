@@ -273,3 +273,13 @@ func TestForkWindowIsSeen(t *testing.T) {
 		t.Errorf("a second Open Claude beside the fork: exit %d, scripts %q, %s", code, h.scripts, h.stderr)
 	}
 }
+
+// stateName names a state with its kind when it has one.
+func TestStateName(t *testing.T) {
+	if got := stateName(PRState{State: stIdle}); got != "idle" {
+		t.Errorf("idle: %q", got)
+	}
+	if got := stateName(PRState{State: stRunning, Kind: "tick"}); got != "running{tick}" {
+		t.Errorf("running: %q", got)
+	}
+}

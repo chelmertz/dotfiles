@@ -1409,20 +1409,24 @@ func TestARowEllyRefusesTakesTheOldOneDownAndSaysSoOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	w.elly.reject = stateNeedsYou
-	for range 2 {
+	hidden := func() []string {
+		return slices.DeleteFunc(slices.Clone(w.notified), func(m string) bool { return !strings.Contains(m, "is hidden") })
+	}
+	for pass := range 2 {
 		if err := w.h.tick(); err != nil {
 			t.Fatal(err)
 		}
+		// Said on the pass that took the row down, not a pass later.
+		if n := len(hidden()); n != 1 {
+			t.Errorf("pass %d: hidden notices %q, want one", pass, hidden())
+		}
 	}
-	if !slices.Contains(w.elly.deleted, pr.URL()) {
-		t.Errorf("the stale handled row stayed up: deleted %q", w.elly.deleted)
+	// Taken down once: a PR with no row up is not deleted again.
+	if n := slices.Index(w.elly.deleted, pr.URL()); n < 0 || slices.Contains(w.elly.deleted[n+1:], pr.URL()) {
+		t.Errorf("deleted %q, want the stale handled row once", w.elly.deleted)
 	}
 	if _, had, _ := w.h.ledger.Annotation(pr); had {
 		t.Error("the refused row is recorded as up")
-	}
-	hidden := slices.DeleteFunc(slices.Clone(w.notified), func(m string) bool { return !strings.Contains(m, "is hidden") })
-	if len(hidden) != 1 {
-		t.Errorf("hidden notices %q, want one", hidden)
 	}
 	for _, m := range w.notified {
 		if strings.Contains(m, "unsent comments") {
