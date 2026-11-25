@@ -84,3 +84,49 @@ func TestReadOutcomeCapsTheQuestion(t *testing.T) {
 		t.Errorf("the longest question note is %d runes, over elly's %d", n, ellyMaxNote)
 	}
 }
+
+// The outcome contract: which ending lines each prompt asks for, and what
+// ReadOutcome makes of every combination of them, in either order of the
+// two last-line markers. The question needs the user whatever else the
+// round printed, so it wins wherever it ends the message's lines; an approve
+// line beats nothing, which only says nothing was posted.
+func TestOutcomeContract(t *testing.T) {
+	const approve = "You can approve with `! claude-review approve https://github.com/acme/widgets/pull/7 --at " + sha + "`"
+	asks := map[string]struct {
+		prompt                     string
+		approve, question, nothing bool
+	}{
+		"first look": {BuildPrompt(withNoMentions(Config{PostWithoutAsking: true}), widgetsPR, "upstream", false), true, true, false},
+		"re-review":  {BuildPrompt(withNoMentions(Config{PostWithoutAsking: true}), widgetsPR, "upstream", true), true, true, true},
+		"mentions":   {BuildPrompt(withNoMentions(Config{MentionsOnly: true, PostWithoutAsking: true}), widgetsPR, "upstream", true), false, true, true},
+	}
+	for name, a := range asks {
+		for line, want := range map[string]bool{"claude-review approve": a.approve, questionLine: a.question, nothingLine: a.nothing} {
+			if got := strings.Contains(a.prompt, line); got != want {
+				t.Errorf("%s prompt names %q: %v, want %v", name, line, got, want)
+			}
+		}
+	}
+	approved := Outcome{Kind: OutcomeApprove, PrURL: "https://github.com/acme/widgets/pull/7", SHA: sha}
+	question := Outcome{Kind: OutcomeQuestion, Question: "Which one?"}
+	for _, c := range []struct {
+		lines []string
+		want  Outcome
+	}{
+		{[]string{"Posted 2 comments."}, Outcome{Kind: OutcomeOther}},
+		{[]string{approve}, approved},
+		{[]string{"Which one?", questionLine}, question},
+		{[]string{nothingLine}, Outcome{Kind: OutcomeNothing}},
+		{[]string{approve, "Which one?", questionLine}, question},
+		{[]string{approve, nothingLine}, approved},
+		{[]string{"Which one?", questionLine, nothingLine}, question},
+		{[]string{nothingLine, "Which one?", questionLine}, question},
+		{[]string{approve, "Which one?", questionLine, nothingLine}, question},
+		{[]string{approve, nothingLine, "Which one?", questionLine}, question},
+	} {
+		msg := strings.Join(c.lines, "\n\n")
+		if got := ReadOutcome(msg); got != c.want {
+			t.Errorf("%q: got %+v, want %+v", msg, got, c.want)
+		}
+	}
+}

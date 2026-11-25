@@ -52,12 +52,20 @@ const ellyMaxNote = 300
 var approveLine = regexp.MustCompile(`claude-review approve (https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/pull/[1-9][0-9]*) --at ([0-9a-f]{40})\b`)
 
 // ReadOutcome reads a round's last message. The question and nothing lines
-// count only as the message's last non-empty line. The question beats an
+// count only as the message's last non-empty line, or the question line
+// just above a last nothing line: a re-review asks for both, and a round
+// that printed both still waits on its question. The question beats an
 // approve line, since it needs the user either way; an approve line beats
 // the nothing line, which only says nothing was posted.
 func ReadOutcome(msg string) Outcome {
-	lines := strings.Split(strings.TrimSpace(msg), "\n")
-	switch strings.TrimSpace(lines[len(lines)-1]) {
+	lines := nonEmptyTail(strings.Split(strings.TrimSpace(msg), "\n"))
+	last := strings.TrimSpace(lines[len(lines)-1])
+	if last == nothingLine {
+		if q := nonEmptyTail(lines[:len(lines)-1]); len(q) > 0 && strings.TrimSpace(q[len(q)-1]) == questionLine {
+			lines, last = q, questionLine
+		}
+	}
+	switch last {
 	case questionLine:
 		return Outcome{Kind: OutcomeQuestion, Question: lastParagraph(lines[:len(lines)-1])}
 	case nothingLine:
@@ -72,6 +80,16 @@ func ReadOutcome(msg string) Outcome {
 		return Outcome{Kind: OutcomeApprove, PrURL: m[1], SHA: m[2]}
 	}
 	return Outcome{Kind: OutcomeOther}
+}
+
+// nonEmptyTail is lines without its trailing blank ones; a message with no
+// text keeps one empty line.
+func nonEmptyTail(lines []string) []string {
+	end := len(lines)
+	for end > 1 && strings.TrimSpace(lines[end-1]) == "" {
+		end--
+	}
+	return lines[:end]
 }
 
 // lastParagraph is the last paragraph of lines that has text, its
