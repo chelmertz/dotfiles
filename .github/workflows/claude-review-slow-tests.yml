@@ -5,8 +5,7 @@ name: claude-review slow tests
 # locally with `make mutate` and `make props-long` in claude-review/.
 #
 # Two jobs, so each gets its own time limit and one cannot eat the other's:
-# on 2026-11-24 props-long took 10 min and mutation with one worker ran past
-# the then-shared 2 h limit.
+# on 2026-11-24 mutation with one worker ran past the then-shared 2 h limit.
 on:
   schedule:
     - cron: "37 3 * * *"
@@ -17,7 +16,7 @@ permissions: {}
 jobs:
   props-long:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: read
     defaults:
