@@ -351,7 +351,12 @@ func recordRound(claudeDir string, pr PR, user string, n int) (recordedRound, er
 func synthMessage(o Outcome, pr PR) string {
 	switch o.Kind {
 	case OutcomeApprove:
-		return fmt.Sprintf("(prose omitted)\n`! claude-review approve %s --at %s`", o.PrURL, o.SHA)
+		var b strings.Builder
+		b.WriteString("(prose omitted)")
+		for _, a := range o.Approvals {
+			fmt.Fprintf(&b, "\n`! claude-review approve %s --at %s`", a.PrURL, a.SHA)
+		}
+		return b.String()
 	case OutcomeQuestion:
 		return "(prose omitted)\n\n" + questionLine
 	case OutcomeNothing:

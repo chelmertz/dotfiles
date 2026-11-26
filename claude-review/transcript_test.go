@@ -28,7 +28,7 @@ not json
 	if err != nil {
 		t.Fatal(err)
 	}
-	if o := ReadOutcome(got); o.Kind != OutcomeApprove || o.SHA != sha {
+	if o := ReadOutcome(got); !o.Approves(widgetsPR, sha) {
 		t.Errorf("last message %q read as %+v", got, o)
 	}
 	if got, err := LastMessage(dir, forkID, 0); got != "" || err != nil {

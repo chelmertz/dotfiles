@@ -117,10 +117,10 @@ func (g GitHub) RoundFacts(pr PR, r Round) (RoundFacts, error) {
 // round posts nor a reply confirming a fix is a finding, or no round could
 // ever come out clean.
 func (g GitHub) roundActivity(pr PR, r Round, reviewList []ghItem[ids.ReviewID]) (review string, threads, replies int, err error) {
-	for _, rv := range reviewList {
-		if strings.EqualFold(rv.User.Login, g.User) && rv.SubmittedAt.After(r.StartedAt) {
-			review = rv.HTMLURL
-		}
+	if rv, ok := latestReview(reviewList, func(rv ghItem[ids.ReviewID]) bool {
+		return strings.EqualFold(rv.User.Login, g.User) && rv.SubmittedAt.After(r.StartedAt)
+	}); ok {
+		review = rv.HTMLURL
 	}
 	inline, err := ghList[ids.CommentID](g.Gh, g.api(pr, reviewComments, pr.Number))
 	if err != nil {
@@ -146,16 +146,33 @@ func pullState(p ghPull) string {
 	return p.State
 }
 
-// userReview is the user's standing review: the last approval, change
+// userReview is the user's standing review: the latest approval, change
 // request or dismissal. A COMMENTED review does not replace one.
 func (g GitHub) userReview(reviewList []ghItem[ids.ReviewID]) *Review {
-	var user *Review
-	for _, rv := range reviewList {
-		if strings.EqualFold(rv.User.Login, g.User) && (rv.State == reviewApproved || rv.State == "CHANGES_REQUESTED" || rv.State == "DISMISSED") {
-			user = &Review{ID: rv.ID, State: rv.State, CommitID: rv.CommitID, SubmittedAt: rv.SubmittedAt}
+	rv, ok := latestReview(reviewList, func(rv ghItem[ids.ReviewID]) bool {
+		return strings.EqualFold(rv.User.Login, g.User) && (rv.State == reviewApproved || rv.State == "CHANGES_REQUESTED" || rv.State == "DISMISSED")
+	})
+	if !ok {
+		return nil
+	}
+	return &Review{ID: rv.ID, State: rv.State, CommitID: rv.CommitID, SubmittedAt: rv.SubmittedAt}
+}
+
+// latestReview is the review keep accepts that was submitted last, by its
+// time rather than by where GitHub lists it; of two at the same time, the
+// higher id, which GitHub gave out later.
+func latestReview(list []ghItem[ids.ReviewID], keep func(ghItem[ids.ReviewID]) bool) (ghItem[ids.ReviewID], bool) {
+	var best ghItem[ids.ReviewID]
+	found := false
+	for _, rv := range list {
+		if !keep(rv) {
+			continue
+		}
+		if !found || rv.SubmittedAt.After(best.SubmittedAt) || rv.SubmittedAt.Equal(best.SubmittedAt) && rv.ID.Compare(best.ID) > 0 {
+			best, found = rv, true
 		}
 	}
-	return user
+	return best, found
 }
 
 // unresolvedUserThreads counts open review threads the user started.

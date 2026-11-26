@@ -1,14 +1,17 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/chelmertz/dotfiles/claude-review/ids"
+	"pgregory.net/rapid"
 )
 
 // routeGh answers gh calls by the first route its arguments contain.
@@ -233,4 +236,53 @@ func TestRepliedInRoundThreadFailsOnAFailedRead(t *testing.T) {
 	if _, err := (GitHub{Gh: g.run, User: "me"}).RepliedInRoundThread(widgetsPR, t0, t0.Add(time.Hour)); err == nil {
 		t.Error("no error")
 	}
+}
+
+// The user's standing review and the round's own review are the latest by
+// time (the higher id on a tie), however GitHub orders the list.
+func TestPropReviewsArePickedByTimeNotListOrder(t *testing.T) {
+	start := t0
+	rapid.Check(t, func(rt *rapid.T) {
+		n := rapid.IntRange(0, 6).Draw(rt, "reviews")
+		list := make([]ghItem[ids.ReviewID], n)
+		for i := range list {
+			if err := list[i].ID.UnmarshalJSON([]byte(strconv.Itoa(i + 1))); err != nil {
+				rt.Fatal(err)
+			}
+			list[i].User.Login = rapid.SampledFrom([]string{"me", "bob"}).Draw(rt, "login")
+			list[i].State = rapid.SampledFrom([]string{reviewApproved, "CHANGES_REQUESTED", "DISMISSED", "COMMENTED"}).Draw(rt, "state")
+			list[i].SubmittedAt = start.Add(time.Duration(rapid.IntRange(-2, 2).Draw(rt, "minute")) * time.Minute)
+			list[i].HTMLURL = "r" + strconv.Itoa(i+1)
+		}
+		// The spec, independent of the code: sort by (time, id), take the last kept.
+		sorted := slices.Clone(list)
+		slices.SortFunc(sorted, func(a, b ghItem[ids.ReviewID]) int {
+			return cmp.Or(a.SubmittedAt.Compare(b.SubmittedAt), a.ID.Compare(b.ID))
+		})
+		var standing *ids.ReviewID
+		roundReview := ""
+		for _, rv := range sorted {
+			if rv.User.Login == "me" && rv.State != "COMMENTED" {
+				id := rv.ID
+				standing = &id
+			}
+			if rv.User.Login == "me" && rv.SubmittedAt.After(start) {
+				roundReview = rv.HTMLURL
+			}
+		}
+		shuffled := slices.Clone(list)
+		for i := len(shuffled) - 1; i > 0; i-- {
+			j := rapid.IntRange(0, i).Draw(rt, "swap")
+			shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+		}
+		g := GitHub{Gh: (&routeGh{routes: map[string]string{"repos/acme/widgets/pulls/42/comments": `[]`}}).run, User: "me"}
+		got := g.userReview(shuffled)
+		if (got == nil) != (standing == nil) || got != nil && got.ID != *standing {
+			rt.Fatalf("standing review %+v, want %v", got, standing)
+		}
+		review, _, _, err := g.roundActivity(widgetsPR, Round{StartedAt: start}, shuffled)
+		if err != nil || review != roundReview {
+			rt.Fatalf("round review %q (%v), want %q", review, err, roundReview)
+		}
+	})
 }

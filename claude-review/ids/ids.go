@@ -20,6 +20,7 @@
 package ids
 
 import (
+	"cmp"
 	"crypto/rand"
 	"database/sql/driver"
 	"encoding/hex"
@@ -187,6 +188,9 @@ type ReviewID struct{ v int64 }
 func (r *ReviewID) UnmarshalJSON(b []byte) error { return unmarshalGitHubID(b, &r.v) }
 func (r ReviewID) String() string                { return strconv.FormatInt(r.v, 10) }
 func (r ReviewID) IsZero() bool                  { return r.v == 0 }
+
+// Compare orders review ids as GitHub gave them out.
+func (r ReviewID) Compare(o ReviewID) int { return cmp.Compare(r.v, o.v) }
 
 // CommentID is a GitHub pull request review comment's REST id: an inline
 // comment or a reply in its thread.

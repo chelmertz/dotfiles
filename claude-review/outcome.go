@@ -32,14 +32,35 @@ const (
 // Outcome is what a round's last message says it ended on. It is the
 // session's own account, so a runner checks it against GitHub before acting.
 type Outcome struct {
-	Kind  OutcomeKind
-	PrURL string
-	SHA   string
+	Kind OutcomeKind
+	// Approvals are the approve lines in the message, each once: a round
+	// may quote an earlier one beside its own, so decide asks whether one
+	// names its PR at its head rather than trusting the first.
+	Approvals []Approval
 	// Question is the question a question round asked, or "": the last
 	// paragraph before the question line, on one line, at most
 	// maxQuestionNote runes. Session text that may echo the PR: elly and
 	// the desktop notification show it escaped.
 	Question string
+}
+
+// Approval is one approve line: approve PrURL at SHA.
+type Approval struct{ PrURL, SHA string }
+
+// Approves: an approve line names pr at sha.
+func (o Outcome) Approves(pr PR, sha string) bool {
+	return o.Kind == OutcomeApprove && slices.Contains(o.Approvals, Approval{pr.URL(), sha})
+}
+
+// approvals are the distinct approve lines in msg, in order.
+func approvals(msg string) []Approval {
+	var out []Approval
+	for _, m := range approveLine.FindAllStringSubmatch(msg, -1) {
+		if a := (Approval{m[1], m[2]}); !slices.Contains(out, a) {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 // maxQuestionNote caps the question in a note, in runes, the cut marked
@@ -58,7 +79,7 @@ var markerLines = []string{questionLine, nothingLine}
 
 // ReadOutcome reads a round's last message. Its ending is the run of
 // marker lines (and blank lines) at the end; a marker anywhere else is
-// prose. The approve line is a sentence and counts anywhere. Which marker
+// prose. An approve line is a sentence and counts anywhere. Which marker
 // came last does not matter: a prompt may ask for several, so the outcome
 // is one ranking over what is there. The question first, since it needs
 // the user whatever else the round said; then the approve line, the verdict
@@ -77,8 +98,8 @@ func ReadOutcome(msg string) Outcome {
 	if ending[questionLine] {
 		return Outcome{Kind: OutcomeQuestion, Question: lastParagraph(lines[:end])}
 	}
-	if m := approveLine.FindStringSubmatch(msg); m != nil {
-		return Outcome{Kind: OutcomeApprove, PrURL: m[1], SHA: m[2]}
+	if a := approvals(msg); len(a) > 0 {
+		return Outcome{Kind: OutcomeApprove, Approvals: a}
 	}
 	if ending[nothingLine] {
 		return Outcome{Kind: OutcomeNothing}

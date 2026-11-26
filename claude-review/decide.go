@@ -515,12 +515,12 @@ func startAgainLink(pr PR) Link {
 	return Link{Label: "Start again", URL: fmt.Sprintf("claude-review://%s/%s/%d?from=elly", pr.Owner, pr.Repo, pr.Number), Action: actionStart}
 }
 
-// quietApprove: the session's approve line names this PR at the head tick
+// quietApprove: an approve line of the session's names this PR at the head tick
 // recorded, the head has not moved, and GitHub shows the round started no
 // thread and leaves none of the user's threads open. Replies do not count:
 // a round that only confirms fixes, and resolves those threads, is clean.
 func quietApprove(r Round, o Outcome, f RoundFacts, pr PR) bool {
-	return o.Kind == OutcomeApprove && o.PrURL == pr.URL() && o.SHA == r.Head && f.Head == r.Head &&
+	return o.Approves(pr, r.Head) && f.Head == r.Head &&
 		f.NewThreads == 0 && f.UnsentDrafts == 0 && f.UnresolvedUserThreads == 0
 }
 

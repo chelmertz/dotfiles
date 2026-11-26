@@ -167,7 +167,7 @@ func TestPlanTick(t *testing.T) {
 func TestDecide(t *testing.T) {
 	const head = "0123456789abcdef0123456789abcdef01234567"
 	round := Round{PR: widgetsPR.URL(), Head: head, StartedAt: t0}
-	approveLine := Outcome{Kind: OutcomeApprove, PrURL: widgetsPR.URL(), SHA: head}
+	approveLine := Outcome{Kind: OutcomeApprove, Approvals: []Approval{{widgetsPR.URL(), head}}}
 	open := RoundFacts{State: "open", Head: head}
 	approved := func(commit string) *Review {
 		return &Review{ID: reviewID(9), State: "APPROVED", CommitID: commit}
@@ -190,9 +190,9 @@ func TestDecide(t *testing.T) {
 			func(d Decision) bool { return isK(d, kindNothing) }, "handled, nothing"},
 		{"clean round under a standing approval", round, approveLine, RoundFacts{State: "open", Head: head, UserReview: approved("old")},
 			func(d Decision) bool { return isK(d, kindApproved) }, "handled"},
-		{"approve line for another sha", round, Outcome{Kind: OutcomeApprove, PrURL: widgetsPR.URL(), SHA: strings.Repeat("f", 40)}, RoundFacts{State: "open", Head: head, RoundReviewURL: roundReview},
+		{"approve line for another sha", round, Outcome{Kind: OutcomeApprove, Approvals: []Approval{{widgetsPR.URL(), strings.Repeat("f", 40)}}}, RoundFacts{State: "open", Head: head, RoundReviewURL: roundReview},
 			func(d Decision) bool { return nextOf(d).State == stHandled }, "no Approve link"},
-		{"approve line for another PR", round, Outcome{Kind: OutcomeApprove, PrURL: "https://github.com/acme/widgets/pull/43", SHA: head}, open,
+		{"approve line for another PR", round, Outcome{Kind: OutcomeApprove, Approvals: []Approval{{"https://github.com/acme/widgets/pull/43", head}}}, open,
 			func(d Decision) bool { return !isK(d, kindApprove) }, "no Approve link"},
 		{"approve line but the round posted findings", round, approveLine, RoundFacts{State: "open", Head: head, NewThreads: 2, RoundReviewURL: roundReview},
 			func(d Decision) bool { return !isK(d, kindApprove) }, "no Approve link"},

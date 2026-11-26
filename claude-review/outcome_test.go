@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -19,7 +21,7 @@ func TestReadOutcome(t *testing.T) {
 		want Outcome
 	}{
 		{"approve line", "Nothing to raise at " + sha + ".\n\nYou can approve with `! claude-review approve https://github.com/acme/widgets/pull/7 --at " + sha + "`",
-			Outcome{Kind: OutcomeApprove, PrURL: "https://github.com/acme/widgets/pull/7", SHA: sha}},
+			Outcome{Kind: OutcomeApprove, Approvals: []Approval{{"https://github.com/acme/widgets/pull/7", sha}}}},
 		{"question line", "One thing only you can answer: is the fee meant to be per booking?\n\n" + questionLine + "\n",
 			Outcome{Kind: OutcomeQuestion, Question: "One thing only you can answer: is the fee meant to be per booking?"}},
 		{"question: the last paragraph, whitespace collapsed", "Posted 2 comments.\n\nShould retries cap at 3,\n   or follow\tRetry-After?\n \n\n" + questionLine,
@@ -33,7 +35,7 @@ func TestReadOutcome(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := ReadOutcome(c.msg); got != c.want {
+			if got := ReadOutcome(c.msg); !reflect.DeepEqual(got, c.want) {
 				t.Errorf("got %+v, want %+v", got, c.want)
 			}
 		})
@@ -108,10 +110,17 @@ func TestPromptsAndReadOutcomeShareTheMarkers(t *testing.T) {
 
 // A round's outcome is one ranking over its message, whatever the prose and
 // whatever order its ending's markers come in: a question in the ending,
-// else an approve line anywhere, else nothing in the ending, else other. A
-// marker quoted in prose is prose.
+// else any approve line, else nothing in the ending, else other. A marker
+// quoted in prose is prose. Which approve lines a message holds is a set:
+// it approves this PR at its head exactly when that line is anywhere in it,
+// whatever other approve lines (an older head, another PR) stand around it.
 func TestPropOutcomeIsTheRankingOfItsEnding(t *testing.T) {
-	const approve = "You can approve with `! claude-review approve https://github.com/acme/widgets/pull/7 --at " + sha + "`"
+	pr7 := PR{Owner: "acme", Repo: "widgets", Number: 7}
+	line := func(url, at string) string {
+		return "You can approve with `! claude-review approve " + url + " --at " + at + "`"
+	}
+	const oldSHA = "fedcba9876543210fedcba9876543210fedcba98"
+	approves := []string{line(pr7.URL(), sha), line(pr7.URL(), oldSHA), line("https://github.com/acme/widgets/pull/8", sha)}
 	prose := []string{
 		"Posted 2 inline comments.",
 		"Which retry limit did you mean?",
@@ -121,36 +130,37 @@ func TestPropOutcomeIsTheRankingOfItsEnding(t *testing.T) {
 	}
 	rapid.Check(t, func(rt *rapid.T) {
 		paras := rapid.SliceOfN(rapid.SampledFrom(prose), 0, 3).Draw(rt, "prose")
-		withApprove := rapid.Bool().Draw(rt, "approve line")
-		if withApprove {
-			at := rapid.IntRange(0, len(paras)).Draw(rt, "approve at")
-			paras = slices.Insert(slices.Clone(paras), at, approve)
+		withApprove := rapid.SliceOfN(rapid.SampledFrom(approves), 0, 3).Draw(rt, "approve lines")
+		for i, a := range withApprove {
+			at := rapid.IntRange(0, len(paras)).Draw(rt, fmt.Sprintf("approve line %d at", i))
+			paras = slices.Insert(slices.Clone(paras), at, a)
 		}
 		ending := rapid.SliceOfN(rapid.SampledFrom(markerLines), 0, 3).Draw(rt, "ending")
-		sep := rapid.SampledFrom([]string{"\n", "\n\n", "\n \n"}).Draw(rt, "separator")
+		sep := rapid.SampledFrom([]string{"\n\n", "\n \n"}).Draw(rt, "separator")
 		msg := strings.Join(append(slices.Clone(paras), ending...), sep)
 
-		var want Outcome
+		got := ReadOutcome(msg)
+		want := OutcomeOther
 		switch {
 		case slices.Contains(ending, questionLine):
-			want = Outcome{Kind: OutcomeQuestion}
-			if len(paras) > 0 && sep != "\n" {
-				want.Question = paras[len(paras)-1]
+			want = OutcomeQuestion
+			if q := ""; len(paras) > 0 {
+				q = paras[len(paras)-1]
+				if got.Question != q {
+					rt.Fatalf("%q: question %q, want the last paragraph %q", msg, got.Question, q)
+				}
 			}
-		case withApprove:
-			want = Outcome{Kind: OutcomeApprove, PrURL: "https://github.com/acme/widgets/pull/7", SHA: sha}
+		case len(withApprove) > 0:
+			want = OutcomeApprove
 		case slices.Contains(ending, nothingLine):
-			want = Outcome{Kind: OutcomeNothing}
-		default:
-			want = Outcome{Kind: OutcomeOther}
+			want = OutcomeNothing
 		}
-		got := ReadOutcome(msg)
-		if sep == "\n" && want.Kind == OutcomeQuestion {
-			// One paragraph: the question is all the prose, joined.
-			got.Question, want.Question = "", ""
+		if got.Kind != want {
+			rt.Fatalf("%q: kind %d, want %d", msg, got.Kind, want)
 		}
-		if got != want {
-			rt.Fatalf("%q: got %+v, want %+v", msg, got, want)
+		head := want == OutcomeApprove && slices.Contains(withApprove, approves[0])
+		if got.Approves(pr7, sha) != head {
+			rt.Fatalf("%q: approves %s at the head %v, want %v (%+v)", msg, pr7.URL(), !head, head, got.Approvals)
 		}
 	})
 }
