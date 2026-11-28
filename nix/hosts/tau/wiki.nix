@@ -78,7 +78,7 @@ in
       IPAddressAllow = anthropicApi;
       RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" ];
       CapabilityBoundingSet = "";
-      # wiki/policy.go caps a request at 8 MiB; a few concurrent ones fit.
+      # MAX_BODY in wiki/src/policy.rs caps a request at 8 MiB; a few fit.
       MemoryMax = "512M";
       # It reads /proc/<pid>/cgroup of the connecting agent; ProtectProc
       # would hide other users' processes.

@@ -21,6 +21,3 @@ libc = "0.2"
 
 [profile.release]
 panic = "abort"
-
-[dev-dependencies]
-futures-core = "0.3"

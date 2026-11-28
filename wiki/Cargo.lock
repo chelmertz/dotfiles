@@ -478,7 +478,6 @@ name = "wiki"
 version = "0.1.0"
 dependencies = [
  "bytes",
- "futures-core",
  "http-body",
  "http-body-util",
  "hyper",
