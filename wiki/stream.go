@@ -100,9 +100,17 @@ func (t *usageTap) scanEvents() {
 			t.started = true
 		case "message_delta":
 			if ev.Usage != nil && t.started {
-				t.rep.Output = ev.Usage.Output
-				if ev.Usage.Input > 0 {
-					t.rep.Input = ev.Usage.Input
+				// Cumulative: any field the delta carries supersedes the start's.
+				u := ev.Usage
+				t.rep.Output = u.Output
+				if u.Input > 0 {
+					t.rep.Input = u.Input
+				}
+				if u.CacheWrite > 0 {
+					t.rep.CacheWrite = u.CacheWrite
+				}
+				if u.CacheRead > 0 {
+					t.rep.CacheRead = u.CacheRead
 				}
 				t.complete = true
 			}

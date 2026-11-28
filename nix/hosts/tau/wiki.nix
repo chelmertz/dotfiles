@@ -78,7 +78,8 @@ in
       IPAddressAllow = anthropicApi;
       RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" ];
       CapabilityBoundingSet = "";
-      MemoryMax = "256M";
+      # wiki/policy.go caps a request at 8 MiB; a few concurrent ones fit.
+      MemoryMax = "512M";
       # It reads /proc/<pid>/cgroup of the connecting agent; ProtectProc
       # would hide other users' processes.
     };
@@ -98,10 +99,13 @@ in
     requires = [ "wiki-starter.socket" ];
     serviceConfig = hardening // {
       ExecStart = "${lib.getExe wiki} starter --systemctl ${config.systemd.package}/bin/systemctl --user ch";
-      ReadWritePaths = [ "/var/lib/wiki" "/run/wiki" "-/var/lib/private/wiki-agent" ];
+      # The agent's state directory is removed by `systemctl clean`, not by
+      # the starter, so it needs no write access under /var/lib/private.
+      ReadWritePaths = [ "/var/lib/wiki" "/run/wiki" ];
       PrivateNetwork = true;
       RestrictAddressFamilies = [ "AF_UNIX" ];
-      CapabilityBoundingSet = [ "CAP_DAC_OVERRIDE" "CAP_FOWNER" "CAP_CHOWN" ];
+      # Reads result.json, 0600 in the agent's 0700 state directory.
+      CapabilityBoundingSet = [ "CAP_DAC_OVERRIDE" ];
     };
   };
 
@@ -138,6 +142,9 @@ in
       ProtectProc = "invisible";
       ProcSubset = "pid";
       TemporaryFileSystem = [ "/run" "/var/lib/wiki" ];
+      # AF_UNIX still reaches filesystem sockets. nix-daemon's would let the
+      # agent run a fixed-output build, which has network.
+      InaccessiblePaths = [ "/nix/var" ];
       BindPaths = [ "/run/wiki/proxy.sock" ];
       BindReadOnlyPaths = [ "/var/lib/wiki/runs/%i/in:/var/lib/wiki-agent/%i/in" ];
       CapabilityBoundingSet = "";

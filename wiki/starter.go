@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
+	"time"
 )
 
 // StartRequest is what the wrapper sends the starter for one agent run.
@@ -33,11 +34,13 @@ type StartResponse struct {
 }
 
 const (
-	maxPrompt    = 64 << 10
-	maxStaged    = 16 << 20
-	maxFiles     = 2000
-	maxResult    = 4 << 20
-	maxRequest   = maxStaged + maxPrompt + 1<<20
+	maxPrompt = 64 << 10
+	maxStaged = 16 << 20
+	maxFiles  = 2000
+	maxResult = 4 << 20
+	// JSON escaping can inflate content up to 6x (\u00XX); validate() then
+	// enforces the real limits on the decoded content.
+	maxRequest   = 6*(maxStaged+maxPrompt) + 1<<20
 	resultName   = "result.json"
 	promptName   = "prompt.md"
 	stagedSubdir = "in"
@@ -48,10 +51,11 @@ const (
 var stagedPathRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*(/[a-z0-9][a-z0-9_.-]*)*\.(md|txt|json)$`)
 
 // UnitRunner starts one agent unit for a run and returns systemd's verdict
-// once it has stopped.
+// once it has stopped; Cleanup removes the unit's state directory (with
+// result.json) and its failed state.
 type UnitRunner interface {
 	Run(run string) (result string, err error)
-	Reset(run string)
+	Cleanup(run string)
 }
 
 // Starter runs as root. Everything it writes is under directories it creates
@@ -63,6 +67,7 @@ type Starter struct {
 	ResultDir string // /var/lib/private/wiki-agent: <run>/result.json from the agent
 	UID       int    // the only uid allowed to ask
 	Units     UnitRunner
+	ReadLimit time.Duration // how long a client may take to send its request
 }
 
 func (s *Starter) validate(req *StartRequest) error {
@@ -108,8 +113,7 @@ func (s *Starter) Start(req *StartRequest) StartResponse {
 	defer func() {
 		os.Remove(reg)
 		os.RemoveAll(runDir)
-		os.RemoveAll(resDir)
-		s.Units.Reset(req.Run)
+		s.Units.Cleanup(req.Run)
 	}()
 	if err := writeNew(filepath.Join(runDir, promptName), req.Prompt); err != nil {
 		return StartResponse{Error: err.Error()}
@@ -205,11 +209,15 @@ func (s *Starter) handle(c net.Conn) {
 		reply(StartResponse{Error: "not allowed"})
 		return
 	}
+	// One run at a time: a client that never finishes its request must not
+	// block every later one.
+	c.SetReadDeadline(time.Now().Add(s.ReadLimit))
 	var req StartRequest
 	if err := json.NewDecoder(io.LimitReader(c, maxRequest)).Decode(&req); err != nil {
-		reply(StartResponse{Error: "bad request"})
+		reply(StartResponse{Error: "bad or oversized request"})
 		return
 	}
+	c.SetReadDeadline(time.Time{})
 	resp := s.Start(&req)
 	log.Printf("starter: run=%s org=%s command=%s unit=%s ok=%v err=%s", req.Run, req.Org, req.Command, resp.UnitResult, resp.OK, resp.Error)
 	reply(resp)
@@ -256,6 +264,11 @@ func (u systemdUnits) Run(run string) (string, error) {
 	return res, err
 }
 
-func (u systemdUnits) Reset(run string) {
+// Cleanup lets systemd remove the DynamicUser state directory and its link,
+// which the starter itself cannot reach under ProtectSystem=strict.
+func (u systemdUnits) Cleanup(run string) {
+	if out, err := exec.Command(u.Systemctl, "clean", "--what=state", u.unit(run)).CombinedOutput(); err != nil {
+		log.Printf("starter: clean %s: %v %s", u.unit(run), err, out)
+	}
 	exec.Command(u.Systemctl, "reset-failed", u.unit(run)).Run()
 }

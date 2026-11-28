@@ -31,7 +31,7 @@ var (
 	agentCgroupRe = regexp.MustCompile(`^/system\.slice/system-wiki\\x2dagent\.slice/wiki-agent@([0-9a-z]{1,64})\.service$`)
 )
 
-// Orgs are the values a run may be registered under (wiki-design.md "Org").
+// Orgs are the values a run may be registered under: one per employer, plus personal.
 var Orgs = map[string]bool{"personal": true, "eversports": true}
 
 // runFromCgroup returns the run id of an agent unit's cgroup path, or "".

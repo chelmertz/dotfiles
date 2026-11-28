@@ -11,8 +11,8 @@ import (
 // The allowlists below were taken from what claude-code 2.1.325 sends as the
 // ingest agent (--tools Read,Edit,Write, --model claude-sonnet-5-5), captured
 // through a logging proxy on 2026-11-28. They are tied to that pinned version:
-// a claude-code bump re-runs that capture and policy_test.go, which holds each
-// list literally so a change shows up as a failing test, not a silent widening.
+// a claude-code bump re-runs that capture and TestAllowlistsArePinned in
+// proxy_test.go, which holds each list literally so a change shows up as a failing test, not a silent widening.
 
 // allowedBetas maps each anthropic-beta value the proxy forwards to why it is
 // harmless for a tool-less-of-the-network agent. Anything else is refused.
@@ -84,6 +84,14 @@ var allowedBlocks = map[string]bool{
 	"thinking": true, "redacted_thinking": true, "image": true,
 }
 
+// allowedBlockKeys are the keys any allowed block may carry.
+var allowedBlockKeys = map[string]bool{
+	"type": true, "text": true, "cache_control": true, "citations": true,
+	"id": true, "name": true, "input": true, "caller": true,
+	"tool_use_id": true, "content": true, "is_error": true,
+	"thinking": true, "signature": true, "data": true, "source": true,
+}
+
 // allowedSources are the only `source.type` values a block may carry: inline
 // data. url and file sources make Anthropic fetch or resolve something.
 var allowedSources = map[string]bool{"base64": true, "text": true}
@@ -100,7 +108,12 @@ func refuse(reason, format string, a ...any) *refusal {
 	return &refusal{reason, fmt.Sprintf(format, a...)}
 }
 
-const maxBody = 32 << 20
+// maxBody bounds a request (a 1M-token context is about 4 MiB of text) and,
+// with MemoryMax in the unit, what one request can hold in memory.
+const maxBody = 8 << 20
+
+// maxOutput is the largest max_tokens any current model accepts.
+const maxOutput = 128_000
 
 // checkRequest validates everything but the body.
 func checkRequest(r *http.Request) ([]string, *refusal) {
@@ -109,6 +122,11 @@ func checkRequest(r *http.Request) ([]string, *refusal) {
 	}
 	if q := r.URL.RawQuery; q != "" && q != "beta=true" {
 		return nil, refuse("query", "%q", q)
+	}
+	// Trailers arrive after the body and are not in r.Header, so they would
+	// skip the header allowlist below.
+	if len(r.Trailer) > 0 {
+		return nil, refuse("trailer", "%d declared", len(r.Trailer))
 	}
 	if ce := r.Header.Get("Content-Encoding"); ce != "" && ce != "identity" {
 		return nil, refuse("encoding", "%q", ce)
@@ -143,6 +161,9 @@ type requestInfo struct {
 // checkBody validates a request body and returns the fields budgeting needs.
 func checkBody(body []byte) (requestInfo, *refusal) {
 	var info requestInfo
+	if r := checkStrictJSON(body); r != nil {
+		return info, r
+	}
 	var top map[string]json.RawMessage
 	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.UseNumber()
@@ -158,7 +179,7 @@ func checkBody(body []byte) (requestInfo, *refusal) {
 		return info, refuse("model", "%q", info.Model)
 	}
 	if mt, ok := top["max_tokens"]; ok {
-		if err := json.Unmarshal(mt, &info.MaxTokens); err != nil || info.MaxTokens < 0 {
+		if err := json.Unmarshal(mt, &info.MaxTokens); err != nil || info.MaxTokens < 0 || info.MaxTokens > maxOutput {
 			return info, refuse("body", "max_tokens")
 		}
 	}
@@ -178,15 +199,20 @@ func checkBody(body []byte) (requestInfo, *refusal) {
 			return info, r
 		}
 	}
-	var msgs []struct {
-		Role    string          `json:"role"`
-		Content json.RawMessage `json:"content"`
-	}
+	// Exact-key maps, never structs: encoding/json matches struct fields
+	// case-insensitively, which would let "Content" stand in for "content".
+	var msgs []map[string]json.RawMessage
 	if err := json.Unmarshal(top["messages"], &msgs); err != nil {
 		return info, refuse("body", "messages")
 	}
 	for _, m := range msgs {
-		if r := checkContent(m.Content); r != nil {
+		for k := range m {
+			// output_config: per-message effort (per-turn-control beta).
+			if k != "role" && k != "content" && k != "output_config" {
+				return info, refuse("key", "message.%s", k)
+			}
+		}
+		if r := checkContent(m["content"]); r != nil {
 			return info, r
 		}
 	}
@@ -209,12 +235,16 @@ func checkContent(raw json.RawMessage) *refusal {
 		if !allowedBlocks[typ] {
 			return refuse("block", "%q", typ)
 		}
-		if src, ok := b["source"]; ok {
-			var s struct {
-				Type string `json:"type"`
+		for k := range b {
+			if !allowedBlockKeys[k] {
+				return refuse("key", "%s.%s", typ, k)
 			}
-			if err := json.Unmarshal(src, &s); err != nil || !allowedSources[s.Type] {
-				return refuse("source", "%q", s.Type)
+		}
+		if src, ok := b["source"]; ok {
+			var s map[string]json.RawMessage
+			var st string
+			if json.Unmarshal(src, &s) != nil || json.Unmarshal(s["type"], &st) != nil || !allowedSources[st] {
+				return refuse("source", "%q", st)
 			}
 		}
 		if typ == "tool_result" {
@@ -222,6 +252,62 @@ func checkContent(raw json.RawMessage) *refusal {
 				return r
 			}
 		}
+	}
+	return nil
+}
+
+// checkStrictJSON refuses what the proxy and the API could read differently:
+// a duplicate key in any object (parsers disagree on which one wins), and a
+// key that differs only in case from another key in the same object. The
+// checks after it can then read exact keys and trust that the API sees the
+// same values.
+func checkStrictJSON(body []byte) *refusal {
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.UseNumber()
+	var walk func() *refusal
+	walk = func() *refusal {
+		tok, err := dec.Token()
+		if err != nil {
+			return refuse("body", "not JSON")
+		}
+		d, ok := tok.(json.Delim)
+		if !ok {
+			return nil
+		}
+		switch d {
+		case '{':
+			seen := map[string]bool{}
+			for dec.More() {
+				kt, err := dec.Token()
+				if err != nil {
+					return refuse("body", "not JSON")
+				}
+				k := kt.(string)
+				if seen[strings.ToLower(k)] {
+					return refuse("duplicate", "key %q", k)
+				}
+				seen[strings.ToLower(k)] = true
+				if r := walk(); r != nil {
+					return r
+				}
+			}
+		case '[':
+			for dec.More() {
+				if r := walk(); r != nil {
+					return r
+				}
+			}
+		}
+		if _, err := dec.Token(); err != nil { // closing delimiter
+			return refuse("body", "not JSON")
+		}
+		return nil
+	}
+	if r := walk(); r != nil {
+		return r
+	}
+	if dec.More() {
+		return refuse("body", "trailing data")
 	}
 	return nil
 }

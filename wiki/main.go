@@ -1,5 +1,4 @@
-// Command wiki maintains the agent-written wiki (wiki-design.md in the
-// personal obsidian project). The proxy subcommand is the only path from an
+// Command wiki maintains the agent-written wiki. The proxy subcommand is the only path from an
 // ingest agent's jail to Anthropic: it holds the seat token the agent never
 // sees, forwards only message requests, and charges every token to the run's
 // org and command.
@@ -134,6 +133,6 @@ func runStarter(args []string) error {
 	if err != nil {
 		return err
 	}
-	s := &Starter{RunsDir: *runs, Registry: *registry, ResultDir: *results, UID: uid, Units: systemdUnits{*systemctl}}
+	s := &Starter{RunsDir: *runs, Registry: *registry, ResultDir: *results, UID: uid, Units: systemdUnits{*systemctl}, ReadLimit: time.Minute}
 	return s.Serve(l)
 }

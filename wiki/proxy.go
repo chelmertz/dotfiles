@@ -106,9 +106,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// whole body as input (bytes/2 overestimates tokens for text and JSON)
 	// plus every output token it may generate.
 	var reserved int64
+	var day string
 	if r.URL.Path == "/v1/messages" {
 		reserved = int64(len(body))/2 + info.MaxTokens
-		if ref := p.Accounts.Reserve(rr, info.Model, reserved); ref != nil {
+		if day, ref = p.Accounts.Reserve(rr, info.Model, reserved); ref != nil {
 			p.deny(w, &rr, ref)
 			return
 		}
@@ -117,7 +118,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if reserved == 0 {
 			return
 		}
-		if err := p.Accounts.Settle(rr, reserved, rep); err != nil {
+		if err := p.Accounts.Settle(rr, reserved, day, rep); err != nil {
 			log.Printf("run=%s settling: %v", rr.Run, err)
 		}
 	}
@@ -125,6 +126,8 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	out := r.Clone(r.Context())
 	out.Body = io.NopCloser(bytes.NewReader(body))
 	out.ContentLength = int64(len(body))
+	out.TransferEncoding = nil
+	out.Trailer = nil
 	out.Header = http.Header{}
 	for k, v := range r.Header {
 		if allowedHeaders[k] && k != "Anthropic-Beta" {

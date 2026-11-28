@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // fakeUnits plays the agent: while "running" it records what was staged and
@@ -41,11 +42,14 @@ func (f *fakeUnits) Run(run string) (string, error) {
 	return "success", nil
 }
 
-func (f *fakeUnits) Reset(string) { f.resetCalls++ }
+func (f *fakeUnits) Cleanup(run string) {
+	f.resetCalls++
+	os.RemoveAll(filepath.Join(f.s.ResultDir, run))
+}
 
 func newStarter(t *testing.T) (*Starter, *fakeUnits) {
 	dir := t.TempDir()
-	s := &Starter{RunsDir: filepath.Join(dir, "runs"), Registry: filepath.Join(dir, "reg"), ResultDir: filepath.Join(dir, "res"), UID: os.Getuid()}
+	s := &Starter{RunsDir: filepath.Join(dir, "runs"), Registry: filepath.Join(dir, "reg"), ResultDir: filepath.Join(dir, "res"), UID: os.Getuid(), ReadLimit: time.Minute}
 	for _, d := range []string{s.RunsDir, s.Registry, s.ResultDir} {
 		os.MkdirAll(d, 0o755)
 	}
@@ -170,5 +174,28 @@ func TestStarterServesOnlyItsUID(t *testing.T) {
 				t.Fatalf("ok=%v want %v (%s)", resp.OK, want, resp.Error)
 			}
 		})
+	}
+}
+
+// A client that connects and never sends must not block the next run.
+func TestStarterSilentClientDoesNotBlock(t *testing.T) {
+	s, _ := newStarter(t)
+	s.ReadLimit = 100 * time.Millisecond
+	sock := filepath.Join(t.TempDir(), "s")
+	l, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	go s.Serve(l)
+	silent, err := net.Dial("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer silent.Close()
+	silent.(*net.UnixConn).SetDeadline(time.Now().Add(2 * time.Minute))
+	var resp StartResponse
+	if err := json.NewDecoder(silent).Decode(&resp); err != nil || resp.OK {
+		t.Fatalf("silent client got %+v, %v", resp, err)
 	}
 }

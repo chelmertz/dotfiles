@@ -396,6 +396,9 @@ func TestAllowlistsArePinned(t *testing.T) {
 		{"blocks", keys(allowedBlocks), "image redacted_thinking text thinking tool_result tool_use"},
 		{"sources", keys(allowedSources), "base64 text"},
 		{"paths", keys(allowedPaths), "/v1/messages /v1/messages/count_tokens"},
+		{"headers", keys(allowedHeaders), "Accept Anthropic-Beta Anthropic-Dangerous-Direct-Browser-Access Anthropic-Version Content-Type User-Agent X-App X-Claude-Code-Session-Id X-Stainless-Arch X-Stainless-Lang X-Stainless-Os X-Stainless-Package-Version X-Stainless-Retry-Count X-Stainless-Runtime X-Stainless-Runtime-Version X-Stainless-Timeout"},
+		{"dropped headers", keys(droppedHeaders), "Accept-Encoding Authorization Connection Content-Length X-Api-Key"},
+		{"block keys", keys(allowedBlockKeys), "cache_control caller citations content data id input is_error name signature source text thinking tool_use_id type"},
 	}
 	for _, p := range pins {
 		if p.got != p.want {
@@ -465,4 +468,123 @@ func (o *oneByte) Read(p []byte) (int, error) {
 	p[0] = o.s[0]
 	o.s = o.s[1:]
 	return 1, nil
+}
+
+// Bodies the API and Go's encoding/json could read differently are refused
+// before anything is forwarded.
+func TestRefusesParserDifferentials(t *testing.T) {
+	base := `{"model":"claude-sonnet-5-5","max_tokens":10,"messages":[%s]}`
+	for name, c := range map[string]struct{ msg, reason string }{
+		"case-variant content": {`{"role":"user","content":[{"type":"document","source":{"type":"url","url":"http://x"}}],"Content":"hi"}`, "duplicate"},
+		"case-variant type":    {`{"role":"user","content":[{"type":"image","source":{"type":"url","url":"http://x","TYPE":"base64"}}]}`, "duplicate"},
+		"duplicate content":    {`{"role":"user","content":[{"type":"image","source":{"type":"url","url":"http://x"}}],"content":"hi"}`, "duplicate"},
+		"struct-style Content": {`{"role":"user","Content":[{"type":"image","source":{"type":"url","url":"http://x"}}]}`, "key"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			rg := newRig(t)
+			req, _ := http.NewRequest("POST", "http://wiki-proxy.invalid/v1/messages?beta=true", strings.NewReader(fmt.Sprintf(base, c.msg)))
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := rg.client.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp.Body.Close()
+			if resp.StatusCode != refusalStatus || rg.up.hits() != 0 {
+				t.Fatalf("status %d upstream hits %d", resp.StatusCode, rg.up.hits())
+			}
+			if u := rg.usage("run1"); u.Refusals[c.reason] != 1 {
+				t.Fatalf("refusals %v, want %s", u.Refusals, c.reason)
+			}
+		})
+	}
+}
+
+// Trailers are sent after the body and never pass the header allowlist.
+func TestRefusesTrailers(t *testing.T) {
+	rg := newRig(t)
+	b, _ := json.Marshal(goodBody())
+	req, _ := http.NewRequest("POST", "http://wiki-proxy.invalid/v1/messages?beta=true", io.NopCloser(strings.NewReader(string(b))))
+	req.ContentLength = -1 // chunked, so trailers can follow
+	req.Header.Set("Content-Type", "application/json")
+	req.Trailer = http.Header{"Anthropic-Beta": {"mcp-client-2025-04-04"}}
+	resp, err := rg.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != refusalStatus || rg.up.hits() != 0 {
+		t.Fatalf("status %d upstream hits %d", resp.StatusCode, rg.up.hits())
+	}
+}
+
+// A reservation made before midnight settles against its own day, never
+// against today's budget.
+func TestSettleAcrossMidnightLeavesTodayAlone(t *testing.T) {
+	now := time.Date(2026, 11, 28, 23, 59, 0, 0, time.Local)
+	a := &Accounts{Dir: t.TempDir(), DayLimit: 1_000_000, RunLimit: 1_000_000, Now: func() time.Time { return now }}
+	rr := Registration{Run: "r1", Org: "personal", Command: "ingest"}
+	day, ref := a.Reserve(rr, "claude-sonnet-5-5", 400_000)
+	if ref != nil {
+		t.Fatal(ref)
+	}
+	now = now.Add(2 * time.Minute)
+	writeJSON(filepath.Join(a.Dir, "budget.json"), dayBudget{Day: "2026-11-29", Used: 500_000})
+	if err := a.Settle(rr, 400_000, day, &Reported{Output: 10_000}); err != nil {
+		t.Fatal(err)
+	}
+	d, _ := a.loadDay()
+	if d.Used != 500_000 {
+		t.Fatalf("today's use %d, want 500000 untouched", d.Used)
+	}
+}
+
+func TestRefusesHugeMaxTokens(t *testing.T) {
+	rg := newRig(t)
+	b := goodBody()
+	b["max_tokens"] = int64(9223372036854775807)
+	if resp, _ := rg.post("/v1/messages?beta=true", b, nil); resp.StatusCode != refusalStatus || rg.up.hits() != 0 {
+		t.Fatalf("status %d hits %d", resp.StatusCode, rg.up.hits())
+	}
+	if rg.dayUsed() < 0 {
+		t.Fatalf("budget went negative: %d", rg.dayUsed())
+	}
+}
+
+func TestUsageTapTakesCumulativeCacheFromDelta(t *testing.T) {
+	s := "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":5,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":1}}}\n\n" +
+		"data: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":7,\"cache_creation_input_tokens\":20000,\"cache_read_input_tokens\":300}}\n\n"
+	var rep *Reported
+	tap := newUsageTap(io.NopCloser(strings.NewReader(s)), "text/event-stream", func(r *Reported) { rep = r })
+	io.ReadAll(tap)
+	if rep == nil || rep.CacheWrite != 20000 || rep.CacheRead != 300 || rep.Output != 7 || rep.Input != 5 {
+		t.Fatalf("rep %+v", rep)
+	}
+}
+
+func TestRefusesMaxTokensOverModelCap(t *testing.T) {
+	rg := newRig(t)
+	b := goodBody()
+	b["max_tokens"] = maxOutput + 1
+	if resp, _ := rg.post("/v1/messages?beta=true", b, nil); resp.StatusCode != refusalStatus || rg.up.hits() != 0 {
+		t.Fatalf("status %d hits %d", resp.StatusCode, rg.up.hits())
+	}
+}
+
+func TestReserveRefusesNonPositive(t *testing.T) {
+	a := &Accounts{Dir: t.TempDir(), DayLimit: 10, RunLimit: 10, Now: time.Now}
+	rr := Registration{Run: "r1", Org: "personal", Command: "ingest"}
+	for _, n := range []int64{0, -1, -9223372036854775808} {
+		if _, ref := a.Reserve(rr, "m", n); ref == nil {
+			t.Errorf("Reserve(%d) accepted", n)
+		}
+	}
+}
+
+func TestRefusesUnknownBlockKey(t *testing.T) {
+	rg := newRig(t)
+	b := goodBody()
+	b["messages"] = append(b["messages"].([]any), map[string]any{"role": "user", "content": []any{map[string]any{"type": "text", "text": "x", "url": "https://x"}}})
+	if resp, _ := rg.post("/v1/messages?beta=true", b, nil); resp.StatusCode != refusalStatus || rg.up.hits() != 0 {
+		t.Fatalf("status %d hits %d", resp.StatusCode, rg.up.hits())
+	}
 }

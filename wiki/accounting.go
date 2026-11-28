@@ -86,22 +86,25 @@ func (a *Accounts) loadRun(rr Registration) (Usage, error) {
 
 // Reserve charges n tokens for one request before it is forwarded. It refuses
 // when either cap would be exceeded or the state cannot be read.
-func (a *Accounts) Reserve(rr Registration, model string, n int64) *refusal {
+func (a *Accounts) Reserve(rr Registration, model string, n int64) (string, *refusal) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if n <= 0 {
+		return "", refuse("budget-run", "reservation %d", n)
+	}
 	d, err := a.loadDay()
 	if err != nil {
-		return refuse("state", "%v", err)
+		return "", refuse("state", "%v", err)
 	}
 	u, err := a.loadRun(rr)
 	if err != nil {
-		return refuse("state", "%v", err)
+		return "", refuse("state", "%v", err)
 	}
 	if d.Used+n > a.DayLimit {
-		return refuse("budget-day", "used %d + %d > %d", d.Used, n, a.DayLimit)
+		return "", refuse("budget-day", "used %d + %d > %d", d.Used, n, a.DayLimit)
 	}
 	if u.Charged+n > a.RunLimit {
-		return refuse("budget-run", "charged %d + %d > %d", u.Charged, n, a.RunLimit)
+		return "", refuse("budget-run", "charged %d + %d > %d", u.Charged, n, a.RunLimit)
 	}
 	d.Used += n
 	u.Charged += n
@@ -109,12 +112,12 @@ func (a *Accounts) Reserve(rr Registration, model string, n int64) *refusal {
 	u.Unsettled++
 	u.Model = model
 	if err := writeJSON(filepath.Join(a.Dir, "budget.json"), d); err != nil {
-		return refuse("state", "%v", err)
+		return "", refuse("state", "%v", err)
 	}
 	if err := writeJSON(a.usagePath(rr.Run), u); err != nil {
-		return refuse("state", "%v", err)
+		return "", refuse("state", "%v", err)
 	}
-	return nil
+	return d.Day, nil
 }
 
 // Reported is what one response said it used.
@@ -124,9 +127,9 @@ type Reported struct {
 
 func (r Reported) budgeted() int64 { return r.Input + r.CacheWrite + r.Output }
 
-// Settle replaces a reservation with the reported use. Without a complete
-// report (stream cut, client gone) the reservation stays charged.
-func (a *Accounts) Settle(rr Registration, reserved int64, rep *Reported) error {
+// Settle replaces a reservation made on day with the reported use. Without a
+// complete report (stream cut, client gone) the reservation stays charged.
+func (a *Accounts) Settle(rr Registration, reserved int64, day string, rep *Reported) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if rep == nil {
@@ -141,8 +144,9 @@ func (a *Accounts) Settle(rr Registration, reserved int64, rep *Reported) error 
 		return err
 	}
 	delta := rep.budgeted() - reserved
-	// A reservation made yesterday is not refunded into today's budget.
-	if d.Used+delta >= 0 {
+	// A reservation made on an earlier day was charged to that day; neither
+	// its refund nor its overrun touches today's budget.
+	if day == d.Day {
 		d.Used += delta
 	}
 	u.Charged += delta
