@@ -168,6 +168,13 @@ project is a note the next project pays for again.
   rebase reports this honestly (`Updated the following refs with --update-refs`) and it
   is easy to read as success. Re-point the ref by SHA afterwards, or capture the SHA
   instead of a branch. Cost one silently useless safety ref on 2026-09-14.
+- **`core.fsmonitor = true` (nix/git.nix) can serve a stale view of a clone.**
+  On 2026-11-28 a directory replaced by `mv` (`wiki-rs` to `wiki`) stopped
+  reporting edits: `git status` was clean while five files differed from
+  HEAD, `git add -A` staged nothing, and two pushed commits lacked the changes
+  their messages claimed. Before committing work that touched a moved or
+  recreated directory, compare with `git -c core.fsmonitor=false status`;
+  `git config --local core.fsmonitor false` in a clone that misbehaves.
 - `git diff` runs through an external difftastic driver and its output is **not
   a valid patch**. Use `git -c diff.external= diff --no-ext-diff` whenever the
   output will be piped to `git apply`.
