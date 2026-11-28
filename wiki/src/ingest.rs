@@ -60,7 +60,8 @@ Write result.json in the current directory and nothing else. Its shape is exactl
 {\"pages\": [{\"path\": \"<relative/path.md>\", \"content\": \"<markdown>\"}]}
 
 Rules for pages:
-- A page states facts: what is true, since when, and why, each with the source item it came from. Links go to https URLs or to other pages by relative path.
+- A page states facts: what is true, since when, and why, each citing its source by the name given in the file list below (never by its in/ path).
+- Leave out what only mattered to the session that wrote it (who was working where that day, what was paused); keep what stays true. Links go to https URLs or to other pages by relative path.
 - Plain Markdown. No images, no HTML, no dataviewjs. Commands and log lines may be quoted in code where they are the fact.
 - One page per topic (a tool, a system, a practice), named after the topic, never after a source file or project. Facts about the same topic go on the same page.
 - Paths are lowercase words joined by '-', directories allowed, ending in .md, at most 4 levels.
@@ -83,10 +84,14 @@ pub fn retry_note(why: &str) -> String {
 
 /// The prompt plus every staged path, since the agent's tools cannot list a
 /// directory and it otherwise has no way to find its input.
-pub fn prompt(files: &BTreeMap<String, String>) -> String {
+pub fn prompt(project: &str, files: &BTreeMap<String, String>) -> String {
     let mut p = PROMPT.to_string();
     for k in files.keys() {
         p.push_str(&format!("\n- in/{k}"));
+        if let Some(f) = k.strip_prefix("item/") {
+            // ITEM_FILES are upper-case on disk and staged lower-case.
+            p.push_str(&format!(" (cite as: {project} {})", f.to_ascii_uppercase().replace(".MD", ".md")));
+        }
     }
     p.push('\n');
     p
@@ -511,7 +516,7 @@ impl<R: Runner> Ingest<R> {
             if !valid_run_id(&run) {
                 return Err(format!("bad run id {run:?}"));
             }
-            let mut text = prompt(&files);
+            let mut text = prompt(&name, &files);
             if let Some(why) = &retry_reason {
                 text.push_str(&retry_note(why));
             }
@@ -716,8 +721,9 @@ mod tests {
         let saw = f.saw.borrow().clone().unwrap();
         assert_eq!(saw.org, "personal");
         assert!(saw.files.contains_key("item/decisions.md") && !saw.files.keys().any(|k| k.contains("journal")), "{:?}", saw.files.keys());
+        assert!(saw.prompt.contains("\n- in/item/decisions.md (cite as: cancel-dropbox DECISIONS.md)\n"), "{}", saw.prompt);
         for k in saw.files.keys() {
-            assert!(saw.prompt.contains(&format!("\n- in/{k}\n")), "prompt lacks {k}: {}", saw.prompt);
+            assert!(saw.prompt.contains(&format!("\n- in/{k}")), "prompt lacks {k}: {}", saw.prompt);
         }
         assert_eq!(ing.git.run(&["status", "--porcelain"]).unwrap(), "");
     }
