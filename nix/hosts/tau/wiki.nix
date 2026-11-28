@@ -165,7 +165,10 @@ in
       PrivateNetwork = true;
       IPAddressDeny = "any";
       RestrictAddressFamilies = [ "AF_UNIX" ];
-      PrivatePIDs = true;
+      # No PrivatePIDs: on systemd 260 it fails namespace setup together with
+      # a DynamicUser StateDirectory (226/NAMESPACE, "Failed to allocate user
+      # namespace"). ProtectProc=invisible already hides every process of
+      # another uid, and each run has its own; jail-check verifies it.
       ProtectProc = "invisible";
       ProcSubset = "pid";
       TemporaryFileSystem = [ "/run" "/var/lib/wiki" ];
