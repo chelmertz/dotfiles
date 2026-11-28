@@ -12,6 +12,8 @@
 { config, lib, pkgs, ... }:
 let
   wiki = pkgs.callPackage ../../../wiki/package.nix { };
+  # AGENT_USER_PREFIX in wiki/src/peer.rs, which caps run ids so the name fits.
+  agentUserPrefix = "wiki-run-";
   # Anthropic's published API range. The proxy dials 160.79.104.10 directly
   # (wiki proxy --connect) so it needs no DNS and nothing else is reachable.
   anthropicApi = "160.79.104.0/23";
@@ -52,6 +54,10 @@ in
     })
   ];
 
+  assertions = [{
+    assertion = lib.hasInfix "AGENT_USER_PREFIX: &str = \"${agentUserPrefix}\";" (builtins.readFile ../../../wiki/src/peer.rs);
+    message = "wiki.nix agentUserPrefix differs from AGENT_USER_PREFIX in wiki/src/peer.rs";
+  }];
   users.groups.wiki-agent = { };
   users.groups.wiki-proxy = { };
   users.users.wiki-proxy = {
@@ -133,7 +139,11 @@ in
     description = "wiki: jailed ingest agent, run %i";
     serviceConfig = hardening // {
       Type = "oneshot";
+      # One dynamic user per run, so concurrent runs cannot read each other's
+      # state. Without User= systemd names it after the template ("wiki-agent"),
+      # which is the static socket group above, and refuses to start the unit.
       DynamicUser = true;
+      User = "${agentUserPrefix}%i";
       SupplementaryGroups = [ "wiki-agent" ];
       # The agent's only writable place; result.json lands here and the
       # starter removes it after reading.

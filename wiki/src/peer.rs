@@ -15,13 +15,19 @@ pub struct Registration {
     pub command: String,
 }
 
+/// Must equal agentUserPrefix in nix/hosts/tau/wiki.nix, whose assertion
+/// fails the system build when the two differ.
+pub const AGENT_USER_PREFIX: &str = "wiki-run-";
+
 /// The values a run may be registered under: one per employer, plus personal.
 pub const ORGS: &[&str] = &["personal", "eversports"];
 
-/// Run ids are [0-9a-z]{1,64}, so a unit instance name needs no escaping and
-/// no path or unit name built from one can be anything else.
+/// Run ids are [0-9a-z]{1,22}, so a unit instance name needs no escaping and
+/// no path or unit name built from one can be anything else. 22 keeps the
+/// agent unit's per-run user, AGENT_USER_PREFIX plus the id, within the
+/// 31 characters systemd accepts as a user name.
 pub fn valid_run_id(s: &str) -> bool {
-    !s.is_empty() && s.len() <= 64 && s.bytes().all(|b| b.is_ascii_digit() || b.is_ascii_lowercase())
+    !s.is_empty() && s.len() <= 22 && s.bytes().all(|b| b.is_ascii_digit() || b.is_ascii_lowercase())
 }
 
 /// Commands are [a-z][a-z-]{0,31}.
@@ -153,7 +159,16 @@ mod tests {
 
     #[test]
     fn validates_ids() {
-        assert!(valid_run_id("r1") && !valid_run_id("") && !valid_run_id("a-b") && !valid_run_id("../x") && !valid_run_id(&"a".repeat(65)));
+        assert!(valid_run_id("r1") && !valid_run_id("") && !valid_run_id("a-b") && !valid_run_id("../x") && !valid_run_id(&"a".repeat(23)));
+        assert!(valid_run_id(&"a".repeat(22)));
+    }
+
+    /// The agent unit's User= is the prefix plus the run id, and systemd
+    /// refuses a user name over 31 characters.
+    #[test]
+    fn agent_user_names_fit_systemd() {
+        assert_eq!(AGENT_USER_PREFIX, "wiki-run-");
+        assert!(AGENT_USER_PREFIX.len() + 22 <= 31);
         assert!(valid_command("ingest") && valid_command("re-ingest") && !valid_command("Ingest") && !valid_command("-x") && !valid_command("in gest"));
     }
 }
