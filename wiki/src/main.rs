@@ -249,12 +249,15 @@ fn collect_files(root: &Path, dir: &Path, out: &mut std::collections::BTreeMap<S
 
 /// Ingests one archived ~/p project folder into one org's pages.
 fn run_ingest(args: &[String]) -> Result<(), String> {
-    let f = flags(args, &["org", "source", "wiki", "state", "usage", "socket"])?;
+    let f = flags(args, &["org", "source", "wiki", "state", "usage", "socket", "p-root"])?;
     let home = std::env::var("HOME").map_err(|_| "no HOME")?;
     let get = |k: &str, d: String| f.get(k).cloned().unwrap_or(d);
     let wiki = PathBuf::from(get("wiki", format!("{home}/sync/wiki")));
+    let state = PathBuf::from(get("state", format!("{home}/.local/state/wiki")));
     let ing = ingest::Ingest {
-        git: ingest::Git { git_dir: PathBuf::from(get("state", format!("{home}/.local/state/wiki"))).join("git"), work_tree: wiki.clone() },
+        git: ingest::Git { git_dir: state.join("git"), work_tree: wiki.clone() },
+        lock: state.join("ingest.lock"),
+        p_root: PathBuf::from(get("p-root", format!("{home}/p"))),
         wiki,
         usage_dir: PathBuf::from(get("usage", "/var/lib/wiki-proxy/usage".into())),
         runner: ingest::SocketRunner(PathBuf::from(get("socket", "/run/wiki/starter.sock".into()))),
@@ -262,10 +265,9 @@ fn run_ingest(args: &[String]) -> Result<(), String> {
         run_id: ingest::new_run_id,
         scan: ingest::gitleaks_scan,
     };
-    let org = f.get("org").ok_or("--org is required")?;
     let source = f.get("source").ok_or("--source is required")?;
     std::fs::create_dir_all(&ing.wiki).map_err(|e| e.to_string())?;
-    let sha = ing.project(org, Path::new(source))?;
+    let sha = ing.project(f.get("org").map(String::as_str), Path::new(source))?;
     println!("{sha}");
     Ok(())
 }

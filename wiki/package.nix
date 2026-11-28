@@ -23,14 +23,17 @@ rustPlatform.buildRustPackage {
 
   cargoLock.lockFile = ./Cargo.lock;
 
-  # The ingest tests build real git repositories.
-  nativeCheckInputs = [ git ];
+  # The ingest tests build real git repositories and run the real gitleaks.
+  nativeCheckInputs = [
+    git
+    gitleaks
+  ];
   nativeBuildInputs = [ makeWrapper ];
 
-  # `wiki ingest` forks git and gitleaks; carried here rather than trusted to
-  # whatever PATH the caller has. --suffix so an interactive PATH still wins.
+  # `wiki ingest` forks git and gitleaks: the pinned ones come first, since
+  # the commit's isolation and the secret scan depend on their behaviour.
   postInstall = ''
-    wrapProgram $out/bin/wiki --suffix PATH : ${
+    wrapProgram $out/bin/wiki --prefix PATH : ${
       lib.makeBinPath [
         git
         gitleaks
