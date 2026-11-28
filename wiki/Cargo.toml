@@ -1,0 +1,26 @@
+[package]
+name = "wiki"
+version = "0.1.0"
+edition = "2024"
+description = "Agent-maintained wiki: token-holding proxy and root starter for jailed ingest runs"
+publish = false
+
+[dependencies]
+tokio = { version = "1", features = ["rt", "net", "macros", "io-util", "time", "sync"] }
+hyper = { version = "1", features = ["server", "client", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "client-legacy", "http1"] }
+http-body-util = "0.1"
+http-body = "1"
+bytes = "1"
+hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "ring", "webpki-roots", "tls12"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tower-service = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+libc = "0.2"
+
+[profile.release]
+panic = "abort"
+
+[dev-dependencies]
+futures-core = "0.3"
