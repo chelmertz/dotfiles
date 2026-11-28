@@ -30,6 +30,14 @@
       url = "github:sadjow/claude-code-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # The wiki's jailed agent runs this claude-code, pinned by revision so a
+    # lock bump cannot move it: the wiki proxy's allowlists (betas, headers,
+    # body keys) were captured from 2.1.325 and are held by its tests. Moving
+    # it means re-capturing that traffic and updating wiki/policy.go first.
+    claude-code-wiki = {
+      url = "github:sadjow/claude-code-nix/2c0782ecf4d07e4395cb56b33555fa4eb30f6784";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     elly = {
       url = "github:chelmertz/elly";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -71,6 +79,7 @@
       nixpkgs-ghostty,
       home-manager,
       claude-code,
+      claude-code-wiki,
       elly,
       serve,
       sift,
@@ -355,6 +364,9 @@
           ./hosts/tau/disko.nix
           ./hosts/tau/hardware.nix
           ./hosts/tau/configuration.nix
+          (import ./hosts/tau/wiki.nix {
+            claudeForWiki = claude-code-wiki.packages.${system}.claude-code;
+          })
           # Unfree, and each was an apt or .deb package on gamma. Named
           # individually for the same reason unfreeConfig above does it: an
           # unexpected unfree dependency should fail the build, not slip in.

@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/user"
 	"strconv"
 	"time"
 )
@@ -114,17 +115,25 @@ func runStarter(args []string) error {
 	runs := fs.String("runs", "/var/lib/wiki/runs", "root-owned directory for staged run inputs")
 	registry := fs.String("registry", "/run/wiki/runs", "where the proxy reads run registrations")
 	results := fs.String("results", "/var/lib/private/wiki-agent", "the agent units' state directories")
-	uid := fs.Int("uid", 1000, "the only uid allowed to start runs")
+	userName := fs.String("user", "", "the only user allowed to start runs")
 	systemctl := fs.String("systemctl", "systemctl", "systemctl binary")
 	listen := fs.String("listen", "", "unix socket path instead of a systemd-passed socket")
 	fs.Parse(args)
 	if os.Geteuid() != 0 {
 		return errors.New("starter: must run as root")
 	}
+	u, err := user.Lookup(*userName)
+	if err != nil {
+		return fmt.Errorf("starter: --user: %w", err)
+	}
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil || uid == 0 {
+		return fmt.Errorf("starter: user %q has uid %q", *userName, u.Uid)
+	}
 	l, err := listener(*listen)
 	if err != nil {
 		return err
 	}
-	s := &Starter{RunsDir: *runs, Registry: *registry, ResultDir: *results, UID: *uid, Units: systemdUnits{*systemctl}}
+	s := &Starter{RunsDir: *runs, Registry: *registry, ResultDir: *results, UID: uid, Units: systemdUnits{*systemctl}}
 	return s.Serve(l)
 }
