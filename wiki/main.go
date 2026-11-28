@@ -22,12 +22,16 @@ import (
 func main() {
 	log.SetFlags(0) // journald stamps lines
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: wiki proxy [flags]")
+		fmt.Fprintln(os.Stderr, "usage: wiki proxy|starter [flags]")
 		os.Exit(2)
 	}
 	switch os.Args[1] {
 	case "proxy":
 		if err := runProxy(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
+	case "starter":
+		if err := runStarter(os.Args[2:]); err != nil {
 			log.Fatal(err)
 		}
 	default:
@@ -103,4 +107,24 @@ func pinnedTransport(addr string) http.RoundTripper {
 		return d.DialContext(ctx, "tcp", addr)
 	}
 	return t
+}
+
+func runStarter(args []string) error {
+	fs := flag.NewFlagSet("starter", flag.ExitOnError)
+	runs := fs.String("runs", "/var/lib/wiki/runs", "root-owned directory for staged run inputs")
+	registry := fs.String("registry", "/run/wiki/runs", "where the proxy reads run registrations")
+	results := fs.String("results", "/var/lib/private/wiki-agent", "the agent units' state directories")
+	uid := fs.Int("uid", 1000, "the only uid allowed to start runs")
+	systemctl := fs.String("systemctl", "systemctl", "systemctl binary")
+	listen := fs.String("listen", "", "unix socket path instead of a systemd-passed socket")
+	fs.Parse(args)
+	if os.Geteuid() != 0 {
+		return errors.New("starter: must run as root")
+	}
+	l, err := listener(*listen)
+	if err != nil {
+		return err
+	}
+	s := &Starter{RunsDir: *runs, Registry: *registry, ResultDir: *results, UID: *uid, Units: systemdUnits{*systemctl}}
+	return s.Serve(l)
 }
