@@ -80,10 +80,18 @@ pub fn peer_cgroup(fd: RawFd) -> io::Result<String> {
     // pidfd_send_signal(pidfd, 0, NULL, 0): ESRCH once the process is gone.
     // SAFETY: plain syscall on an fd we own.
     let r = unsafe { libc::syscall(libc::SYS_pidfd_send_signal, pidfd, 0, std::ptr::null::<u8>(), 0) };
-    if r != 0 {
-        return Err(io::Error::other(format!("peer exited: {}", io::Error::last_os_error())));
-    }
+    still_running(if r == 0 { None } else { io::Error::last_os_error().raw_os_error() })?;
     Ok(cg)
+}
+
+/// The proxy runs as its own user and every agent as another, so signal 0
+/// gets EPERM from a live peer; only ESRCH says it is gone. Anything else
+/// refuses the peer.
+fn still_running(errno: Option<i32>) -> io::Result<()> {
+    match errno {
+        None | Some(libc::EPERM) => Ok(()),
+        Some(e) => Err(io::Error::other(format!("peer exited: {}", io::Error::from_raw_os_error(e)))),
+    }
 }
 
 struct CloseFd(libc::c_int);
@@ -161,6 +169,14 @@ mod tests {
     fn validates_ids() {
         assert!(valid_run_id("r1") && !valid_run_id("") && !valid_run_id("a-b") && !valid_run_id("../x") && !valid_run_id(&"a".repeat(23)));
         assert!(valid_run_id(&"a".repeat(22)));
+    }
+
+    #[test]
+    fn a_peer_of_another_uid_is_alive_until_esrch() {
+        assert!(still_running(None).is_ok());
+        assert!(still_running(Some(libc::EPERM)).is_ok());
+        assert!(still_running(Some(libc::ESRCH)).is_err());
+        assert!(still_running(Some(libc::EBADF)).is_err());
     }
 
     /// The agent unit's User= is the prefix plus the run id, and systemd
