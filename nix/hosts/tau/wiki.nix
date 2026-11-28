@@ -41,9 +41,11 @@ in
   # `sudo wiki-jail-check`: the isolation checks, run through the installed
   # starter and proxy with `wiki jail-check` in place of claude. No model runs.
   environment.systemPackages = [
+    # `wiki ingest` and `wiki start` for the user; the units use the same build.
+    wiki
     (pkgs.writeShellApplication {
       name = "wiki-jail-check";
-      runtimeInputs = [ pkgs.jq pkgs.curl pkgs.coreutils pkgs.gnugrep config.systemd.package ];
+      runtimeInputs = [ pkgs.jq pkgs.curl pkgs.coreutils pkgs.gnugrep pkgs.getent config.systemd.package ];
       text = ''
         export PATH="/run/wrappers/bin:$PATH" # sudo
       '' + builtins.readFile ../../../wiki/jail-check.sh;
@@ -61,6 +63,9 @@ in
     "d /run/wiki/runs 0755 root root -"
     "d /var/lib/wiki 0755 root root -"
     "d /var/lib/wiki/runs 0711 root root -"
+    # Before the proxy's first start: agent units hide this path, and a
+    # missing InaccessiblePaths target fails their namespace setup.
+    "d /var/lib/wiki-proxy 0755 wiki-proxy wiki-proxy -"
   ];
 
   # ── Proxy ───────────────────────────────────────────────────────────────

@@ -167,12 +167,32 @@ static TMP: AtomicU64 = AtomicU64::new(0);
 
 /// Replaces path atomically: new temp file, fsync, rename, fsync the directory.
 pub fn write_json<T: Serialize>(path: &Path, v: &T) -> io::Result<()> {
+    write_json_named(path, v, tmp_name)
+}
+
+/// A temp name random enough that a file left by a killed process with a
+/// reused pid is not hit twice; write_json_named retries if it is hit once.
+fn tmp_name() -> String {
+    let mut rnd = [0u8; 8];
+    // SAFETY: getrandom writes at most rnd.len() bytes into rnd.
+    unsafe { libc::getrandom(rnd.as_mut_ptr().cast(), rnd.len(), 0) };
+    format!(".tmp-{}-{}-{:016x}", std::process::id(), TMP.fetch_add(1, Ordering::Relaxed), u64::from_ne_bytes(rnd))
+}
+
+fn write_json_named<T: Serialize>(path: &Path, v: &T, mut name: impl FnMut() -> String) -> io::Result<()> {
     let b = serde_json::to_vec(v)?;
     let dir = path.parent().unwrap_or(Path::new("."));
     fs::create_dir_all(dir)?;
-    let tmp = dir.join(format!(".tmp-{}-{}", std::process::id(), TMP.fetch_add(1, Ordering::Relaxed)));
+    let mut tries = 0;
+    let (tmp, mut f) = loop {
+        let tmp = dir.join(name());
+        match fs::OpenOptions::new().write(true).create_new(true).mode(0o644).open(&tmp) {
+            Ok(f) => break (tmp, f),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists && tries < 8 => tries += 1,
+            Err(e) => return Err(e),
+        }
+    };
     let res = (|| {
-        let mut f = fs::OpenOptions::new().write(true).create_new(true).mode(0o644).open(&tmp)?;
         f.write_all(&b)?;
         f.sync_all()?;
         fs::rename(&tmp, path)?;
@@ -228,6 +248,16 @@ mod tests {
         for n in [0, -1, i64::MIN] {
             assert!(a.reserve(&rr(), "m", n).is_err(), "reserve({n})");
         }
+    }
+
+    #[test]
+    fn write_json_retries_past_a_leftover_temp_file() {
+        let dir = TempDir::new();
+        let p = dir.path().join("budget.json");
+        std::fs::write(dir.path().join(".tmp-left"), "x").unwrap();
+        let mut names = vec![".tmp-fresh".to_string(), ".tmp-left".to_string()];
+        write_json_named(&p, &DayBudget { day: "d".into(), used: 2 }, || names.pop().unwrap()).unwrap();
+        assert_eq!(serde_json::from_slice::<DayBudget>(&std::fs::read(&p).unwrap()).unwrap().used, 2);
     }
 
     #[test]

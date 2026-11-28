@@ -44,6 +44,9 @@ pub struct Proxy<C> {
     pub accounts: Arc<Accounts>,
     pub client: Client<C, Full<Bytes>>,
     pub peer: PeerFn,
+    /// How long upstream may take to answer with headers (TLS handshake
+    /// included); a streamed answer sends its headers at once.
+    pub response_timeout: Duration,
 }
 
 /// Every refusal answers 403. Claude Code's client retries 408, 409, 429 and
@@ -69,9 +72,13 @@ impl<C: Connect + Clone + Send + Sync + 'static> Proxy<C> {
     fn deny(&self, rr: Option<&Registration>, r: Refusal) -> Response<RespBody> {
         let run = rr.map_or("-", |rr| rr.run.as_str());
         if let Some(rr) = rr {
-            if let Err(e) = self.accounts.refused(rr, r.reason) {
-                eprintln!("run={run} recording refusal: {e}");
-            }
+            // fsyncs, so off the async thread; the refusal answer does not wait.
+            let (acc, rr, reason) = (self.accounts.clone(), rr.clone(), r.reason);
+            tokio::task::spawn_blocking(move || {
+                if let Err(e) = acc.refused(&rr, reason) {
+                    eprintln!("run={} recording refusal: {e}", rr.run);
+                }
+            });
         }
         eprintln!("refused run={run} reason={} detail={}", r.reason, r.detail);
         let body = serde_json::json!({"type": "error", "error": {"type": "permission_error", "message": format!("wiki-proxy refused: {}", r.reason)}});
@@ -82,12 +89,14 @@ impl<C: Connect + Clone + Send + Sync + 'static> Proxy<C> {
             .unwrap()
     }
 
-    fn settle(&self, rr: &Registration, reserved: i64, day: &str, rep: Option<Reported>) {
+    async fn settle(&self, rr: &Registration, reserved: i64, day: &str, rep: Option<Reported>) {
         if reserved == 0 {
             return;
         }
-        if let Err(e) = self.accounts.settle(rr, reserved, day, rep) {
-            eprintln!("run={} settling: {e}", rr.run);
+        let (acc, rr, day) = (self.accounts.clone(), rr.clone(), day.to_string());
+        let res = tokio::task::spawn_blocking(move || acc.settle(&rr, reserved, &day, rep).map_err(|e| (rr.run, e))).await;
+        if let Ok(Err((run, e))) = res {
+            eprintln!("run={run} settling: {e}");
         }
     }
 
@@ -121,6 +130,11 @@ impl<C: Connect + Clone + Send + Sync + 'static> Proxy<C> {
             Ok(i) => i,
             Err(r) => return self.deny(Some(&rr), r),
         };
+        // `wiki jail-check` runs only send requests the policy must refuse;
+        // should one pass, it still never leaves the machine.
+        if rr.command == "jail-check" {
+            return self.deny(Some(&rr), refuse("jail-check", "jail-check runs never reach Anthropic"));
+        }
         let token = match (self.token)() {
             Ok(t) if !t.is_empty() => t,
             Ok(_) => return self.deny(Some(&rr), refuse("token", "empty")),
@@ -131,9 +145,11 @@ impl<C: Connect + Clone + Send + Sync + 'static> Proxy<C> {
         // plus every output token it may generate.
         let (reserved, day) = if parts.uri.path() == "/v1/messages" {
             let n = (body.len() / 2) as i64 + info.max_tokens as i64;
-            match self.accounts.reserve(&rr, &info.model, n) {
-                Ok(day) => (n, day),
-                Err(r) => return self.deny(Some(&rr), r),
+            let (acc, rr2, model) = (self.accounts.clone(), rr.clone(), info.model.clone());
+            match tokio::task::spawn_blocking(move || acc.reserve(&rr2, &model, n)).await {
+                Ok(Ok(day)) => (n, day),
+                Ok(Err(r)) => return self.deny(Some(&rr), r),
+                Err(e) => return self.deny(Some(&rr), refuse("state", e.to_string())),
             }
         } else {
             (0, String::new())
@@ -163,12 +179,16 @@ impl<C: Connect + Clone + Send + Sync + 'static> Proxy<C> {
         };
         let out = out.header("anthropic-beta", betas.join(",")).header(AUTHORIZATION, auth).body(Full::new(body)).unwrap();
 
-        let resp = match self.client.request(out).await {
-            Ok(r) => r,
-            Err(e) => {
-                // Never reached Anthropic, or failed mid-way: keep the charge.
+        // Never reached Anthropic, failed mid-way or stalled: keep the charge.
+        let resp = match tokio::time::timeout(self.response_timeout, self.client.request(out)).await {
+            Ok(Ok(r)) => r,
+            Ok(Err(e)) => {
                 eprintln!("run={} upstream: {e}", rr.run);
                 return Response::builder().status(StatusCode::BAD_GATEWAY).body(full("")).unwrap();
+            }
+            Err(_) => {
+                eprintln!("run={} upstream: no answer within {:?}", rr.run, self.response_timeout);
+                return Response::builder().status(StatusCode::GATEWAY_TIMEOUT).body(full("")).unwrap();
             }
         };
         let (rparts, mut rbody) = resp.into_parts();
@@ -177,7 +197,7 @@ impl<C: Connect + Clone + Send + Sync + 'static> Proxy<C> {
             Some(UsageParser::new(ct))
         } else {
             // Anthropic does not bill a request it answered with an error.
-            self.settle(&rr, reserved, &day, Some(Reported::default()));
+            self.settle(&rr, reserved, &day, Some(Reported::default())).await;
             None
         };
         let (tx, rx) = mpsc::channel(16);
@@ -185,12 +205,7 @@ impl<C: Connect + Clone + Send + Sync + 'static> Proxy<C> {
         tokio::spawn(async move {
             loop {
                 match rbody.frame().await {
-                    None => {
-                        if let Some(p) = parser.take() {
-                            me.settle(&rr, reserved, &day, p.finish());
-                        }
-                        break;
-                    }
+                    None => break,
                     Some(Err(e)) => {
                         let _ = tx.send(Err(io::Error::other(e))).await;
                         break;
@@ -200,10 +215,15 @@ impl<C: Connect + Clone + Send + Sync + 'static> Proxy<C> {
                             p.feed(d);
                         }
                         if tx.send(Ok(f)).await.is_err() {
-                            break; // client gone: the reservation stays charged
+                            break; // client gone
                         }
                     }
                 }
+            }
+            // Whichever way the relay ended: a complete report settles, and
+            // without one the reservation stays charged.
+            if let Some(p) = parser.take() {
+                me.settle(&rr, reserved, &day, p.finish()).await;
             }
         });
         let mut builder = Response::builder().status(rparts.status);
@@ -219,7 +239,15 @@ impl<C: Connect + Clone + Send + Sync + 'static> Proxy<C> {
     /// after accept, before any byte from it is read.
     pub async fn serve(self: Arc<Self>, listener: UnixListener) -> io::Result<()> {
         loop {
-            let (stream, _) = listener.accept().await?;
+            let stream = match listener.accept().await {
+                Ok((s, _)) => s,
+                Err(e) => {
+                    // EMFILE and friends pass; the proxy must not exit on them.
+                    eprintln!("proxy: accept: {e}");
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    continue;
+                }
+            };
             let peer = (self.peer)(stream.as_raw_fd()).map_err(|e| e.to_string());
             let me = self.clone();
             tokio::spawn(async move {
@@ -276,7 +304,6 @@ mod tests {
     use crate::accounting::{DayBudget, Usage, write_json};
     use crate::stream::tests::SSE_OK;
     use crate::testutil::TempDir;
-    use http_body_util::StreamBody;
     use serde_json::{Value, json};
     use std::sync::Mutex;
     use tokio::net::{TcpListener, UnixStream};
@@ -295,6 +322,7 @@ mod tests {
         ct: &'static str,
         body: String,
         cut: bool,
+        hang: bool,
         seen: Arc<Mutex<Vec<Seen>>>,
     }
 
@@ -319,12 +347,20 @@ mod tests {
                             let (p, b) = req.into_parts();
                             let _ = b.collect().await;
                             f.seen.lock().unwrap().push(Seen { uri: p.uri, headers: p.headers });
-                            let chunks: Vec<Result<Frame<Bytes>, io::Error>> = if f.cut {
-                                vec![Ok(Frame::data(Bytes::from(f.body.clone()))), Err(io::Error::other("cut"))]
-                            } else {
-                                vec![Ok(Frame::data(Bytes::from(f.body.clone())))]
-                            };
-                            let body = StreamBody::new(futures_iter(chunks)).boxed();
+                            if f.hang {
+                                std::future::pending::<()>().await;
+                            }
+                            // A cut stream sends its data, lets it flush, then breaks.
+                            let (tx, rx) = mpsc::channel(4);
+                            let (data, cut) = (f.body.clone(), f.cut);
+                            tokio::spawn(async move {
+                                let _ = tx.send(Ok(Frame::data(Bytes::from(data)))).await;
+                                if cut {
+                                    tokio::time::sleep(Duration::from_millis(50)).await;
+                                    let _ = tx.send(Err(io::Error::other("cut"))).await;
+                                }
+                            });
+                            let body = ChannelBody(rx).boxed();
                             Ok::<_, Infallible>(Response::builder().status(f.status).header(CONTENT_TYPE, f.ct).body(body).unwrap())
                         }
                     });
@@ -333,18 +369,6 @@ mod tests {
             }
         });
         addr
-    }
-
-    fn futures_iter<T: Send + 'static>(v: Vec<T>) -> impl futures_core::Stream<Item = T> + Send {
-        struct It<T>(std::vec::IntoIter<T>);
-        impl<T> futures_core::Stream for It<T> {
-            type Item = T;
-            fn poll_next(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<T>> {
-                Poll::Ready(self.0.next())
-            }
-        }
-        impl<T> Unpin for It<T> {}
-        It(v.into_iter())
     }
 
     struct Rig {
@@ -356,7 +380,7 @@ mod tests {
 
     impl Rig {
         async fn new() -> Rig {
-            Rig::with(Fake { status: 200, ct: "text/event-stream", body: SSE_OK.into(), cut: false, seen: Default::default() }).await
+            Rig::with(Fake { status: 200, ct: "text/event-stream", body: SSE_OK.into(), cut: false, hang: false, seen: Default::default() }).await
         }
 
         async fn with(fake: Fake) -> Rig {
@@ -374,6 +398,7 @@ mod tests {
                 accounts: Arc::new(Accounts::new(dir.path().join("state"), 1_000_000, 600_000, Box::new(|| "2026-11-28".into()))),
                 client: Client::builder(TokioExecutor::new()).build(HttpConnector::new()),
                 peer: Box::new(move |_| Ok(cg2.lock().unwrap().clone())),
+                response_timeout: Duration::from_millis(500),
             });
             let sock = dir.path().join("p.sock");
             let l = UnixListener::bind(&sock).unwrap();
@@ -422,7 +447,23 @@ mod tests {
         }
 
         fn usage(&self, run: &str) -> Usage {
-            serde_json::from_slice(&std::fs::read(self.dir.path().join("state/usage").join(format!("{run}.json"))).unwrap()).unwrap()
+            std::fs::read(self.dir.path().join("state/usage").join(format!("{run}.json")))
+                .ok()
+                .and_then(|b| serde_json::from_slice(&b).ok())
+                .unwrap_or_default()
+        }
+
+        /// Settlement and refusal counts are written after the response; poll
+        /// rather than guess how long that takes.
+        async fn usage_when(&self, run: &str, ok: impl Fn(&Usage) -> bool) -> Usage {
+            for _ in 0..250 {
+                let u = self.usage(run);
+                if ok(&u) {
+                    return u;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            self.usage(run)
         }
 
         fn day_used(&self) -> i64 {
@@ -456,8 +497,7 @@ mod tests {
     async fn settles_stream_usage_to_run_and_org() {
         let r = Rig::new().await;
         r.post("/v1/messages?beta=true", &good(), &[]).await;
-        tokio::time::sleep(Duration::from_millis(50)).await;
-        let u = r.usage("run1");
+        let u = r.usage_when("run1", |u| u.unsettled_requests == 0 && u.requests == 1).await;
         let want = Usage {
             run: "run1".into(), org: "eversports".into(), command: "ingest".into(), model: "claude-sonnet-5-5".into(),
             requests: 1, input_tokens: 100, cache_write_tokens: 2000, cache_read_tokens: 30000, output_tokens: 50,
@@ -469,7 +509,7 @@ mod tests {
 
     #[tokio::test]
     async fn cut_stream_keeps_reservation() {
-        let r = Rig::with(Fake { status: 200, ct: "text/event-stream", body: SSE_OK.split("\n\n").next().unwrap().into(), cut: true, seen: Default::default() }).await;
+        let r = Rig::with(Fake { status: 200, ct: "text/event-stream", body: SSE_OK.split("\n\n").next().unwrap().into(), cut: true, hang: false, seen: Default::default() }).await;
         r.post("/v1/messages?beta=true", &good(), &[]).await;
         tokio::time::sleep(Duration::from_millis(50)).await;
         let u = r.usage("run1");
@@ -481,16 +521,35 @@ mod tests {
     /// settlement either.
     #[tokio::test]
     async fn stream_without_final_usage_keeps_reservation() {
-        let r = Rig::with(Fake { status: 200, ct: "text/event-stream", body: SSE_OK.split("\n\n").next().unwrap().into(), cut: false, seen: Default::default() }).await;
+        let r = Rig::with(Fake { status: 200, ct: "text/event-stream", body: SSE_OK.split("\n\n").next().unwrap().into(), cut: false, hang: false, seen: Default::default() }).await;
         r.post("/v1/messages?beta=true", &good(), &[]).await;
         tokio::time::sleep(Duration::from_millis(50)).await;
         let u = r.usage("run1");
         assert!(u.unsettled_requests == 1 && u.charged_tokens >= 128_000, "{u:?}");
     }
 
+    /// Final usage seen, then upstream breaks before the end: still settled.
+    #[tokio::test]
+    async fn complete_report_settles_even_if_the_stream_then_breaks() {
+        let r = Rig::with(Fake { status: 200, ct: "text/event-stream", body: SSE_OK.into(), cut: true, hang: false, seen: Default::default() }).await;
+        r.post("/v1/messages?beta=true", &good(), &[]).await;
+        let u = r.usage_when("run1", |u| u.unsettled_requests == 0 && u.requests == 1).await;
+        assert!(u.unsettled_requests == 0 && u.charged_tokens == 2150, "{u:?}");
+    }
+
+    /// Upstream accepts but never answers: 504, and the charge stays.
+    #[tokio::test]
+    async fn stalled_upstream_times_out_and_keeps_charge() {
+        let r = Rig::with(Fake { status: 200, ct: "text/event-stream", body: String::new(), cut: false, hang: true, seen: Default::default() }).await;
+        let (st, _) = r.post("/v1/messages?beta=true", &good(), &[]).await;
+        assert_eq!(st, StatusCode::GATEWAY_TIMEOUT);
+        let u = r.usage("run1");
+        assert!(u.unsettled_requests == 1 && u.charged_tokens >= 128_000, "{u:?}");
+    }
+
     #[tokio::test]
     async fn upstream_error_is_not_charged() {
-        let r = Rig::with(Fake { status: 529, ct: "application/json", body: r#"{"type":"error"}"#.into(), cut: false, seen: Default::default() }).await;
+        let r = Rig::with(Fake { status: 529, ct: "application/json", body: r#"{"type":"error"}"#.into(), cut: false, hang: false, seen: Default::default() }).await;
         let (st, _) = r.post("/v1/messages?beta=true", &good(), &[]).await;
         assert_eq!(st, 529);
         let u = r.usage("run1");
@@ -499,13 +558,13 @@ mod tests {
 
     #[tokio::test]
     async fn run_budget_refuses_fifth_unsettled_request() {
-        let r = Rig::with(Fake { status: 200, ct: "text/event-stream", body: String::new(), cut: true, seen: Default::default() }).await;
+        let r = Rig::with(Fake { status: 200, ct: "text/event-stream", body: String::new(), cut: true, hang: false, seen: Default::default() }).await;
         let mut last = StatusCode::OK;
         for _ in 0..5 {
             last = r.post("/v1/messages?beta=true", &good(), &[]).await.0;
         }
         assert_eq!(last, REFUSAL_STATUS);
-        assert_eq!(r.usage("run1").refusals.get("budget-run"), Some(&1));
+        assert_eq!(r.usage_when("run1", |u| !u.refusals.is_empty()).await.refusals.get("budget-run"), Some(&1));
     }
 
     #[tokio::test]
@@ -531,7 +590,7 @@ mod tests {
 
     #[tokio::test]
     async fn count_tokens_is_free() {
-        let r = Rig::with(Fake { status: 200, ct: "application/json", body: r#"{"input_tokens":1234}"#.into(), cut: false, seen: Default::default() }).await;
+        let r = Rig::with(Fake { status: 200, ct: "application/json", body: r#"{"input_tokens":1234}"#.into(), cut: false, hang: false, seen: Default::default() }).await;
         let mut b = good();
         b.as_object_mut().unwrap().remove("stream");
         b.as_object_mut().unwrap().remove("max_tokens");
@@ -552,6 +611,15 @@ mod tests {
             assert_eq!(r.post("/v1/messages?beta=true", &good(), &[]).await.0, REFUSAL_STATUS, "{cg}");
             assert_eq!(r.fake.hits(), 0, "{cg}");
         }
+    }
+
+    #[tokio::test]
+    async fn jail_check_runs_never_reach_upstream() {
+        let r = Rig::new().await;
+        r.register("run1", "personal", "jail-check");
+        assert_eq!(r.post("/v1/messages?beta=true", &good(), &[]).await.0, REFUSAL_STATUS);
+        assert_eq!(r.fake.hits(), 0);
+        assert_eq!(r.usage_when("run1", |u| !u.refusals.is_empty()).await.refusals.get("jail-check"), Some(&1));
     }
 
     #[tokio::test]
@@ -581,7 +649,7 @@ mod tests {
             let (st, _) = r.post_raw(path, body, &hdr).await;
             assert_eq!(st, REFUSAL_STATUS, "{reason}");
             assert_eq!(r.fake.hits(), 0, "{reason}");
-            assert_eq!(r.usage("run1").refusals.get(reason), Some(&1), "{reason}");
+            assert_eq!(r.usage_when("run1", |u| !u.refusals.is_empty()).await.refusals.get(reason), Some(&1), "{reason}");
         }
     }
 
@@ -624,6 +692,7 @@ mod tests {
             accounts: Arc::new(Accounts::new(dir.path().join("state"), 2_000_000, 1_000_000, Box::new(crate::accounting::local_today))),
             client: pinned_client("160.79.104.10:443".parse().unwrap()),
             peer: Box::new(|_| Ok(AGENT_CG.to_string())),
+            response_timeout: Duration::from_secs(60),
         });
         let sock = dir.path().join("p.sock");
         tokio::spawn(p.serve(UnixListener::bind(&sock).unwrap()));

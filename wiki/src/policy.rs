@@ -209,7 +209,8 @@ fn check_content(v: &Value) -> Result<(), Refusal> {
             return Err(refuse("block", typ));
         }
         for k in b.keys() {
-            if !ALLOWED_BLOCK_KEYS.contains(&k.as_str()) {
+            let misplaced = (k == "content" && typ != "tool_result") || (k == "source" && typ != "image");
+            if !ALLOWED_BLOCK_KEYS.contains(&k.as_str()) || misplaced {
                 return Err(refuse("key", format!("{typ}.{k}")));
             }
         }
@@ -352,6 +353,8 @@ pub(crate) mod tests {
             ("url in result", msg(json!({"type": "tool_result", "tool_use_id": "t", "content": [{"type": "image", "source": {"type": "url", "url": "https://x"}}]})), "source"),
             ("search result", msg(json!({"type": "search_result", "source": "https://x"})), "block"),
             ("unknown block key", msg(json!({"type": "text", "text": "x", "url": "https://x"})), "key"),
+            ("content on a text block", msg(json!({"type": "text", "text": "x", "content": [{"type": "image", "source": {"type": "url", "url": "https://x"}}]})), "key"),
+            ("source on a text block", msg(json!({"type": "text", "text": "x", "source": {"type": "base64", "data": "x"}})), "key"),
         ];
         for (name, body, want) in cases {
             assert_eq!(reason(&body), want, "{name}");

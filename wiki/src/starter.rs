@@ -50,17 +50,39 @@ pub const STAGED: &str = "in";
 
 /// Relative paths of lowercase segments ending .md/.txt/.json; no segment
 /// starts with a dot or dash, so nothing staged is hidden or a traversal.
+/// The first segment allows no dot at all; later ones allow dots after the
+/// first character. Equivalent to
+/// ^[a-z0-9][a-z0-9_-]*(/[a-z0-9][a-z0-9_.-]*)*\.(md|txt|json)$
 pub fn valid_staged_path(p: &str) -> bool {
-    let Some(ext) = p.rsplit('.').next() else { return false };
-    if !matches!(ext, "md" | "txt" | "json") || p.contains("..") {
+    let Some(stem) = [".md", ".txt", ".json"].iter().find_map(|e| p.strip_suffix(e)) else { return false };
+    if p.contains("..") {
         return false;
     }
-    p.split('/').all(|seg| {
+    stem.split('/').enumerate().all(|(i, seg)| {
         let b = seg.as_bytes();
         !b.is_empty()
             && (b[0].is_ascii_lowercase() || b[0].is_ascii_digit())
-            && b.iter().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, b'_' | b'-' | b'.'))
+            && b.iter().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, b'_' | b'-') || (i > 0 && *c == b'.'))
     })
+}
+
+/// Reads with one absolute deadline for the whole request: each read waits
+/// at most the time left, so trickling bytes cannot hold the starter.
+struct DeadlineReader<'a> {
+    c: &'a UnixStream,
+    deadline: std::time::Instant,
+}
+
+impl Read for DeadlineReader<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let left = self.deadline.saturating_duration_since(std::time::Instant::now());
+        if left.is_zero() {
+            return Err(io::Error::new(io::ErrorKind::TimedOut, "request deadline"));
+        }
+        self.c.set_read_timeout(Some(left))?;
+        let mut r = self.c;
+        r.read(buf)
+    }
 }
 
 /// Starts one agent unit and returns systemd's verdict once it has stopped;
@@ -184,9 +206,9 @@ impl<U: Units> Starter<U> {
             return reply(StartResponse { error: "not allowed".into(), ..Default::default() });
         }
         // A client that never finishes its request must not block every later one.
-        let _ = c.set_read_timeout(Some(self.read_limit));
         let req: StartRequest = {
-            let mut lim = (&c).take(MAX_REQUEST);
+            let dr = DeadlineReader { c: &c, deadline: std::time::Instant::now() + self.read_limit };
+            let mut lim = io::BufReader::new(dr.take(MAX_REQUEST));
             let mut de = serde_json::Deserializer::from_reader(&mut lim);
             match StartRequest::deserialize(&mut de) {
                 Ok(r) => r,
@@ -197,6 +219,15 @@ impl<U: Units> Starter<U> {
         eprintln!("starter: run={} org={} command={} unit={} ok={} err={}", req.run, req.org, req.command, resp.unit_result, resp.ok, resp.error);
         reply(resp);
     }
+}
+
+/// The client side: sends one request and waits for the run to finish.
+pub fn ask(sock: &Path, req: &StartRequest) -> io::Result<StartResponse> {
+    let c = UnixStream::connect(sock)?;
+    (&c).write_all(&serde_json::to_vec(req)?)?;
+    let mut line = String::new();
+    io::BufRead::read_line(&mut io::BufReader::new(&c), &mut line)?;
+    serde_json::from_str(&line).map_err(io::Error::other)
 }
 
 struct Cleanup<F: FnMut()>(F);
@@ -255,11 +286,10 @@ impl Units for Systemd {
     fn run(&self, run: &str) -> (String, Result<(), String>) {
         let unit = Self::unit(run);
         let started = Command::new(&self.systemctl).args(["start", &unit]).status();
-        let result = Command::new(&self.systemctl)
-            .args(["show", "--property=Result", "--value", &unit])
-            .output()
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-            .unwrap_or_else(|_| "unknown".into());
+        let result = match Command::new(&self.systemctl).args(["show", "--property=Result", "--value", &unit]).output() {
+            Ok(o) if o.status.success() && !o.stdout.trim_ascii().is_empty() => String::from_utf8_lossy(&o.stdout).trim().to_string(),
+            _ => "unknown".into(),
+        };
         let err = match started {
             Err(e) => Err(e.to_string()),
             Ok(s) if !s.success() => Err(format!("systemctl start: {s}")),
@@ -473,12 +503,44 @@ mod tests {
         assert!(!resp.ok, "{resp:?}");
     }
 
+    /// Sends one byte at a time, each well inside the per-read timeout; the
+    /// absolute deadline must still end it.
+    #[test]
+    fn trickling_client_hits_the_deadline() {
+        let dir = TempDir::new();
+        let mut s = starter(&dir);
+        s.read_limit = Duration::from_millis(300);
+        let sock = std::env::temp_dir().join(format!("wiki-starter-trickle-{}.sock", std::process::id()));
+        let _ = fs::remove_file(&sock);
+        let l = UnixListener::bind(&sock).unwrap();
+        let sock2 = sock.clone();
+        let client = std::thread::spawn(move || {
+            let c = UnixStream::connect(&sock2).unwrap();
+            for b in b"{\"r".iter() {
+                if (&c).write_all(&[*b]).is_err() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            // Then hold the connection open without sending: only the
+            // deadline can end the read.
+            std::thread::sleep(Duration::from_secs(2));
+        });
+        let started = std::time::Instant::now();
+        let (c, _) = l.accept().unwrap();
+        s.handle(c);
+        assert!(started.elapsed() < Duration::from_secs(1), "{:?}", started.elapsed());
+        assert!(s.units.saw.borrow().0.is_empty());
+        client.join().unwrap();
+        let _ = fs::remove_file(&sock);
+    }
+
     #[test]
     fn staged_paths() {
         for ok in ["item.md", "pages/eversports/queue.md", "a_b/c-d.v2.txt", "x.json"] {
             assert!(valid_staged_path(ok), "{ok}");
         }
-        for bad in ["", "/etc/x.md", "../x.md", "a/../x.md", ".hidden.md", "a/.b/x.md", "-x.md", "A.md", "x.yaml", "a//b.md", "x.md/"] {
+        for bad in ["", "md", "json", "a.b/c.md", "x.y.md", "/etc/x.md", "../x.md", "a/../x.md", ".hidden.md", "a/.b/x.md", "-x.md", "A.md", "x.yaml", "a//b.md", "x.md/"] {
             assert!(!valid_staged_path(bad), "{bad}");
         }
     }
