@@ -247,7 +247,7 @@ fn collect_files(root: &Path, dir: &Path, out: &mut std::collections::BTreeMap<S
     Ok(())
 }
 
-/// Ingests one archived ~/p project folder into one org's pages.
+/// Ingests one ~/p project folder into one org's pages.
 fn run_ingest(args: &[String]) -> Result<(), String> {
     let f = flags(args, &["org", "source", "wiki", "state", "usage", "socket", "p-root"])?;
     let home = std::env::var("HOME").map_err(|_| "no HOME")?;
