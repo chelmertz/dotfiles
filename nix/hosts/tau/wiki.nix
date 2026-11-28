@@ -38,6 +38,18 @@ let
   };
 in
 {
+  # `sudo wiki-jail-check`: the isolation checks, run through the installed
+  # starter and proxy with `wiki jail-check` in place of claude. No model runs.
+  environment.systemPackages = [
+    (pkgs.writeShellApplication {
+      name = "wiki-jail-check";
+      runtimeInputs = [ pkgs.jq pkgs.curl pkgs.coreutils pkgs.gnugrep config.systemd.package ];
+      text = ''
+        export PATH="/run/wrappers/bin:$PATH" # sudo
+      '' + builtins.readFile ../../../wiki/jail-check.sh;
+    })
+  ];
+
   users.groups.wiki-agent = { };
   users.groups.wiki-proxy = { };
   users.users.wiki-proxy = {
@@ -143,8 +155,9 @@ in
       ProcSubset = "pid";
       TemporaryFileSystem = [ "/run" "/var/lib/wiki" ];
       # AF_UNIX still reaches filesystem sockets. nix-daemon's would let the
-      # agent run a fixed-output build, which has network.
-      InaccessiblePaths = [ "/nix/var" ];
+      # agent run a fixed-output build, which has network. The proxy's state
+      # holds every run's usage, both orgs' included.
+      InaccessiblePaths = [ "/nix/var" "/var/lib/wiki-proxy" ];
       BindPaths = [ "/run/wiki/proxy.sock" ];
       BindReadOnlyPaths = [ "/var/lib/wiki/runs/%i/in:/var/lib/wiki-agent/%i/in" ];
       CapabilityBoundingSet = "";
